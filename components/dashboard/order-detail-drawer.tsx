@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 import { formatCurrency } from "@/data/orders";
-import type { Order, PaymentStatus } from "@/types/orders";
+import type { Order, OrderStatus, PaymentStatus } from "@/types/orders";
 
 interface OrderDetailDrawerProps {
   order: Order | null;
@@ -12,6 +12,7 @@ interface OrderDetailDrawerProps {
   onRequestPaymentProof: (orderId: string) => Promise<boolean>;
   onUpdatePaymentStatus: (orderId: string, paymentStatus: PaymentStatus) => void;
   onConfirmOrder: (orderId: string) => void;
+  onAdvanceOrderStatus: (orderId: string) => void;
   onCancelOrder: (orderId: string) => void;
 }
 
@@ -34,6 +35,7 @@ export function OrderDetailDrawer({
   onRequestPaymentProof,
   onUpdatePaymentStatus,
   onConfirmOrder,
+  onAdvanceOrderStatus,
   onCancelOrder,
 }: OrderDetailDrawerProps) {
   const [whatsAppFeedback, setWhatsAppFeedback] = useState("");
@@ -52,6 +54,33 @@ export function OrderDetailDrawer({
     currentOrder.paymentStatus === "verificado" &&
     (currentOrder.status === "pendiente de pago" ||
       currentOrder.status === "pago por verificar");
+
+  const nextStatusAction: Record<
+    "confirmado" | "en preparación" | "listo",
+    { buttonLabel: string; nextStatus: OrderStatus }
+  > = {
+    confirmado: {
+      buttonLabel: "Marcar en preparación",
+      nextStatus: "en preparación",
+    },
+    "en preparación": {
+      buttonLabel: "Marcar como listo",
+      nextStatus: "listo",
+    },
+    listo: {
+      buttonLabel: "Marcar como entregado",
+      nextStatus: "entregado",
+    },
+  };
+
+  const operationalAction =
+    currentOrder.status === "confirmado" ||
+    currentOrder.status === "en preparación" ||
+    currentOrder.status === "listo"
+      ? nextStatusAction[currentOrder.status]
+      : null;
+
+  const canCancelOrder = currentOrder.status !== "entregado";
 
   const confirmHelpText =
     currentOrder.paymentStatus !== "verificado"
@@ -258,13 +287,35 @@ export function OrderDetailDrawer({
                 <p className="text-sm text-slate-500">{confirmHelpText}</p>
               </div>
 
-              <button
-                type="button"
-                onClick={() => onCancelOrder(currentOrder.id)}
-                className="rounded-full border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700 transition hover:bg-rose-100"
-              >
-                Cancelar pedido
-              </button>
+              <div className="space-y-2">
+                {operationalAction ? (
+                  <button
+                    type="button"
+                    onClick={() => onAdvanceOrderStatus(currentOrder.id)}
+                    className="w-full rounded-full border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-medium text-sky-700 transition hover:bg-sky-100"
+                  >
+                    {operationalAction.buttonLabel}
+                  </button>
+                ) : null}
+
+                <button
+                  type="button"
+                  onClick={() => onCancelOrder(currentOrder.id)}
+                  disabled={!canCancelOrder}
+                  className={`w-full rounded-full px-4 py-3 text-sm font-medium transition ${
+                    canCancelOrder
+                      ? "border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100"
+                      : "cursor-not-allowed border border-slate-200 bg-slate-100 text-slate-400"
+                  }`}
+                >
+                  Cancelar pedido
+                </button>
+                {!canCancelOrder ? (
+                  <p className="text-sm text-slate-500">
+                    Un pedido entregado ya no puede cancelarse.
+                  </p>
+                ) : null}
+              </div>
             </div>
           </section>
 

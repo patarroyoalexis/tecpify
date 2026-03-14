@@ -149,16 +149,68 @@ export function OrdersDashboard({ orders }: OrdersDashboardProps) {
     });
   }
 
+  function handleAdvanceOrderStatus(orderId: string) {
+    updateOrder(orderId, (order) => {
+      if (order.status === "cancelado") {
+        return order;
+      }
+
+      if (order.status === "confirmado") {
+        return {
+          ...order,
+          status: "en preparación",
+          history: appendOrderEvent(
+            order,
+            "Pedido en preparación",
+            "El pedido pasó a preparación desde el detalle operativo.",
+          ),
+        };
+      }
+
+      if (order.status === "en preparación") {
+        return {
+          ...order,
+          status: "listo",
+          history: appendOrderEvent(
+            order,
+            "Pedido listo",
+            "El pedido quedó listo para entrega o recogida.",
+          ),
+        };
+      }
+
+      if (order.status === "listo") {
+        return {
+          ...order,
+          status: "entregado",
+          history: appendOrderEvent(
+            order,
+            "Pedido entregado",
+            "El pedido fue marcado como entregado en la operación manual.",
+          ),
+        };
+      }
+
+      return order;
+    });
+  }
+
   function handleCancelOrder(orderId: string) {
-    updateOrder(orderId, (order) => ({
-      ...order,
-      status: "cancelado",
-      history: appendOrderEvent(
-        order,
-        "Pedido cancelado",
-        "El pedido fue cancelado manualmente desde el detalle operativo.",
-      ),
-    }));
+    updateOrder(orderId, (order) => {
+      if (order.status === "entregado" || order.status === "cancelado") {
+        return order;
+      }
+
+      return {
+        ...order,
+        status: "cancelado",
+        history: appendOrderEvent(
+          order,
+          "Pedido cancelado",
+          "El pedido fue cancelado manualmente desde el detalle operativo.",
+        ),
+      };
+    });
   }
 
   return (
@@ -201,6 +253,7 @@ export function OrdersDashboard({ orders }: OrdersDashboardProps) {
         onRequestPaymentProof={handleRequestPaymentProof}
         onUpdatePaymentStatus={handleUpdatePaymentStatus}
         onConfirmOrder={handleConfirmOrder}
+        onAdvanceOrderStatus={handleAdvanceOrderStatus}
         onCancelOrder={handleCancelOrder}
       />
     </div>
