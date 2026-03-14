@@ -13,22 +13,37 @@ const statusStyles: Record<OrderStatus, string> = {
 
 interface OrderCardProps {
   order: Order;
+  onOpenDetails?: (orderId: string) => void;
   onMarkAsReviewed?: (orderId: string) => void;
   compact?: boolean;
 }
 
 export function OrderCard({
   order,
+  onOpenDetails,
   onMarkAsReviewed,
   compact = false,
 }: OrderCardProps) {
   return (
     <article
+      role={onOpenDetails ? "button" : undefined}
+      tabIndex={onOpenDetails ? 0 : undefined}
+      onClick={onOpenDetails ? () => onOpenDetails(order.id) : undefined}
+      onKeyDown={
+        onOpenDetails
+          ? (event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                onOpenDetails(order.id);
+              }
+            }
+          : undefined
+      }
       className={`rounded-[24px] border bg-white p-5 shadow-[0_16px_40px_rgba(15,23,42,0.05)] transition hover:-translate-y-0.5 hover:shadow-[0_20px_45px_rgba(15,23,42,0.08)] ${
         order.isReviewed
           ? "border-slate-200/80"
           : "border-rose-200 bg-rose-50/30"
-      }`}
+      } ${onOpenDetails ? "cursor-pointer focus:outline-none focus:ring-2 focus:ring-slate-300" : ""}`}
     >
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="space-y-3">
@@ -91,7 +106,10 @@ export function OrderCard({
         <div className={`${compact ? "mt-4" : "mt-5"} flex justify-end`}>
           <button
             type="button"
-            onClick={() => onMarkAsReviewed(order.id)}
+            onClick={(event) => {
+              event.stopPropagation();
+              onMarkAsReviewed(order.id);
+            }}
             className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
           >
             Marcar como revisado

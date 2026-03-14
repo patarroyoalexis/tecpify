@@ -8,7 +8,18 @@ export const ORDER_STATUSES = [
   "cancelado",
 ] as const;
 
+export const PAYMENT_STATUSES = [
+  "pendiente",
+  "verificado",
+  "con novedad",
+  "no verificado",
+] as const;
+
+export const DELIVERY_TYPES = ["domicilio", "recogida en tienda"] as const;
+
 export type OrderStatus = (typeof ORDER_STATUSES)[number];
+export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
+export type DeliveryType = (typeof DELIVERY_TYPES)[number];
 
 export type PaymentMethod =
   | "Efectivo"
@@ -22,15 +33,25 @@ export interface OrderProduct {
   quantity: number;
 }
 
+export interface OrderHistoryEvent {
+  id: string;
+  title: string;
+  description: string;
+  occurredAt: string;
+}
+
 export interface Order {
   id: string;
   client: string;
   products: OrderProduct[];
   total: number;
   paymentMethod: PaymentMethod;
+  paymentStatus: PaymentStatus;
+  deliveryType: DeliveryType;
   status: OrderStatus;
   dateLabel: string;
   isReviewed: boolean;
+  history: OrderHistoryEvent[];
   observations?: string;
 }
 

@@ -7,6 +7,7 @@ import type { Order, OrderStatus } from "@/types/orders";
 
 interface OrdersListProps {
   orders: Order[];
+  onOpenDetails: (orderId: string) => void;
   onMarkAsReviewed?: (orderId: string) => void;
 }
 
@@ -46,7 +47,11 @@ const defaultExpandedState: Record<GroupKey, boolean> = {
   closed: false,
 };
 
-export function OrdersList({ orders, onMarkAsReviewed }: OrdersListProps) {
+export function OrdersList({
+  orders,
+  onOpenDetails,
+  onMarkAsReviewed,
+}: OrdersListProps) {
   const [expandedGroups, setExpandedGroups] =
     useState<Record<GroupKey, boolean>>(defaultExpandedState);
 
@@ -112,6 +117,7 @@ export function OrdersList({ orders, onMarkAsReviewed }: OrdersListProps) {
                   <OrderCard
                     key={order.id}
                     order={order}
+                    onOpenDetails={onOpenDetails}
                     onMarkAsReviewed={onMarkAsReviewed}
                   />
                 ))}

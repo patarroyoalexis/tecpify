@@ -3,6 +3,7 @@ import type { Order } from "@/types/orders";
 
 interface NewOrdersSectionProps {
   orders: Order[];
+  onOpenDetails: (orderId: string) => void;
   onMarkAsReviewed: (orderId: string) => void;
   onMarkAllAsReviewed: () => void;
   isExpanded: boolean;
@@ -11,6 +12,7 @@ interface NewOrdersSectionProps {
 
 export function NewOrdersSection({
   orders,
+  onOpenDetails,
   onMarkAsReviewed,
   onMarkAllAsReviewed,
   isExpanded,
@@ -58,6 +60,7 @@ export function NewOrdersSection({
             <OrderCard
               key={order.id}
               order={order}
+              onOpenDetails={onOpenDetails}
               onMarkAsReviewed={onMarkAsReviewed}
               compact
             />
