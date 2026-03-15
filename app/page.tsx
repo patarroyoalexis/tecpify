@@ -40,7 +40,8 @@ export default function Home() {
               <div className="mt-5 flex flex-col gap-3 sm:flex-row">
                 <Link
                   href={`/pedido/${business.id}`}
-                  className="rounded-2xl bg-slate-900 px-5 py-3 text-center text-sm font-semibold text-white transition hover:bg-slate-800"
+                  className="rounded-2xl bg-slate-900 px-5 py-3 text-center text-sm font-semibold transition hover:bg-slate-800"
+                  style={{ color: "#fff", WebkitTextFillColor: "#fff" }}
                 >
                   Abrir formulario publico
                 </Link>
