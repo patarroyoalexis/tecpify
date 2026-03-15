@@ -1,5 +1,6 @@
 import type {
   MetricCard,
+  OperationalPriority,
   Order,
   OrderHistoryEvent,
   OrderStatus,
@@ -24,16 +25,14 @@ function buildOrderHistory(order: {
   status: OrderStatus;
   isReviewed: boolean;
   paymentStatus: Order["paymentStatus"];
-  dateLabel: string;
+  createdAt: string;
 }): OrderHistoryEvent[] {
   const history: OrderHistoryEvent[] = [
     createHistoryEvent(
       `${order.id}-created`,
       "Pedido creado",
       `El pedido fue registrado con estado ${order.status} y pago ${order.paymentStatus}.`,
-      order.dateLabel.includes("Hoy")
-        ? "2026-03-14T08:00:00.000Z"
-        : "2026-03-13T08:00:00.000Z",
+      order.createdAt,
     ),
   ];
 
@@ -43,9 +42,7 @@ function buildOrderHistory(order: {
         `${order.id}-reviewed`,
         "Pedido revisado",
         "El negocio revisó manualmente la solicitud y la dejó visible para operación.",
-        order.dateLabel.includes("Hoy")
-          ? "2026-03-14T09:00:00.000Z"
-          : "2026-03-13T09:00:00.000Z",
+        new Date(new Date(order.createdAt).getTime() + 60 * 60 * 1000).toISOString(),
       ),
     );
   }
@@ -67,13 +64,14 @@ export const mockOrders: Order[] = [
     deliveryType: "domicilio",
     status: "pago por verificar",
     dateLabel: "Hoy, 8:15 a. m.",
+    createdAt: "2026-03-14T08:15:00.000Z",
     isReviewed: false,
     history: buildOrderHistory({
       id: "TEC-1001",
       status: "pago por verificar",
       isReviewed: false,
       paymentStatus: "pendiente",
-      dateLabel: "Hoy, 8:15 a. m.",
+      createdAt: "2026-03-14T08:15:00.000Z",
     }),
     observations: "Enviar soporte contable por WhatsApp.",
   },
@@ -90,13 +88,14 @@ export const mockOrders: Order[] = [
     deliveryType: "recogida en tienda",
     status: "confirmado",
     dateLabel: "Hoy, 9:40 a. m.",
+    createdAt: "2026-03-14T09:40:00.000Z",
     isReviewed: true,
     history: buildOrderHistory({
       id: "TEC-1002",
       status: "confirmado",
       isReviewed: true,
       paymentStatus: "verificado",
-      dateLabel: "Hoy, 9:40 a. m.",
+      createdAt: "2026-03-14T09:40:00.000Z",
     }),
   },
   {
@@ -112,13 +111,14 @@ export const mockOrders: Order[] = [
     deliveryType: "domicilio",
     status: "en preparación",
     dateLabel: "Hoy, 10:05 a. m.",
+    createdAt: "2026-03-14T10:05:00.000Z",
     isReviewed: true,
     history: buildOrderHistory({
       id: "TEC-1003",
       status: "en preparación",
       isReviewed: true,
       paymentStatus: "verificado",
-      dateLabel: "Hoy, 10:05 a. m.",
+      createdAt: "2026-03-14T10:05:00.000Z",
     }),
     observations: "Separar una factura simplificada.",
   },
@@ -132,13 +132,14 @@ export const mockOrders: Order[] = [
     deliveryType: "recogida en tienda",
     status: "listo",
     dateLabel: "Hoy, 11:30 a. m.",
+    createdAt: "2026-03-14T11:30:00.000Z",
     isReviewed: false,
     history: buildOrderHistory({
       id: "TEC-1004",
       status: "listo",
       isReviewed: false,
       paymentStatus: "verificado",
-      dateLabel: "Hoy, 11:30 a. m.",
+      createdAt: "2026-03-14T11:30:00.000Z",
     }),
   },
   {
@@ -154,13 +155,14 @@ export const mockOrders: Order[] = [
     deliveryType: "domicilio",
     status: "pendiente de pago",
     dateLabel: "Hoy, 12:10 p. m.",
+    createdAt: "2026-03-14T12:10:00.000Z",
     isReviewed: false,
     history: buildOrderHistory({
       id: "TEC-1005",
       status: "pendiente de pago",
       isReviewed: false,
       paymentStatus: "no verificado",
-      dateLabel: "Hoy, 12:10 p. m.",
+      createdAt: "2026-03-14T12:10:00.000Z",
     }),
   },
   {
@@ -176,13 +178,14 @@ export const mockOrders: Order[] = [
     deliveryType: "domicilio",
     status: "entregado",
     dateLabel: "Ayer, 4:45 p. m.",
+    createdAt: "2026-03-13T16:45:00.000Z",
     isReviewed: true,
     history: buildOrderHistory({
       id: "TEC-1006",
       status: "entregado",
       isReviewed: true,
       paymentStatus: "verificado",
-      dateLabel: "Ayer, 4:45 p. m.",
+      createdAt: "2026-03-13T16:45:00.000Z",
     }),
   },
   {
@@ -195,13 +198,14 @@ export const mockOrders: Order[] = [
     deliveryType: "domicilio",
     status: "cancelado",
     dateLabel: "Ayer, 2:20 p. m.",
+    createdAt: "2026-03-13T14:20:00.000Z",
     isReviewed: true,
     history: buildOrderHistory({
       id: "TEC-1007",
       status: "cancelado",
       isReviewed: true,
       paymentStatus: "con novedad",
-      dateLabel: "Ayer, 2:20 p. m.",
+      createdAt: "2026-03-13T14:20:00.000Z",
     }),
     observations: "Cliente reportó cambio de proveedor.",
   },
@@ -218,13 +222,14 @@ export const mockOrders: Order[] = [
     deliveryType: "recogida en tienda",
     status: "confirmado",
     dateLabel: "Ayer, 9:10 a. m.",
+    createdAt: "2026-03-13T09:10:00.000Z",
     isReviewed: true,
     history: buildOrderHistory({
       id: "TEC-1008",
       status: "confirmado",
       isReviewed: true,
       paymentStatus: "verificado",
-      dateLabel: "Ayer, 9:10 a. m.",
+      createdAt: "2026-03-13T09:10:00.000Z",
     }),
   },
 ];
@@ -236,6 +241,56 @@ const currencyFormatter = new Intl.NumberFormat("es-CO", {
 });
 
 export const formatCurrency = (value: number) => currencyFormatter.format(value);
+
+export function getElapsedMinutes(order: Order): number {
+  const createdAt = new Date(order.createdAt).getTime();
+  const now = new Date("2026-03-14T13:00:00.000Z").getTime();
+  return Math.max(0, Math.floor((now - createdAt) / (1000 * 60)));
+}
+
+export function formatElapsedTime(order: Order): string {
+  const elapsedMinutes = getElapsedMinutes(order);
+
+  if (elapsedMinutes < 60) {
+    return `Hace ${elapsedMinutes} min`;
+  }
+
+  const elapsedHours = Math.floor(elapsedMinutes / 60);
+
+  if (elapsedHours < 24) {
+    return `Hace ${elapsedHours} h`;
+  }
+
+  const elapsedDays = Math.floor(elapsedHours / 24);
+  return `Hace ${elapsedDays} d`;
+}
+
+export function getOperationalPriority(order: Order): OperationalPriority {
+  const elapsedMinutes = getElapsedMinutes(order);
+
+  if (
+    (order.status === "pendiente de pago" || order.status === "pago por verificar") &&
+    elapsedMinutes >= 45
+  ) {
+    return "alta";
+  }
+
+  if (
+    (order.status === "confirmado" || order.status === "en preparación") &&
+    elapsedMinutes >= 120
+  ) {
+    return "media";
+  }
+
+  return "normal";
+}
+
+export function getOperationalPriorityScore(order: Order): number {
+  const priority = getOperationalPriority(order);
+  const priorityWeight = priority === "alta" ? 3 : priority === "media" ? 2 : 1;
+
+  return priorityWeight * 100000 + getElapsedMinutes(order);
+}
 
 const actionableStatuses: OrderStatus[] = ["pendiente de pago", "pago por verificar"];
 const productionStatuses: OrderStatus[] = ["confirmado", "en preparación", "listo"];

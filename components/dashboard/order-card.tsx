@@ -1,5 +1,9 @@
-import { formatCurrency } from "@/data/orders";
-import type { Order, OrderStatus } from "@/types/orders";
+import {
+  formatCurrency,
+  formatElapsedTime,
+  getOperationalPriority,
+} from "@/data/orders";
+import type { OperationalPriority, Order, OrderStatus } from "@/types/orders";
 
 const statusStyles: Record<OrderStatus, string> = {
   "pendiente de pago": "border border-amber-200 bg-amber-50 text-amber-800",
@@ -9,6 +13,27 @@ const statusStyles: Record<OrderStatus, string> = {
   listo: "border border-emerald-200 bg-emerald-50 text-emerald-800",
   entregado: "border border-green-200 bg-green-50 text-green-800",
   cancelado: "border border-rose-200 bg-rose-50 text-rose-800",
+};
+
+const priorityStyles: Record<
+  OperationalPriority,
+  { label: string; accent: string; text: string }
+> = {
+  alta: {
+    label: "Prioridad alta",
+    accent: "border-l-4 border-l-rose-400",
+    text: "text-rose-700",
+  },
+  media: {
+    label: "Prioridad media",
+    accent: "border-l-4 border-l-amber-400",
+    text: "text-amber-700",
+  },
+  normal: {
+    label: "Prioridad normal",
+    accent: "",
+    text: "text-slate-500",
+  },
 };
 
 interface OrderCardProps {
@@ -24,6 +49,8 @@ export function OrderCard({
   onMarkAsReviewed,
   compact = false,
 }: OrderCardProps) {
+  const operationalPriority = getOperationalPriority(order);
+
   return (
     <article
       role={onOpenDetails ? "button" : undefined}
@@ -43,7 +70,7 @@ export function OrderCard({
         order.isReviewed
           ? "border-slate-200/80"
           : "border-rose-200 bg-rose-50/30"
-      } ${onOpenDetails ? "cursor-pointer focus:outline-none focus:ring-2 focus:ring-slate-300" : ""}`}
+      } ${priorityStyles[operationalPriority].accent} ${onOpenDetails ? "cursor-pointer focus:outline-none focus:ring-2 focus:ring-slate-300" : ""}`}
     >
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="space-y-3">
@@ -64,6 +91,12 @@ export function OrderCard({
               {order.status}
             </span>
           </div>
+
+          <p
+            className={`text-sm font-medium ${priorityStyles[operationalPriority].text}`}
+          >
+            {formatElapsedTime(order)} · {priorityStyles[operationalPriority].label}
+          </p>
 
           <ul className="space-y-1 text-sm text-slate-600">
             {order.products.map((product) => (

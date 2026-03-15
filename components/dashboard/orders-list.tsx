@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { OrderCard } from "@/components/dashboard/order-card";
+import { getOperationalPriorityScore } from "@/data/orders";
 import type { Order, OrderStatus } from "@/types/orders";
 
 interface OrdersListProps {
@@ -71,7 +72,12 @@ export function OrdersList({
   const visibleGroups = orderGroups
     .map((group) => ({
       ...group,
-      orders: orders.filter((order) => group.statuses.includes(order.status)),
+      orders: orders
+        .filter((order) => group.statuses.includes(order.status))
+        .sort(
+          (left, right) =>
+            getOperationalPriorityScore(right) - getOperationalPriorityScore(left),
+        ),
     }))
     .filter((group) => group.orders.length > 0);
 

@@ -50,10 +50,13 @@ export interface Order {
   deliveryType: DeliveryType;
   status: OrderStatus;
   dateLabel: string;
+  createdAt: string;
   isReviewed: boolean;
   history: OrderHistoryEvent[];
   observations?: string;
 }
+
+export type OperationalPriority = "alta" | "media" | "normal";
 
 export type MetricTone = "neutral" | "warning" | "info" | "success";
 
