@@ -39,14 +39,12 @@ const priorityStyles: Record<
 interface OrderCardProps {
   order: Order;
   onOpenDetails?: (orderId: string) => void;
-  onMarkAsReviewed?: (orderId: string) => void;
   compact?: boolean;
 }
 
 export function OrderCard({
   order,
   onOpenDetails,
-  onMarkAsReviewed,
   compact = false,
 }: OrderCardProps) {
   const operationalPriority = getOperationalPriority(order);
@@ -135,18 +133,11 @@ export function OrderCard({
         </div>
       </div>
 
-      {!order.isReviewed && onMarkAsReviewed ? (
+      {onOpenDetails ? (
         <div className={`${compact ? "mt-4" : "mt-5"} flex justify-end`}>
-          <button
-            type="button"
-            onClick={(event) => {
-              event.stopPropagation();
-              onMarkAsReviewed(order.id);
-            }}
-            className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
-          >
-            Marcar como revisado
-          </button>
+          <span className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-medium text-slate-600">
+            Ver pedido
+          </span>
         </div>
       ) : null}
 

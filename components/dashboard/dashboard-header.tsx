@@ -1,4 +1,5 @@
 interface DashboardHeaderProps {
+  businessName: string;
   totalOrders: number;
   newOrdersCount: number;
   onOpenNewOrder: () => void;
@@ -6,6 +7,7 @@ interface DashboardHeaderProps {
 }
 
 export function DashboardHeader({
+  businessName,
   totalOrders,
   newOrdersCount,
   onOpenNewOrder,
@@ -19,11 +21,10 @@ export function DashboardHeader({
         </span>
         <div className="space-y-1">
           <h1 className="text-3xl font-semibold tracking-tight text-slate-950 md:text-4xl">
-            Dashboard de pedidos
+            {businessName}
           </h1>
           <p className="max-w-2xl text-sm leading-6 text-slate-600 md:text-base">
-            Seguimiento claro del estado de cada pedido para pequeños negocios,
-            con foco en cobros, preparación y entregas.
+            Dashboard privado del negocio con foco en cobros, preparacion y entregas.
           </p>
         </div>
       </div>

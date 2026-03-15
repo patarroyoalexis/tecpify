@@ -1,7 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
+import {
+  getAvailablePaymentMethods,
+  getPaymentMethodLabel,
+} from "@/components/dashboard/payment-helpers";
 import type {
   DeliveryType,
   OrderProduct,
@@ -29,14 +33,6 @@ export interface NewOrderFormValue {
   observations?: string;
 }
 
-const paymentMethods: PaymentMethod[] = [
-  "Efectivo",
-  "Transferencia",
-  "Tarjeta",
-  "Nequi",
-  "Contra entrega",
-];
-
 const deliveryTypes: DeliveryType[] = ["domicilio", "recogida en tienda"];
 
 function createEmptyProduct(): ProductField {
@@ -59,6 +55,11 @@ export function NewOrderDrawer({
   const [deliveryType, setDeliveryType] = useState<DeliveryType | "">("");
   const [observations, setObservations] = useState("");
   const [error, setError] = useState("");
+
+  const availablePaymentMethods = useMemo(
+    () => getAvailablePaymentMethods(deliveryType),
+    [deliveryType],
+  );
 
   function resetForm() {
     setClient("");
@@ -99,6 +100,15 @@ export function NewOrderDrawer({
     );
   }
 
+  function handleDeliveryTypeChange(value: DeliveryType | "") {
+    setDeliveryType(value);
+    setError("");
+
+    if (paymentMethod && !getAvailablePaymentMethods(value).includes(paymentMethod)) {
+      setPaymentMethod("");
+    }
+  }
+
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -115,7 +125,7 @@ export function NewOrderDrawer({
     }
 
     if (normalizedProducts.length === 0) {
-      setError("Agrega al menos un producto válido.");
+      setError("Agrega al menos un producto valido.");
       return;
     }
 
@@ -125,12 +135,17 @@ export function NewOrderDrawer({
     }
 
     if (!paymentMethod) {
-      setError("Selecciona un método de pago.");
+      setError("Selecciona un metodo de pago.");
       return;
     }
 
     if (!deliveryType) {
       setError("Selecciona un tipo de entrega.");
+      return;
+    }
+
+    if (!getAvailablePaymentMethods(deliveryType).includes(paymentMethod)) {
+      setError("Selecciona un metodo de pago valido para este tipo de entrega.");
       return;
     }
 
@@ -163,7 +178,7 @@ export function NewOrderDrawer({
               Nuevo pedido
             </h2>
             <p className="text-sm text-slate-600">
-              Registra manualmente un pedido y súmalo al flujo operativo.
+              Registra manualmente un pedido y sumalo al flujo operativo.
             </p>
           </div>
           <button
@@ -207,7 +222,7 @@ export function NewOrderDrawer({
 
                 <label className="space-y-2">
                   <span className="text-sm font-medium text-slate-700">
-                    Método de pago
+                    Metodo de pago
                   </span>
                   <select
                     value={paymentMethod}
@@ -217,12 +232,15 @@ export function NewOrderDrawer({
                     className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
                   >
                     <option value="">Seleccionar</option>
-                    {paymentMethods.map((method) => (
+                    {availablePaymentMethods.map((method) => (
                       <option key={method} value={method}>
-                        {method}
+                        {getPaymentMethodLabel(method, deliveryType || undefined)}
                       </option>
                     ))}
                   </select>
+                  <p className="text-xs text-slate-500">
+                    Contra entrega solo esta disponible para pedidos a domicilio.
+                  </p>
                 </label>
 
                 <label className="space-y-2 sm:col-span-2">
@@ -232,7 +250,9 @@ export function NewOrderDrawer({
                   <select
                     value={deliveryType}
                     onChange={(event) =>
-                      setDeliveryType(event.target.value as DeliveryType | "")
+                      handleDeliveryTypeChange(
+                        event.target.value as DeliveryType | "",
+                      )
                     }
                     className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
                   >
@@ -252,7 +272,7 @@ export function NewOrderDrawer({
                 <div>
                   <h3 className="text-lg font-semibold text-slate-950">Productos</h3>
                   <p className="text-sm text-slate-600">
-                    Agrega uno o más productos con su cantidad.
+                    Agrega uno o mas productos con su cantidad.
                   </p>
                 </div>
                 <button

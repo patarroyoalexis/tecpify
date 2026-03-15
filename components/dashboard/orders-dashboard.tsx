@@ -6,6 +6,7 @@ import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 import { MetricsCards } from "@/components/dashboard/metrics-cards";
 import { NewOrdersSection } from "@/components/dashboard/new-orders-section";
 import { OrderDetailDrawer } from "@/components/dashboard/order-detail-drawer";
+import { isDigitalPayment } from "@/components/dashboard/payment-helpers";
 import {
   NewOrderDrawer,
   type NewOrderFormValue,
@@ -16,6 +17,12 @@ import {
   type GroupKey,
 } from "@/components/dashboard/orders-list";
 import { OrdersFilters } from "@/components/dashboard/orders-filters";
+import {
+  getBusinessDashboardStateKey,
+  getBusinessOrdersStorageKey,
+  readOrdersForBusiness,
+  writeOrdersForBusiness,
+} from "@/data/order-storage";
 import { getDashboardMetrics } from "@/data/orders";
 import type {
   Order,
@@ -27,22 +34,16 @@ import type {
 import { ORDER_STATUSES } from "@/types/orders";
 
 interface OrdersDashboardProps {
+  businessId: string;
+  businessName: string;
   orders: Order[];
 }
 
 interface PersistedDashboardState {
-  ordersState: Order[];
   selectedStatus: OrderStatus | "todos";
   isNewOrdersExpanded: boolean;
   expandedGroups: Record<GroupKey, boolean>;
 }
-
-const DASHBOARD_STORAGE_KEY = "tecpify-dashboard-state";
-const DIGITAL_PAYMENT_METHODS: PaymentMethod[] = [
-  "Transferencia",
-  "Nequi",
-  "Tarjeta",
-];
 
 function createHistoryEvent(
   orderId: string,
@@ -87,6 +88,7 @@ function isValidOrder(order: unknown): order is Order {
 
   return (
     typeof candidate.id === "string" &&
+    typeof candidate.businessId === "string" &&
     typeof candidate.client === "string" &&
     Array.isArray(candidate.products) &&
     typeof candidate.total === "number" &&
@@ -101,13 +103,15 @@ function isValidOrder(order: unknown): order is Order {
   );
 }
 
-function readPersistedDashboardState(): PersistedDashboardState | null {
+function readPersistedDashboardState(
+  storageKey: string,
+): PersistedDashboardState | null {
   if (typeof window === "undefined") {
     return null;
   }
 
   try {
-    const rawValue = window.localStorage.getItem(DASHBOARD_STORAGE_KEY);
+    const rawValue = window.localStorage.getItem(storageKey);
 
     if (!rawValue) {
       return null;
@@ -116,8 +120,6 @@ function readPersistedDashboardState(): PersistedDashboardState | null {
     const parsedValue = JSON.parse(rawValue) as Partial<PersistedDashboardState>;
 
     if (
-      !Array.isArray(parsedValue.ordersState) ||
-      !parsedValue.ordersState.every(isValidOrder) ||
       !isValidSelectedStatus(parsedValue.selectedStatus) ||
       typeof parsedValue.isNewOrdersExpanded !== "boolean" ||
       !isValidExpandedGroups(parsedValue.expandedGroups)
@@ -126,7 +128,6 @@ function readPersistedDashboardState(): PersistedDashboardState | null {
     }
 
     return {
-      ordersState: parsedValue.ordersState,
       selectedStatus: parsedValue.selectedStatus,
       isNewOrdersExpanded: parsedValue.isNewOrdersExpanded,
       expandedGroups: parsedValue.expandedGroups,
@@ -136,20 +137,22 @@ function readPersistedDashboardState(): PersistedDashboardState | null {
   }
 }
 
-function getInitialDashboardState(defaultOrders: Order[]): PersistedDashboardState {
+function getInitialDashboardState(): PersistedDashboardState {
   return {
-    ordersState: defaultOrders,
     selectedStatus: "todos",
     isNewOrdersExpanded: true,
     expandedGroups: defaultExpandedGroupsState,
   };
 }
 
-export function OrdersDashboard({ orders }: OrdersDashboardProps) {
-  const [initialDashboardState] = useState(() => getInitialDashboardState(orders));
-  const [ordersState, setOrdersState] = useState<Order[]>(
-    initialDashboardState.ordersState,
-  );
+export function OrdersDashboard({
+  businessId,
+  businessName,
+  orders,
+}: OrdersDashboardProps) {
+  const dashboardStorageKey = getBusinessDashboardStateKey(businessId);
+  const [initialDashboardState] = useState(() => getInitialDashboardState());
+  const [ordersState, setOrdersState] = useState<Order[]>(orders);
   const [isNewOrdersExpanded, setIsNewOrdersExpanded] = useState(
     initialDashboardState.isNewOrdersExpanded,
   );
@@ -164,11 +167,19 @@ export function OrdersDashboard({ orders }: OrdersDashboardProps) {
   const [hasHydrated, setHasHydrated] = useState(false);
 
   useEffect(() => {
-    const persistedState = readPersistedDashboardState();
+    const persistedOrders = readOrdersForBusiness(businessId);
+    const persistedState = readPersistedDashboardState(dashboardStorageKey);
 
     queueMicrotask(() => {
+      if (persistedOrders && persistedOrders.every(isValidOrder)) {
+        setOrdersState(
+          persistedOrders.filter((order) => order.businessId === businessId),
+        );
+      } else {
+        setOrdersState(orders);
+      }
+
       if (persistedState) {
-        setOrdersState(persistedState.ordersState);
         setSelectedStatus(persistedState.selectedStatus);
         setIsNewOrdersExpanded(persistedState.isNewOrdersExpanded);
         setExpandedGroups(persistedState.expandedGroups);
@@ -176,7 +187,7 @@ export function OrdersDashboard({ orders }: OrdersDashboardProps) {
 
       setHasHydrated(true);
     });
-  }, []);
+  }, [businessId, dashboardStorageKey, orders]);
 
   useEffect(() => {
     if (typeof window === "undefined" || !hasHydrated) {
@@ -184,23 +195,27 @@ export function OrdersDashboard({ orders }: OrdersDashboardProps) {
     }
 
     const stateToPersist: PersistedDashboardState = {
-      ordersState,
       selectedStatus,
       isNewOrdersExpanded,
       expandedGroups,
     };
 
-    window.localStorage.setItem(
-      DASHBOARD_STORAGE_KEY,
-      JSON.stringify(stateToPersist),
-    );
+    window.localStorage.setItem(dashboardStorageKey, JSON.stringify(stateToPersist));
   }, [
+    dashboardStorageKey,
     expandedGroups,
     hasHydrated,
     isNewOrdersExpanded,
-    ordersState,
     selectedStatus,
   ]);
+
+  useEffect(() => {
+    if (!hasHydrated) {
+      return;
+    }
+
+    writeOrdersForBusiness(businessId, ordersState);
+  }, [businessId, hasHydrated, ordersState]);
 
   const newOrders = ordersState.filter((order) => !order.isReviewed);
   const filteredOrders =
@@ -239,6 +254,11 @@ export function OrdersDashboard({ orders }: OrdersDashboardProps) {
             ),
           },
     );
+  }
+
+  function handleOpenOrderDetails(orderId: string) {
+    handleMarkAsReviewed(orderId);
+    setSelectedOrderId(orderId);
   }
 
   function handleMarkAllAsReviewed() {
@@ -398,7 +418,7 @@ export function OrdersDashboard({ orders }: OrdersDashboardProps) {
   }
 
   function getInitialOrderState(paymentMethod: PaymentMethod) {
-    if (DIGITAL_PAYMENT_METHODS.includes(paymentMethod)) {
+    if (isDigitalPayment(paymentMethod)) {
       return {
         paymentStatus: "pendiente" as PaymentStatus,
         status: "pendiente de pago" as OrderStatus,
@@ -419,6 +439,7 @@ export function OrdersDashboard({ orders }: OrdersDashboardProps) {
       const initialState = getInitialOrderState(input.paymentMethod);
       const newOrder: Order = {
         id: orderId,
+        businessId,
         client: input.client,
         products: input.products,
         total: input.total,
@@ -449,7 +470,8 @@ export function OrdersDashboard({ orders }: OrdersDashboardProps) {
 
   function handleResetDashboard() {
     if (typeof window !== "undefined") {
-      window.localStorage.removeItem(DASHBOARD_STORAGE_KEY);
+      window.localStorage.removeItem(dashboardStorageKey);
+      window.localStorage.removeItem(getBusinessOrdersStorageKey(businessId));
     }
 
     setOrdersState(orders);
@@ -463,6 +485,7 @@ export function OrdersDashboard({ orders }: OrdersDashboardProps) {
   return (
     <div className="space-y-6">
       <DashboardHeader
+        businessName={businessName}
         totalOrders={filteredOrders.length}
         newOrdersCount={newOrders.length}
         onOpenNewOrder={() => setIsNewOrderDrawerOpen(true)}
@@ -472,8 +495,7 @@ export function OrdersDashboard({ orders }: OrdersDashboardProps) {
       {newOrders.length > 0 ? (
         <NewOrdersSection
           orders={newOrders}
-          onOpenDetails={setSelectedOrderId}
-          onMarkAsReviewed={handleMarkAsReviewed}
+          onOpenDetails={handleOpenOrderDetails}
           onMarkAllAsReviewed={handleMarkAllAsReviewed}
           isExpanded={isNewOrdersExpanded}
           onToggleExpanded={() =>
@@ -493,8 +515,7 @@ export function OrdersDashboard({ orders }: OrdersDashboardProps) {
         orders={filteredOrders}
         expandedGroups={expandedGroups}
         onToggleGroup={handleToggleGroup}
-        onOpenDetails={setSelectedOrderId}
-        onMarkAsReviewed={handleMarkAsReviewed}
+        onOpenDetails={handleOpenOrderDetails}
       />
       <OrderDetailDrawer
         key={selectedOrder?.id ?? "empty"}

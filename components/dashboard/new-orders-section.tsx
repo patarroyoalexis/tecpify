@@ -4,7 +4,6 @@ import type { Order } from "@/types/orders";
 interface NewOrdersSectionProps {
   orders: Order[];
   onOpenDetails: (orderId: string) => void;
-  onMarkAsReviewed: (orderId: string) => void;
   onMarkAllAsReviewed: () => void;
   isExpanded: boolean;
   onToggleExpanded: () => void;
@@ -13,7 +12,6 @@ interface NewOrdersSectionProps {
 export function NewOrdersSection({
   orders,
   onOpenDetails,
-  onMarkAsReviewed,
   onMarkAllAsReviewed,
   isExpanded,
   onToggleExpanded,
@@ -27,10 +25,10 @@ export function NewOrdersSection({
             Pedidos nuevos
           </div>
           <h2 className="text-xl font-semibold text-slate-950">
-            Recién llegados o aún no revisados
+            Pendientes por abrir
           </h2>
           <p className="max-w-2xl text-sm leading-6 text-slate-600">
-            Atiende primero estos pedidos para evitar conflictos.
+            Abre cada pedido para revisarlo. Al verlo, dejara de aparecer en esta lista.
           </p>
         </div>
 
@@ -61,7 +59,6 @@ export function NewOrdersSection({
               key={order.id}
               order={order}
               onOpenDetails={onOpenDetails}
-              onMarkAsReviewed={onMarkAsReviewed}
               compact
             />
           ))}
@@ -73,7 +70,7 @@ export function NewOrdersSection({
             {`Pedidos nuevos (${orders.length})`}
           </div>
           <p className="text-sm text-slate-600">
-            Sección contraída, toca en <strong>Mostrar</strong> para ver los pedidos nuevos.
+            Seccion contraida. Toca en <strong>Mostrar</strong> para abrir los pedidos pendientes.
           </p>
         </div>
       )}

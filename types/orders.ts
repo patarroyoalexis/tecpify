@@ -42,12 +42,15 @@ export interface OrderHistoryEvent {
 
 export interface Order {
   id: string;
+  businessId: string;
   client: string;
+  customerPhone?: string;
   products: OrderProduct[];
   total: number;
   paymentMethod: PaymentMethod;
   paymentStatus: PaymentStatus;
   deliveryType: DeliveryType;
+  address?: string;
   status: OrderStatus;
   dateLabel: string;
   createdAt: string;

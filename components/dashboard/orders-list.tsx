@@ -9,7 +9,6 @@ interface OrdersListProps {
   expandedGroups: Record<GroupKey, boolean>;
   onToggleGroup: (groupKey: GroupKey) => void;
   onOpenDetails: (orderId: string) => void;
-  onMarkAsReviewed?: (orderId: string) => void;
 }
 
 export type GroupKey = "immediate" | "active" | "closed";
@@ -53,7 +52,6 @@ export function OrdersList({
   expandedGroups,
   onToggleGroup,
   onOpenDetails,
-  onMarkAsReviewed,
 }: OrdersListProps) {
   if (orders.length === 0) {
     return (
@@ -118,7 +116,6 @@ export function OrdersList({
                     key={order.id}
                     order={order}
                     onOpenDetails={onOpenDetails}
-                    onMarkAsReviewed={onMarkAsReviewed}
                   />
                 ))}
               </div>

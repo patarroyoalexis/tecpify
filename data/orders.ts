@@ -53,6 +53,7 @@ function buildOrderHistory(order: {
 export const mockOrders: Order[] = [
   {
     id: "TEC-1001",
+    businessId: "panaderia-estacion",
     client: "Panadería La Estación",
     products: [
       { name: "Caja de brownies", quantity: 2 },
@@ -77,6 +78,7 @@ export const mockOrders: Order[] = [
   },
   {
     id: "TEC-1002",
+    businessId: "cafe-aura",
     client: "Boutique María Elena",
     products: [
       { name: "Bolsa kraft personalizada", quantity: 30 },
@@ -100,6 +102,7 @@ export const mockOrders: Order[] = [
   },
   {
     id: "TEC-1003",
+    businessId: "panaderia-estacion",
     client: "Tienda Don Julio",
     products: [
       { name: "Pack de etiquetas premium", quantity: 4 },
@@ -124,6 +127,7 @@ export const mockOrders: Order[] = [
   },
   {
     id: "TEC-1004",
+    businessId: "cafe-aura",
     client: "Café Aura",
     products: [{ name: "Vasos biodegradables 12 oz", quantity: 6 }],
     total: 57600,
@@ -144,6 +148,7 @@ export const mockOrders: Order[] = [
   },
   {
     id: "TEC-1005",
+    businessId: "panaderia-estacion",
     client: "Florería Primavera",
     products: [
       { name: "Listón decorativo", quantity: 8 },
@@ -167,6 +172,7 @@ export const mockOrders: Order[] = [
   },
   {
     id: "TEC-1006",
+    businessId: "panaderia-estacion",
     client: "Pet Shop Huellitas",
     products: [
       { name: "Stickers promocionales", quantity: 120 },
@@ -190,6 +196,7 @@ export const mockOrders: Order[] = [
   },
   {
     id: "TEC-1007",
+    businessId: "cafe-aura",
     client: "Deli Express",
     products: [{ name: "Caja lunch mediana", quantity: 50 }],
     total: 110000,
@@ -211,6 +218,7 @@ export const mockOrders: Order[] = [
   },
   {
     id: "TEC-1008",
+    businessId: "cafe-aura",
     client: "Mercado San Pedro",
     products: [
       { name: "Etiquetas de precio", quantity: 10 },
@@ -233,6 +241,10 @@ export const mockOrders: Order[] = [
     }),
   },
 ];
+
+export function getMockOrdersByBusinessId(businessId: string) {
+  return mockOrders.filter((order) => order.businessId === businessId);
+}
 
 const currencyFormatter = new Intl.NumberFormat("es-CO", {
   style: "currency",
