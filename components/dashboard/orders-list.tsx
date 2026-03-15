@@ -1,18 +1,18 @@
 "use client";
 
-import { useState } from "react";
-
 import { OrderCard } from "@/components/dashboard/order-card";
 import { getOperationalPriorityScore } from "@/data/orders";
 import type { Order, OrderStatus } from "@/types/orders";
 
 interface OrdersListProps {
   orders: Order[];
+  expandedGroups: Record<GroupKey, boolean>;
+  onToggleGroup: (groupKey: GroupKey) => void;
   onOpenDetails: (orderId: string) => void;
   onMarkAsReviewed?: (orderId: string) => void;
 }
 
-type GroupKey = "immediate" | "active" | "closed";
+export type GroupKey = "immediate" | "active" | "closed";
 
 interface OrderGroup {
   key: GroupKey;
@@ -42,7 +42,7 @@ const orderGroups: OrderGroup[] = [
   },
 ];
 
-const defaultExpandedState: Record<GroupKey, boolean> = {
+export const defaultExpandedGroupsState: Record<GroupKey, boolean> = {
   immediate: true,
   active: false,
   closed: false,
@@ -50,12 +50,11 @@ const defaultExpandedState: Record<GroupKey, boolean> = {
 
 export function OrdersList({
   orders,
+  expandedGroups,
+  onToggleGroup,
   onOpenDetails,
   onMarkAsReviewed,
 }: OrdersListProps) {
-  const [expandedGroups, setExpandedGroups] =
-    useState<Record<GroupKey, boolean>>(defaultExpandedState);
-
   if (orders.length === 0) {
     return (
       <section className="rounded-[24px] border border-dashed border-slate-300 bg-white/70 p-10 text-center shadow-[0_16px_40px_rgba(15,23,42,0.04)]">
@@ -105,12 +104,7 @@ export function OrdersList({
 
               <button
                 type="button"
-                onClick={() =>
-                  setExpandedGroups((currentState) => ({
-                    ...currentState,
-                    [group.key]: !currentState[group.key],
-                  }))
-                }
+                onClick={() => onToggleGroup(group.key)}
                 className="w-fit rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
               >
                 {isExpanded ? "Ocultar" : "Mostrar"}
