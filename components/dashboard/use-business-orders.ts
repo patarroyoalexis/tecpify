@@ -335,6 +335,20 @@ export function useBusinessOrders({
     setOrdersState(orders);
   }
 
+  function handleHydrateOrder(order: Order) {
+    setOrdersState((currentOrders) => {
+      const orderIndex = currentOrders.findIndex((currentOrder) => currentOrder.id === order.id);
+
+      if (orderIndex === -1) {
+        return [order, ...currentOrders];
+      }
+
+      return currentOrders.map((currentOrder) =>
+        currentOrder.id === order.id ? order : currentOrder,
+      );
+    });
+  }
+
   return {
     hasHydrated,
     newOrders,
@@ -345,6 +359,7 @@ export function useBusinessOrders({
     handleCreateOrder,
     handleMarkAllAsReviewed,
     handleMarkAsReviewed,
+    handleHydrateOrder,
     handleRequestPaymentProof,
     handleResetOrders,
     handleUpdatePaymentStatus,

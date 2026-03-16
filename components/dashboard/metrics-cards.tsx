@@ -28,25 +28,33 @@ const toneStyles: Record<
 
 interface MetricsCardsProps {
   metrics: MetricCard[];
+  compactOnMobile?: boolean;
 }
 
-export function MetricsCards({ metrics }: MetricsCardsProps) {
+export function MetricsCards({
+  metrics,
+  compactOnMobile = false,
+}: MetricsCardsProps) {
   return (
-    <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+    <section
+      className={`grid ${compactOnMobile ? "grid-cols-2 gap-3 xl:grid-cols-4" : "gap-4 md:grid-cols-2 xl:grid-cols-4"}`}
+    >
       {metrics.map((metric) => (
         <article
           key={metric.title}
-          className={`rounded-[24px] border p-5 shadow-[0_16px_40px_rgba(15,23,42,0.05)] ${toneStyles[metric.tone].card}`}
+          className={`rounded-[24px] border shadow-[0_16px_40px_rgba(15,23,42,0.05)] ${compactOnMobile ? "p-3.5 sm:p-4" : "p-5"} ${toneStyles[metric.tone].card}`}
         >
-          <p className={`text-sm font-medium ${toneStyles[metric.tone].eyebrow}`}>
+          <p
+            className={`${compactOnMobile ? "text-xs sm:text-sm" : "text-sm"} font-medium ${toneStyles[metric.tone].eyebrow}`}
+          >
             {metric.title}
           </p>
           <p
-            className={`mt-3 text-3xl font-semibold tracking-tight ${toneStyles[metric.tone].value}`}
+            className={`${compactOnMobile ? "mt-1.5 text-[1.75rem] leading-none sm:mt-2 sm:text-3xl" : "mt-3 text-3xl"} font-semibold tracking-tight ${toneStyles[metric.tone].value}`}
           >
             {metric.value}
           </p>
-          <p className="mt-2 text-sm leading-6 text-slate-600">
+          <p className={`${compactOnMobile ? "hidden" : "mt-2 text-sm leading-6"} text-slate-600`}>
             {metric.description}
           </p>
         </article>

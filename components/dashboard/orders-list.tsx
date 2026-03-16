@@ -79,7 +79,7 @@ export function OrdersList({
     .filter((group) => group.orders.length > 0);
 
   return (
-    <section className="space-y-4">
+    <section className="space-y-3">
       {visibleGroups.map((group) => {
         const isExpanded = expandedGroups[group.key];
 
@@ -110,7 +110,7 @@ export function OrdersList({
             </div>
 
             {isExpanded ? (
-              <div className="mt-4 space-y-4">
+              <div className="mt-3 space-y-3">
                 {group.orders.map((order) => (
                   <OrderCard
                     key={order.id}

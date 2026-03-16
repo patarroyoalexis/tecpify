@@ -1,6 +1,5 @@
-import { BusinessWorkspaceShell } from "@/components/dashboard/business-workspace-shell";
 import { OrdersWorkspace } from "@/components/dashboard/orders-workspace";
-import { getBusinessBySlug } from "@/data/businesses";
+import { getBusinessBySlug, getBusinessBySlugFromDatabase } from "@/data/businesses";
 import { getMockOrdersByBusinessId } from "@/data/orders";
 
 export default async function OrdersPage({
@@ -10,6 +9,9 @@ export default async function OrdersPage({
 }) {
   const { negocioId } = await params;
   const business = getBusinessBySlug(negocioId);
+  const databaseBusiness = business
+    ? await getBusinessBySlugFromDatabase(negocioId)
+    : null;
 
   if (!business) {
     return (
@@ -33,17 +35,12 @@ export default async function OrdersPage({
   }
 
   return (
-    <BusinessWorkspaceShell
+    <OrdersWorkspace
+      businessId={business.slug}
+      businessDatabaseId={databaseBusiness?.id ?? null}
       businessName={business.name}
       businessSlug={business.slug}
-      title="Pedidos"
-      description="Gestiona la operacion diaria del negocio con una vista pensada para revisar, cobrar, preparar y entregar pedidos."
-    >
-      <OrdersWorkspace
-        businessId={business.slug}
-        businessName={business.name}
-        orders={getMockOrdersByBusinessId(business.slug)}
-      />
-    </BusinessWorkspaceShell>
+      orders={getMockOrdersByBusinessId(business.slug)}
+    />
   );
 }

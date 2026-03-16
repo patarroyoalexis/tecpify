@@ -20,10 +20,10 @@ export function OrdersFilters({
   const filters = ["todos", ...ORDER_STATUSES] as const;
 
   return (
-    <section className="space-y-3 rounded-[24px] border border-slate-200/80 bg-white p-5 shadow-[0_16px_40px_rgba(15,23,42,0.05)]">
+    <section className="space-y-3 rounded-[24px] border border-slate-200/80 bg-white p-4 shadow-[0_16px_40px_rgba(15,23,42,0.05)] sm:p-5">
       <div className="space-y-1">
-        <h2 className="text-lg font-semibold text-slate-950">Filtrar pedidos</h2>
-        <p className="text-sm text-slate-600">
+        <h2 className="text-base font-semibold text-slate-950 sm:text-lg">Filtrar pedidos</h2>
+        <p className="hidden text-sm text-slate-600 sm:block">
           Cambia la vista para priorizar cobros, preparacion o entregas.
         </p>
       </div>

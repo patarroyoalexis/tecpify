@@ -17,17 +17,17 @@ export function NewOrdersSection({
   onToggleExpanded,
 }: NewOrdersSectionProps) {
   return (
-    <section className="space-y-4 rounded-[28px] border border-rose-200 bg-white/90 p-5 shadow-[0_18px_45px_rgba(15,23,42,0.05)] md:p-6">
-      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+    <section className="space-y-4 rounded-[28px] border border-rose-200 bg-white/90 p-4 shadow-[0_18px_45px_rgba(15,23,42,0.05)] sm:p-5 md:p-6">
+      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div className="space-y-1">
           <div className="inline-flex items-center gap-2 rounded-full bg-rose-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-rose-700">
             <span className="h-2 w-2 rounded-full bg-rose-500" />
             Pedidos nuevos
           </div>
-          <h2 className="text-xl font-semibold text-slate-950">
+          <h2 className="text-lg font-semibold text-slate-950 sm:text-xl">
             Pendientes por abrir
           </h2>
-          <p className="max-w-2xl text-sm leading-6 text-slate-600">
+          <p className="hidden max-w-2xl text-sm leading-6 text-slate-600 sm:block">
             Abre cada pedido para revisarlo. Al verlo, dejara de aparecer en esta lista.
           </p>
         </div>
@@ -69,7 +69,7 @@ export function NewOrdersSection({
             <span className="h-2.5 w-2.5 rounded-full bg-rose-500" />
             {`Pedidos nuevos (${orders.length})`}
           </div>
-          <p className="text-sm text-slate-600">
+          <p className="hidden text-sm text-slate-600 sm:block">
             Seccion contraida. Toca en <strong>Mostrar</strong> para abrir los pedidos pendientes.
           </p>
         </div>

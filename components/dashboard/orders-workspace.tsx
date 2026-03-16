@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 
-import { DashboardHeader } from "@/components/dashboard/dashboard-header";
+import { BusinessWorkspaceShell } from "@/components/dashboard/business-workspace-shell";
+import { GlobalOrderSearch } from "@/components/dashboard/global-order-search";
 import { MetricsCards } from "@/components/dashboard/metrics-cards";
 import { NewOrdersSection } from "@/components/dashboard/new-orders-section";
 import { NewOrderDrawer } from "@/components/dashboard/new-order-drawer";
@@ -21,7 +22,9 @@ import { useBusinessOrders } from "./use-business-orders";
 
 interface OrdersWorkspaceProps {
   businessId: string;
+  businessDatabaseId: string | null;
   businessName: string;
+  businessSlug: string;
   orders: Order[];
 }
 
@@ -119,7 +122,9 @@ function matchesSearch(order: Order, searchQuery: string) {
 
 export function OrdersWorkspace({
   businessId,
+  businessDatabaseId,
   businessName,
+  businessSlug,
   orders,
 }: OrdersWorkspaceProps) {
   const dashboardStorageKey = getBusinessDashboardStateKey(businessId);
@@ -136,6 +141,7 @@ export function OrdersWorkspace({
   const [searchQuery, setSearchQuery] = useState(
     initialOrdersViewState.searchQuery,
   );
+  const [isGlobalSearchOpen, setIsGlobalSearchOpen] = useState(false);
   const [isNewOrderDrawerOpen, setIsNewOrderDrawerOpen] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
 
@@ -147,6 +153,7 @@ export function OrdersWorkspace({
     handleCancelOrder,
     handleConfirmOrder,
     handleCreateOrder,
+    handleHydrateOrder,
     handleMarkAllAsReviewed,
     handleMarkAsReviewed,
     handleRequestPaymentProof,
@@ -199,13 +206,36 @@ export function OrdersWorkspace({
     selectedStatus === "todos"
       ? searchedOrders
       : searchedOrders.filter((order) => order.status === selectedStatus);
-  const metrics = getDashboardMetrics(ordersState);
+  const metrics = getDashboardMetrics(ordersState).map((metric) => {
+    if (metric.title === "Pedidos registrados") {
+      return { ...metric, title: "Registrados" };
+    }
+
+    if (metric.title === "Acciones pendientes") {
+      return { ...metric, title: "Pendientes" };
+    }
+
+    if (metric.title.includes("En operaci")) {
+      return { ...metric, title: "Operacion" };
+    }
+
+    if (metric.title === "Ingresos entregados") {
+      return { ...metric, title: "Ingresos" };
+    }
+
+    return metric;
+  });
   const selectedOrder =
     ordersState.find((order) => order.id === selectedOrderId) ?? null;
 
   function handleOpenOrderDetails(orderId: string) {
     handleMarkAsReviewed(orderId);
     setSelectedOrderId(orderId);
+  }
+
+  function handleOpenGlobalSearchResult(order: Order) {
+    handleHydrateOrder(order);
+    setSelectedOrderId(order.id);
   }
 
   function handleToggleGroup(groupKey: GroupKey) {
@@ -215,68 +245,109 @@ export function OrdersWorkspace({
     }));
   }
 
-  function handleResetWorkspace() {
-    if (typeof window !== "undefined") {
-      window.localStorage.removeItem(dashboardStorageKey);
+  useEffect(() => {
+    if (process.env.NODE_ENV === "production" || typeof window === "undefined") {
+      return;
     }
 
-    handleResetOrders();
-    setSelectedStatus("todos");
-    setSearchQuery("");
-    setIsNewOrdersExpanded(true);
-    setExpandedGroups(defaultExpandedGroupsState);
-    setIsNewOrderDrawerOpen(false);
-    setSelectedOrderId(null);
-  }
+    function handleDevelopmentReset(event: KeyboardEvent) {
+      if (
+        event.altKey &&
+        event.shiftKey &&
+        event.key.toLowerCase() === "r"
+      ) {
+        event.preventDefault();
+        window.localStorage.removeItem(dashboardStorageKey);
+        handleResetOrders();
+        setSelectedStatus("todos");
+        setSearchQuery("");
+        setIsNewOrdersExpanded(true);
+        setExpandedGroups(defaultExpandedGroupsState);
+        setIsNewOrderDrawerOpen(false);
+        setSelectedOrderId(null);
+      }
+    }
+
+    window.addEventListener("keydown", handleDevelopmentReset);
+
+    return () => {
+      window.removeEventListener("keydown", handleDevelopmentReset);
+    };
+  }, [dashboardStorageKey, handleResetOrders]);
 
   return (
-    <div className="space-y-6">
-      <DashboardHeader
-        businessName={businessName}
-        totalOrders={filteredOrders.length}
-        newOrdersCount={newOrders.length}
-        title="Pedidos"
-        description="Centro operativo para revisar cobros, preparar pedidos y cerrar entregas sin salir de la misma vista."
-        primaryActionLabel="Nuevo pedido"
-        primaryActionHint="Registrar pedido manualmente"
-        secondaryActionLabel="Restablecer pedidos"
-        secondaryActionHint="Limpia cambios locales y recarga mocks"
-        onOpenPrimaryAction={() => setIsNewOrderDrawerOpen(true)}
-        onOpenSecondaryAction={handleResetWorkspace}
-      />
+    <BusinessWorkspaceShell
+      businessName={businessName}
+      businessSlug={businessSlug}
+      title="Pedidos"
+      description="Gestiona la operacion diaria del negocio con una vista pensada para revisar, cobrar, preparar y entregar pedidos."
+      headerAction={
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setIsGlobalSearchOpen(true)}
+            className="flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+            aria-label="Buscar pedidos globalmente"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-4 w-4"
+              aria-hidden="true"
+            >
+              <circle cx="11" cy="11" r="7" />
+              <path d="m20 20-3.5-3.5" />
+            </svg>
+          </button>
 
-      <MetricsCards metrics={metrics} />
+          <button
+            type="button"
+            onClick={() => setIsNewOrderDrawerOpen(true)}
+            className="rounded-2xl border border-slate-900 bg-slate-900 px-3.5 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800"
+          >
+            Nuevo pedido
+          </button>
+        </div>
+      }
+    >
+      <div className="space-y-6">
+        <MetricsCards metrics={metrics} compactOnMobile />
 
-      {newOrders.length > 0 ? (
-        <NewOrdersSection
-          orders={newOrders}
-          onOpenDetails={handleOpenOrderDetails}
-          onMarkAllAsReviewed={handleMarkAllAsReviewed}
-          isExpanded={isNewOrdersExpanded}
-          onToggleExpanded={() =>
-            setIsNewOrdersExpanded((currentValue) => !currentValue)
-          }
+        {newOrders.length > 0 ? (
+          <NewOrdersSection
+            orders={newOrders}
+            onOpenDetails={handleOpenOrderDetails}
+            onMarkAllAsReviewed={handleMarkAllAsReviewed}
+            isExpanded={isNewOrdersExpanded}
+            onToggleExpanded={() =>
+              setIsNewOrdersExpanded((currentValue) => !currentValue)
+            }
+          />
+        ) : (
+          <section className="rounded-[24px] border border-slate-200/80 bg-white/80 p-5 text-sm text-slate-600 shadow-[0_16px_40px_rgba(15,23,42,0.05)]">
+            Todos los pedidos recientes ya fueron revisados.
+          </section>
+        )}
+
+        <OrdersFilters
+          selectedStatus={selectedStatus}
+          onStatusChange={setSelectedStatus}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          resultsCount={filteredOrders.length}
         />
-      ) : (
-        <section className="rounded-[24px] border border-slate-200/80 bg-white/80 p-5 text-sm text-slate-600 shadow-[0_16px_40px_rgba(15,23,42,0.05)]">
-          Todos los pedidos recientes ya fueron revisados.
-        </section>
-      )}
 
-      <OrdersFilters
-        selectedStatus={selectedStatus}
-        onStatusChange={setSelectedStatus}
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-        resultsCount={filteredOrders.length}
-      />
-
-      <OrdersList
-        orders={filteredOrders}
-        expandedGroups={expandedGroups}
-        onToggleGroup={handleToggleGroup}
-        onOpenDetails={handleOpenOrderDetails}
-      />
+        <OrdersList
+          orders={filteredOrders}
+          expandedGroups={expandedGroups}
+          onToggleGroup={handleToggleGroup}
+          onOpenDetails={handleOpenOrderDetails}
+        />
+      </div>
 
       <OrderDetailDrawer
         key={selectedOrder?.id ?? "empty"}
@@ -295,6 +366,14 @@ export function OrdersWorkspace({
         onClose={() => setIsNewOrderDrawerOpen(false)}
         onCreateOrder={handleCreateOrder}
       />
-    </div>
+
+      <GlobalOrderSearch
+        businessDatabaseId={businessDatabaseId}
+        localOrders={ordersState}
+        isOpen={isGlobalSearchOpen}
+        onClose={() => setIsGlobalSearchOpen(false)}
+        onSelectOrder={handleOpenGlobalSearchResult}
+      />
+    </BusinessWorkspaceShell>
   );
 }
