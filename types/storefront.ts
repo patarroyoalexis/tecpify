@@ -9,10 +9,14 @@ export interface BusinessProduct {
   name: string;
   description: string;
   price: number;
+  isAvailable?: boolean;
+  isFeatured?: boolean;
+  sortOrder?: number;
 }
 
 export interface BusinessConfig {
-  id: string;
+  slug: string;
+  databaseId?: string | null;
   name: string;
   tagline: string;
   accent: string;

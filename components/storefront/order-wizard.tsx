@@ -351,7 +351,10 @@ export function StorefrontOrderWizard({
   );
 
   const productCount = getProductCount(quantities);
-  const featuredProducts = business.products.slice(0, 3);
+  const featuredProducts =
+    business.products.filter((product) => product.isFeatured).slice(0, 3).length > 0
+      ? business.products.filter((product) => product.isFeatured).slice(0, 3)
+      : business.products.slice(0, 3);
   const filteredProducts = useMemo(
     () =>
       business.products.filter((product) =>
@@ -375,7 +378,7 @@ export function StorefrontOrderWizard({
 
     setRevealedNamePhone(nextNormalizedPhone);
 
-    const profile = findCustomerProfileByWhatsApp(business.id, nextPhone);
+    const profile = findCustomerProfileByWhatsApp(business.slug, nextPhone);
 
     if (!profile) {
       setHasKnownProfile(false);
@@ -471,7 +474,7 @@ export function StorefrontOrderWizard({
     const createdAt = new Date().toISOString();
     const newOrder: Order = {
       id: generateOrderId(),
-      businessId: business.id,
+      businessId: business.slug,
       client: customerName.trim(),
       customerPhone: customerPhone.trim(),
       products: selectedProducts,
@@ -487,7 +490,7 @@ export function StorefrontOrderWizard({
       isReviewed: false,
       history: [
         {
-          id: `${business.id}-${createdAt}-created`,
+          id: `${business.slug}-${createdAt}-created`,
           title: "Pedido creado desde formulario publico",
           description: "El cliente confirmo el pedido desde el enlace compartido del negocio.",
           occurredAt: createdAt,
@@ -496,8 +499,8 @@ export function StorefrontOrderWizard({
     };
 
     try {
-      const currentOrders = readOrdersForBusiness(business.id) ?? [];
-      writeOrdersForBusiness(business.id, [newOrder, ...currentOrders]);
+      const currentOrders = readOrdersForBusiness(business.slug) ?? [];
+      writeOrdersForBusiness(business.slug, [newOrder, ...currentOrders]);
     } catch {
       // Keep the MVP resilient even if localStorage is unavailable.
     }

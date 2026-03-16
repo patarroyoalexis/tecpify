@@ -1,5 +1,5 @@
 import { OrdersDashboard } from "@/components/dashboard/orders-dashboard";
-import { getBusinessById } from "@/data/businesses";
+import { getBusinessBySlug } from "@/data/businesses";
 import { getMockOrdersByBusinessId } from "@/data/orders";
 
 export default async function BusinessDashboardPage({
@@ -8,7 +8,7 @@ export default async function BusinessDashboardPage({
   params: Promise<{ negocioId: string }>;
 }) {
   const { negocioId } = await params;
-  const business = getBusinessById(negocioId);
+  const business = getBusinessBySlug(negocioId);
 
   if (!business) {
     return (
@@ -35,9 +35,9 @@ export default async function BusinessDashboardPage({
     <main className="min-h-screen">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
         <OrdersDashboard
-          businessId={business.id}
+          businessId={business.slug}
           businessName={business.name}
-          orders={getMockOrdersByBusinessId(business.id)}
+          orders={getMockOrdersByBusinessId(business.slug)}
         />
       </div>
     </main>
