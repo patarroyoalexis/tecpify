@@ -52,34 +52,18 @@ export function DashboardOverview({
   return (
     <div className="space-y-6">
       {insights.length > 0 ? (
-        <section className="rounded-[28px] border border-sky-200 bg-[linear-gradient(135deg,rgba(224,242,254,0.95),rgba(255,255,255,0.98))] p-6 shadow-[0_18px_45px_rgba(15,23,42,0.06)]">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="space-y-2">
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-sky-700">
-                Resumen del dia
-              </p>
-              <h2 className="text-2xl font-semibold tracking-tight text-slate-950">
-                Visibilidad rapida antes de entrar a operar
-              </h2>
-              <p className="max-w-3xl text-sm leading-6 text-slate-600">
-                {insights[0]}
-              </p>
-            </div>
+        <section className="rounded-[24px] border border-sky-200 bg-[linear-gradient(135deg,rgba(224,242,254,0.9),rgba(255,255,255,0.98))] px-4 py-3.5 shadow-[0_16px_36px_rgba(15,23,42,0.05)] sm:px-5 sm:py-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between md:gap-4">
+            <p className="min-w-0 max-w-4xl text-sm font-medium leading-6 text-slate-700 sm:text-[15px]">
+              {insights[0]}
+            </p>
 
-            <div className="flex flex-wrap gap-3">
-              <Link
-                href={`/pedidos/${businessId}`}
-                className="rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
-              >
-                Ir a pedidos
-              </Link>
-              <Link
-                href={`/metricas/${businessId}`}
-                className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
-              >
-                Ver metricas
-              </Link>
-            </div>
+            <Link
+              href={`/metricas/${businessId}`}
+              className="inline-flex shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+            >
+              Ver mas metricas
+            </Link>
           </div>
         </section>
       ) : null}
