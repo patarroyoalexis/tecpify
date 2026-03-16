@@ -123,31 +123,39 @@ export function GlobalOrderSearch({
     let isCancelled = false;
 
     async function loadOrders() {
-      setIsLoading(true);
-      setError("");
+  setIsLoading(true);
+  setError("");
 
-      try {
-        const orders = await getOrdersByBusinessFromSupabase(businessDatabaseId);
-
-        if (!isCancelled) {
-          setRemoteOrders(orders);
-          setHasLoaded(true);
-        }
-      } catch (loadError) {
-        if (!isCancelled) {
-          setError(
-            loadError instanceof Error
-              ? loadError.message
-              : "No fue posible consultar los pedidos en este momento.",
-          );
-          setHasLoaded(true);
-        }
-      } finally {
-        if (!isCancelled) {
-          setIsLoading(false);
-        }
+  try {
+    if (!businessDatabaseId) {
+      if (!isCancelled) {
+        setRemoteOrders([]);
+        setHasLoaded(true);
       }
+      return;
     }
+
+    const orders = await getOrdersByBusinessFromSupabase(businessDatabaseId);
+
+    if (!isCancelled) {
+      setRemoteOrders(orders);
+      setHasLoaded(true);
+    }
+  } catch (loadError) {
+    if (!isCancelled) {
+      setError(
+        loadError instanceof Error
+          ? loadError.message
+          : "No fue posible consultar los pedidos en este momento.",
+      );
+      setHasLoaded(true);
+    }
+  } finally {
+    if (!isCancelled) {
+      setIsLoading(false);
+    }
+  }
+}
 
     void loadOrders();
 
