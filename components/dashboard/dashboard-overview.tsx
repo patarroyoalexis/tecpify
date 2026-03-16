@@ -1,0 +1,189 @@
+"use client";
+
+import Link from "next/link";
+
+import { MetricsCards } from "@/components/dashboard/metrics-cards";
+import { formatCurrency, getBusinessInsights, getDashboardSummary } from "@/data/orders";
+import type { Order } from "@/types/orders";
+import { useBusinessOrders } from "./use-business-orders";
+
+interface DashboardOverviewProps {
+  businessId: string;
+  orders: Order[];
+}
+
+export function DashboardOverview({
+  businessId,
+  orders,
+}: DashboardOverviewProps) {
+  const { ordersState } = useBusinessOrders({ businessId, orders });
+  const summary = getDashboardSummary(ordersState);
+  const insights = getBusinessInsights(ordersState).slice(0, 2);
+
+  const executiveMetrics = [
+    {
+      title: "Pedidos del dia",
+      value: `${summary.todayOrdersCount}`,
+      description: "Pedidos registrados en la jornada mas reciente con datos.",
+      tone: "neutral" as const,
+    },
+    {
+      title: "Ventas del dia",
+      value: formatCurrency(summary.todayRevenue),
+      description: "Suma de pedidos activos del dia, sin contar cancelados.",
+      tone: "success" as const,
+    },
+    {
+      title: "Producto destacado",
+      value: summary.featuredProduct?.name ?? "Sin datos",
+      description: summary.featuredProduct
+        ? `${summary.featuredProduct.quantity} unidades en la jornada.`
+        : "Aun no hay suficiente informacion para destacar un producto.",
+      tone: "info" as const,
+    },
+    {
+      title: "Pagos pendientes",
+      value: `${summary.pendingPaymentsCount}`,
+      description: "Pedidos activos que aun requieren validacion o seguimiento.",
+      tone: "warning" as const,
+    },
+  ];
+
+  return (
+    <div className="space-y-6">
+      {insights.length > 0 ? (
+        <section className="rounded-[28px] border border-sky-200 bg-[linear-gradient(135deg,rgba(224,242,254,0.95),rgba(255,255,255,0.98))] p-6 shadow-[0_18px_45px_rgba(15,23,42,0.06)]">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="space-y-2">
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-sky-700">
+                Resumen del dia
+              </p>
+              <h2 className="text-2xl font-semibold tracking-tight text-slate-950">
+                Visibilidad rapida antes de entrar a operar
+              </h2>
+              <p className="max-w-3xl text-sm leading-6 text-slate-600">
+                {insights[0]}
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              <Link
+                href={`/pedidos/${businessId}`}
+                className="rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+              >
+                Ir a pedidos
+              </Link>
+              <Link
+                href={`/metricas/${businessId}`}
+                className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+              >
+                Ver metricas
+              </Link>
+            </div>
+          </div>
+        </section>
+      ) : null}
+
+      <MetricsCards metrics={executiveMetrics} />
+
+      <section className="grid gap-4 xl:grid-cols-[1.6fr_1fr]">
+        <article className="rounded-[28px] border border-slate-200/80 bg-white p-6 shadow-[0_18px_45px_rgba(15,23,42,0.05)]">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">
+                Actividad reciente
+              </p>
+              <h2 className="mt-1 text-2xl font-semibold text-slate-950">
+                Pedidos para revisar rapido
+              </h2>
+            </div>
+            <Link
+              href={`/pedidos/${businessId}`}
+              className="text-sm font-semibold text-slate-700 transition hover:text-slate-950"
+            >
+              Ver operacion completa
+            </Link>
+          </div>
+
+          <div className="mt-5 space-y-3">
+            {summary.recentOrders.length > 0 ? (
+              summary.recentOrders.map((order) => (
+                <div
+                  key={order.id}
+                  className="rounded-[22px] border border-slate-200 bg-slate-50/70 p-4"
+                >
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-base font-semibold text-slate-950">
+                          {order.client}
+                        </p>
+                        <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600">
+                          {order.id}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-sm text-slate-600">
+                        {order.products.length} producto
+                        {order.products.length > 1 ? "s" : ""} · {order.status}
+                      </p>
+                    </div>
+
+                    <div className="text-right">
+                      <p className="text-sm font-semibold text-slate-950">
+                        {formatCurrency(order.total)}
+                      </p>
+                      <p className="text-xs text-slate-500">{order.dateLabel}</p>
+                    </div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="rounded-[22px] border border-dashed border-slate-300 bg-slate-50 p-5 text-sm text-slate-600">
+                Aun no hay pedidos recientes para mostrar en este resumen.
+              </div>
+            )}
+          </div>
+        </article>
+
+        <article className="rounded-[28px] border border-slate-200/80 bg-white p-6 shadow-[0_18px_45px_rgba(15,23,42,0.05)]">
+          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">
+            Accesos rapidos
+          </p>
+          <h2 className="mt-1 text-2xl font-semibold text-slate-950">
+            Lo importante en dos toques
+          </h2>
+
+          <div className="mt-5 space-y-3">
+            <Link
+              href={`/pedidos/${businessId}`}
+              className="block rounded-[22px] border border-slate-200 bg-slate-50 px-5 py-4 transition hover:border-slate-300 hover:bg-slate-100"
+            >
+              <p className="text-base font-semibold text-slate-950">Ir a pedidos</p>
+              <p className="mt-1 text-sm text-slate-600">
+                Gestiona estados, pagos, prioridad y detalle completo.
+              </p>
+            </Link>
+
+            <Link
+              href={`/metricas/${businessId}`}
+              className="block rounded-[22px] border border-slate-200 bg-slate-50 px-5 py-4 transition hover:border-slate-300 hover:bg-slate-100"
+            >
+              <p className="text-base font-semibold text-slate-950">Ver metricas</p>
+              <p className="mt-1 text-sm text-slate-600">
+                Revisa ventas del dia, historico simple y productos destacados.
+              </p>
+            </Link>
+          </div>
+
+          <div className="mt-5 rounded-[22px] border border-amber-200 bg-amber-50/80 p-4">
+            <p className="text-sm font-semibold text-amber-800">Siguiente foco</p>
+            <p className="mt-1 text-sm leading-6 text-slate-700">
+              {insights[1] ??
+                "Cuando tengas mas historial disponible, este espacio mostrara alertas y recomendaciones automaticas."}
+            </p>
+          </div>
+        </article>
+      </section>
+    </div>
+  );
+}

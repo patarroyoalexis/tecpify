@@ -5,11 +5,17 @@ import { ORDER_STATUSES, type OrderStatus } from "@/types/orders";
 interface OrdersFiltersProps {
   selectedStatus: OrderStatus | "todos";
   onStatusChange: (status: OrderStatus | "todos") => void;
+  searchQuery?: string;
+  onSearchChange?: (value: string) => void;
+  resultsCount?: number;
 }
 
 export function OrdersFilters({
   selectedStatus,
   onStatusChange,
+  searchQuery,
+  onSearchChange,
+  resultsCount,
 }: OrdersFiltersProps) {
   const filters = ["todos", ...ORDER_STATUSES] as const;
 
@@ -18,9 +24,27 @@ export function OrdersFilters({
       <div className="space-y-1">
         <h2 className="text-lg font-semibold text-slate-950">Filtrar pedidos</h2>
         <p className="text-sm text-slate-600">
-          Cambia la vista para priorizar cobros, preparación o entregas.
+          Cambia la vista para priorizar cobros, preparacion o entregas.
         </p>
       </div>
+
+      {typeof searchQuery === "string" && onSearchChange ? (
+        <div className="grid gap-3 lg:grid-cols-[1fr_auto] lg:items-end">
+          <label className="space-y-2">
+            <span className="text-sm font-medium text-slate-700">Buscar</span>
+            <input
+              value={searchQuery}
+              onChange={(event) => onSearchChange(event.target.value)}
+              placeholder="Cliente, pedido, telefono o producto"
+              className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+            />
+          </label>
+
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+            {resultsCount ?? 0} resultado{resultsCount === 1 ? "" : "s"}
+          </div>
+        </div>
+      ) : null}
 
       <div className="flex flex-wrap gap-2">
         {filters.map((status) => {

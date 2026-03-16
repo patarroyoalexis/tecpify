@@ -1,9 +1,9 @@
 import { BusinessWorkspaceShell } from "@/components/dashboard/business-workspace-shell";
-import { DashboardOverview } from "@/components/dashboard/dashboard-overview";
+import { OrdersWorkspace } from "@/components/dashboard/orders-workspace";
 import { getBusinessBySlug } from "@/data/businesses";
 import { getMockOrdersByBusinessId } from "@/data/orders";
 
-export default async function BusinessDashboardPage({
+export default async function OrdersPage({
   params,
 }: {
   params: Promise<{ negocioId: string }>;
@@ -17,7 +17,7 @@ export default async function BusinessDashboardPage({
         <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-xl items-center">
           <section className="w-full rounded-[32px] border border-white/70 bg-white/95 p-8 text-center shadow-[0_24px_80px_rgba(15,23,42,0.12)]">
             <p className="text-sm font-semibold uppercase tracking-[0.24em] text-rose-500">
-              Dashboard no disponible
+              Pedidos no disponibles
             </p>
             <h1 className="mt-3 text-3xl font-semibold text-slate-950">
               Negocio no encontrado
@@ -36,11 +36,12 @@ export default async function BusinessDashboardPage({
     <BusinessWorkspaceShell
       businessName={business.name}
       businessSlug={business.slug}
-      title="Dashboard"
-      description="Resumen ejecutivo del negocio para entender rapido el dia y saltar a la operacion o a las metricas cuando haga falta."
+      title="Pedidos"
+      description="Gestiona la operacion diaria del negocio con una vista pensada para revisar, cobrar, preparar y entregar pedidos."
     >
-      <DashboardOverview
+      <OrdersWorkspace
         businessId={business.slug}
+        businessName={business.name}
         orders={getMockOrdersByBusinessId(business.slug)}
       />
     </BusinessWorkspaceShell>

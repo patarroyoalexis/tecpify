@@ -49,7 +49,19 @@ export default function Home() {
                   href={`/dashboard/${business.slug}`}
                   className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-center text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
                 >
-                  Abrir dashboard privado
+                  Abrir dashboard
+                </Link>
+                <Link
+                  href={`/pedidos/${business.slug}`}
+                  className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-center text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                >
+                  Ir a pedidos
+                </Link>
+                <Link
+                  href={`/metricas/${business.slug}`}
+                  className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-center text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                >
+                  Ver metricas
                 </Link>
               </div>
             </article>

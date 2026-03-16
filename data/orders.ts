@@ -246,6 +246,38 @@ export function getMockOrdersByBusinessId(businessId: string) {
   return mockOrders.filter((order) => order.businessId === businessId);
 }
 
+function getReferenceDate(orders: Order[]) {
+  const latestTimestamp = orders.reduce((highestValue, order) => {
+    const currentTimestamp = new Date(order.createdAt).getTime();
+    return Number.isFinite(currentTimestamp)
+      ? Math.max(highestValue, currentTimestamp)
+      : highestValue;
+  }, 0);
+
+  return latestTimestamp > 0 ? new Date(latestTimestamp) : new Date();
+}
+
+function isSameCalendarDay(left: Date, right: Date) {
+  return (
+    left.getUTCFullYear() === right.getUTCFullYear() &&
+    left.getUTCMonth() === right.getUTCMonth() &&
+    left.getUTCDate() === right.getUTCDate()
+  );
+}
+
+function isActiveOrder(order: Order) {
+  return order.status !== "cancelado";
+}
+
+function isPendingPayment(order: Order) {
+  return (
+    isActiveOrder(order) &&
+    (order.paymentStatus === "pendiente" ||
+      order.paymentStatus === "con novedad" ||
+      order.paymentStatus === "no verificado")
+  );
+}
+
 const currencyFormatter = new Intl.NumberFormat("es-CO", {
   style: "currency",
   currency: "COP",
@@ -306,6 +338,142 @@ export function getOperationalPriorityScore(order: Order): number {
 
 const actionableStatuses: OrderStatus[] = ["pendiente de pago", "pago por verificar"];
 const productionStatuses: OrderStatus[] = ["confirmado", "en preparación", "listo"];
+
+export interface ProductPerformance {
+  name: string;
+  quantity: number;
+}
+
+export interface RevenuePoint {
+  label: string;
+  revenue: number;
+  ordersCount: number;
+}
+
+export function getOrdersForReferenceDay(orders: Order[]) {
+  const referenceDate = getReferenceDate(orders);
+
+  return orders.filter((order) =>
+    isSameCalendarDay(new Date(order.createdAt), referenceDate),
+  );
+}
+
+export function getTopProducts(orders: Order[], limit = 3): ProductPerformance[] {
+  const productsMap = new Map<string, number>();
+
+  for (const order of orders.filter(isActiveOrder)) {
+    for (const product of order.products) {
+      productsMap.set(product.name, (productsMap.get(product.name) ?? 0) + product.quantity);
+    }
+  }
+
+  return [...productsMap.entries()]
+    .map(([name, quantity]) => ({ name, quantity }))
+    .sort((left, right) => right.quantity - left.quantity)
+    .slice(0, limit);
+}
+
+export function getRevenueSeries(orders: Order[], limit = 5): RevenuePoint[] {
+  const revenueByDay = new Map<string, RevenuePoint>();
+
+  for (const order of orders.filter(isActiveOrder)) {
+    const date = new Date(order.createdAt);
+    const key = date.toISOString().slice(0, 10);
+    const label = new Intl.DateTimeFormat("es-CO", {
+      day: "numeric",
+      month: "short",
+      timeZone: "UTC",
+    }).format(date);
+    const currentPoint = revenueByDay.get(key);
+
+    revenueByDay.set(key, {
+      label,
+      revenue: (currentPoint?.revenue ?? 0) + order.total,
+      ordersCount: (currentPoint?.ordersCount ?? 0) + 1,
+    });
+  }
+
+  return [...revenueByDay.entries()]
+    .sort(([leftKey], [rightKey]) => leftKey.localeCompare(rightKey))
+    .slice(-limit)
+    .map(([, value]) => value);
+}
+
+export function getAverageTicket(orders: Order[]) {
+  const activeOrders = orders.filter(isActiveOrder);
+
+  if (activeOrders.length === 0) {
+    return 0;
+  }
+
+  return (
+    activeOrders.reduce((total, order) => total + order.total, 0) / activeOrders.length
+  );
+}
+
+export function getDashboardSummary(orders: Order[]) {
+  const todayOrders = getOrdersForReferenceDay(orders);
+  const recentOrders = [...orders]
+    .sort(
+      (left, right) =>
+        new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
+    )
+    .slice(0, 4);
+  const todayTopProducts = getTopProducts(todayOrders, 1);
+  const overallTopProducts = getTopProducts(orders, 1);
+
+  return {
+    todayOrdersCount: todayOrders.length,
+    todayRevenue: todayOrders
+      .filter(isActiveOrder)
+      .reduce((total, order) => total + order.total, 0),
+    pendingPaymentsCount: orders.filter(isPendingPayment).length,
+    featuredProduct: todayTopProducts[0] ?? overallTopProducts[0] ?? null,
+    recentOrders,
+  };
+}
+
+export function getBusinessInsights(orders: Order[]) {
+  const insights: string[] = [];
+  const todayOrders = getOrdersForReferenceDay(orders);
+  const summary = getDashboardSummary(orders);
+  const revenueSeries = getRevenueSeries(orders, 8);
+  const previousDays = revenueSeries.slice(0, -1);
+
+  if (previousDays.length > 0) {
+    const averageRecentRevenue =
+      previousDays.reduce((total, point) => total + point.revenue, 0) / previousDays.length;
+
+    if (averageRecentRevenue > 0 && summary.todayRevenue > averageRecentRevenue) {
+      const growth = Math.round(
+        ((summary.todayRevenue - averageRecentRevenue) / averageRecentRevenue) * 100,
+      );
+      insights.push(
+        `Excelente, hoy aumentaste tus ventas un ${growth}% frente al promedio reciente.`,
+      );
+    }
+  }
+
+  if (summary.featuredProduct) {
+    insights.push(
+      `El producto ${summary.featuredProduct.name} fue el mas pedido del dia con ${summary.featuredProduct.quantity} unidades.`,
+    );
+  }
+
+  if (summary.pendingPaymentsCount > 0) {
+    insights.push(
+      `Tienes ${summary.pendingPaymentsCount} pago${summary.pendingPaymentsCount > 1 ? "s" : ""} pendiente${summary.pendingPaymentsCount > 1 ? "s" : ""} por validar para no frenar la operacion.`,
+    );
+  }
+
+  if (insights.length === 0 && todayOrders.length > 0) {
+    insights.push(
+      `Hoy llevas ${todayOrders.length} pedido${todayOrders.length > 1 ? "s" : ""} en el flujo actual.`,
+    );
+  }
+
+  return insights;
+}
 
 export function getDashboardMetrics(orders: Order[]): MetricCard[] {
   const pendingActions = orders.filter((order) =>
