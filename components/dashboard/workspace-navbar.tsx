@@ -26,49 +26,27 @@ export function WorkspaceNavbar({
   return (
     <>
       <header className="border-b border-slate-200/70 bg-white/92 backdrop-blur-xl">
-        <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-3 py-3 sm:px-4 lg:px-5">
-          <div className="relative flex min-w-0 flex-1 items-center gap-4 lg:gap-6">
-            <Link href={`/dashboard/${businessSlug}`} className="flex min-w-0 items-center gap-3">
+        <div className="mx-auto flex w-full max-w-7xl flex-col px-3 py-3 sm:px-4 lg:px-5">
+          <div className="grid grid-cols-[4.5rem_minmax(0,1fr)_4.5rem] items-center gap-2 sm:hidden">
+            <Link
+              href={`/dashboard/${businessSlug}`}
+              className="flex h-10 items-center justify-start"
+            >
               <span className="inline-flex shrink-0 rounded-xl bg-slate-950 px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.24em] text-white">
                 Tecpify
               </span>
-              <span className="hidden truncate text-sm font-semibold text-slate-700 sm:block sm:text-[15px]">
-                {businessName}
-              </span>
             </Link>
 
-            <span className="pointer-events-none absolute left-1/2 max-w-[calc(100%-7rem)] -translate-x-1/2 truncate text-center text-sm font-semibold text-slate-700 sm:hidden">
-              {businessName}
-            </span>
-          </div>
+            <div className="min-w-0 px-1 text-center">
+              <p className="text-sm font-semibold leading-5 text-slate-700">
+                {businessName}
+              </p>
+            </div>
 
-          <div className="flex shrink-0 items-center gap-2">
-            <nav
-              aria-label="Navegacion privada"
-              className="hidden items-center gap-1 md:flex px-3"
-            >
-              {tabs.map((tab) => {
-                const isActive = activeTab === tab.key;
-
-                return (
-                  <Link
-                    key={tab.key}
-                    href={tab.getHref(businessSlug)}
-                    className={`rounded-lg px-3 py-2 text-sm font-medium transition ${
-                      isActive
-                        ? "bg-slate-950 text-white"
-                        : "text-slate-600 hover:bg-slate-100 hover:text-slate-950"
-                    }`}
-                  >
-                    {tab.label}
-                  </Link>
-                );
-              })}
-            </nav>
             <button
               type="button"
               onClick={onSearch}
-              className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+              className="ml-auto flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
               aria-label="Buscar pedidos globalmente"
             >
               <svg
@@ -85,15 +63,74 @@ export function WorkspaceNavbar({
                 <path d="m20 20-3.5-3.5" />
               </svg>
             </button>
+          </div>
 
-            <button
-              type="button"
-              onClick={onNewOrder}
-              className="hidden items-center gap-2 rounded-xl bg-slate-950 px-3.5 py-2 text-sm font-medium text-white transition hover:bg-slate-800 md:inline-flex"
-            >
-              <span className="text-base leading-none">+</span>
-              <span>Nuevo pedido</span>
-            </button>
+          <div className="hidden items-center justify-between gap-4 sm:flex">
+            <div className="flex min-w-0 flex-1 items-center gap-4 lg:gap-6">
+              <Link href={`/dashboard/${businessSlug}`} className="flex min-w-0 items-center gap-3">
+                <span className="inline-flex shrink-0 rounded-xl bg-slate-950 px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.24em] text-white">
+                  Tecpify
+                </span>
+                <span className="truncate text-sm font-semibold text-slate-700 sm:text-[15px]">
+                  {businessName}
+                </span>
+              </Link>
+            </div>
+
+            <div className="flex shrink-0 items-center gap-2">
+              <nav
+                aria-label="Navegacion privada"
+                className="hidden items-center gap-1 px-3 md:flex"
+              >
+                {tabs.map((tab) => {
+                  const isActive = activeTab === tab.key;
+
+                  return (
+                    <Link
+                      key={tab.key}
+                      href={tab.getHref(businessSlug)}
+                      className={`rounded-lg px-3 py-2 text-sm font-medium transition ${
+                        isActive
+                          ? "bg-slate-950 text-white"
+                          : "text-slate-600 hover:bg-slate-100 hover:text-slate-950"
+                      }`}
+                    >
+                      {tab.label}
+                    </Link>
+                  );
+                })}
+              </nav>
+
+              <button
+                type="button"
+                onClick={onSearch}
+                className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                aria-label="Buscar pedidos globalmente"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="h-4 w-4"
+                  aria-hidden="true"
+                >
+                  <circle cx="11" cy="11" r="7" />
+                  <path d="m20 20-3.5-3.5" />
+                </svg>
+              </button>
+
+              <button
+                type="button"
+                onClick={onNewOrder}
+                className="hidden items-center gap-2 rounded-xl bg-slate-950 px-3.5 py-2 text-sm font-medium text-white transition hover:bg-slate-800 md:inline-flex"
+              >
+                <span className="text-base leading-none">+</span>
+                <span>Nuevo pedido</span>
+              </button>
+            </div>
           </div>
         </div>
 
