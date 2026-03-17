@@ -1,8 +1,9 @@
-import { supabase } from "@/lib/supabase/client";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type { Product } from "@/types/products";
 import type { BusinessProduct } from "@/types/storefront";
 
 export async function getProductsByBusinessId(businessId: string): Promise<Product[]> {
+  const supabase = createServerSupabaseClient();
   const { data, error } = await supabase
     .from("products")
     .select("*")

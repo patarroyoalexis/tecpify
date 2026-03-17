@@ -22,7 +22,6 @@ import { useBusinessOrders } from "./use-business-orders";
 
 interface OrdersWorkspaceProps {
   businessId: string;
-  businessDatabaseId: string | null;
   businessName: string;
   businessSlug: string;
   orders: Order[];
@@ -122,7 +121,6 @@ function matchesSearch(order: Order, searchQuery: string) {
 
 export function OrdersWorkspace({
   businessId,
-  businessDatabaseId,
   businessName,
   businessSlug,
   orders,
@@ -161,6 +159,7 @@ export function OrdersWorkspace({
     handleUpdatePaymentStatus,
   } = useBusinessOrders({
     businessId,
+    businessSlug,
     orders,
   });
 
@@ -368,7 +367,7 @@ export function OrdersWorkspace({
       />
 
       <GlobalOrderSearch
-        businessDatabaseId={businessDatabaseId}
+        businessSlug={businessSlug}
         localOrders={ordersState}
         isOpen={isGlobalSearchOpen}
         onClose={() => setIsGlobalSearchOpen(false)}

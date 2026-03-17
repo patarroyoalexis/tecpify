@@ -1,5 +1,6 @@
 import { OrdersWorkspace } from "@/components/dashboard/orders-workspace";
 import { getBusinessBySlug, getBusinessBySlugFromDatabase } from "@/data/businesses";
+import { getOrdersByBusinessSlugFromDatabase } from "@/lib/data/orders-server";
 import { getMockOrdersByBusinessId } from "@/data/orders";
 
 export default async function OrdersPage({
@@ -12,6 +13,11 @@ export default async function OrdersPage({
   const databaseBusiness = business
     ? await getBusinessBySlugFromDatabase(negocioId)
     : null;
+  const initialOrders = business
+    ? await getOrdersByBusinessSlugFromDatabase(negocioId).catch(() =>
+        getMockOrdersByBusinessId(business.slug),
+      )
+    : [];
 
   if (!business) {
     return (
@@ -37,10 +43,9 @@ export default async function OrdersPage({
   return (
     <OrdersWorkspace
       businessId={business.slug}
-      businessDatabaseId={databaseBusiness?.id ?? null}
       businessName={business.name}
       businessSlug={business.slug}
-      orders={getMockOrdersByBusinessId(business.slug)}
+      orders={databaseBusiness ? initialOrders : getMockOrdersByBusinessId(business.slug)}
     />
   );
 }

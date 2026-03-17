@@ -19,6 +19,7 @@ import {
   normalizeWhatsAppPhone,
 } from "@/data/customer-profiles";
 import { readOrdersForBusiness, writeOrdersForBusiness } from "@/data/order-storage";
+import { createOrderViaApi } from "@/lib/orders/api";
 import type { DeliveryType, Order, OrderProduct, PaymentMethod } from "@/types/orders";
 import type { BusinessConfig, BusinessProduct } from "@/types/storefront";
 
@@ -307,6 +308,7 @@ export function StorefrontOrderWizard({
 }: {
   business: BusinessConfig;
 }) {
+  const [confirmationMode, setConfirmationMode] = useState<"remote" | "local" | null>(null);
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [quantities, setQuantities] = useState<Record<string, number>>({});
@@ -317,6 +319,9 @@ export function StorefrontOrderWizard({
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [confirmedOrder, setConfirmedOrder] = useState<Order | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
+  const [submissionNotice, setSubmissionNotice] = useState("");
   const [productQuery, setProductQuery] = useState("");
   const [isCatalogOpen, setIsCatalogOpen] = useState(false);
   const [hasKnownProfile, setHasKnownProfile] = useState(false);
@@ -466,13 +471,18 @@ export function StorefrontOrderWizard({
     clearFieldError("products");
   }
 
-  function handleConfirmOrder() {
+  async function handleConfirmOrder() {
     if (!validateAll() || !paymentMethod || !deliveryType) {
       return;
     }
 
+    setIsSubmitting(true);
+    setSubmitError("");
+    setSubmissionNotice("");
+    setConfirmationMode(null);
+
     const createdAt = new Date().toISOString();
-    const newOrder: Order = {
+    const fallbackOrder: Order = {
       id: generateOrderId(),
       businessId: business.slug,
       client: customerName.trim(),
@@ -499,39 +509,108 @@ export function StorefrontOrderWizard({
     };
 
     try {
-      const currentOrders = readOrdersForBusiness(business.slug) ?? [];
-      writeOrdersForBusiness(business.slug, [newOrder, ...currentOrders]);
-    } catch {
-      // Keep the MVP resilient even if localStorage is unavailable.
-    }
+      const persistedOrder = await createOrderViaApi({
+        businessSlug: business.slug,
+        customerName: customerName.trim(),
+        customerWhatsApp: customerPhone.trim(),
+        deliveryType,
+        deliveryAddress: deliveryType === "domicilio" ? address.trim() : undefined,
+        paymentMethod,
+        notes: observations.trim() || undefined,
+        total,
+        status: getInitialStatus(paymentMethod),
+        products: selectedProducts,
+        paymentStatus: isDigitalPayment(paymentMethod) ? "pendiente" : "verificado",
+        dateLabel: formatCreatedAt(createdAt),
+        isReviewed: false,
+        history: fallbackOrder.history,
+      });
 
-    setConfirmedOrder(newOrder);
+      try {
+        const currentOrders = readOrdersForBusiness(business.slug) ?? [];
+        writeOrdersForBusiness(business.slug, [persistedOrder, ...currentOrders]);
+      } catch {
+        // Keep a successful remote order even if local fallback storage is unavailable.
+      }
+
+      setConfirmationMode("remote");
+      setConfirmedOrder(persistedOrder);
+    } catch (remoteError) {
+      console.error("[storefront] remote order persistence failed", remoteError);
+
+      try {
+        const currentOrders = readOrdersForBusiness(business.slug) ?? [];
+        writeOrdersForBusiness(business.slug, [fallbackOrder, ...currentOrders]);
+        setSubmissionNotice(
+          "Pedido guardado temporalmente en este dispositivo. Aun no se sincroniza con la base de datos.",
+        );
+        setConfirmationMode("local");
+        setConfirmedOrder(fallbackOrder);
+      } catch {
+        setSubmitError(
+          remoteError instanceof Error
+            ? remoteError.message
+            : "No fue posible enviar tu pedido. Intenta de nuevo.",
+        );
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   if (confirmedOrder) {
+    const isRemoteConfirmation = confirmationMode === "remote";
+
     return (
       <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(14,165,233,0.18),transparent_32%),linear-gradient(180deg,#f8fafc_0%,#eef6ff_100%)] px-4 py-6 sm:px-6">
         <div className="mx-auto flex min-h-[calc(100vh-3rem)] w-full max-w-xl items-center">
           <section className="w-full rounded-[32px] border border-white/70 bg-white/95 p-6 shadow-[0_24px_80px_rgba(15,23,42,0.12)] sm:p-8">
             <div className="flex justify-center">
-              <div className="rounded-full bg-emerald-100 p-4 text-emerald-700">
+              <div
+                className={`rounded-full p-4 ${
+                  isRemoteConfirmation
+                    ? "bg-emerald-100 text-emerald-700"
+                    : "bg-amber-100 text-amber-700"
+                }`}
+              >
                 <SuccessIcon className="h-8 w-8" />
               </div>
             </div>
             <div className="mt-5 text-center">
-              <p className="text-sm font-semibold uppercase tracking-[0.24em] text-emerald-600">
-                Pedido confirmado
+              <p
+                className={`text-sm font-semibold uppercase tracking-[0.24em] ${
+                  isRemoteConfirmation ? "text-emerald-600" : "text-amber-600"
+                }`}
+              >
+                {isRemoteConfirmation ? "Pedido confirmado" : "Guardado temporal"}
               </p>
               <h1 className="mt-2 text-3xl font-semibold text-slate-950">
-                Gracias por tu pedido
+                {isRemoteConfirmation
+                  ? "Gracias por tu pedido"
+                  : "Tu pedido quedo guardado solo en este dispositivo"}
               </h1>
               <p className="mt-3 text-sm leading-6 text-slate-600">
-                Tu solicitud fue registrada para <strong>{business.name}</strong>.
-                Comparte este numero si necesitas soporte o seguimiento.
+                {isRemoteConfirmation ? (
+                  <>
+                    Tu solicitud fue registrada para <strong>{business.name}</strong>.
+                    Comparte este numero si necesitas soporte o seguimiento.
+                  </>
+                ) : (
+                  <>
+                    Aun no pudimos registrar tu solicitud en la base de datos de{" "}
+                    <strong>{business.name}</strong>. Usa este numero solo como referencia
+                    temporal hasta que se restablezca la sincronizacion.
+                  </>
+                )}
               </p>
             </div>
 
             <div className="mt-6 rounded-[24px] border border-slate-200 bg-slate-50 p-5">
+              {submissionNotice ? (
+                <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                  {submissionNotice}
+                </div>
+              ) : null}
               <div className="flex items-center justify-between gap-3">
                 <span className="text-sm font-medium text-slate-500">Pedido</span>
                 <span className="rounded-full bg-slate-900 px-3 py-1 text-sm font-semibold text-white">
@@ -888,12 +967,18 @@ export function StorefrontOrderWizard({
             </CompactSection>
 
             <div className="pb-8">
+              {submitError ? (
+                <div className="mb-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                  {submitError}
+                </div>
+              ) : null}
               <button
                 type="button"
-                onClick={handleConfirmOrder}
-                className="w-full rounded-full bg-emerald-600 px-6 py-4 text-sm font-semibold text-white transition hover:bg-emerald-500"
+                onClick={() => void handleConfirmOrder()}
+                disabled={isSubmitting}
+                className="w-full rounded-full bg-emerald-600 px-6 py-4 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:bg-emerald-400"
               >
-                Enviar pedido
+                {isSubmitting ? "Enviando pedido..." : "Enviar pedido"}
               </button>
             </div>
           </div>

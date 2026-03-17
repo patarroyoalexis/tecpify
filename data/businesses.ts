@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabase/client";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type { BusinessConfig } from "@/types/storefront";
 
 export const mockBusinesses: BusinessConfig[] = [
@@ -97,6 +97,7 @@ export const getBusinessById = getBusinessBySlug;
 export async function getBusinessBySlugFromDatabase(slug: string) {
   logBusinessDebug("Resolving business by slug", { slug });
 
+  const supabase = createServerSupabaseClient();
   const { data, error } = await supabase
     .from("businesses")
     .select("id, slug")

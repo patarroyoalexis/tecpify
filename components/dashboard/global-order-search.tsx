@@ -3,15 +3,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { formatCurrency } from "@/data/orders";
+import { fetchOrdersByBusinessSlug } from "@/lib/orders/api";
 import {
-  getOrdersByBusinessFromSupabase,
   matchesGlobalOrderSearch,
   mergeOrdersForGlobalSearch,
 } from "@/lib/data/orders-search";
 import type { Order } from "@/types/orders";
 
 interface GlobalOrderSearchProps {
-  businessDatabaseId: string | null;
+  businessSlug: string;
   localOrders: Order[];
   isOpen: boolean;
   onClose: () => void;
@@ -91,7 +91,7 @@ function useDebouncedValue<T>(value: T, delayMs: number) {
 }
 
 export function GlobalOrderSearch({
-  businessDatabaseId,
+  businessSlug,
   localOrders,
   isOpen,
   onClose,
@@ -116,53 +116,45 @@ export function GlobalOrderSearch({
   }, [isOpen]);
 
   useEffect(() => {
-    if (!isOpen || hasLoaded || !businessDatabaseId) {
+    if (!isOpen || hasLoaded) {
       return;
     }
 
     let isCancelled = false;
 
     async function loadOrders() {
-  setIsLoading(true);
-  setError("");
+      setIsLoading(true);
+      setError("");
 
-  try {
-    if (!businessDatabaseId) {
-      if (!isCancelled) {
-        setRemoteOrders([]);
-        setHasLoaded(true);
+      try {
+        const orders = await fetchOrdersByBusinessSlug(businessSlug);
+
+        if (!isCancelled) {
+          setRemoteOrders(orders);
+          setHasLoaded(true);
+        }
+      } catch (loadError) {
+        if (!isCancelled) {
+          setError(
+            loadError instanceof Error
+              ? loadError.message
+              : "No fue posible consultar los pedidos en este momento.",
+          );
+          setHasLoaded(true);
+        }
+      } finally {
+        if (!isCancelled) {
+          setIsLoading(false);
+        }
       }
-      return;
     }
-
-    const orders = await getOrdersByBusinessFromSupabase(businessDatabaseId);
-
-    if (!isCancelled) {
-      setRemoteOrders(orders);
-      setHasLoaded(true);
-    }
-  } catch (loadError) {
-    if (!isCancelled) {
-      setError(
-        loadError instanceof Error
-          ? loadError.message
-          : "No fue posible consultar los pedidos en este momento.",
-      );
-      setHasLoaded(true);
-    }
-  } finally {
-    if (!isCancelled) {
-      setIsLoading(false);
-    }
-  }
-}
 
     void loadOrders();
 
     return () => {
       isCancelled = true;
     };
-  }, [businessDatabaseId, hasLoaded, isOpen]);
+  }, [businessSlug, hasLoaded, isOpen]);
 
   const mergedOrders = useMemo(
     () => mergeOrdersForGlobalSearch(localOrders, remoteOrders),

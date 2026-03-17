@@ -2,6 +2,7 @@ import { BusinessWorkspaceShell } from "@/components/dashboard/business-workspac
 import { DashboardOverview } from "@/components/dashboard/dashboard-overview";
 import { getBusinessBySlug } from "@/data/businesses";
 import { getMockOrdersByBusinessId } from "@/data/orders";
+import { getOrdersByBusinessSlugFromDatabase } from "@/lib/data/orders-server";
 
 export default async function BusinessDashboardPage({
   params,
@@ -10,6 +11,11 @@ export default async function BusinessDashboardPage({
 }) {
   const { negocioId } = await params;
   const business = getBusinessBySlug(negocioId);
+  const initialOrders = business
+    ? await getOrdersByBusinessSlugFromDatabase(negocioId).catch(() =>
+        getMockOrdersByBusinessId(business.slug),
+      )
+    : [];
 
   if (!business) {
     return (
@@ -41,7 +47,8 @@ export default async function BusinessDashboardPage({
     >
       <DashboardOverview
         businessId={business.slug}
-        orders={getMockOrdersByBusinessId(business.slug)}
+        businessSlug={business.slug}
+        orders={initialOrders}
       />
     </BusinessWorkspaceShell>
   );

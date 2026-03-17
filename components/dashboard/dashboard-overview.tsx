@@ -9,14 +9,16 @@ import { useBusinessOrders } from "./use-business-orders";
 
 interface DashboardOverviewProps {
   businessId: string;
+  businessSlug?: string;
   orders: Order[];
 }
 
 export function DashboardOverview({
   businessId,
+  businessSlug,
   orders,
 }: DashboardOverviewProps) {
-  const { ordersState } = useBusinessOrders({ businessId, orders });
+  const { ordersState } = useBusinessOrders({ businessId, businessSlug, orders });
   const summary = getDashboardSummary(ordersState);
   const insights = getBusinessInsights(ordersState).slice(0, 2);
 

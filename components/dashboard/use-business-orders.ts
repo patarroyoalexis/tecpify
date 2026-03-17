@@ -2,12 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import { isDigitalPayment } from "@/components/dashboard/payment-helpers";
 import {
   getBusinessOrdersStorageKey,
   readOrdersForBusiness,
   writeOrdersForBusiness,
 } from "@/data/order-storage";
+import { fetchOrdersByBusinessSlug } from "@/lib/orders/api";
+import { getInitialOrderState } from "@/lib/orders/mappers";
 import type {
   Order,
   OrderHistoryEvent,
@@ -20,6 +21,7 @@ import type { NewOrderFormValue } from "./new-order-drawer";
 
 interface UseBusinessOrdersOptions {
   businessId: string;
+  businessSlug?: string;
   orders: Order[];
 }
 
@@ -80,48 +82,60 @@ function generateNextOrderId(currentOrders: Order[]) {
   return `TEC-${maxId + 1}`;
 }
 
-function getInitialOrderState(paymentMethod: PaymentMethod) {
-  if (isDigitalPayment(paymentMethod)) {
-    return {
-      paymentStatus: "pendiente" as PaymentStatus,
-      status: "pendiente de pago" as OrderStatus,
-    };
+function getFallbackOrders(businessId: string, orders: Order[]) {
+  const persistedOrders = readOrdersForBusiness(businessId);
+
+  if (persistedOrders && persistedOrders.every(isValidOrder)) {
+    return persistedOrders.filter((order) => order.businessId === businessId);
   }
 
-  return {
-    paymentStatus: "verificado" as PaymentStatus,
-    status: "confirmado" as OrderStatus,
-  };
+  return orders;
 }
 
 export function useBusinessOrders({
   businessId,
+  businessSlug,
   orders,
 }: UseBusinessOrdersOptions) {
   const [ordersState, setOrdersState] = useState<Order[]>(orders);
   const [hasHydrated, setHasHydrated] = useState(false);
 
   useEffect(() => {
-    const persistedOrders = readOrdersForBusiness(businessId);
+    let isCancelled = false;
 
-    queueMicrotask(() => {
-      if (persistedOrders && persistedOrders.every(isValidOrder)) {
-        setOrdersState(
-          persistedOrders.filter((order) => order.businessId === businessId),
-        );
-      } else {
-        setOrdersState(orders);
+    async function hydrateOrders() {
+      const resolvedBusinessSlug = businessSlug ?? businessId;
+
+      try {
+        const remoteOrders = await fetchOrdersByBusinessSlug(resolvedBusinessSlug);
+
+        if (!isCancelled) {
+          setOrdersState(remoteOrders);
+          // Transitional fallback: keep a local snapshot while the migration finishes.
+          writeOrdersForBusiness(businessId, remoteOrders);
+          setHasHydrated(true);
+        }
+      } catch {
+        if (!isCancelled) {
+          setOrdersState(getFallbackOrders(businessId, orders));
+          setHasHydrated(true);
+        }
       }
+    }
 
-      setHasHydrated(true);
-    });
-  }, [businessId, orders]);
+    void hydrateOrders();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [businessId, businessSlug, orders]);
 
   useEffect(() => {
     if (!hasHydrated) {
       return;
     }
 
+    // Transitional fallback: localStorage still mirrors the current view in case Supabase is unavailable.
     writeOrdersForBusiness(businessId, ordersState);
   }, [businessId, hasHydrated, ordersState]);
 
@@ -298,7 +312,7 @@ export function useBusinessOrders({
 
     setOrdersState((currentOrders) => {
       const orderId = generateNextOrderId(currentOrders);
-      const initialState = getInitialOrderState(input.paymentMethod);
+      const initialState = getInitialOrderState(input.paymentMethod as PaymentMethod);
       const newOrder: Order = {
         id: orderId,
         businessId,

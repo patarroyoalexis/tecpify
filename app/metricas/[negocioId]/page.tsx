@@ -2,6 +2,7 @@ import { BusinessWorkspaceShell } from "@/components/dashboard/business-workspac
 import { MetricsOverview } from "@/components/dashboard/metrics-overview";
 import { getBusinessBySlug } from "@/data/businesses";
 import { getMockOrdersByBusinessId } from "@/data/orders";
+import { getOrdersByBusinessSlugFromDatabase } from "@/lib/data/orders-server";
 
 export default async function MetricsPage({
   params,
@@ -10,6 +11,11 @@ export default async function MetricsPage({
 }) {
   const { negocioId } = await params;
   const business = getBusinessBySlug(negocioId);
+  const initialOrders = business
+    ? await getOrdersByBusinessSlugFromDatabase(negocioId).catch(() =>
+        getMockOrdersByBusinessId(business.slug),
+      )
+    : [];
 
   if (!business) {
     return (
@@ -41,7 +47,8 @@ export default async function MetricsPage({
     >
       <MetricsOverview
         businessId={business.slug}
-        orders={getMockOrdersByBusinessId(business.slug)}
+        businessSlug={business.slug}
+        orders={initialOrders}
       />
     </BusinessWorkspaceShell>
   );

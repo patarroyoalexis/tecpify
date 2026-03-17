@@ -14,11 +14,12 @@ import { useBusinessOrders } from "./use-business-orders";
 
 interface MetricsOverviewProps {
   businessId: string;
+  businessSlug?: string;
   orders: Order[];
 }
 
-export function MetricsOverview({ businessId, orders }: MetricsOverviewProps) {
-  const { ordersState } = useBusinessOrders({ businessId, orders });
+export function MetricsOverview({ businessId, businessSlug, orders }: MetricsOverviewProps) {
+  const { ordersState } = useBusinessOrders({ businessId, businessSlug, orders });
   const summary = getDashboardSummary(ordersState);
   const topProducts = getTopProducts(ordersState, 5);
   const revenueSeries = getRevenueSeries(ordersState, 5);
