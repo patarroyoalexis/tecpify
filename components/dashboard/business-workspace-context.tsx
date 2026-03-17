@@ -12,11 +12,14 @@ import type { NewOrderFormValue } from "@/components/dashboard/new-order-drawer"
 import { GlobalOrderSearch } from "@/components/dashboard/global-order-search";
 import { NewOrderDrawer } from "@/components/dashboard/new-order-drawer";
 import { OrderDetailDrawer } from "@/components/dashboard/order-detail-drawer";
+import { ProductsManagementDrawer } from "@/components/dashboard/products-management-drawer";
 import { useBusinessOrders } from "@/components/dashboard/use-business-orders";
 import type { Order, PaymentStatus } from "@/types/orders";
 
 interface BusinessWorkspaceProviderProps {
   businessId: string;
+  businessDatabaseId: string | null;
+  businessName: string;
   businessSlug: string;
   initialOrders: Order[];
   children: ReactNode;
@@ -28,7 +31,9 @@ interface BusinessWorkspaceContextValue {
   ordersState: Order[];
   openGlobalSearch: () => void;
   openNewOrder: () => void;
+  openNewProduct: () => void;
   openOrderDetails: (orderId: string) => void;
+  openProductsManager: () => void;
   handleMarkAllAsReviewed: () => void;
   handleMarkAsReviewed: (orderId: string) => void;
   handleCreateOrder: (input: NewOrderFormValue) => void;
@@ -45,12 +50,16 @@ const BusinessWorkspaceContext = createContext<BusinessWorkspaceContextValue | n
 
 export function BusinessWorkspaceProvider({
   businessId,
+  businessDatabaseId,
+  businessName,
   businessSlug,
   initialOrders,
   children,
 }: BusinessWorkspaceProviderProps) {
   const [isGlobalSearchOpen, setIsGlobalSearchOpen] = useState(false);
   const [isNewOrderDrawerOpen, setIsNewOrderDrawerOpen] = useState(false);
+  const [isProductsDrawerOpen, setIsProductsDrawerOpen] = useState(false);
+  const [productsDrawerMode, setProductsDrawerMode] = useState<"list" | "create">("list");
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const {
     hasHydrated,
@@ -81,9 +90,17 @@ export function BusinessWorkspaceProvider({
       ordersState,
       openGlobalSearch: () => setIsGlobalSearchOpen(true),
       openNewOrder: () => setIsNewOrderDrawerOpen(true),
+      openNewProduct: () => {
+        setProductsDrawerMode("create");
+        setIsProductsDrawerOpen(true);
+      },
       openOrderDetails: (orderId: string) => {
         handleMarkAsReviewed(orderId);
         setSelectedOrderId(orderId);
+      },
+      openProductsManager: () => {
+        setProductsDrawerMode("list");
+        setIsProductsDrawerOpen(true);
       },
       handleMarkAllAsReviewed,
       handleMarkAsReviewed,
@@ -110,6 +127,9 @@ export function BusinessWorkspaceProvider({
       hasHydrated,
       newOrders,
       ordersState,
+      setIsGlobalSearchOpen,
+      setIsNewOrderDrawerOpen,
+      setIsProductsDrawerOpen,
     ],
   );
 
@@ -133,6 +153,14 @@ export function BusinessWorkspaceProvider({
         isOpen={isNewOrderDrawerOpen}
         onClose={() => setIsNewOrderDrawerOpen(false)}
         onCreateOrder={handleCreateOrder}
+      />
+
+      <ProductsManagementDrawer
+        businessDatabaseId={businessDatabaseId}
+        businessName={businessName}
+        isOpen={isProductsDrawerOpen}
+        onClose={() => setIsProductsDrawerOpen(false)}
+        initialMode={productsDrawerMode}
       />
 
       <GlobalOrderSearch

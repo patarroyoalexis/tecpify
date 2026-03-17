@@ -16,6 +16,7 @@ interface ProductsManagementDrawerProps {
   businessName: string;
   isOpen: boolean;
   onClose: () => void;
+  initialMode?: "list" | "create";
 }
 
 interface ProductFormState {
@@ -83,6 +84,7 @@ export function ProductsManagementDrawer({
   businessName,
   isOpen,
   onClose,
+  initialMode = "list",
 }: ProductsManagementDrawerProps) {
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -134,13 +136,31 @@ export function ProductsManagementDrawer({
 
   useEffect(() => {
     if (!isOpen) {
-      setMode("list");
+      setMode(initialMode);
       setEditingProductId(null);
       setError("");
       setFeedback("");
       setFormState(createDefaultFormState(nextSortOrder));
     }
-  }, [isOpen, nextSortOrder]);
+  }, [initialMode, isOpen, nextSortOrder]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    setError("");
+    setFeedback("");
+    setEditingProductId(null);
+
+    if (initialMode === "create") {
+      setMode("create");
+      setFormState(createDefaultFormState(nextSortOrder));
+      return;
+    }
+
+    setMode("list");
+  }, [initialMode, isOpen, nextSortOrder]);
 
   function updateFormField<Key extends keyof ProductFormState>(
     key: Key,

@@ -12,6 +12,7 @@ import type { Order } from "@/types/orders";
 
 interface BusinessWorkspaceShellProps {
   businessId: string;
+  businessDatabaseId: string | null;
   businessName: string;
   businessSlug: string;
   initialOrders: Order[];
@@ -28,7 +29,7 @@ function BusinessWorkspaceShellContent({
   children,
 }: BusinessWorkspaceShellProps) {
   const pathname = usePathname();
-  const { openGlobalSearch, openNewOrder } = useBusinessWorkspace();
+  const { openGlobalSearch, openNewOrder, openNewProduct } = useBusinessWorkspace();
   const activeTab = pathname.startsWith(`/pedidos/${businessSlug}`)
     ? "pedidos"
     : pathname.startsWith(`/metricas/${businessSlug}`)
@@ -43,6 +44,7 @@ function BusinessWorkspaceShellContent({
         activeTab={activeTab}
         onSearch={openGlobalSearch}
         onNewOrder={openNewOrder}
+        onNewProduct={openNewProduct}
       />
 
       <WorkspacePageHeader title={title} description={description} />
@@ -62,6 +64,8 @@ export function BusinessWorkspaceShell(props: BusinessWorkspaceShellProps) {
   return (
     <BusinessWorkspaceProvider
       businessId={businessId}
+      businessDatabaseId={props.businessDatabaseId}
+      businessName={props.businessName}
       businessSlug={businessSlug}
       initialOrders={initialOrders}
     >

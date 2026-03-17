@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { NewActionsMenu } from "@/components/dashboard/new-actions-menu";
 
 interface WorkspaceNavbarProps {
   businessName: string;
@@ -8,6 +9,7 @@ interface WorkspaceNavbarProps {
   activeTab?: "dashboard" | "pedidos" | "metricas";
   onSearch: () => void;
   onNewOrder: () => void;
+  onNewProduct: () => void;
 }
 
 const tabs = [
@@ -22,6 +24,7 @@ export function WorkspaceNavbar({
   activeTab = "dashboard",
   onSearch,
   onNewOrder,
+  onNewProduct,
 }: WorkspaceNavbarProps) {
   return (
     <>
@@ -122,14 +125,11 @@ export function WorkspaceNavbar({
                 </svg>
               </button>
 
-              <button
-                type="button"
-                onClick={onNewOrder}
-                className="hidden items-center gap-2 rounded-xl bg-slate-950 px-3.5 py-2 text-sm font-medium text-white transition hover:bg-slate-800 md:inline-flex"
-              >
-                <span className="text-base leading-none">+</span>
-                <span>Nuevo pedido</span>
-              </button>
+              <NewActionsMenu
+                onNewOrder={onNewOrder}
+                onNewProduct={onNewProduct}
+                variant="desktop"
+              />
             </div>
           </div>
         </div>
@@ -157,14 +157,12 @@ export function WorkspaceNavbar({
         </div>
       </header>
 
-      <button
-        type="button"
-        onClick={onNewOrder}
-        className="fixed bottom-[calc(env(safe-area-inset-bottom)+1rem)] right-[max(1rem,env(safe-area-inset-right))] z-40 flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-950 text-2xl font-medium text-white shadow-[0_18px_40px_rgba(15,23,42,0.22)] transition hover:bg-slate-800 md:hidden"
-        aria-label="Nuevo pedido"
-      >
-        +
-      </button>
+      <NewActionsMenu
+        onNewOrder={onNewOrder}
+        onNewProduct={onNewProduct}
+        variant="mobile"
+      />
+
     </>
   );
 }

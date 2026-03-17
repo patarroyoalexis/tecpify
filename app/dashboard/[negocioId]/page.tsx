@@ -44,6 +44,7 @@ export default async function BusinessDashboardPage({
   return (
     <BusinessWorkspaceShell
       businessId={business.slug}
+      businessDatabaseId={databaseBusiness?.id ?? null}
       businessName={business.name}
       businessSlug={business.slug}
       initialOrders={initialOrders}
@@ -52,8 +53,6 @@ export default async function BusinessDashboardPage({
     >
       <DashboardOverview
         businessId={business.slug}
-        businessDatabaseId={databaseBusiness?.id ?? null}
-        businessName={business.name}
       />
     </BusinessWorkspaceShell>
   );

@@ -44,6 +44,7 @@ export default async function OrdersPage({
   return (
     <BusinessWorkspaceShell
       businessId={business.slug}
+      businessDatabaseId={databaseBusiness?.id ?? null}
       businessName={business.name}
       businessSlug={business.slug}
       initialOrders={databaseBusiness ? initialOrders : getMockOrdersByBusinessId(business.slug)}

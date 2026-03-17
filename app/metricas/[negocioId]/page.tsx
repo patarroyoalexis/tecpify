@@ -1,6 +1,6 @@
 import { BusinessWorkspaceShell } from "@/components/dashboard/business-workspace-shell";
 import { MetricsOverview } from "@/components/dashboard/metrics-overview";
-import { getBusinessBySlug } from "@/data/businesses";
+import { getBusinessBySlug, getBusinessBySlugFromDatabase } from "@/data/businesses";
 import { getMockOrdersByBusinessId } from "@/data/orders";
 import { getOrdersByBusinessSlugFromDatabase } from "@/lib/data/orders-server";
 
@@ -11,6 +11,9 @@ export default async function MetricsPage({
 }) {
   const { negocioId } = await params;
   const business = getBusinessBySlug(negocioId);
+  const databaseBusiness = business
+    ? await getBusinessBySlugFromDatabase(negocioId).catch(() => null)
+    : null;
   const initialOrders = business
     ? await getOrdersByBusinessSlugFromDatabase(negocioId).catch(() =>
         getMockOrdersByBusinessId(business.slug),
@@ -41,6 +44,7 @@ export default async function MetricsPage({
   return (
     <BusinessWorkspaceShell
       businessId={business.slug}
+      businessDatabaseId={databaseBusiness?.id ?? null}
       businessName={business.name}
       businessSlug={business.slug}
       initialOrders={initialOrders}
