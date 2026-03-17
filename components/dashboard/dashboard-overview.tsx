@@ -9,21 +9,17 @@ import {
   getDashboardSummary,
   getOperationalPriority,
 } from "@/data/orders";
-import { getOrderDisplayCode, type Order } from "@/types/orders";
-import { useBusinessOrders } from "./use-business-orders";
+import { getOrderDisplayCode } from "@/types/orders";
+import { useBusinessWorkspace } from "./business-workspace-context";
 
 interface DashboardOverviewProps {
   businessId: string;
-  businessSlug?: string;
-  orders: Order[];
 }
 
 export function DashboardOverview({
   businessId,
-  businessSlug,
-  orders,
 }: DashboardOverviewProps) {
-  const { ordersState } = useBusinessOrders({ businessId, businessSlug, orders });
+  const { ordersState } = useBusinessWorkspace();
   const summary = getDashboardSummary(ordersState);
   const insights = getBusinessInsights(ordersState).slice(0, 2);
   const unreviewedOrders = ordersState.filter((order) => !order.isReviewed);

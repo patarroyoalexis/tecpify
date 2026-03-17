@@ -40,16 +40,14 @@ export default async function BusinessDashboardPage({
 
   return (
     <BusinessWorkspaceShell
+      businessId={business.slug}
       businessName={business.name}
       businessSlug={business.slug}
+      initialOrders={initialOrders}
       title="Dashboard"
-      description="Resumen ejecutivo del negocio para entender rapido el dia y saltar a la operacion o a las metricas cuando haga falta."
+      description="Resumen rapido del negocio para priorizar el dia."
     >
-      <DashboardOverview
-        businessId={business.slug}
-        businessSlug={business.slug}
-        orders={initialOrders}
-      />
+      <DashboardOverview businessId={business.slug} />
     </BusinessWorkspaceShell>
   );
 }

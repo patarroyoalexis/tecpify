@@ -11,17 +11,10 @@ import {
   getRevenueSeries,
   getTopProducts,
 } from "@/data/orders";
-import type { Order } from "@/types/orders";
-import { useBusinessOrders } from "./use-business-orders";
+import { useBusinessWorkspace } from "./business-workspace-context";
 
-interface MetricsOverviewProps {
-  businessId: string;
-  businessSlug?: string;
-  orders: Order[];
-}
-
-export function MetricsOverview({ businessId, businessSlug, orders }: MetricsOverviewProps) {
-  const { ordersState } = useBusinessOrders({ businessId, businessSlug, orders });
+export function MetricsOverview() {
+  const { ordersState } = useBusinessWorkspace();
   const summary = getDashboardSummary(ordersState);
   const topProducts = getTopProducts(ordersState, 5);
   const revenueSeries = getRevenueSeries(ordersState, 5);

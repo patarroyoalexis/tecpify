@@ -2,44 +2,70 @@
 
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
-import { WorkspaceHeader } from "@/components/dashboard/workspace-header";
+import {
+  BusinessWorkspaceProvider,
+  useBusinessWorkspace,
+} from "@/components/dashboard/business-workspace-context";
+import { WorkspaceNavbar } from "@/components/dashboard/workspace-navbar";
+import { WorkspacePageHeader } from "@/components/dashboard/workspace-page-header";
+import type { Order } from "@/types/orders";
 
 interface BusinessWorkspaceShellProps {
+  businessId: string;
   businessName: string;
   businessSlug: string;
+  initialOrders: Order[];
   title: string;
   description: string;
-  compactHeader?: boolean;
-  headerAction?: ReactNode;
   children: ReactNode;
 }
 
-export function BusinessWorkspaceShell({
+function BusinessWorkspaceShellContent({
   businessName,
   businessSlug,
   title,
   description,
-  compactHeader = false,
-  headerAction,
   children,
 }: BusinessWorkspaceShellProps) {
   const pathname = usePathname();
+  const { openGlobalSearch, openNewOrder } = useBusinessWorkspace();
+  const activeTab = pathname.startsWith(`/pedidos/${businessSlug}`)
+    ? "pedidos"
+    : pathname.startsWith(`/metricas/${businessSlug}`)
+      ? "metricas"
+      : "dashboard";
 
   return (
-    <main className={`min-h-screen px-4 ${compactHeader ? "py-4 sm:py-5" : "py-6"} sm:px-6 lg:px-8 lg:py-8`}>
-      <div className={`mx-auto flex w-full max-w-7xl flex-col ${compactHeader ? "gap-4 sm:gap-5" : "gap-6"}`}>
-        <WorkspaceHeader
-          businessName={businessName}
-          businessSlug={businessSlug}
-          title={title}
-          description={description}
-          pathname={pathname}
-          variant={compactHeader ? "compact" : "default"}
-          headerAction={headerAction}
-        />
+    <main className="min-h-screen">
+      <WorkspaceNavbar
+        businessName={businessName}
+        businessSlug={businessSlug}
+        activeTab={activeTab}
+        onSearch={openGlobalSearch}
+        onNewOrder={openNewOrder}
+      />
 
-        {children}
-      </div>
+      <WorkspacePageHeader title={title} description={description} />
+
+      <section className="px-3 pb-4 pt-5 sm:px-4 sm:pb-5 lg:px-5 lg:pb-6 lg:pt-6">
+        <div className="mx-auto flex w-full max-w-7xl flex-col gap-4">
+          {children}
+        </div>
+      </section>
     </main>
+  );
+}
+
+export function BusinessWorkspaceShell(props: BusinessWorkspaceShellProps) {
+  const { businessId, businessSlug, initialOrders } = props;
+
+  return (
+    <BusinessWorkspaceProvider
+      businessId={businessId}
+      businessSlug={businessSlug}
+      initialOrders={initialOrders}
+    >
+      <BusinessWorkspaceShellContent {...props} />
+    </BusinessWorkspaceProvider>
   );
 }

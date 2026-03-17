@@ -94,16 +94,6 @@ function ClipboardIcon({ className }: IconProps) {
   );
 }
 
-function NoteIcon({ className }: IconProps) {
-  return (
-    <IconBase className={className}>
-      <path d="M6 4h12a2 2 0 0 1 2 2v12l-4-3-4 3-4-3-4 3V6a2 2 0 0 1 2-2Z" />
-      <path d="M9 9h6" />
-      <path d="M9 12h6" />
-    </IconBase>
-  );
-}
-
 function MoneyIcon({ className }: IconProps) {
   return (
     <IconBase className={className}>

@@ -40,16 +40,14 @@ export default async function MetricsPage({
 
   return (
     <BusinessWorkspaceShell
+      businessId={business.slug}
       businessName={business.name}
       businessSlug={business.slug}
+      initialOrders={initialOrders}
       title="Metricas"
-      description="Observa el rendimiento del negocio con una capa analitica separada de la operacion diaria."
+      description="Rendimiento del negocio en una capa separada de la operacion."
     >
-      <MetricsOverview
-        businessId={business.slug}
-        businessSlug={business.slug}
-        orders={initialOrders}
-      />
+      <MetricsOverview />
     </BusinessWorkspaceShell>
   );
 }
