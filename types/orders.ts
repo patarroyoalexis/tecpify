@@ -16,17 +16,18 @@ export const PAYMENT_STATUSES = [
 ] as const;
 
 export const DELIVERY_TYPES = ["domicilio", "recogida en tienda"] as const;
+export const PAYMENT_METHODS = [
+  "Efectivo",
+  "Transferencia",
+  "Tarjeta",
+  "Nequi",
+  "Contra entrega",
+] as const;
 
 export type OrderStatus = (typeof ORDER_STATUSES)[number];
 export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
 export type DeliveryType = (typeof DELIVERY_TYPES)[number];
-
-export type PaymentMethod =
-  | "Efectivo"
-  | "Transferencia"
-  | "Tarjeta"
-  | "Nequi"
-  | "Contra entrega";
+export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
 export interface OrderProduct {
   name: string;
@@ -38,6 +39,9 @@ export interface OrderHistoryEvent {
   title: string;
   description: string;
   occurredAt: string;
+  field?: string;
+  previousValue?: string;
+  newValue?: string;
 }
 
 export interface Order {

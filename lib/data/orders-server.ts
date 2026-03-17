@@ -2,10 +2,12 @@ import {
   createInitialOrderHistory,
   getInitialOrderState,
   isValidOrderStatus,
+  isValidPaymentMethod,
   isValidPaymentStatus,
   isValidDeliveryType,
   isValidOrderProducts,
   mapSupabaseRowToOrder,
+  normalizeOrderApiUpdatePayload,
   type OrderApiCreatePayload,
   type OrderApiUpdatePayload,
 } from "@/lib/orders/mappers";
@@ -28,6 +30,7 @@ interface OrderLookupRow {
   customer_whatsapp: string | null;
   delivery_type: Order["deliveryType"];
   delivery_address: string | null;
+  payment_method: Order["paymentMethod"];
   total: number;
   notes: string | null;
 }
@@ -278,11 +281,13 @@ export async function createOrderInDatabase(payload: unknown): Promise<Order> {
 }
 
 function validateUpdateOrderPayload(payload: unknown): payload is OrderApiUpdatePayload {
-  if (!payload || typeof payload !== "object") {
+  const normalizedPayload = normalizeOrderApiUpdatePayload(payload);
+
+  if (!normalizedPayload || typeof normalizedPayload !== "object") {
     return false;
   }
 
-  const candidate = payload as Partial<OrderApiUpdatePayload>;
+  const candidate = normalizedPayload as Partial<OrderApiUpdatePayload>;
 
   return (
     (candidate.status === undefined || isValidOrderStatus(candidate.status)) &&
@@ -290,9 +295,11 @@ function validateUpdateOrderPayload(payload: unknown): payload is OrderApiUpdate
     (candidate.customerName === undefined || typeof candidate.customerName === "string") &&
     (candidate.customerWhatsApp === undefined ||
       typeof candidate.customerWhatsApp === "string") &&
+    (candidate.deliveryType === undefined || isValidDeliveryType(candidate.deliveryType)) &&
     (candidate.deliveryAddress === undefined ||
       candidate.deliveryAddress === null ||
       typeof candidate.deliveryAddress === "string") &&
+    (candidate.paymentMethod === undefined || isValidPaymentMethod(candidate.paymentMethod)) &&
     (candidate.notes === undefined ||
       candidate.notes === null ||
       typeof candidate.notes === "string") &&
@@ -308,7 +315,9 @@ function validateUpdateOrderPayload(payload: unknown): payload is OrderApiUpdate
         "paymentStatus",
         "customerName",
         "customerWhatsApp",
+        "deliveryType",
         "deliveryAddress",
+        "paymentMethod",
         "notes",
         "total",
         "isReviewed",
@@ -319,18 +328,22 @@ function validateUpdateOrderPayload(payload: unknown): payload is OrderApiUpdate
 }
 
 function describeUpdatePayloadProblems(payload: unknown) {
-  if (!payload || typeof payload !== "object") {
+  const normalizedPayload = normalizeOrderApiUpdatePayload(payload);
+
+  if (!normalizedPayload || typeof normalizedPayload !== "object") {
     return ["Payload must be a JSON object."];
   }
 
-  const candidate = payload as Partial<OrderApiUpdatePayload>;
+  const candidate = normalizedPayload as Partial<OrderApiUpdatePayload>;
   const problems: string[] = [];
   const allowedKeys = [
     "status",
     "paymentStatus",
     "customerName",
     "customerWhatsApp",
+    "deliveryType",
     "deliveryAddress",
+    "paymentMethod",
     "notes",
     "total",
     "isReviewed",
@@ -365,12 +378,20 @@ function describeUpdatePayloadProblems(payload: unknown) {
     problems.push("customerWhatsApp is required when provided.");
   }
 
+  if (candidate.deliveryType !== undefined && !isValidDeliveryType(candidate.deliveryType)) {
+    problems.push("deliveryType is invalid for public.orders.");
+  }
+
   if (
     candidate.deliveryAddress !== undefined &&
     candidate.deliveryAddress !== null &&
     candidate.deliveryAddress.trim().length === 0
   ) {
     problems.push("deliveryAddress cannot be empty when provided.");
+  }
+
+  if (candidate.paymentMethod !== undefined && !isValidPaymentMethod(candidate.paymentMethod)) {
+    problems.push("paymentMethod is invalid for public.orders.");
   }
 
   if (
@@ -404,9 +425,11 @@ export async function updateOrderInDatabase(
   orderId: string,
   payload: unknown,
 ): Promise<Order> {
-  if (!validateUpdateOrderPayload(payload)) {
+  const normalizedPayload = normalizeOrderApiUpdatePayload(payload);
+
+  if (!validateUpdateOrderPayload(normalizedPayload)) {
     throw new Error(
-      `Invalid order update payload. ${describeUpdatePayloadProblems(payload).join(" ")}`,
+      `Invalid order update payload. ${describeUpdatePayloadProblems(normalizedPayload).join(" ")}`,
     );
   }
 
@@ -414,7 +437,7 @@ export async function updateOrderInDatabase(
   const { data: existingOrder, error: lookupError } = await supabase
     .from("orders")
     .select(
-      "id, business_id, customer_name, customer_whatsapp, delivery_type, delivery_address, total, notes",
+      "id, business_id, customer_name, customer_whatsapp, delivery_type, delivery_address, payment_method, total, notes",
     )
     .eq("id", orderId)
     .maybeSingle<OrderLookupRow>();
@@ -428,18 +451,23 @@ export async function updateOrderInDatabase(
   }
 
   const nextCustomerName =
-    payload.customerName !== undefined
-      ? payload.customerName.trim()
+    normalizedPayload.customerName !== undefined
+      ? normalizedPayload.customerName.trim()
       : existingOrder.customer_name;
   const nextCustomerWhatsApp =
-    payload.customerWhatsApp !== undefined
-      ? payload.customerWhatsApp.trim()
+    normalizedPayload.customerWhatsApp !== undefined
+      ? normalizedPayload.customerWhatsApp.trim()
       : existingOrder.customer_whatsapp ?? "";
+  const nextDeliveryType =
+    normalizedPayload.deliveryType !== undefined
+      ? normalizedPayload.deliveryType
+      : existingOrder.delivery_type;
   const nextDeliveryAddress =
-    payload.deliveryAddress !== undefined
-      ? payload.deliveryAddress?.trim() || ""
+    normalizedPayload.deliveryAddress !== undefined
+      ? normalizedPayload.deliveryAddress?.trim() || ""
       : existingOrder.delivery_address ?? "";
-  const nextTotal = payload.total !== undefined ? payload.total : existingOrder.total;
+  const nextTotal =
+    normalizedPayload.total !== undefined ? normalizedPayload.total : existingOrder.total;
 
   if (nextCustomerName.length === 0) {
     throw new Error("Invalid order update payload. customerName is required.");
@@ -449,7 +477,7 @@ export async function updateOrderInDatabase(
     throw new Error("Invalid order update payload. customerWhatsApp is required.");
   }
 
-  if (existingOrder.delivery_type === "domicilio" && nextDeliveryAddress.length === 0) {
+  if (nextDeliveryType === "domicilio" && nextDeliveryAddress.length === 0) {
     throw new Error(
       "Invalid order update payload. deliveryAddress is required for domicilio orders.",
     );
@@ -460,23 +488,33 @@ export async function updateOrderInDatabase(
   }
 
   const updatePayload = {
-    ...(payload.status !== undefined ? { status: payload.status } : {}),
-    ...(payload.paymentStatus !== undefined
-      ? { payment_status: payload.paymentStatus }
+    ...(normalizedPayload.status !== undefined ? { status: normalizedPayload.status } : {}),
+    ...(normalizedPayload.paymentStatus !== undefined
+      ? { payment_status: normalizedPayload.paymentStatus }
       : {}),
-    ...(payload.customerName !== undefined
+    ...(normalizedPayload.customerName !== undefined
       ? { customer_name: nextCustomerName }
       : {}),
-    ...(payload.customerWhatsApp !== undefined
+    ...(normalizedPayload.customerWhatsApp !== undefined
       ? { customer_whatsapp: nextCustomerWhatsApp }
       : {}),
-    ...(payload.deliveryAddress !== undefined
+    ...(normalizedPayload.deliveryType !== undefined
+      ? { delivery_type: normalizedPayload.deliveryType }
+      : {}),
+    ...(normalizedPayload.deliveryAddress !== undefined
       ? { delivery_address: nextDeliveryAddress || null }
       : {}),
-    ...(payload.notes !== undefined ? { notes: payload.notes?.trim() || null } : {}),
-    ...(payload.total !== undefined ? { total: nextTotal } : {}),
-    ...(payload.isReviewed !== undefined ? { is_reviewed: payload.isReviewed } : {}),
-    ...(payload.history !== undefined ? { history: payload.history } : {}),
+    ...(normalizedPayload.paymentMethod !== undefined
+      ? { payment_method: normalizedPayload.paymentMethod }
+      : {}),
+    ...(normalizedPayload.notes !== undefined
+      ? { notes: normalizedPayload.notes?.trim() || null }
+      : {}),
+    ...(normalizedPayload.total !== undefined ? { total: nextTotal } : {}),
+    ...(normalizedPayload.isReviewed !== undefined
+      ? { is_reviewed: normalizedPayload.isReviewed }
+      : {}),
+    ...(normalizedPayload.history !== undefined ? { history: normalizedPayload.history } : {}),
     updated_at: new Date().toISOString(),
   };
 

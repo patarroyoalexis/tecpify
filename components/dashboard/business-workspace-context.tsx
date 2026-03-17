@@ -46,7 +46,9 @@ interface BusinessWorkspaceContextValue {
       | "paymentStatus"
       | "customerName"
       | "customerWhatsApp"
+      | "deliveryType"
       | "deliveryAddress"
+      | "paymentMethod"
       | "notes"
       | "total"
     >,

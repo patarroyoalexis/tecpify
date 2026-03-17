@@ -8,16 +8,22 @@ import {
   writeOrdersForBusiness,
 } from "@/data/order-storage";
 import { fetchOrdersByBusinessSlug, updateOrderViaApi } from "@/lib/orders/api";
-import type { OrderApiUpdatePayload } from "@/lib/orders/mappers";
-import { getInitialOrderState } from "@/lib/orders/mappers";
+import { getInitialOrderState, type OrderApiUpdatePayload } from "@/lib/orders/mappers";
+import {
+  getOrderStatusTransitionRule,
+  getPaymentStatusTransitionRule,
+  ORDER_STATUS_LABELS,
+  PAYMENT_STATUS_LABELS,
+} from "@/lib/orders/transitions";
 import type {
+  DeliveryType,
   Order,
   OrderHistoryEvent,
   OrderStatus,
   PaymentMethod,
   PaymentStatus,
 } from "@/types/orders";
-import { ORDER_STATUSES } from "@/types/orders";
+import { DELIVERY_TYPES, ORDER_STATUSES } from "@/types/orders";
 import type { NewOrderFormValue } from "./new-order-drawer";
 
 interface UseBusinessOrdersOptions {
@@ -26,21 +32,44 @@ interface UseBusinessOrdersOptions {
   orders: Order[];
 }
 
+type EditableOrderPayload = Pick<
+  OrderApiUpdatePayload,
+  | "status"
+  | "paymentStatus"
+  | "customerName"
+  | "customerWhatsApp"
+  | "deliveryType"
+  | "deliveryAddress"
+  | "paymentMethod"
+  | "notes"
+  | "total"
+>;
+
 function createHistoryEvent(
   orderId: string,
   title: string,
   description: string,
+  field?: string,
+  previousValue?: string,
+  newValue?: string,
 ): OrderHistoryEvent {
   return {
     id: `${orderId}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
     title,
     description,
     occurredAt: new Date().toISOString(),
+    field,
+    previousValue,
+    newValue,
   };
 }
 
 function isValidOrderStatus(value: unknown): value is OrderStatus {
   return typeof value === "string" && ORDER_STATUSES.includes(value as OrderStatus);
+}
+
+function isValidDeliveryType(value: unknown): value is DeliveryType {
+  return typeof value === "string" && DELIVERY_TYPES.includes(value as DeliveryType);
 }
 
 function isValidOrder(order: unknown): order is Order {
@@ -74,6 +103,118 @@ function buildDateLabel(createdAt: string) {
   }).format(new Date(createdAt));
 }
 
+function formatOrderValue(field: keyof EditableOrderPayload, value: unknown): string {
+  if (value === null || value === undefined || value === "") {
+    return "Sin dato";
+  }
+
+  if (field === "status" && typeof value === "string") {
+    return ORDER_STATUS_LABELS[value as OrderStatus] ?? value;
+  }
+
+  if (field === "paymentStatus" && typeof value === "string") {
+    return PAYMENT_STATUS_LABELS[value as PaymentStatus] ?? value;
+  }
+
+  if (field === "deliveryType" && typeof value === "string") {
+    return value === "domicilio" ? "Domicilio" : "Recogida en tienda";
+  }
+
+  if (field === "total" && typeof value === "number") {
+    return new Intl.NumberFormat("es-CO", {
+      style: "currency",
+      currency: "COP",
+      maximumFractionDigits: 0,
+    }).format(value);
+  }
+
+  return String(value);
+}
+
+function getFieldLabel(field: keyof EditableOrderPayload): string {
+  switch (field) {
+    case "status":
+      return "Estado del pedido";
+    case "paymentStatus":
+      return "Estado del pago";
+    case "customerName":
+      return "Nombre del cliente";
+    case "customerWhatsApp":
+      return "WhatsApp del cliente";
+    case "deliveryType":
+      return "Tipo de entrega";
+    case "deliveryAddress":
+      return "Dirección de entrega";
+    case "paymentMethod":
+      return "Método de pago";
+    case "notes":
+      return "Notas";
+    case "total":
+      return "Total";
+    default:
+      return "Pedido";
+  }
+}
+
+function getCurrentFieldValue(order: Order, field: keyof EditableOrderPayload) {
+  switch (field) {
+    case "status":
+      return order.status;
+    case "paymentStatus":
+      return order.paymentStatus;
+    case "customerName":
+      return order.client;
+    case "customerWhatsApp":
+      return order.customerPhone ?? "";
+    case "deliveryType":
+      return order.deliveryType;
+    case "deliveryAddress":
+      return order.address ?? "";
+    case "paymentMethod":
+      return order.paymentMethod;
+    case "notes":
+      return order.observations ?? "";
+    case "total":
+      return order.total;
+    default:
+      return undefined;
+  }
+}
+
+function buildOrderHistoryEvents(order: Order, payload: EditableOrderPayload): OrderHistoryEvent[] {
+  return (Object.keys(payload) as Array<keyof EditableOrderPayload>)
+    .filter((field) => {
+      const previousValue = getCurrentFieldValue(order, field);
+      const nextValue = payload[field];
+
+      if (typeof previousValue === "number" && typeof nextValue === "number") {
+        return previousValue !== nextValue;
+      }
+
+      return String(previousValue ?? "").trim() !== String(nextValue ?? "").trim();
+    })
+    .map((field) => {
+      const previousValue = getCurrentFieldValue(order, field);
+      const nextValue = payload[field];
+      const formattedPreviousValue = formatOrderValue(field, previousValue);
+      const formattedNextValue = formatOrderValue(field, nextValue);
+      const fieldLabel = getFieldLabel(field);
+
+      return createHistoryEvent(
+        order.id,
+        field === "status"
+          ? "Estado del pedido actualizado"
+          : field === "paymentStatus"
+            ? "Estado del pago actualizado"
+            : "Dato principal del pedido actualizado",
+        `${fieldLabel}: "${formattedPreviousValue}" -> "${formattedNextValue}"`,
+        field,
+        formattedPreviousValue,
+        formattedNextValue,
+      );
+    });
+}
+
 function applyOrderUpdatePayload(order: Order, payload: OrderApiUpdatePayload): Order {
   return {
     ...order,
@@ -85,9 +226,11 @@ function applyOrderUpdatePayload(order: Order, payload: OrderApiUpdatePayload): 
     ...(payload.customerWhatsApp !== undefined
       ? { customerPhone: payload.customerWhatsApp.trim() }
       : {}),
+    ...(payload.deliveryType !== undefined ? { deliveryType: payload.deliveryType } : {}),
     ...(payload.deliveryAddress !== undefined
       ? { address: payload.deliveryAddress?.trim() || undefined }
       : {}),
+    ...(payload.paymentMethod !== undefined ? { paymentMethod: payload.paymentMethod } : {}),
     ...(payload.notes !== undefined
       ? { observations: payload.notes?.trim() || undefined }
       : {}),
@@ -135,7 +278,6 @@ export function useBusinessOrders({
 
         if (!isCancelled) {
           setOrdersState(remoteOrders);
-          // Transitional fallback: keep a local snapshot while the migration finishes.
           writeOrdersForBusiness(businessId, remoteOrders);
           setHasHydrated(true);
         }
@@ -159,7 +301,6 @@ export function useBusinessOrders({
       return;
     }
 
-    // Transitional fallback: localStorage still mirrors the current view in case Supabase is unavailable.
     writeOrdersForBusiness(businessId, ordersState);
   }, [businessId, hasHydrated, ordersState]);
 
@@ -245,30 +386,37 @@ export function useBusinessOrders({
     }
   }
 
-  async function handleEditOrder(
-    orderId: string,
-    payload: Pick<
-      OrderApiUpdatePayload,
-      | "status"
-      | "paymentStatus"
-      | "customerName"
-      | "customerWhatsApp"
-      | "deliveryAddress"
-      | "notes"
-      | "total"
-    >,
-  ) {
+  async function handleEditOrder(orderId: string, payload: EditableOrderPayload) {
     const currentOrder = ordersState.find((order) => order.id === orderId);
 
     if (!currentOrder) {
       throw new Error("No encontramos el pedido que intentas editar.");
     }
 
-    const nextHistory = appendOrderEvent(
-      currentOrder,
-      "Pedido editado",
-      "Se actualizaron manualmente datos del cliente, estados o valores operativos.",
-    );
+    if (payload.status !== undefined) {
+      const statusRule = getOrderStatusTransitionRule(currentOrder, payload.status);
+
+      if (!statusRule.allowed) {
+        throw new Error(statusRule.reason ?? "Ese cambio de estado no está permitido.");
+      }
+    }
+
+    if (payload.paymentStatus !== undefined) {
+      const paymentRule = getPaymentStatusTransitionRule(currentOrder, payload.paymentStatus);
+
+      if (!paymentRule.allowed) {
+        throw new Error(paymentRule.reason ?? "Ese cambio de pago no está permitido.");
+      }
+    }
+
+    if (payload.deliveryType !== undefined && !isValidDeliveryType(payload.deliveryType)) {
+      throw new Error("Selecciona un tipo de entrega válido.");
+    }
+
+    const nextHistory = [
+      ...buildOrderHistoryEvents(currentOrder, payload),
+      ...currentOrder.history,
+    ];
     const optimisticPayload: OrderApiUpdatePayload = {
       ...payload,
       history: nextHistory,
@@ -353,7 +501,7 @@ export function useBusinessOrders({
             history: appendOrderEvent(
               order,
               "Pedido revisado",
-              "El negocio reviso manualmente este pedido desde la operacion.",
+              "El negocio revisó manualmente este pedido desde la operación.",
             ),
           },
     );
@@ -373,7 +521,7 @@ export function useBusinessOrders({
             history: appendOrderEvent(
               order,
               "Pedido revisado",
-              "El negocio reviso manualmente este pedido desde la bandeja de nuevos.",
+              "El negocio revisó manualmente este pedido desde la bandeja de nuevos.",
             ),
           },
     );
@@ -385,7 +533,7 @@ export function useBusinessOrders({
       history: appendOrderEvent(
         order,
         "Mensaje de comprobante preparado para WhatsApp",
-        "Se preparo un mensaje manual para solicitar el comprobante de pago al cliente.",
+        "Se preparó un mensaje manual para solicitar el comprobante de pago al cliente.",
       ),
     }));
 
@@ -393,104 +541,43 @@ export function useBusinessOrders({
   }
 
   function handleUpdatePaymentStatus(orderId: string, paymentStatus: PaymentStatus) {
-    void synchronizeOrderMutation(orderId, (order) => ({
-      ...order,
-      paymentStatus,
-      history: appendOrderEvent(
-        order,
-        paymentStatus === "verificado"
-          ? "Pago marcado como verificado"
-          : paymentStatus === "con novedad"
-            ? "Pago marcado con novedad"
-            : "Pago marcado como no verificado",
-        `El estado del pago cambio manualmente a ${paymentStatus}.`,
-      ),
-    }));
+    void handleEditOrder(orderId, { paymentStatus }).catch((error) => {
+      console.error("[dashboard] payment status mutation failed", { orderId, error });
+    });
   }
 
   function handleConfirmOrder(orderId: string) {
-    void synchronizeOrderMutation(orderId, (order) => {
-      const canConfirm =
-        order.paymentStatus === "verificado" &&
-        (order.status === "pendiente de pago" || order.status === "pago por verificar");
-
-      if (!canConfirm) {
-        return order;
-      }
-
-      return {
-        ...order,
-        status: "confirmado",
-        history: appendOrderEvent(
-          order,
-          "Pedido confirmado",
-          "El pedido paso manualmente a confirmado despues de verificar el pago.",
-        ),
-      };
+    void handleEditOrder(orderId, { status: "confirmado" }).catch((error) => {
+      console.error("[dashboard] confirm order mutation failed", { orderId, error });
     });
   }
 
   function handleAdvanceOrderStatus(orderId: string) {
-    void synchronizeOrderMutation(orderId, (order) => {
-      if (order.status === "cancelado") {
-        return order;
-      }
+    const currentOrder = ordersState.find((order) => order.id === orderId);
 
-      if (order.status === "confirmado") {
-        return {
-          ...order,
-          status: "en preparación",
-          history: appendOrderEvent(
-            order,
-            "Pedido en preparacion",
-            "El pedido paso a preparacion desde el detalle operativo.",
-          ),
-        };
-      }
+    if (!currentOrder) {
+      return;
+    }
 
-      if (order.status === "en preparación") {
-        return {
-          ...order,
-          status: "listo",
-          history: appendOrderEvent(
-            order,
-            "Pedido listo",
-            "El pedido quedo listo para entrega o recogida.",
-          ),
-        };
-      }
+    const nextStatusByCurrent: Partial<Record<OrderStatus, OrderStatus>> = {
+      confirmado: "en preparación",
+      "en preparación": "listo",
+      listo: "entregado",
+    };
+    const nextStatus = nextStatusByCurrent[currentOrder.status];
 
-      if (order.status === "listo") {
-        return {
-          ...order,
-          status: "entregado",
-          history: appendOrderEvent(
-            order,
-            "Pedido entregado",
-            "El pedido fue marcado como entregado en la operacion manual.",
-          ),
-        };
-      }
+    if (!nextStatus) {
+      return;
+    }
 
-      return order;
+    void handleEditOrder(orderId, { status: nextStatus }).catch((error) => {
+      console.error("[dashboard] advance order mutation failed", { orderId, error });
     });
   }
 
   function handleCancelOrder(orderId: string) {
-    void synchronizeOrderMutation(orderId, (order) => {
-      if (order.status === "entregado" || order.status === "cancelado") {
-        return order;
-      }
-
-      return {
-        ...order,
-        status: "cancelado",
-        history: appendOrderEvent(
-          order,
-          "Pedido cancelado",
-          "El pedido fue cancelado manualmente desde el detalle operativo.",
-        ),
-      };
+    void handleEditOrder(orderId, { status: "cancelado" }).catch((error) => {
+      console.error("[dashboard] cancel order mutation failed", { orderId, error });
     });
   }
 

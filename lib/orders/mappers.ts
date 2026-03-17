@@ -10,6 +10,7 @@ import type {
 import {
   DELIVERY_TYPES,
   ORDER_STATUSES,
+  PAYMENT_METHODS,
   PAYMENT_STATUSES,
 } from "@/types/orders";
 
@@ -35,9 +36,12 @@ export interface OrderApiCreatePayload {
 export interface OrderApiUpdatePayload {
   status?: OrderStatus;
   paymentStatus?: PaymentStatus;
+  payment_status?: PaymentStatus;
   customerName?: string;
   customerWhatsApp?: string;
+  deliveryType?: DeliveryType;
   deliveryAddress?: string | null;
+  paymentMethod?: PaymentMethod;
   notes?: string | null;
   total?: number;
   isReviewed?: boolean;
@@ -132,12 +136,25 @@ function mapHistory(value: unknown): OrderHistoryEvent[] {
         : typeof candidate.occurred_at === "string"
           ? candidate.occurred_at
           : "";
+    const field = typeof candidate.field === "string" ? candidate.field : undefined;
+    const previousValue =
+      typeof candidate.previousValue === "string"
+        ? candidate.previousValue
+        : typeof candidate.previous_value === "string"
+          ? candidate.previous_value
+          : undefined;
+    const newValue =
+      typeof candidate.newValue === "string"
+        ? candidate.newValue
+        : typeof candidate.new_value === "string"
+          ? candidate.new_value
+          : undefined;
 
     if (!id || !title || !occurredAt) {
       return [];
     }
 
-    return [{ id, title, description, occurredAt }];
+    return [{ id, title, description, occurredAt, field, previousValue, newValue }];
   });
 }
 
@@ -242,6 +259,27 @@ export function isValidOrderStatus(value: unknown): value is OrderStatus {
 
 export function isValidPaymentStatus(value: unknown): value is PaymentStatus {
   return typeof value === "string" && PAYMENT_STATUSES.includes(value as PaymentStatus);
+}
+
+export function isValidPaymentMethod(value: unknown): value is PaymentMethod {
+  return typeof value === "string" && PAYMENT_METHODS.includes(value as PaymentMethod);
+}
+
+export function normalizeOrderApiUpdatePayload(payload: unknown): unknown {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return payload;
+  }
+
+  const candidate = payload as Record<string, unknown>;
+
+  if ("payment_status" in candidate && !("paymentStatus" in candidate)) {
+    return {
+      ...candidate,
+      paymentStatus: candidate.payment_status,
+    };
+  }
+
+  return payload;
 }
 
 export function isValidOrderProducts(value: unknown): value is OrderProduct[] {
