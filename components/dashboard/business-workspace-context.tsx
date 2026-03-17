@@ -15,6 +15,7 @@ import { OrderDetailDrawer } from "@/components/dashboard/order-detail-drawer";
 import { ProductsManagementDrawer } from "@/components/dashboard/products-management-drawer";
 import { useBusinessOrders } from "@/components/dashboard/use-business-orders";
 import type { Order, PaymentStatus } from "@/types/orders";
+import type { OrderApiUpdatePayload } from "@/lib/orders/mappers";
 
 interface BusinessWorkspaceProviderProps {
   businessId: string;
@@ -37,6 +38,19 @@ interface BusinessWorkspaceContextValue {
   handleMarkAllAsReviewed: () => void;
   handleMarkAsReviewed: (orderId: string) => void;
   handleCreateOrder: (input: NewOrderFormValue) => void;
+  handleEditOrder: (
+    orderId: string,
+    payload: Pick<
+      OrderApiUpdatePayload,
+      | "status"
+      | "paymentStatus"
+      | "customerName"
+      | "customerWhatsApp"
+      | "deliveryAddress"
+      | "notes"
+      | "total"
+    >,
+  ) => Promise<Order>;
   handleAdvanceOrderStatus: (orderId: string) => void;
   handleCancelOrder: (orderId: string) => void;
   handleConfirmOrder: (orderId: string) => void;
@@ -69,6 +83,7 @@ export function BusinessWorkspaceProvider({
     handleCancelOrder,
     handleConfirmOrder,
     handleCreateOrder,
+    handleEditOrder,
     handleHydrateOrder,
     handleMarkAllAsReviewed,
     handleMarkAsReviewed,
@@ -105,6 +120,7 @@ export function BusinessWorkspaceProvider({
       handleMarkAllAsReviewed,
       handleMarkAsReviewed,
       handleCreateOrder,
+      handleEditOrder,
       handleAdvanceOrderStatus,
       handleCancelOrder,
       handleConfirmOrder,
@@ -118,6 +134,7 @@ export function BusinessWorkspaceProvider({
       handleCancelOrder,
       handleConfirmOrder,
       handleCreateOrder,
+      handleEditOrder,
       handleHydrateOrder,
       handleMarkAllAsReviewed,
       handleMarkAsReviewed,
@@ -144,6 +161,7 @@ export function BusinessWorkspaceProvider({
         onClose={() => setSelectedOrderId(null)}
         onRequestPaymentProof={handleRequestPaymentProof}
         onUpdatePaymentStatus={handleUpdatePaymentStatus}
+        onEditOrder={handleEditOrder}
         onConfirmOrder={handleConfirmOrder}
         onAdvanceOrderStatus={handleAdvanceOrderStatus}
         onCancelOrder={handleCancelOrder}

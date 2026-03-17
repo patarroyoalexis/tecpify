@@ -24,6 +24,12 @@ interface BusinessSlugRow {
 interface OrderLookupRow {
   id: string;
   business_id: string;
+  customer_name: string;
+  customer_whatsapp: string | null;
+  delivery_type: Order["deliveryType"];
+  delivery_address: string | null;
+  total: number;
+  notes: string | null;
 }
 
 function generateCandidateOrderCode() {
@@ -281,10 +287,33 @@ function validateUpdateOrderPayload(payload: unknown): payload is OrderApiUpdate
   return (
     (candidate.status === undefined || isValidOrderStatus(candidate.status)) &&
     (candidate.paymentStatus === undefined || isValidPaymentStatus(candidate.paymentStatus)) &&
+    (candidate.customerName === undefined || typeof candidate.customerName === "string") &&
+    (candidate.customerWhatsApp === undefined ||
+      typeof candidate.customerWhatsApp === "string") &&
+    (candidate.deliveryAddress === undefined ||
+      candidate.deliveryAddress === null ||
+      typeof candidate.deliveryAddress === "string") &&
+    (candidate.notes === undefined ||
+      candidate.notes === null ||
+      typeof candidate.notes === "string") &&
+    (candidate.total === undefined ||
+      (typeof candidate.total === "number" &&
+        Number.isFinite(candidate.total) &&
+        candidate.total >= 0)) &&
     (candidate.isReviewed === undefined || typeof candidate.isReviewed === "boolean") &&
     (candidate.history === undefined || Array.isArray(candidate.history)) &&
     Object.keys(candidate).some((key) =>
-      ["status", "paymentStatus", "isReviewed", "history"].includes(key),
+      [
+        "status",
+        "paymentStatus",
+        "customerName",
+        "customerWhatsApp",
+        "deliveryAddress",
+        "notes",
+        "total",
+        "isReviewed",
+        "history",
+      ].includes(key),
     )
   );
 }
@@ -296,7 +325,17 @@ function describeUpdatePayloadProblems(payload: unknown) {
 
   const candidate = payload as Partial<OrderApiUpdatePayload>;
   const problems: string[] = [];
-  const allowedKeys = ["status", "paymentStatus", "isReviewed", "history"];
+  const allowedKeys = [
+    "status",
+    "paymentStatus",
+    "customerName",
+    "customerWhatsApp",
+    "deliveryAddress",
+    "notes",
+    "total",
+    "isReviewed",
+    "history",
+  ];
   const receivedKeys = Object.keys(candidate);
 
   if (receivedKeys.length === 0) {
@@ -313,6 +352,41 @@ function describeUpdatePayloadProblems(payload: unknown) {
 
   if (candidate.paymentStatus !== undefined && !isValidPaymentStatus(candidate.paymentStatus)) {
     problems.push("payment_status is invalid for public.orders.");
+  }
+
+  if (candidate.customerName !== undefined && candidate.customerName.trim().length === 0) {
+    problems.push("customerName is required when provided.");
+  }
+
+  if (
+    candidate.customerWhatsApp !== undefined &&
+    candidate.customerWhatsApp.trim().length === 0
+  ) {
+    problems.push("customerWhatsApp is required when provided.");
+  }
+
+  if (
+    candidate.deliveryAddress !== undefined &&
+    candidate.deliveryAddress !== null &&
+    candidate.deliveryAddress.trim().length === 0
+  ) {
+    problems.push("deliveryAddress cannot be empty when provided.");
+  }
+
+  if (
+    candidate.notes !== undefined &&
+    candidate.notes !== null &&
+    typeof candidate.notes === "string" &&
+    candidate.notes.trim().length === 0
+  ) {
+    problems.push("notes cannot be empty when provided as text.");
+  }
+
+  if (
+    candidate.total !== undefined &&
+    (!Number.isFinite(candidate.total) || candidate.total < 0)
+  ) {
+    problems.push("total must be a number greater than or equal to 0.");
   }
 
   if (candidate.isReviewed !== undefined && typeof candidate.isReviewed !== "boolean") {
@@ -339,7 +413,9 @@ export async function updateOrderInDatabase(
   const supabase = createServerSupabaseClient();
   const { data: existingOrder, error: lookupError } = await supabase
     .from("orders")
-    .select("id, business_id")
+    .select(
+      "id, business_id, customer_name, customer_whatsapp, delivery_type, delivery_address, total, notes",
+    )
     .eq("id", orderId)
     .maybeSingle<OrderLookupRow>();
 
@@ -351,11 +427,54 @@ export async function updateOrderInDatabase(
     throw new Error(`Order not found for id "${orderId}".`);
   }
 
+  const nextCustomerName =
+    payload.customerName !== undefined
+      ? payload.customerName.trim()
+      : existingOrder.customer_name;
+  const nextCustomerWhatsApp =
+    payload.customerWhatsApp !== undefined
+      ? payload.customerWhatsApp.trim()
+      : existingOrder.customer_whatsapp ?? "";
+  const nextDeliveryAddress =
+    payload.deliveryAddress !== undefined
+      ? payload.deliveryAddress?.trim() || ""
+      : existingOrder.delivery_address ?? "";
+  const nextTotal = payload.total !== undefined ? payload.total : existingOrder.total;
+
+  if (nextCustomerName.length === 0) {
+    throw new Error("Invalid order update payload. customerName is required.");
+  }
+
+  if (nextCustomerWhatsApp.length === 0) {
+    throw new Error("Invalid order update payload. customerWhatsApp is required.");
+  }
+
+  if (existingOrder.delivery_type === "domicilio" && nextDeliveryAddress.length === 0) {
+    throw new Error(
+      "Invalid order update payload. deliveryAddress is required for domicilio orders.",
+    );
+  }
+
+  if (nextTotal < 0) {
+    throw new Error("Invalid order update payload. total must be greater than or equal to 0.");
+  }
+
   const updatePayload = {
     ...(payload.status !== undefined ? { status: payload.status } : {}),
     ...(payload.paymentStatus !== undefined
       ? { payment_status: payload.paymentStatus }
       : {}),
+    ...(payload.customerName !== undefined
+      ? { customer_name: nextCustomerName }
+      : {}),
+    ...(payload.customerWhatsApp !== undefined
+      ? { customer_whatsapp: nextCustomerWhatsApp }
+      : {}),
+    ...(payload.deliveryAddress !== undefined
+      ? { delivery_address: nextDeliveryAddress || null }
+      : {}),
+    ...(payload.notes !== undefined ? { notes: payload.notes?.trim() || null } : {}),
+    ...(payload.total !== undefined ? { total: nextTotal } : {}),
     ...(payload.isReviewed !== undefined ? { is_reviewed: payload.isReviewed } : {}),
     ...(payload.history !== undefined ? { history: payload.history } : {}),
     updated_at: new Date().toISOString(),

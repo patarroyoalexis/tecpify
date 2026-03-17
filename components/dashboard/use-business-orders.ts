@@ -8,6 +8,7 @@ import {
   writeOrdersForBusiness,
 } from "@/data/order-storage";
 import { fetchOrdersByBusinessSlug, updateOrderViaApi } from "@/lib/orders/api";
+import type { OrderApiUpdatePayload } from "@/lib/orders/mappers";
 import { getInitialOrderState } from "@/lib/orders/mappers";
 import type {
   Order,
@@ -71,6 +72,29 @@ function buildDateLabel(createdAt: string) {
     hour: "numeric",
     minute: "2-digit",
   }).format(new Date(createdAt));
+}
+
+function applyOrderUpdatePayload(order: Order, payload: OrderApiUpdatePayload): Order {
+  return {
+    ...order,
+    ...(payload.status !== undefined ? { status: payload.status } : {}),
+    ...(payload.paymentStatus !== undefined
+      ? { paymentStatus: payload.paymentStatus }
+      : {}),
+    ...(payload.customerName !== undefined ? { client: payload.customerName.trim() } : {}),
+    ...(payload.customerWhatsApp !== undefined
+      ? { customerPhone: payload.customerWhatsApp.trim() }
+      : {}),
+    ...(payload.deliveryAddress !== undefined
+      ? { address: payload.deliveryAddress?.trim() || undefined }
+      : {}),
+    ...(payload.notes !== undefined
+      ? { observations: payload.notes?.trim() || undefined }
+      : {}),
+    ...(payload.total !== undefined ? { total: payload.total } : {}),
+    ...(payload.isReviewed !== undefined ? { isReviewed: payload.isReviewed } : {}),
+    ...(payload.history !== undefined ? { history: payload.history } : {}),
+  };
 }
 
 function generateNextOrderId(currentOrders: Order[]) {
@@ -218,6 +242,59 @@ export function useBusinessOrders({
       console.error("[dashboard] order mutation rollback", { orderId, error });
       setOrdersState(previousOrders);
       persistOrdersFallback(previousOrders);
+    }
+  }
+
+  async function handleEditOrder(
+    orderId: string,
+    payload: Pick<
+      OrderApiUpdatePayload,
+      | "status"
+      | "paymentStatus"
+      | "customerName"
+      | "customerWhatsApp"
+      | "deliveryAddress"
+      | "notes"
+      | "total"
+    >,
+  ) {
+    const currentOrder = ordersState.find((order) => order.id === orderId);
+
+    if (!currentOrder) {
+      throw new Error("No encontramos el pedido que intentas editar.");
+    }
+
+    const nextHistory = appendOrderEvent(
+      currentOrder,
+      "Pedido editado",
+      "Se actualizaron manualmente datos del cliente, estados o valores operativos.",
+    );
+    const optimisticPayload: OrderApiUpdatePayload = {
+      ...payload,
+      history: nextHistory,
+    };
+    const optimisticOrder = applyOrderUpdatePayload(currentOrder, optimisticPayload);
+    const previousOrders = ordersState;
+    const optimisticOrders = replaceOrderInState(previousOrders, optimisticOrder);
+
+    setOrdersState(optimisticOrders);
+    persistOrdersFallback(optimisticOrders);
+
+    try {
+      const persistedOrder = await updateOrderViaApi(orderId, optimisticPayload);
+
+      setOrdersState((currentOrders) => {
+        const syncedOrders = replaceOrderInState(currentOrders, persistedOrder);
+        persistOrdersFallback(syncedOrders);
+        return syncedOrders;
+      });
+
+      return persistedOrder;
+    } catch (error) {
+      console.error("[dashboard] order edit rollback", { orderId, error });
+      setOrdersState(previousOrders);
+      persistOrdersFallback(previousOrders);
+      throw error;
     }
   }
 
@@ -481,6 +558,7 @@ export function useBusinessOrders({
     handleCancelOrder,
     handleConfirmOrder,
     handleCreateOrder,
+    handleEditOrder,
     handleMarkAllAsReviewed,
     handleMarkAsReviewed,
     handleHydrateOrder,

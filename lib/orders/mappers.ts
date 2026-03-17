@@ -35,6 +35,11 @@ export interface OrderApiCreatePayload {
 export interface OrderApiUpdatePayload {
   status?: OrderStatus;
   paymentStatus?: PaymentStatus;
+  customerName?: string;
+  customerWhatsApp?: string;
+  deliveryAddress?: string | null;
+  notes?: string | null;
+  total?: number;
   isReviewed?: boolean;
   history?: OrderHistoryEvent[];
 }
