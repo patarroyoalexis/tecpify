@@ -39,8 +39,8 @@ const orderStatusLabels: Record<string, string> = {
 };
 
 const paymentStatusLabels: Record<PaymentStatus, string> = {
-  pendiente: "Pago pendiente",
-  verificado: "Pago ok",
+  pendiente: "Pendiente",
+  verificado: "Ok",
   "con novedad": "Con novedad",
   "no verificado": "No verificado",
 };
@@ -53,10 +53,14 @@ interface OrderCardProps {
 
 function getOrderStatusLabel(order: Order) {
   if (order.status.includes("prepar")) {
-    return "Preparacion";
+    return "Pedido · Preparacion";
   }
 
-  return orderStatusLabels[order.status] ?? order.status;
+  return `Pedido · ${orderStatusLabels[order.status] ?? order.status}`;
+}
+
+function getPaymentStatusLabel(order: Order) {
+  return `Pago · ${paymentStatusLabels[order.paymentStatus]}`;
 }
 
 function getOrderStatusStyle(order: Order) {
@@ -126,7 +130,7 @@ export function OrderCard({
           <span
             className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${paymentStatusStyles[order.paymentStatus]}`}
           >
-            {paymentStatusLabels[order.paymentStatus]}
+            {getPaymentStatusLabel(order)}
           </span>
         </div>
       </div>

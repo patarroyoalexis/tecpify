@@ -37,24 +37,32 @@ export function MetricsCards({
 }: MetricsCardsProps) {
   return (
     <section
-      className={`grid ${compactOnMobile ? "grid-cols-2 gap-3 xl:grid-cols-4" : "gap-4 md:grid-cols-2 xl:grid-cols-4"}`}
+      className={
+        compactOnMobile
+          ? "flex gap-2 overflow-x-auto pb-1 md:grid md:grid-cols-4 md:gap-3 md:overflow-visible"
+          : "grid gap-4 md:grid-cols-2 xl:grid-cols-4"
+      }
     >
       {metrics.map((metric) => (
         <article
           key={metric.title}
-          className={`rounded-[24px] border shadow-[0_16px_40px_rgba(15,23,42,0.05)] ${compactOnMobile ? "p-3.5 sm:p-4" : "p-5"} ${toneStyles[metric.tone].card}`}
+          className={`rounded-[22px] border shadow-[0_16px_40px_rgba(15,23,42,0.05)] ${
+            compactOnMobile
+              ? "min-w-[132px] px-3 py-2.5 sm:min-w-[148px] md:min-w-0 md:p-3.5"
+              : "p-5"
+          } ${toneStyles[metric.tone].card}`}
         >
           <p
-            className={`${compactOnMobile ? "text-xs sm:text-sm" : "text-sm"} font-medium ${toneStyles[metric.tone].eyebrow}`}
+            className={`${compactOnMobile ? "text-[11px] sm:text-xs" : "text-sm"} font-medium ${toneStyles[metric.tone].eyebrow}`}
           >
             {metric.title}
           </p>
           <p
-            className={`${compactOnMobile ? "mt-1.5 text-[1.75rem] leading-none sm:mt-2 sm:text-3xl" : "mt-3 text-3xl"} font-semibold tracking-tight ${toneStyles[metric.tone].value}`}
+            className={`${compactOnMobile ? "mt-1 text-xl leading-none sm:text-2xl md:mt-1.5 md:text-[1.75rem]" : "mt-3 text-3xl"} font-semibold tracking-tight ${toneStyles[metric.tone].value}`}
           >
             {metric.value}
           </p>
-          <p className={`${compactOnMobile ? "hidden" : "mt-2 text-sm leading-6"} text-slate-600`}>
+          <p className={`${compactOnMobile ? "hidden md:mt-1.5 md:block md:text-xs md:leading-5" : "mt-2 text-sm leading-6"} text-slate-600`}>
             {metric.description}
           </p>
         </article>

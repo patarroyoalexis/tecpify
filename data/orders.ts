@@ -265,6 +265,22 @@ function isSameCalendarDay(left: Date, right: Date) {
   );
 }
 
+function getStartOfUtcWeek(date: Date) {
+  const weekStart = new Date(date);
+  const day = weekStart.getUTCDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  weekStart.setUTCDate(weekStart.getUTCDate() + diff);
+  weekStart.setUTCHours(0, 0, 0, 0);
+  return weekStart;
+}
+
+function getStartOfUtcMonth(date: Date) {
+  const monthStart = new Date(date);
+  monthStart.setUTCDate(1);
+  monthStart.setUTCHours(0, 0, 0, 0);
+  return monthStart;
+}
+
 function isActiveOrder(order: Order) {
   return order.status !== "cancelado";
 }
@@ -356,6 +372,28 @@ export function getOrdersForReferenceDay(orders: Order[]) {
   return orders.filter((order) =>
     isSameCalendarDay(new Date(order.createdAt), referenceDate),
   );
+}
+
+export function getOrdersRegisteredThisWeek(orders: Order[]) {
+  const referenceDate = getReferenceDate(orders);
+  const weekStart = getStartOfUtcWeek(referenceDate).getTime();
+  const weekEnd = new Date(referenceDate).getTime();
+
+  return orders.filter((order) => {
+    const createdAt = new Date(order.createdAt).getTime();
+    return createdAt >= weekStart && createdAt <= weekEnd;
+  });
+}
+
+export function getOrdersRegisteredThisMonth(orders: Order[]) {
+  const referenceDate = getReferenceDate(orders);
+  const monthStart = getStartOfUtcMonth(referenceDate).getTime();
+  const monthEnd = new Date(referenceDate).getTime();
+
+  return orders.filter((order) => {
+    const createdAt = new Date(order.createdAt).getTime();
+    return createdAt >= monthStart && createdAt <= monthEnd;
+  });
 }
 
 export function getTopProducts(orders: Order[], limit = 3): ProductPerformance[] {
@@ -511,6 +549,46 @@ export function getDashboardMetrics(orders: Order[]): MetricCard[] {
     },
     {
       title: "Ingresos entregados",
+      value: formatCurrency(deliveredRevenue),
+      description:
+        cancelledCount > 0
+          ? `${cancelledCount} pedido${cancelledCount > 1 ? "s" : ""} cancelado${cancelledCount > 1 ? "s" : ""}.`
+          : "Sin pedidos cancelados.",
+      tone: "success",
+    },
+  ];
+}
+
+export function getOperationalMetrics(orders: Order[]): MetricCard[] {
+  const pendingActions = orders.filter((order) =>
+    actionableStatuses.includes(order.status),
+  ).length;
+
+  const inProgress = orders.filter((order) =>
+    productionStatuses.includes(order.status),
+  ).length;
+
+  const deliveredRevenue = orders
+    .filter((order) => order.status === "entregado")
+    .reduce((total, order) => total + order.total, 0);
+
+  const cancelledCount = orders.filter((order) => order.status === "cancelado").length;
+
+  return [
+    {
+      title: "Pendientes",
+      value: `${pendingActions}`,
+      description: "Pedidos por cobrar o pagos por verificar.",
+      tone: "warning",
+    },
+    {
+      title: "En operación",
+      value: `${inProgress}`,
+      description: "Pedidos confirmados, en preparación o listos.",
+      tone: "info",
+    },
+    {
+      title: "Ingresos",
       value: formatCurrency(deliveredRevenue),
       description:
         cancelledCount > 0

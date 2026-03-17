@@ -6,6 +6,8 @@ import {
   getAverageTicket,
   getBusinessInsights,
   getDashboardSummary,
+  getOrdersRegisteredThisMonth,
+  getOrdersRegisteredThisWeek,
   getRevenueSeries,
   getTopProducts,
 } from "@/data/orders";
@@ -24,6 +26,8 @@ export function MetricsOverview({ businessId, businessSlug, orders }: MetricsOve
   const topProducts = getTopProducts(ordersState, 5);
   const revenueSeries = getRevenueSeries(ordersState, 5);
   const insights = getBusinessInsights(ordersState);
+  const weeklyOrders = getOrdersRegisteredThisWeek(ordersState);
+  const monthlyOrders = getOrdersRegisteredThisMonth(ordersState);
   const maxRevenue = revenueSeries.reduce(
     (highestValue, point) => Math.max(highestValue, point.revenue),
     0,
@@ -31,23 +35,15 @@ export function MetricsOverview({ businessId, businessSlug, orders }: MetricsOve
 
   const metrics = [
     {
-      title: "Ventas del dia",
-      value: formatCurrency(summary.todayRevenue),
-      description: "Pedidos activos de la jornada mas reciente con datos.",
-      tone: "success" as const,
-    },
-    {
-      title: "Pedidos del dia",
-      value: `${summary.todayOrdersCount}`,
-      description: "Total de pedidos creados en la jornada de referencia.",
+      title: "Pedidos registrados esta semana",
+      value: `${weeklyOrders.length}`,
+      description: "Volumen acumulado en la semana de referencia actual.",
       tone: "neutral" as const,
     },
     {
-      title: "Producto mas vendido",
-      value: summary.featuredProduct?.name ?? "Sin datos",
-      description: summary.featuredProduct
-        ? `${summary.featuredProduct.quantity} unidades acumuladas.`
-        : "Aun no hay suficiente informacion para un top del dia.",
+      title: "Pedidos registrados este mes",
+      value: `${monthlyOrders.length}`,
+      description: "Volumen acumulado en el mes de referencia actual.",
       tone: "info" as const,
     },
     {
@@ -55,6 +51,14 @@ export function MetricsOverview({ businessId, businessSlug, orders }: MetricsOve
       value: formatCurrency(getAverageTicket(ordersState)),
       description: "Promedio de valor por pedido activo en el historial actual.",
       tone: "warning" as const,
+    },
+    {
+      title: "Producto más vendido",
+      value: summary.featuredProduct?.name ?? "Sin datos",
+      description: summary.featuredProduct
+        ? `${summary.featuredProduct.quantity} unidades acumuladas.`
+        : "Aun no hay suficiente informacion para un top representativo.",
+      tone: "success" as const,
     },
   ];
 

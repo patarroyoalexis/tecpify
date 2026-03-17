@@ -3,7 +3,12 @@
 import Link from "next/link";
 
 import { MetricsCards } from "@/components/dashboard/metrics-cards";
-import { formatCurrency, getBusinessInsights, getDashboardSummary } from "@/data/orders";
+import {
+  formatCurrency,
+  getBusinessInsights,
+  getDashboardSummary,
+  getOperationalPriority,
+} from "@/data/orders";
 import { getOrderDisplayCode, type Order } from "@/types/orders";
 import { useBusinessOrders } from "./use-business-orders";
 
@@ -21,33 +26,42 @@ export function DashboardOverview({
   const { ordersState } = useBusinessOrders({ businessId, businessSlug, orders });
   const summary = getDashboardSummary(ordersState);
   const insights = getBusinessInsights(ordersState).slice(0, 2);
+  const unreviewedOrders = ordersState.filter((order) => !order.isReviewed);
+  const newOrdersToday = unreviewedOrders.filter(
+    (order) => summary.recentOrders.some((recentOrder) => recentOrder.id === order.id),
+  );
+  const urgentOrders = ordersState.filter(
+    (order) => getOperationalPriority(order) === "alta",
+  );
+  const pendingAttention = ordersState.filter(
+    (order) =>
+      order.status === "pendiente de pago" || order.status === "pago por verificar",
+  );
 
   const executiveMetrics = [
     {
-      title: "Pedidos del dia",
-      value: `${summary.todayOrdersCount}`,
-      description: "Pedidos registrados en la jornada mas reciente con datos.",
-      tone: "neutral" as const,
-    },
-    {
-      title: "Ventas del dia",
-      value: formatCurrency(summary.todayRevenue),
-      description: "Suma de pedidos activos del dia, sin contar cancelados.",
-      tone: "success" as const,
-    },
-    {
-      title: "Producto destacado",
-      value: summary.featuredProduct?.name ?? "Sin datos",
-      description: summary.featuredProduct
-        ? `${summary.featuredProduct.quantity} unidades en la jornada.`
-        : "Aun no hay suficiente informacion para destacar un producto.",
+      title: "Pedidos nuevos",
+      value: `${newOrdersToday.length}`,
+      description: "Pedidos recientes que entraron al flujo y todavia no se revisan.",
       tone: "info" as const,
     },
     {
-      title: "Pagos pendientes",
-      value: `${summary.pendingPaymentsCount}`,
-      description: "Pedidos activos que aun requieren validacion o seguimiento.",
+      title: "Pedidos sin revisar",
+      value: `${unreviewedOrders.length}`,
+      description: "Solicitudes pendientes por abrir o revisar manualmente.",
       tone: "warning" as const,
+    },
+    {
+      title: "Actividad urgente",
+      value: `${urgentOrders.length}`,
+      description: "Pedidos con prioridad alta por tiempo o estado operativo.",
+      tone: "warning" as const,
+    },
+    {
+      title: "Pendientes de atención",
+      value: `${pendingAttention.length}`,
+      description: "Pedidos que requieren cobro, verificacion o una accion inmediata.",
+      tone: "neutral" as const,
     },
   ];
 

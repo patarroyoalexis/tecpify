@@ -196,16 +196,24 @@ function getPaymentDisplayStatus(order: Order): string {
 
   switch (order.paymentStatus) {
     case "pendiente":
-      return "Pago pendiente";
+      return "Pendiente";
     case "verificado":
-      return "Pago verificado";
+      return "Verificado";
     case "con novedad":
-      return "Pago con novedad";
+      return "Con novedad";
     case "no verificado":
-      return "Pago no verificado";
+      return "No verificado";
     default:
-      return "Pago pendiente";
+      return "Pendiente";
   }
+}
+
+function getOrderStatusBadgeLabel(order: Order) {
+  return `Pedido · ${getOrderDisplayStatus(order)}`;
+}
+
+function getPaymentStatusBadgeLabel(order: Order) {
+  return `Pago · ${getPaymentDisplayStatus(order)}`;
 }
 
 function getOrderStatusTone(order: Order): ToneClass {
@@ -423,8 +431,8 @@ export function OrderDetailDrawer({
       : null;
 
   const canCancelOrder = currentOrder.status !== "entregado";
-  const orderDisplayStatus = getOrderDisplayStatus(currentOrder);
-  const paymentDisplayStatus = getPaymentDisplayStatus(currentOrder);
+  const orderStatusBadgeLabel = getOrderStatusBadgeLabel(currentOrder);
+  const paymentStatusBadgeLabel = getPaymentStatusBadgeLabel(currentOrder);
   const orderTone = getOrderStatusTone(currentOrder);
   const paymentTone = getPaymentStatusTone(currentOrder);
   const nextStepMessage = getNextStepMessage(currentOrder);
@@ -495,8 +503,8 @@ export function OrderDetailDrawer({
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                <StatusBadge label={orderDisplayStatus} tone={orderTone} />
-                <StatusBadge label={paymentDisplayStatus} tone={paymentTone} />
+                <StatusBadge label={orderStatusBadgeLabel} tone={orderTone} />
+                <StatusBadge label={paymentStatusBadgeLabel} tone={paymentTone} />
               </div>
 
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
@@ -567,7 +575,7 @@ export function OrderDetailDrawer({
                   ? "Valida manualmente el comprobante antes de habilitar la confirmacion del pedido."
                   : "Este pago se gestiona al momento de la entrega o la recogida."
               }
-              statusLabel={paymentDisplayStatus}
+              statusLabel={paymentStatusBadgeLabel}
               statusTone={paymentTone}
               icon={<WalletIcon className="h-5 w-5" />}
             >
@@ -645,7 +653,7 @@ export function OrderDetailDrawer({
             <SectionCard
               title="Pedido"
               description="Gestiona el avance del pedido una vez el pago este validado."
-              statusLabel={orderDisplayStatus}
+              statusLabel={orderStatusBadgeLabel}
               statusTone={orderTone}
               icon={<ClipboardIcon className="h-5 w-5" />}
             >

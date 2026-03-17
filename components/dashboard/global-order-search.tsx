@@ -90,6 +90,14 @@ function useDebouncedValue<T>(value: T, delayMs: number) {
   return debouncedValue;
 }
 
+function getOrderStatusChipLabel(status: string) {
+  return `Pedido · ${status}`;
+}
+
+function getPaymentStatusChipLabel(status: string) {
+  return `Pago · ${status}`;
+}
+
 export function GlobalOrderSearch({
   businessSlug,
   localOrders,
@@ -258,10 +266,10 @@ export function GlobalOrderSearch({
                           />
                         </span>
                         <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-700">
-                          {order.status}
+                          {getOrderStatusChipLabel(order.status)}
                         </span>
                         <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-700">
-                          {order.paymentStatus}
+                          {getPaymentStatusChipLabel(order.paymentStatus)}
                         </span>
                       </div>
                     </div>

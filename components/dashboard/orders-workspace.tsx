@@ -15,7 +15,7 @@ import {
 } from "@/components/dashboard/orders-list";
 import { OrdersFilters } from "@/components/dashboard/orders-filters";
 import { getBusinessDashboardStateKey } from "@/data/order-storage";
-import { getDashboardMetrics } from "@/data/orders";
+import { getOperationalMetrics } from "@/data/orders";
 import { getOrderDisplayCode, type Order, type OrderStatus } from "@/types/orders";
 import { ORDER_STATUSES } from "@/types/orders";
 import { useBusinessOrders } from "./use-business-orders";
@@ -206,25 +206,7 @@ export function OrdersWorkspace({
     selectedStatus === "todos"
       ? searchedOrders
       : searchedOrders.filter((order) => order.status === selectedStatus);
-  const metrics = getDashboardMetrics(ordersState).map((metric) => {
-    if (metric.title === "Pedidos registrados") {
-      return { ...metric, title: "Registrados" };
-    }
-
-    if (metric.title === "Acciones pendientes") {
-      return { ...metric, title: "Pendientes" };
-    }
-
-    if (metric.title.includes("En operaci")) {
-      return { ...metric, title: "Operacion" };
-    }
-
-    if (metric.title === "Ingresos entregados") {
-      return { ...metric, title: "Ingresos" };
-    }
-
-    return metric;
-  });
+  const metrics = getOperationalMetrics(ordersState);
   const selectedOrder =
     ordersState.find((order) => order.id === selectedOrderId) ?? null;
 
@@ -280,7 +262,8 @@ export function OrdersWorkspace({
       businessName={businessName}
       businessSlug={businessSlug}
       title="Pedidos"
-      description="Gestiona la operacion diaria del negocio con una vista pensada para revisar, cobrar, preparar y entregar pedidos."
+      description="Operacion diaria para revisar, cobrar, preparar y entregar."
+      compactHeader
       headerAction={
         <div className="flex items-center gap-2">
           <button
@@ -307,15 +290,23 @@ export function OrdersWorkspace({
           <button
             type="button"
             onClick={() => setIsNewOrderDrawerOpen(true)}
-            className="rounded-2xl border border-slate-900 bg-slate-900 px-3.5 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800"
+            className="rounded-2xl border border-slate-900 bg-slate-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-slate-800 sm:px-3.5 sm:py-2.5"
           >
             Nuevo pedido
           </button>
         </div>
       }
     >
-      <div className="space-y-6">
+      <div className="space-y-4 sm:space-y-5">
         <MetricsCards metrics={metrics} compactOnMobile />
+
+        <OrdersFilters
+          selectedStatus={selectedStatus}
+          onStatusChange={setSelectedStatus}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          resultsCount={filteredOrders.length}
+        />
 
         {newOrders.length > 0 ? (
           <NewOrdersSection
@@ -332,14 +323,6 @@ export function OrdersWorkspace({
             Todos los pedidos recientes ya fueron revisados.
           </section>
         )}
-
-        <OrdersFilters
-          selectedStatus={selectedStatus}
-          onStatusChange={setSelectedStatus}
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-          resultsCount={filteredOrders.length}
-        />
 
         <OrdersList
           orders={filteredOrders}
