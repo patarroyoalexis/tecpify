@@ -16,7 +16,7 @@ import {
 import { OrdersFilters } from "@/components/dashboard/orders-filters";
 import { getBusinessDashboardStateKey } from "@/data/order-storage";
 import { getDashboardMetrics } from "@/data/orders";
-import type { Order, OrderStatus } from "@/types/orders";
+import { getOrderDisplayCode, type Order, type OrderStatus } from "@/types/orders";
 import { ORDER_STATUSES } from "@/types/orders";
 import { useBusinessOrders } from "./use-business-orders";
 
@@ -108,6 +108,7 @@ function matchesSearch(order: Order, searchQuery: string) {
   }
 
   const searchableValues = [
+    getOrderDisplayCode(order),
     order.id,
     order.client,
     order.customerPhone ?? "",

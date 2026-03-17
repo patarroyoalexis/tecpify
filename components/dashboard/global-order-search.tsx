@@ -8,7 +8,7 @@ import {
   matchesGlobalOrderSearch,
   mergeOrdersForGlobalSearch,
 } from "@/lib/data/orders-search";
-import type { Order } from "@/types/orders";
+import { getOrderDisplayCode, type Order } from "@/types/orders";
 
 interface GlobalOrderSearchProps {
   businessSlug: string;
@@ -252,7 +252,10 @@ export function GlobalOrderSearch({
 
                       <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                         <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold tracking-wide text-slate-600">
-                          <HighlightMatch text={order.id} query={debouncedQuery} />
+                          <HighlightMatch
+                            text={getOrderDisplayCode(order)}
+                            query={debouncedQuery}
+                          />
                         </span>
                         <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-700">
                           {order.status}

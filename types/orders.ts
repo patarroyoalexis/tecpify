@@ -42,6 +42,7 @@ export interface OrderHistoryEvent {
 
 export interface Order {
   id: string;
+  orderCode?: string;
   businessId: string;
   client: string;
   customerPhone?: string;
@@ -68,4 +69,18 @@ export interface MetricCard {
   value: string;
   description: string;
   tone: MetricTone;
+}
+
+export function getOrderDisplayCode(order: Pick<Order, "id" | "orderCode">) {
+  const normalizedOrderCode = order.orderCode?.trim();
+
+  if (normalizedOrderCode) {
+    return normalizedOrderCode;
+  }
+
+  if (order.id.includes("-") && order.id.length >= 8) {
+    return `LEG-${order.id.slice(0, 8).toUpperCase()}`;
+  }
+
+  return order.id;
 }

@@ -34,6 +34,7 @@ export function matchesGlobalOrderSearch(order: Order, query: string) {
   const searchableValues = [
     order.client,
     order.customerPhone ?? "",
+    order.orderCode ?? "",
     order.id,
     order.address ?? "",
     order.observations ?? "",

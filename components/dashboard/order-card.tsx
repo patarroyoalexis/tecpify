@@ -1,5 +1,5 @@
 import { formatCurrency, getOperationalPriority } from "@/data/orders";
-import type { OperationalPriority, Order, PaymentStatus } from "@/types/orders";
+import { getOrderDisplayCode, type OperationalPriority, type Order, type PaymentStatus } from "@/types/orders";
 
 const statusStyles: Record<string, string> = {
   "pendiente de pago": "border border-amber-200 bg-amber-50 text-amber-800",
@@ -116,7 +116,7 @@ export function OrderCard({
 
         <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
           <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold tracking-wide text-slate-600">
-            {order.id}
+            {getOrderDisplayCode(order)}
           </span>
           <span
             className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${getOrderStatusStyle(order)}`}

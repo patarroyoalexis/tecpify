@@ -58,7 +58,11 @@ export async function POST(request: Request) {
 
   try {
     const order = await createOrderInDatabase(payload);
-    const responsePayload = { order, persistedRemotely: true };
+    const responsePayload = {
+      order,
+      orderCode: order.orderCode ?? null,
+      persistedRemotely: true,
+    };
     console.info("[orders-api] POST /api/orders response", responsePayload);
     return NextResponse.json(responsePayload, { status: 201 });
   } catch (error) {

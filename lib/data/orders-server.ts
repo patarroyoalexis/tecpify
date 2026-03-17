@@ -16,6 +16,33 @@ interface BusinessLookupRow {
   slug: string;
 }
 
+function generateCandidateOrderCode() {
+  return `WEB-${Math.floor(100000 + Math.random() * 900000)}`;
+}
+
+async function generateUniqueOrderCode() {
+  const supabase = createServerSupabaseClient();
+
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const candidate = generateCandidateOrderCode();
+    const { data, error } = await supabase
+      .from("orders")
+      .select("id")
+      .eq("order_code", candidate)
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(`Supabase order_code lookup failed: ${error.message}`);
+    }
+
+    if (!data) {
+      return candidate;
+    }
+  }
+
+  throw new Error("Could not generate a unique order_code after multiple attempts.");
+}
+
 function validateCreateOrderPayload(payload: unknown): payload is OrderApiCreatePayload {
   if (!payload || typeof payload !== "object") {
     return false;
@@ -153,6 +180,7 @@ export async function createOrderInDatabase(payload: unknown): Promise<Order> {
 
   const now = new Date().toISOString();
   const orderId = crypto.randomUUID();
+  const orderCode = await generateUniqueOrderCode();
   const initialState = getInitialOrderState(payload.paymentMethod);
   const history =
     payload.history && payload.history.length > 0
@@ -161,6 +189,7 @@ export async function createOrderInDatabase(payload: unknown): Promise<Order> {
 
   const insertPayload = {
     id: orderId,
+    order_code: orderCode,
     business_id: business.id,
     customer_id: null,
     customer_name: payload.customerName.trim(),
@@ -185,6 +214,7 @@ export async function createOrderInDatabase(payload: unknown): Promise<Order> {
     authMode: getSupabaseServerAuthMode(),
     businessSlug: payload.businessSlug,
     businessId: business.id,
+    orderCode,
     insertPayload,
   });
 

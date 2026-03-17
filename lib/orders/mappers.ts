@@ -192,6 +192,7 @@ export function mapSupabaseRowToOrder(
 
   return {
     id: readString(row, "id"),
+    orderCode: readString(row, "order_code", "orderCode") || undefined,
     businessId: options?.businessSlug ?? readString(row, "business_id", "businessId"),
     client: readString(row, "customer_name", "client"),
     customerPhone:

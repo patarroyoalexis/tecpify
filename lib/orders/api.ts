@@ -7,6 +7,7 @@ interface OrdersApiListResponse {
 
 interface OrdersApiCreateResponse {
   order: Order;
+  orderCode?: string | null;
   persistedRemotely?: boolean;
 }
 

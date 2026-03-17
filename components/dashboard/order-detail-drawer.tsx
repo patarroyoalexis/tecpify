@@ -10,7 +10,7 @@ import {
   shouldShowPaymentVerificationActions,
 } from "@/components/dashboard/payment-helpers";
 import { formatCurrency } from "@/data/orders";
-import type { Order, OrderStatus, PaymentStatus } from "@/types/orders";
+import { getOrderDisplayCode, type Order, type OrderStatus, type PaymentStatus } from "@/types/orders";
 
 
 interface OrderDetailDrawerProps {
@@ -447,7 +447,7 @@ export function OrderDetailDrawer({
         : "El pedido esta listo para ser confirmado.";
 
   async function handleCopyWhatsAppMessage() {
-    const message = `Hola ${currentOrder.client}, por favor envianos el comprobante de pago del pedido ${currentOrder.id} para continuar con la validacion.`;
+    const message = `Hola ${currentOrder.client}, por favor envianos el comprobante de pago del pedido ${getOrderDisplayCode(currentOrder)} para continuar con la validacion.`;
 
     try {
       await navigator.clipboard.writeText(message);
@@ -479,7 +479,7 @@ export function OrderDetailDrawer({
                   {currentOrder.client}
                 </h2>
                 <span className="rounded-full border border-slate-200 bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
-                  Pedido {currentOrder.id}
+                  Pedido {getOrderDisplayCode(currentOrder)}
                 </span>
               </div>
 

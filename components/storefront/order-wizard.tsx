@@ -20,7 +20,13 @@ import {
 } from "@/data/customer-profiles";
 import { readOrdersForBusiness, writeOrdersForBusiness } from "@/data/order-storage";
 import { createOrderViaApi } from "@/lib/orders/api";
-import type { DeliveryType, Order, OrderProduct, PaymentMethod } from "@/types/orders";
+import {
+  getOrderDisplayCode,
+  type DeliveryType,
+  type Order,
+  type OrderProduct,
+  type PaymentMethod,
+} from "@/types/orders";
 import type { BusinessConfig, BusinessProduct } from "@/types/storefront";
 
 interface IconProps {
@@ -163,6 +169,10 @@ function getInitialStatus(paymentMethod: PaymentMethod) {
 }
 
 function generateOrderId() {
+  return `WEB-${Date.now().toString().slice(-6)}`;
+}
+
+function generateOrderCode() {
   return `WEB-${Date.now().toString().slice(-6)}`;
 }
 
@@ -482,8 +492,10 @@ export function StorefrontOrderWizard({
     setConfirmationMode(null);
 
     const createdAt = new Date().toISOString();
+    const fallbackOrderCode = generateOrderCode();
     const fallbackOrder: Order = {
       id: generateOrderId(),
+      orderCode: fallbackOrderCode,
       businessId: business.slug,
       client: customerName.trim(),
       customerPhone: customerPhone.trim(),
@@ -614,7 +626,7 @@ export function StorefrontOrderWizard({
               <div className="flex items-center justify-between gap-3">
                 <span className="text-sm font-medium text-slate-500">Pedido</span>
                 <span className="rounded-full bg-slate-900 px-3 py-1 text-sm font-semibold text-white">
-                  {confirmedOrder.id}
+                  {getOrderDisplayCode(confirmedOrder)}
                 </span>
               </div>
               <dl className="mt-4 space-y-3 text-sm text-slate-600">

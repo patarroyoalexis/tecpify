@@ -4,7 +4,7 @@ import Link from "next/link";
 
 import { MetricsCards } from "@/components/dashboard/metrics-cards";
 import { formatCurrency, getBusinessInsights, getDashboardSummary } from "@/data/orders";
-import type { Order } from "@/types/orders";
+import { getOrderDisplayCode, type Order } from "@/types/orders";
 import { useBusinessOrders } from "./use-business-orders";
 
 interface DashboardOverviewProps {
@@ -105,7 +105,7 @@ export function DashboardOverview({
                           {order.client}
                         </p>
                         <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600">
-                          {order.id}
+                          {getOrderDisplayCode(order)}
                         </span>
                       </div>
                       <p className="mt-1 text-sm text-slate-600">
