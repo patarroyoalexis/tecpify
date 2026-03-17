@@ -530,7 +530,7 @@ export function ProductsManagementDrawer({
                       <input
                         value={formState.name}
                         onChange={(event) => updateFormField("name", event.target.value)}
-                        className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+                        className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-base leading-6 text-slate-900 outline-none transition focus:border-slate-400 sm:text-sm sm:leading-5"
                         placeholder="Ej. Caja de brownies"
                       />
                     </label>
@@ -541,7 +541,7 @@ export function ProductsManagementDrawer({
                         value={formState.description}
                         onChange={(event) => updateFormField("description", event.target.value)}
                         rows={4}
-                        className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+                        className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-base leading-6 text-slate-900 outline-none transition focus:border-slate-400 sm:text-sm sm:leading-5"
                         placeholder="Opcional. Ayuda a identificar mejor el producto."
                       />
                     </label>
@@ -554,7 +554,7 @@ export function ProductsManagementDrawer({
                         step="100"
                         value={formState.price}
                         onChange={(event) => updateFormField("price", event.target.value)}
-                        className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+                        className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-base leading-6 text-slate-900 outline-none transition focus:border-slate-400 sm:text-sm sm:leading-5"
                         placeholder="0"
                       />
                     </label>
@@ -566,7 +566,7 @@ export function ProductsManagementDrawer({
                         min="1"
                         value={formState.sortOrder}
                         onChange={(event) => updateFormField("sortOrder", event.target.value)}
-                        className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+                        className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-base leading-6 text-slate-900 outline-none transition focus:border-slate-400 sm:text-sm sm:leading-5"
                       />
                     </label>
                   </div>

@@ -49,7 +49,7 @@ export function OrdersFilters({
             value={searchQuery}
             onChange={(event) => onSearchChange(event.target.value)}
             placeholder="Buscar cliente, pedido, telefono o producto"
-            className="min-w-0 flex-1 rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-900 outline-none transition focus:border-slate-400 focus:bg-white"
+            className="min-w-0 flex-1 rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-base leading-6 text-slate-900 outline-none transition focus:border-slate-400 focus:bg-white sm:text-sm sm:leading-5"
           />
           <div className="shrink-0 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-500">
             {resultsCount ?? 0}

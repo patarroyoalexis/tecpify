@@ -202,7 +202,7 @@ export function NewOrderDrawer({
                   <input
                     value={client}
                     onChange={(event) => setClient(event.target.value)}
-                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-base leading-6 text-slate-900 outline-none transition focus:border-slate-400 sm:text-sm sm:leading-5"
                     placeholder="Nombre del cliente o negocio"
                   />
                 </label>
@@ -215,7 +215,7 @@ export function NewOrderDrawer({
                     step="100"
                     value={total}
                     onChange={(event) => setTotal(event.target.value)}
-                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-base leading-6 text-slate-900 outline-none transition focus:border-slate-400 sm:text-sm sm:leading-5"
                     placeholder="0"
                   />
                 </label>
@@ -229,7 +229,7 @@ export function NewOrderDrawer({
                     onChange={(event) =>
                       setPaymentMethod(event.target.value as PaymentMethod | "")
                     }
-                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-base leading-6 text-slate-900 outline-none transition focus:border-slate-400 sm:text-sm sm:leading-5"
                   >
                     <option value="">Seleccionar</option>
                     {availablePaymentMethods.map((method) => (
@@ -254,7 +254,7 @@ export function NewOrderDrawer({
                         event.target.value as DeliveryType | "",
                       )
                     }
-                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-base leading-6 text-slate-900 outline-none transition focus:border-slate-400 sm:text-sm sm:leading-5"
                   >
                     <option value="">Seleccionar</option>
                     {deliveryTypes.map((type) => (
@@ -299,7 +299,7 @@ export function NewOrderDrawer({
                         onChange={(event) =>
                           handleProductChange(product.id, "name", event.target.value)
                         }
-                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-base leading-6 text-slate-900 outline-none transition focus:border-slate-400 sm:text-sm sm:leading-5"
                         placeholder="Nombre del producto"
                       />
                     </label>
@@ -319,7 +319,7 @@ export function NewOrderDrawer({
                             event.target.value,
                           )
                         }
-                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-base leading-6 text-slate-900 outline-none transition focus:border-slate-400 sm:text-sm sm:leading-5"
                       />
                     </label>
 
@@ -351,7 +351,7 @@ export function NewOrderDrawer({
                   value={observations}
                   onChange={(event) => setObservations(event.target.value)}
                   rows={4}
-                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-base leading-6 text-slate-900 outline-none transition focus:border-slate-400 sm:text-sm sm:leading-5"
                   placeholder="Notas internas, instrucciones o contexto adicional"
                 />
               </label>

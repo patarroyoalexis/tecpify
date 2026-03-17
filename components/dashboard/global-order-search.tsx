@@ -206,7 +206,7 @@ export function GlobalOrderSearch({
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder="Buscar por cliente, telefono, pedido, direccion o producto"
-                  className="w-full border-none bg-transparent text-sm text-slate-950 outline-none placeholder:text-slate-400"
+                  className="w-full border-none bg-transparent text-base leading-6 text-slate-950 outline-none placeholder:text-slate-400 sm:text-sm sm:leading-5"
                 />
               </div>
               <button

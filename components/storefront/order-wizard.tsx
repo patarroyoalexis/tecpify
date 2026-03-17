@@ -710,7 +710,7 @@ export function StorefrontOrderWizard({
                       placeholder="300 123 4567"
                       inputMode="tel"
                       autoComplete="tel"
-                      className={`w-full rounded-2xl border bg-slate-50 py-3 pl-11 pr-4 text-sm text-slate-900 outline-none transition focus:bg-white ${
+                      className={`w-full rounded-2xl border bg-slate-50 py-3 pl-11 pr-4 text-base leading-6 text-slate-900 outline-none transition focus:bg-white sm:text-sm sm:leading-5 ${
                         errors.customerPhone
                           ? "border-rose-300 focus:border-rose-400"
                           : "border-slate-200 focus:border-slate-400"
@@ -739,7 +739,7 @@ export function StorefrontOrderWizard({
                           }}
                           placeholder="Tu nombre o el de tu negocio"
                           autoComplete="name"
-                          className={`w-full rounded-2xl border bg-slate-50 py-3 pl-11 pr-4 text-sm text-slate-900 outline-none transition focus:bg-white ${
+                          className={`w-full rounded-2xl border bg-slate-50 py-3 pl-11 pr-4 text-base leading-6 text-slate-900 outline-none transition focus:bg-white sm:text-sm sm:leading-5 ${
                             errors.customerName
                               ? "border-rose-300 focus:border-rose-400"
                               : "border-slate-200 focus:border-slate-400"
@@ -778,7 +778,7 @@ export function StorefrontOrderWizard({
                       value={productQuery}
                       onChange={(event) => setProductQuery(event.target.value)}
                       placeholder="Buscar producto"
-                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-11 pr-4 text-sm text-slate-900 outline-none transition focus:border-slate-400 focus:bg-white"
+                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-11 pr-4 text-base leading-6 text-slate-900 outline-none transition focus:border-slate-400 focus:bg-white sm:text-sm sm:leading-5"
                     />
                   </label>
                   <button
@@ -858,7 +858,7 @@ export function StorefrontOrderWizard({
                         clearFieldError("deliveryType");
                         clearFieldError("address");
                       }}
-                      className={`w-full rounded-2xl border bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:bg-white ${
+                      className={`w-full rounded-2xl border bg-slate-50 px-4 py-3 text-base leading-6 text-slate-900 outline-none transition focus:bg-white sm:text-sm sm:leading-5 ${
                         errors.deliveryType
                           ? "border-rose-300 focus:border-rose-400"
                           : "border-slate-200 focus:border-slate-400"
@@ -882,7 +882,7 @@ export function StorefrontOrderWizard({
                         setPaymentMethod(event.target.value as PaymentMethod | "");
                         clearFieldError("paymentMethod");
                       }}
-                      className={`w-full rounded-2xl border bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:bg-white ${
+                      className={`w-full rounded-2xl border bg-slate-50 px-4 py-3 text-base leading-6 text-slate-900 outline-none transition focus:bg-white sm:text-sm sm:leading-5 ${
                         errors.paymentMethod
                           ? "border-rose-300 focus:border-rose-400"
                           : "border-slate-200 focus:border-slate-400"
@@ -919,7 +919,7 @@ export function StorefrontOrderWizard({
                             clearFieldError("address");
                           }}
                           placeholder="Calle, barrio, referencias o apartamento"
-                          className={`w-full rounded-2xl border bg-slate-50 px-4 py-3 pl-11 text-sm text-slate-900 outline-none transition focus:bg-white ${
+                          className={`w-full rounded-2xl border bg-slate-50 px-4 py-3 pl-11 text-base leading-6 text-slate-900 outline-none transition focus:bg-white sm:text-sm sm:leading-5 ${
                             errors.address
                               ? "border-rose-300 focus:border-rose-400"
                               : "border-slate-200 focus:border-slate-400"
@@ -947,7 +947,7 @@ export function StorefrontOrderWizard({
                     value={observations}
                     onChange={(event) => setObservations(event.target.value)}
                     placeholder="Indicaciones de entrega, referencias, detalles del pago o cualquier nota importante"
-                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 pl-11 text-sm text-slate-900 outline-none transition focus:border-slate-400 focus:bg-white"
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 pl-11 text-base leading-6 text-slate-900 outline-none transition focus:border-slate-400 focus:bg-white sm:text-sm sm:leading-5"
                   />
                 </div>
               </label>
@@ -1098,7 +1098,7 @@ export function StorefrontOrderWizard({
               value={productQuery}
               onChange={(event) => setProductQuery(event.target.value)}
               placeholder="Buscar en todo el catalogo"
-              className="w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-11 pr-4 text-sm text-slate-900 outline-none transition focus:border-slate-400 focus:bg-white"
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-11 pr-4 text-base leading-6 text-slate-900 outline-none transition focus:border-slate-400 focus:bg-white sm:text-sm sm:leading-5"
             />
           </label>
         </div>
