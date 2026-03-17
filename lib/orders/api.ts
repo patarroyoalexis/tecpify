@@ -1,4 +1,4 @@
-import type { OrderApiCreatePayload } from "@/lib/orders/mappers";
+import type { OrderApiCreatePayload, OrderApiUpdatePayload } from "@/lib/orders/mappers";
 import type { Order } from "@/types/orders";
 
 interface OrdersApiListResponse {
@@ -61,5 +61,40 @@ export async function createOrderViaApi(payload: OrderApiCreatePayload) {
   }
 
   const responsePayload = responseBody as OrdersApiCreateResponse;
+  return responsePayload.order;
+}
+
+interface OrdersApiUpdateResponse {
+  order: Order;
+  persistedRemotely?: boolean;
+}
+
+export async function updateOrderViaApi(orderId: string, payload: OrderApiUpdatePayload) {
+  console.info("[dashboard] order PATCH payload", { orderId, payload });
+
+  const response = await fetch(`/api/orders/${encodeURIComponent(orderId)}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const responseBody = await response.json().catch(() => null);
+  console.info("[dashboard] order PATCH response", {
+    status: response.status,
+    ok: response.ok,
+    body: responseBody,
+  });
+
+  if (!response.ok) {
+    const errorMessage =
+      responseBody && typeof responseBody === "object" && "error" in responseBody
+        ? (responseBody as { error?: string }).error
+        : "No fue posible procesar la actualizacion del pedido.";
+    throw new Error(errorMessage ?? "No fue posible procesar la actualizacion del pedido.");
+  }
+
+  const responsePayload = responseBody as OrdersApiUpdateResponse;
   return responsePayload.order;
 }

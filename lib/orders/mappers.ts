@@ -32,6 +32,13 @@ export interface OrderApiCreatePayload {
   history?: OrderHistoryEvent[];
 }
 
+export interface OrderApiUpdatePayload {
+  status?: OrderStatus;
+  paymentStatus?: PaymentStatus;
+  isReviewed?: boolean;
+  history?: OrderHistoryEvent[];
+}
+
 function readString(row: SupabaseOrderRow, ...keys: string[]) {
   for (const key of keys) {
     const value = row[key];

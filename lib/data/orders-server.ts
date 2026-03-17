@@ -1,12 +1,13 @@
 import {
   createInitialOrderHistory,
   getInitialOrderState,
-  isValidDeliveryType,
-  isValidOrderProducts,
   isValidOrderStatus,
   isValidPaymentStatus,
+  isValidDeliveryType,
+  isValidOrderProducts,
   mapSupabaseRowToOrder,
   type OrderApiCreatePayload,
+  type OrderApiUpdatePayload,
 } from "@/lib/orders/mappers";
 import { createServerSupabaseClient, getSupabaseServerAuthMode } from "@/lib/supabase/server";
 import type { Order } from "@/types/orders";
@@ -14,6 +15,15 @@ import type { Order } from "@/types/orders";
 interface BusinessLookupRow {
   id: string;
   slug: string;
+}
+
+interface BusinessSlugRow {
+  slug: string;
+}
+
+interface OrderLookupRow {
+  id: string;
+  business_id: string;
 }
 
 function generateCandidateOrderCode() {
@@ -140,6 +150,21 @@ export async function getBusinessDatabaseRecordBySlug(slug: string) {
   return data;
 }
 
+async function getBusinessSlugByDatabaseId(businessDatabaseId: string) {
+  const supabase = createServerSupabaseClient();
+  const { data, error } = await supabase
+    .from("businesses")
+    .select("slug")
+    .eq("id", businessDatabaseId)
+    .maybeSingle<BusinessSlugRow>();
+
+  if (error) {
+    throw new Error(`Supabase businesses slug query failed: ${error.message}`);
+  }
+
+  return data?.slug ?? null;
+}
+
 export async function getOrdersByBusinessSlugFromDatabase(
   businessSlug: string,
 ): Promise<Order[]> {
@@ -243,5 +268,126 @@ export async function createOrderInDatabase(payload: unknown): Promise<Order> {
 
   return mapSupabaseRowToOrder(data as Record<string, unknown>, {
     businessSlug: payload.businessSlug,
+  });
+}
+
+function validateUpdateOrderPayload(payload: unknown): payload is OrderApiUpdatePayload {
+  if (!payload || typeof payload !== "object") {
+    return false;
+  }
+
+  const candidate = payload as Partial<OrderApiUpdatePayload>;
+
+  return (
+    (candidate.status === undefined || isValidOrderStatus(candidate.status)) &&
+    (candidate.paymentStatus === undefined || isValidPaymentStatus(candidate.paymentStatus)) &&
+    (candidate.isReviewed === undefined || typeof candidate.isReviewed === "boolean") &&
+    (candidate.history === undefined || Array.isArray(candidate.history)) &&
+    Object.keys(candidate).some((key) =>
+      ["status", "paymentStatus", "isReviewed", "history"].includes(key),
+    )
+  );
+}
+
+function describeUpdatePayloadProblems(payload: unknown) {
+  if (!payload || typeof payload !== "object") {
+    return ["Payload must be a JSON object."];
+  }
+
+  const candidate = payload as Partial<OrderApiUpdatePayload>;
+  const problems: string[] = [];
+  const allowedKeys = ["status", "paymentStatus", "isReviewed", "history"];
+  const receivedKeys = Object.keys(candidate);
+
+  if (receivedKeys.length === 0) {
+    problems.push("At least one mutable field is required.");
+  }
+
+  if (receivedKeys.some((key) => !allowedKeys.includes(key))) {
+    problems.push("Payload contains unsupported fields.");
+  }
+
+  if (candidate.status !== undefined && !isValidOrderStatus(candidate.status)) {
+    problems.push("status is invalid for public.orders.");
+  }
+
+  if (candidate.paymentStatus !== undefined && !isValidPaymentStatus(candidate.paymentStatus)) {
+    problems.push("payment_status is invalid for public.orders.");
+  }
+
+  if (candidate.isReviewed !== undefined && typeof candidate.isReviewed !== "boolean") {
+    problems.push("isReviewed must be boolean.");
+  }
+
+  if (candidate.history !== undefined && !Array.isArray(candidate.history)) {
+    problems.push("history must be an array.");
+  }
+
+  return problems;
+}
+
+export async function updateOrderInDatabase(
+  orderId: string,
+  payload: unknown,
+): Promise<Order> {
+  if (!validateUpdateOrderPayload(payload)) {
+    throw new Error(
+      `Invalid order update payload. ${describeUpdatePayloadProblems(payload).join(" ")}`,
+    );
+  }
+
+  const supabase = createServerSupabaseClient();
+  const { data: existingOrder, error: lookupError } = await supabase
+    .from("orders")
+    .select("id, business_id")
+    .eq("id", orderId)
+    .maybeSingle<OrderLookupRow>();
+
+  if (lookupError) {
+    throw new Error(`Supabase order lookup failed: ${lookupError.message}`);
+  }
+
+  if (!existingOrder) {
+    throw new Error(`Order not found for id "${orderId}".`);
+  }
+
+  const updatePayload = {
+    ...(payload.status !== undefined ? { status: payload.status } : {}),
+    ...(payload.paymentStatus !== undefined
+      ? { payment_status: payload.paymentStatus }
+      : {}),
+    ...(payload.isReviewed !== undefined ? { is_reviewed: payload.isReviewed } : {}),
+    ...(payload.history !== undefined ? { history: payload.history } : {}),
+    updated_at: new Date().toISOString(),
+  };
+
+  console.info("[orders-api] patch payload", {
+    orderId,
+    updatePayload,
+  });
+
+  const { data, error } = await supabase
+    .from("orders")
+    .update(updatePayload)
+    .eq("id", orderId)
+    .select("*")
+    .single();
+
+  if (error) {
+    console.error("[orders-api] Supabase patch error", {
+      orderId,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+      code: error.code,
+      authMode: getSupabaseServerAuthMode(),
+    });
+    throw new Error(`Supabase orders update failed: ${error.message}`);
+  }
+
+  const businessSlug = await getBusinessSlugByDatabaseId(existingOrder.business_id);
+
+  return mapSupabaseRowToOrder(data as Record<string, unknown>, {
+    businessSlug: businessSlug ?? undefined,
   });
 }

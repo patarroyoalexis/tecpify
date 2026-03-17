@@ -7,7 +7,7 @@ import {
   readOrdersForBusiness,
   writeOrdersForBusiness,
 } from "@/data/order-storage";
-import { fetchOrdersByBusinessSlug } from "@/lib/orders/api";
+import { fetchOrdersByBusinessSlug, updateOrderViaApi } from "@/lib/orders/api";
 import { getInitialOrderState } from "@/lib/orders/mappers";
 import type {
   Order,
@@ -144,10 +144,32 @@ export function useBusinessOrders({
     [ordersState],
   );
 
+  function replaceOrderInState(currentOrders: Order[], nextOrder: Order) {
+    const orderIndex = currentOrders.findIndex((order) => order.id === nextOrder.id);
+
+    if (orderIndex === -1) {
+      return [nextOrder, ...currentOrders];
+    }
+
+    return currentOrders.map((order) => (order.id === nextOrder.id ? nextOrder : order));
+  }
+
+  function persistOrdersFallback(nextOrders: Order[]) {
+    try {
+      writeOrdersForBusiness(businessId, nextOrders);
+    } catch {
+      // Transitional fallback should never block the operational flow.
+    }
+  }
+
   function updateOrder(orderId: string, updater: (order: Order) => Order) {
-    setOrdersState((currentOrders) =>
-      currentOrders.map((order) => (order.id === orderId ? updater(order) : order)),
-    );
+    setOrdersState((currentOrders) => {
+      const nextOrders = currentOrders.map((order) =>
+        order.id === orderId ? updater(order) : order,
+      );
+      persistOrdersFallback(nextOrders);
+      return nextOrders;
+    });
   }
 
   function appendOrderEvent(
@@ -158,8 +180,94 @@ export function useBusinessOrders({
     return [createHistoryEvent(order.id, title, description), ...order.history];
   }
 
+  async function synchronizeOrderMutation(
+    orderId: string,
+    computeNextOrder: (order: Order) => Order,
+  ) {
+    const currentOrder = ordersState.find((order) => order.id === orderId);
+
+    if (!currentOrder) {
+      return;
+    }
+
+    const nextOrder = computeNextOrder(currentOrder);
+
+    if (nextOrder === currentOrder) {
+      return;
+    }
+
+    const previousOrders = ordersState;
+    const optimisticOrders = replaceOrderInState(previousOrders, nextOrder);
+    setOrdersState(optimisticOrders);
+    persistOrdersFallback(optimisticOrders);
+
+    try {
+      const persistedOrder = await updateOrderViaApi(orderId, {
+        status: nextOrder.status,
+        paymentStatus: nextOrder.paymentStatus,
+        isReviewed: nextOrder.isReviewed,
+        history: nextOrder.history,
+      });
+
+      setOrdersState((currentOrders) => {
+        const syncedOrders = replaceOrderInState(currentOrders, persistedOrder);
+        persistOrdersFallback(syncedOrders);
+        return syncedOrders;
+      });
+    } catch (error) {
+      console.error("[dashboard] order mutation rollback", { orderId, error });
+      setOrdersState(previousOrders);
+      persistOrdersFallback(previousOrders);
+    }
+  }
+
+  async function synchronizeBulkOrderMutation(
+    orderIds: string[],
+    computeNextOrder: (order: Order) => Order,
+  ) {
+    if (orderIds.length === 0) {
+      return;
+    }
+
+    const previousOrders = ordersState;
+    const optimisticOrders = previousOrders.map((order) =>
+      orderIds.includes(order.id) ? computeNextOrder(order) : order,
+    );
+
+    setOrdersState(optimisticOrders);
+    persistOrdersFallback(optimisticOrders);
+
+    try {
+      const persistedOrders = await Promise.all(
+        optimisticOrders
+          .filter((order) => orderIds.includes(order.id))
+          .map((order) =>
+            updateOrderViaApi(order.id, {
+              status: order.status,
+              paymentStatus: order.paymentStatus,
+              isReviewed: order.isReviewed,
+              history: order.history,
+            }),
+          ),
+      );
+
+      setOrdersState((currentOrders) => {
+        const syncedOrders = persistedOrders.reduce(
+          (nextOrders, persistedOrder) => replaceOrderInState(nextOrders, persistedOrder),
+          currentOrders,
+        );
+        persistOrdersFallback(syncedOrders);
+        return syncedOrders;
+      });
+    } catch (error) {
+      console.error("[dashboard] bulk order mutation rollback", { orderIds, error });
+      setOrdersState(previousOrders);
+      persistOrdersFallback(previousOrders);
+    }
+  }
+
   function handleMarkAsReviewed(orderId: string) {
-    updateOrder(orderId, (order) =>
+    void synchronizeOrderMutation(orderId, (order) =>
       order.isReviewed
         ? order
         : {
@@ -175,20 +283,22 @@ export function useBusinessOrders({
   }
 
   function handleMarkAllAsReviewed() {
-    setOrdersState((currentOrders) =>
-      currentOrders.map((order) =>
-        order.isReviewed
-          ? order
-          : {
-              ...order,
-              isReviewed: true,
-              history: appendOrderEvent(
-                order,
-                "Pedido revisado",
-                "El negocio reviso manualmente este pedido desde la bandeja de nuevos.",
-              ),
-            },
-      ),
+    const pendingOrderIds = ordersState
+      .filter((order) => !order.isReviewed)
+      .map((order) => order.id);
+
+    void synchronizeBulkOrderMutation(pendingOrderIds, (order) =>
+      order.isReviewed
+        ? order
+        : {
+            ...order,
+            isReviewed: true,
+            history: appendOrderEvent(
+              order,
+              "Pedido revisado",
+              "El negocio reviso manualmente este pedido desde la bandeja de nuevos.",
+            ),
+          },
     );
   }
 
@@ -206,7 +316,7 @@ export function useBusinessOrders({
   }
 
   function handleUpdatePaymentStatus(orderId: string, paymentStatus: PaymentStatus) {
-    updateOrder(orderId, (order) => ({
+    void synchronizeOrderMutation(orderId, (order) => ({
       ...order,
       paymentStatus,
       history: appendOrderEvent(
@@ -222,7 +332,7 @@ export function useBusinessOrders({
   }
 
   function handleConfirmOrder(orderId: string) {
-    updateOrder(orderId, (order) => {
+    void synchronizeOrderMutation(orderId, (order) => {
       const canConfirm =
         order.paymentStatus === "verificado" &&
         (order.status === "pendiente de pago" || order.status === "pago por verificar");
@@ -244,7 +354,7 @@ export function useBusinessOrders({
   }
 
   function handleAdvanceOrderStatus(orderId: string) {
-    updateOrder(orderId, (order) => {
+    void synchronizeOrderMutation(orderId, (order) => {
       if (order.status === "cancelado") {
         return order;
       }
@@ -290,7 +400,7 @@ export function useBusinessOrders({
   }
 
   function handleCancelOrder(orderId: string) {
-    updateOrder(orderId, (order) => {
+    void synchronizeOrderMutation(orderId, (order) => {
       if (order.status === "entregado" || order.status === "cancelado") {
         return order;
       }
