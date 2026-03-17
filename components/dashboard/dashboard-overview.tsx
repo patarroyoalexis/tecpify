@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 
 import { MetricsCards } from "@/components/dashboard/metrics-cards";
+import { ProductsManagementDrawer } from "@/components/dashboard/products-management-drawer";
 import {
   formatCurrency,
   getBusinessInsights,
@@ -14,11 +16,16 @@ import { useBusinessWorkspace } from "./business-workspace-context";
 
 interface DashboardOverviewProps {
   businessId: string;
+  businessDatabaseId: string | null;
+  businessName: string;
 }
 
 export function DashboardOverview({
   businessId,
+  businessDatabaseId,
+  businessName,
 }: DashboardOverviewProps) {
+  const [isProductsDrawerOpen, setIsProductsDrawerOpen] = useState(false);
   const { ordersState } = useBusinessWorkspace();
   const summary = getDashboardSummary(ordersState);
   const insights = getBusinessInsights(ordersState).slice(0, 2);
@@ -169,6 +176,17 @@ export function DashboardOverview({
                 Revisa ventas del dia, historico simple y productos destacados.
               </p>
             </Link>
+
+            <button
+              type="button"
+              onClick={() => setIsProductsDrawerOpen(true)}
+              className="block w-full rounded-[22px] border border-slate-200 bg-slate-50 px-5 py-4 text-left transition hover:border-slate-300 hover:bg-slate-100"
+            >
+              <p className="text-base font-semibold text-slate-950">Gestionar productos</p>
+              <p className="mt-1 text-sm text-slate-600">
+                Crea, edita, destaca, desactiva y reordena el catalogo del negocio.
+              </p>
+            </button>
           </div>
 
           <div className="mt-5 rounded-[22px] border border-amber-200 bg-amber-50/80 p-4">
@@ -180,6 +198,13 @@ export function DashboardOverview({
           </div>
         </article>
       </section>
+
+      <ProductsManagementDrawer
+        businessDatabaseId={businessDatabaseId}
+        businessName={businessName}
+        isOpen={isProductsDrawerOpen}
+        onClose={() => setIsProductsDrawerOpen(false)}
+      />
     </div>
   );
 }

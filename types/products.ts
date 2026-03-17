@@ -7,4 +7,6 @@ export interface Product {
   is_available: boolean;
   is_featured: boolean;
   sort_order: number | null;
+  created_at: string;
+  updated_at: string;
 }
