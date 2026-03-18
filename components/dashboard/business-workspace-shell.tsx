@@ -18,6 +18,7 @@ interface BusinessWorkspaceShellProps {
   initialOrders: Order[];
   title: string;
   description: string;
+  headerActions?: ReactNode;
   children: ReactNode;
 }
 
@@ -26,6 +27,7 @@ function BusinessWorkspaceShellContent({
   businessSlug,
   title,
   description,
+  headerActions,
   children,
 }: BusinessWorkspaceShellProps) {
   const pathname = usePathname();
@@ -47,7 +49,11 @@ function BusinessWorkspaceShellContent({
         onNewProduct={openNewProduct}
       />
 
-      <WorkspacePageHeader title={title} description={description} />
+      <WorkspacePageHeader
+        title={title}
+        description={description}
+        actions={headerActions}
+      />
 
       <section className="px-3 pb-4 pt-5 sm:px-4 sm:pb-5 lg:px-5 lg:pb-6 lg:pt-6">
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-4">

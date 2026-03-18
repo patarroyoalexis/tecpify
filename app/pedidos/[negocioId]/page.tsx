@@ -1,4 +1,5 @@
 import { BusinessWorkspaceShell } from "@/components/dashboard/business-workspace-shell";
+import { OrdersHeaderActions } from "@/components/dashboard/orders-header-actions";
 import { OrdersWorkspace } from "@/components/dashboard/orders-workspace";
 import { getBusinessBySlug, getBusinessBySlugFromDatabase } from "@/data/businesses";
 import { getOrdersByBusinessSlugFromDatabase } from "@/lib/data/orders-server";
@@ -50,6 +51,7 @@ export default async function OrdersPage({
       initialOrders={databaseBusiness ? initialOrders : getMockOrdersByBusinessId(business.slug)}
       title="Pedidos"
       description="Operacion diaria para revisar, cobrar, preparar y entregar."
+      headerActions={<OrdersHeaderActions />}
     >
       <OrdersWorkspace
         businessId={business.slug}
