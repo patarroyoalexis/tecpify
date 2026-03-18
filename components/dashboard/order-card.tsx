@@ -242,28 +242,25 @@ export function OrderCard({
 
   return (
     <article
-      className={`h-full rounded-[22px] border bg-white ${compact ? baseCardPadding : "px-4 py-4 sm:px-4 sm:py-3.5"} shadow-[0_14px_34px_rgba(15,23,42,0.05)] transition-colors ${
+      className={`relative h-full rounded-[22px] border bg-white ${compact ? baseCardPadding : "px-4 py-4 sm:px-4 sm:py-3.5"} shadow-[0_14px_34px_rgba(15,23,42,0.05)] transition-colors ${
         order.isReviewed ? "border-slate-200/80" : "border-rose-200 bg-rose-50/30"
       } ${priorityStyles[operationalPriority].accent} hover:border-slate-300/90`}
     >
+      {showNewOrderBadge ? (
+        <span
+          className="pointer-events-none absolute right-0 top-0 z-10 h-2.5 w-2.5 -translate-x-[10px] -translate-y-[5px] rounded-full border border-white/90 bg-rose-500 shadow-[0_0_0_2px_rgba(255,255,255,0.72)]"
+          aria-label="Pedido nuevo"
+          title="Pedido nuevo"
+        />
+      ) : null}
       <div className="flex h-full flex-col space-y-3 sm:space-y-2.5">
         <div className="space-y-3 sm:grid sm:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)] sm:items-start sm:gap-x-6 sm:gap-y-2">
           <div className="min-w-0 space-y-2 sm:space-y-1.5">
             <div className="flex min-w-0 items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
-                <div className="flex min-w-0 items-start gap-2">
-                  <h3 className="truncate text-[15px] font-semibold text-slate-950 sm:text-base">
-                    {order.client}
-                  </h3>
-                  {showNewOrderBadge ? (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[11px] font-semibold text-rose-700">
-                      <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
-                      Pedido nuevo
-                    </span>
-                  ) : !order.isReviewed ? (
-                    <span className="inline-flex h-2.5 w-2.5 shrink-0 rounded-full bg-rose-500" />
-                  ) : null}
-                </div>
+                <h3 className="truncate pr-4 text-[15px] font-semibold text-slate-950 sm:text-base">
+                  {order.client}
+                </h3>
                 <p className="mt-1 text-xs font-medium text-slate-500">
                   {getOrderDisplayCode(order)}
                 </p>
