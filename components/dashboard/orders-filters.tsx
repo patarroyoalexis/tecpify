@@ -94,7 +94,7 @@ export function OrdersFilters({
             aria-label={showSecondaryStatuses ? "Ocultar más filtros" : "Mostrar más filtros"}
           >
             <OrdersUiIcon icon="filter" className="h-3.5 w-3.5" />
-            MÃ¡s
+            Más
           </button>
         ) : null}
       </div>

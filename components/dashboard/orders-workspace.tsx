@@ -207,8 +207,8 @@ export function OrdersWorkspace({
   }, [dashboardStorageKey, handleResetOrders]);
 
   return (
-    <div className="space-y-4 sm:space-y-5">
-      <MetricsCards metrics={metrics} compactOnMobile />
+    <div className="w-full space-y-4 sm:space-y-5">
+      <MetricsCards metrics={metrics} compactOnMobile layout="orders" />
 
       <OrdersFilters
         selectedStatus={selectedStatus}

@@ -29,25 +29,35 @@ const toneStyles: Record<
 interface MetricsCardsProps {
   metrics: MetricCard[];
   compactOnMobile?: boolean;
+  layout?: "default" | "orders";
 }
 
 export function MetricsCards({
   metrics,
   compactOnMobile = false,
+  layout = "default",
 }: MetricsCardsProps) {
+  const useOrdersLayout = compactOnMobile && layout === "orders";
+
   return (
     <section
       className={
-        compactOnMobile
-          ? "flex gap-2 overflow-x-auto pb-1 md:grid md:grid-cols-4 md:gap-3 md:overflow-visible"
-          : "grid gap-4 md:grid-cols-2 xl:grid-cols-4"
+        useOrdersLayout
+          ? "grid w-full grid-cols-2 items-stretch gap-2 md:grid-cols-3 md:gap-3"
+          : compactOnMobile
+            ? "flex gap-2 overflow-x-auto pb-1 md:grid md:grid-cols-4 md:gap-3 md:overflow-visible"
+            : "grid gap-4 md:grid-cols-2 xl:grid-cols-4"
       }
     >
       {metrics.map((metric) => (
         <article
           key={metric.title}
           className={`rounded-[22px] border shadow-[0_16px_40px_rgba(15,23,42,0.05)] ${
-            compactOnMobile
+            useOrdersLayout
+              ? `min-w-0 px-3 py-2.5 sm:p-3.5 ${
+                  metric.title === "Ingresos" ? "col-span-2 md:col-span-1" : ""
+                }`
+              : compactOnMobile
               ? "min-w-[132px] px-3 py-2.5 sm:min-w-[148px] md:min-w-0 md:p-3.5"
               : "p-5"
           } ${toneStyles[metric.tone].card}`}
@@ -58,7 +68,7 @@ export function MetricsCards({
             {metric.title}
           </p>
           <p
-            className={`${compactOnMobile ? "mt-1 text-xl leading-none sm:text-2xl md:mt-1.5 md:text-[1.75rem]" : "mt-3 text-3xl"} font-semibold tracking-tight ${toneStyles[metric.tone].value}`}
+            className={`${compactOnMobile ? "mt-1 text-xl leading-none sm:text-2xl md:mt-1.5 md:text-[1.75rem]" : "mt-3 text-3xl"} min-w-0 whitespace-nowrap font-semibold tracking-tight ${toneStyles[metric.tone].value}`}
           >
             {metric.value}
           </p>
