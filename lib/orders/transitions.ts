@@ -42,7 +42,7 @@ const ORDER_STATUS_ICON_KEYS: Partial<Record<OrderStatus, StatusIconKey>> = {
   "pendiente de pago": "inbox",
   "pago por verificar": "inbox",
   confirmado: "clipboard-check",
-  "en preparaciÃ³n": "package-open",
+  "en preparación": "package-open",
   listo: "truck",
   entregado: "package-check",
   cancelado: "circle-x",

@@ -17,7 +17,7 @@ const primaryStatuses: Array<OrderStatus | "todos"> = [
   "todos",
   "pendiente de pago",
   "pago por verificar",
-  "en preparaciÃ³n",
+  "en preparación",
   "listo",
 ];
 
