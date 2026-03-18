@@ -1,9 +1,14 @@
 import { OrderCard } from "@/components/dashboard/order-card";
-import type { Order } from "@/types/orders";
+import type { Order, OrderStatus, PaymentStatus } from "@/types/orders";
 
 interface NewOrdersSectionProps {
   orders: Order[];
   onOpenDetails: (orderId: string) => void;
+  onQuickUpdateOrderStatus: (orderId: string, status: OrderStatus) => Promise<void>;
+  onQuickUpdatePaymentStatus: (
+    orderId: string,
+    paymentStatus: PaymentStatus,
+  ) => Promise<void>;
   onMarkAllAsReviewed: () => void;
   isExpanded: boolean;
   onToggleExpanded: () => void;
@@ -12,6 +17,8 @@ interface NewOrdersSectionProps {
 export function NewOrdersSection({
   orders,
   onOpenDetails,
+  onQuickUpdateOrderStatus,
+  onQuickUpdatePaymentStatus,
   onMarkAllAsReviewed,
   isExpanded,
   onToggleExpanded,
@@ -59,6 +66,8 @@ export function NewOrdersSection({
               key={order.id}
               order={order}
               onOpenDetails={onOpenDetails}
+              onQuickUpdateOrderStatus={onQuickUpdateOrderStatus}
+              onQuickUpdatePaymentStatus={onQuickUpdatePaymentStatus}
               compact
             />
           ))}

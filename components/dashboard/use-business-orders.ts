@@ -10,6 +10,8 @@ import {
 import { fetchOrdersByBusinessSlug, updateOrderViaApi } from "@/lib/orders/api";
 import { getInitialOrderState, type OrderApiUpdatePayload } from "@/lib/orders/mappers";
 import {
+  getAllowedOrderStatusTransitions,
+  isPaymentConfirmed,
   getOrderStatusTransitionRule,
   getPaymentStatusTransitionRule,
   ORDER_STATUS_LABELS,
@@ -393,6 +395,18 @@ export function useBusinessOrders({
       throw new Error("No encontramos el pedido que intentas editar.");
     }
 
+    const nextPaymentStatus = payload.paymentStatus ?? currentOrder.paymentStatus;
+
+    if (
+      payload.status !== undefined &&
+      payload.status !== currentOrder.status &&
+      !isPaymentConfirmed(nextPaymentStatus)
+    ) {
+      throw new Error(
+        "Confirma el pago primero para habilitar los cambios en el estado del pedido.",
+      );
+    }
+
     if (payload.status !== undefined) {
       const statusRule = getOrderStatusTransitionRule(currentOrder, payload.status);
 
@@ -559,12 +573,10 @@ export function useBusinessOrders({
       return;
     }
 
-    const nextStatusByCurrent: Partial<Record<OrderStatus, OrderStatus>> = {
-      confirmado: "en preparación",
-      "en preparación": "listo",
-      listo: "entregado",
-    };
-    const nextStatus = nextStatusByCurrent[currentOrder.status];
+    const nextStatus = getAllowedOrderStatusTransitions(currentOrder.status).find(
+      (statusOption) =>
+        statusOption !== currentOrder.status && statusOption !== "cancelado",
+    );
 
     if (!nextStatus) {
       return;

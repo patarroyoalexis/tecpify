@@ -53,6 +53,11 @@ interface BusinessWorkspaceContextValue {
       | "total"
     >,
   ) => Promise<Order>;
+  quickUpdateOrderStatus: (orderId: string, status: Order["status"]) => Promise<void>;
+  quickUpdatePaymentStatus: (
+    orderId: string,
+    paymentStatus: PaymentStatus,
+  ) => Promise<void>;
   handleAdvanceOrderStatus: (orderId: string) => void;
   handleCancelOrder: (orderId: string) => void;
   handleConfirmOrder: (orderId: string) => void;
@@ -123,6 +128,12 @@ export function BusinessWorkspaceProvider({
       handleMarkAsReviewed,
       handleCreateOrder,
       handleEditOrder,
+      quickUpdateOrderStatus: async (orderId, status) => {
+        await handleEditOrder(orderId, { status });
+      },
+      quickUpdatePaymentStatus: async (orderId, paymentStatus) => {
+        await handleEditOrder(orderId, { paymentStatus });
+      },
       handleAdvanceOrderStatus,
       handleCancelOrder,
       handleConfirmOrder,

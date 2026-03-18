@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 
 import { MetricsCards } from "@/components/dashboard/metrics-cards";
-import { NewOrdersSection } from "@/components/dashboard/new-orders-section";
 import {
   defaultExpandedGroupsState,
   OrdersList,
@@ -22,7 +21,6 @@ interface OrdersWorkspaceProps {
 
 interface PersistedOrdersViewState {
   selectedStatus: OrderStatus | "todos";
-  isNewOrdersExpanded: boolean;
   expandedGroups: Record<GroupKey, boolean>;
   searchQuery: string;
 }
@@ -66,7 +64,6 @@ function readPersistedOrdersViewState(
 
     if (
       !isValidSelectedStatus(parsedValue.selectedStatus) ||
-      typeof parsedValue.isNewOrdersExpanded !== "boolean" ||
       !isValidExpandedGroups(parsedValue.expandedGroups) ||
       typeof parsedValue.searchQuery !== "string"
     ) {
@@ -75,7 +72,6 @@ function readPersistedOrdersViewState(
 
     return {
       selectedStatus: parsedValue.selectedStatus,
-      isNewOrdersExpanded: parsedValue.isNewOrdersExpanded,
       expandedGroups: parsedValue.expandedGroups,
       searchQuery: parsedValue.searchQuery,
     };
@@ -87,7 +83,6 @@ function readPersistedOrdersViewState(
 function getInitialOrdersViewState(): PersistedOrdersViewState {
   return {
     selectedStatus: "todos",
-    isNewOrdersExpanded: true,
     expandedGroups: defaultExpandedGroupsState,
     searchQuery: "",
   };
@@ -118,9 +113,6 @@ export function OrdersWorkspace({
 }: OrdersWorkspaceProps) {
   const dashboardStorageKey = getBusinessDashboardStateKey(businessId);
   const [initialOrdersViewState] = useState(() => getInitialOrdersViewState());
-  const [isNewOrdersExpanded, setIsNewOrdersExpanded] = useState(
-    initialOrdersViewState.isNewOrdersExpanded,
-  );
   const [selectedStatus, setSelectedStatus] = useState<OrderStatus | "todos">(
     initialOrdersViewState.selectedStatus,
   );
@@ -132,10 +124,10 @@ export function OrdersWorkspace({
   );
   const {
     hasHydrated,
-    newOrders,
     ordersState,
-    handleMarkAllAsReviewed,
     handleResetOrders,
+    quickUpdateOrderStatus,
+    quickUpdatePaymentStatus,
     openOrderDetails,
   } = useBusinessWorkspace();
 
@@ -148,7 +140,6 @@ export function OrdersWorkspace({
 
     queueMicrotask(() => {
       setSelectedStatus(persistedState.selectedStatus);
-      setIsNewOrdersExpanded(persistedState.isNewOrdersExpanded);
       setExpandedGroups(persistedState.expandedGroups);
       setSearchQuery(persistedState.searchQuery);
     });
@@ -161,7 +152,6 @@ export function OrdersWorkspace({
 
     const stateToPersist: PersistedOrdersViewState = {
       selectedStatus,
-      isNewOrdersExpanded,
       expandedGroups,
       searchQuery,
     };
@@ -171,7 +161,6 @@ export function OrdersWorkspace({
     dashboardStorageKey,
     expandedGroups,
     hasHydrated,
-    isNewOrdersExpanded,
     searchQuery,
     selectedStatus,
   ]);
@@ -206,7 +195,6 @@ export function OrdersWorkspace({
         handleResetOrders();
         setSelectedStatus("todos");
         setSearchQuery("");
-        setIsNewOrdersExpanded(true);
         setExpandedGroups(defaultExpandedGroupsState);
       }
     }
@@ -230,27 +218,13 @@ export function OrdersWorkspace({
         resultsCount={filteredOrders.length}
       />
 
-      {newOrders.length > 0 ? (
-        <NewOrdersSection
-          orders={newOrders}
-          onOpenDetails={openOrderDetails}
-          onMarkAllAsReviewed={handleMarkAllAsReviewed}
-          isExpanded={isNewOrdersExpanded}
-          onToggleExpanded={() =>
-            setIsNewOrdersExpanded((currentValue) => !currentValue)
-          }
-        />
-      ) : (
-        <section className="rounded-[24px] border border-slate-200/80 bg-white/80 p-5 text-sm text-slate-600 shadow-[0_16px_40px_rgba(15,23,42,0.05)]">
-          Todos los pedidos recientes ya fueron revisados.
-        </section>
-      )}
-
       <OrdersList
         orders={filteredOrders}
         expandedGroups={expandedGroups}
         onToggleGroup={handleToggleGroup}
         onOpenDetails={openOrderDetails}
+        onQuickUpdateOrderStatus={quickUpdateOrderStatus}
+        onQuickUpdatePaymentStatus={quickUpdatePaymentStatus}
       />
     </div>
   );

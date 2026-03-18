@@ -2,13 +2,18 @@
 
 import { OrderCard } from "@/components/dashboard/order-card";
 import { getOperationalPriorityScore } from "@/data/orders";
-import type { Order, OrderStatus } from "@/types/orders";
+import type { Order, OrderStatus, PaymentStatus } from "@/types/orders";
 
 interface OrdersListProps {
   orders: Order[];
   expandedGroups: Record<GroupKey, boolean>;
   onToggleGroup: (groupKey: GroupKey) => void;
   onOpenDetails: (orderId: string) => void;
+  onQuickUpdateOrderStatus: (orderId: string, status: OrderStatus) => Promise<void>;
+  onQuickUpdatePaymentStatus: (
+    orderId: string,
+    paymentStatus: PaymentStatus,
+  ) => Promise<void>;
 }
 
 export type GroupKey = "immediate" | "active" | "closed";
@@ -52,6 +57,8 @@ export function OrdersList({
   expandedGroups,
   onToggleGroup,
   onOpenDetails,
+  onQuickUpdateOrderStatus,
+  onQuickUpdatePaymentStatus,
 }: OrdersListProps) {
   if (orders.length === 0) {
     return (
@@ -116,6 +123,8 @@ export function OrdersList({
                     key={order.id}
                     order={order}
                     onOpenDetails={onOpenDetails}
+                    onQuickUpdateOrderStatus={onQuickUpdateOrderStatus}
+                    onQuickUpdatePaymentStatus={onQuickUpdatePaymentStatus}
                   />
                 ))}
               </div>

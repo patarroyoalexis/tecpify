@@ -1,9 +1,4 @@
-import { isDigitalPayment } from "@/components/dashboard/payment-helpers";
-import type {
-  Order,
-  OrderStatus,
-  PaymentStatus,
-} from "@/types/orders";
+import type { Order, OrderStatus, PaymentStatus } from "@/types/orders";
 
 export interface TransitionRuleResult {
   allowed: boolean;
@@ -28,33 +23,56 @@ export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
   "no verificado": "No verificado",
 };
 
-function getAllowedOrderStatusTargets(order: Order): OrderStatus[] {
-  switch (order.status) {
-    case "pendiente de pago":
-      return ["pendiente de pago", "pago por verificar", "confirmado", "cancelado"];
-    case "pago por verificar":
-      return ["pendiente de pago", "pago por verificar", "confirmado", "cancelado"];
-    case "confirmado":
-      return isDigitalPayment(order.paymentMethod)
-        ? [
-            "pendiente de pago",
-            "pago por verificar",
-            "confirmado",
-            "en preparación",
-            "cancelado",
-          ]
-        : ["confirmado", "en preparación", "cancelado"];
-    case "en preparación":
-      return ["confirmado", "en preparación", "listo", "cancelado"];
-    case "listo":
-      return ["en preparación", "listo", "entregado", "cancelado"];
-    case "entregado":
-      return ["listo", "entregado"];
-    case "cancelado":
-      return ["cancelado"];
-    default:
-      return [order.status];
+export const FINAL_ORDER_STATUSES: OrderStatus[] = ["entregado", "cancelado"];
+
+const ORDER_STATUS_SEQUENCE: OrderStatus[] = [
+  "pendiente de pago",
+  "pago por verificar",
+  "confirmado",
+  "en preparación",
+  "listo",
+  "entregado",
+];
+
+export function isFinalOrderStatus(status: OrderStatus) {
+  return FINAL_ORDER_STATUSES.includes(status);
+}
+
+export function isPaymentConfirmed(paymentStatus: PaymentStatus) {
+  return paymentStatus === "verificado";
+}
+
+export function isNewOrder(order: Pick<Order, "paymentStatus">) {
+  return order.paymentStatus === "pendiente";
+}
+
+export function canManageOrderStatus(order: Pick<Order, "paymentStatus">) {
+  return isPaymentConfirmed(order.paymentStatus);
+}
+
+export function getAllowedOrderStatusTransitions(currentStatus: OrderStatus): OrderStatus[] {
+  if (isFinalOrderStatus(currentStatus)) {
+    return [currentStatus];
   }
+
+  const currentIndex = ORDER_STATUS_SEQUENCE.indexOf(currentStatus);
+  const nextSequentialStatus =
+    currentIndex >= 0 && currentIndex < ORDER_STATUS_SEQUENCE.length - 1
+      ? ORDER_STATUS_SEQUENCE[currentIndex + 1]
+      : null;
+
+  return [
+    currentStatus,
+    ...(nextSequentialStatus ? [nextSequentialStatus] : []),
+    "cancelado",
+  ];
+}
+
+export function canAdvanceOrderStatus(
+  currentStatus: OrderStatus,
+  nextStatus: OrderStatus,
+) {
+  return getAllowedOrderStatusTransitions(currentStatus).includes(nextStatus);
 }
 
 export function getOrderStatusTransitionRule(
@@ -65,66 +83,25 @@ export function getOrderStatusTransitionRule(
     return { allowed: true };
   }
 
-  if (
-    isDigitalPayment(order.paymentMethod) &&
-    order.paymentStatus !== "verificado" &&
-    (order.status === "pendiente de pago" || order.status === "pago por verificar") &&
-    ["confirmado", "en preparación", "listo", "entregado"].includes(nextStatus)
-  ) {
+  if (isFinalOrderStatus(order.status)) {
     return {
       allowed: false,
-      reason: "Primero debes verificar el pago antes de avanzar el pedido en una pasarela digital.",
+      reason: "Este pedido ya terminó su flujo y no puede seguir avanzando desde aquí.",
     };
   }
 
-  if (!getAllowedOrderStatusTargets(order).includes(nextStatus)) {
-    if (order.status === "cancelado") {
-      return {
-        allowed: false,
-        reason: "Los pedidos cancelados no se pueden reabrir desde esta vista.",
-      };
-    }
-
-    if (order.status === "entregado") {
-      return {
-        allowed: false,
-        reason: "Un pedido entregado solo puede volver a Listo si necesitas corregir la entrega.",
-      };
-    }
-
+  if (!canAdvanceOrderStatus(order.status, nextStatus)) {
     return {
       allowed: false,
-      reason: "Ese cambio no es coherente con el flujo operativo actual del pedido.",
+      reason: "Solo puedes mover el pedido al siguiente paso permitido del flujo.",
     };
   }
 
-  if (order.status === "entregado" && nextStatus === "listo") {
+  if (nextStatus === "cancelado") {
     return {
       allowed: true,
       requiresConfirmation:
-        "Vas a devolver un pedido entregado a Listo. Confirma solo si necesitas corregir la entrega.",
-    };
-  }
-
-  if (
-    order.status === "confirmado" &&
-    (nextStatus === "pendiente de pago" || nextStatus === "pago por verificar")
-  ) {
-    return {
-      allowed: true,
-      requiresConfirmation:
-        "Vas a regresar el pedido a una etapa previa de validación. Úsalo solo si el negocio necesita rehacer la confirmación.",
-    };
-  }
-
-  if (
-    nextStatus === "cancelado" &&
-    ["confirmado", "en preparación", "listo"].includes(order.status)
-  ) {
-    return {
-      allowed: true,
-      requiresConfirmation:
-        "Vas a cancelar un pedido que ya avanzó en operación. Confirma para continuar.",
+        "Vas a cancelar este pedido y cerrar su flujo operativo. Confirma para continuar.",
     };
   }
 

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 
@@ -11,8 +11,12 @@ import {
 import { formatCurrency } from "@/data/orders";
 import type { OrderApiUpdatePayload } from "@/lib/orders/mappers";
 import {
+  canManageOrderStatus,
+  getAllowedOrderStatusTransitions,
   getOrderStatusTransitionRule,
   getPaymentStatusTransitionRule,
+  isNewOrder,
+  isFinalOrderStatus,
   ORDER_STATUS_LABELS,
   PAYMENT_STATUS_LABELS,
 } from "@/lib/orders/transitions";
@@ -174,9 +178,9 @@ export function OrderDetailDrawer({
       : "",
     currentEditForm.deliveryType !== currentOrder.deliveryType ? "Tipo de entrega" : "",
     currentEditForm.deliveryAddress.trim() !== (currentOrder.address ?? "").trim()
-      ? "Dirección de entrega"
+      ? "DirecciÃ³n de entrega"
       : "",
-    effectivePaymentMethod !== currentOrder.paymentMethod ? "Método de pago" : "",
+    effectivePaymentMethod !== currentOrder.paymentMethod ? "MÃ©todo de pago" : "",
     currentEditForm.notes.trim() !== (currentOrder.observations ?? "").trim() ? "Notas" : "",
     totalValue !== currentOrder.total ? "Total" : "",
   ].filter(Boolean);
@@ -188,7 +192,12 @@ export function OrderDetailDrawer({
   };
   const nextQuickStatus = nextStatusByCurrent[currentOrder.status];
   const canQuickConfirm =
-    currentOrder.status === "pendiente de pago" || currentOrder.status === "pago por verificar";
+    currentOrder.status === "pago por verificar";
+  const isOrderFlowClosed = isFinalOrderStatus(currentOrder.status);
+  const showNewOrderBadge = isNewOrder(currentOrder);
+  const canEditOrderStatus = canManageOrderStatus({
+    paymentStatus: currentEditForm.paymentStatus,
+  }) && !isOrderFlowClosed;
 
   function setField<K extends keyof EditOrderFormState>(
     field: K,
@@ -227,22 +236,22 @@ export function OrderDetailDrawer({
     }
 
     if (!Number.isFinite(totalValue) || totalValue < 0) {
-      return "Ingresa un total válido.";
+      return "Ingresa un total vÃ¡lido.";
     }
 
     if (
       currentEditForm.deliveryType === "domicilio" &&
       !currentEditForm.deliveryAddress.trim()
     ) {
-      return "La dirección es obligatoria para domicilio.";
+      return "La direcciÃ³n es obligatoria para domicilio.";
     }
 
     if (!statusRule.allowed) {
-      return statusRule.reason ?? "Ese cambio de estado no está permitido.";
+      return statusRule.reason ?? "Ese cambio de estado no estÃ¡ permitido.";
     }
 
     if (!paymentRule.allowed) {
-      return paymentRule.reason ?? "Ese cambio de pago no está permitido.";
+      return paymentRule.reason ?? "Ese cambio de pago no estÃ¡ permitido.";
     }
 
     if (changedFields.length === 0) {
@@ -310,14 +319,14 @@ export function OrderDetailDrawer({
   }
 
   async function handleCopyWhatsAppMessage() {
-    const message = `Hola ${currentOrder.client}, por favor envíanos el comprobante de pago del pedido ${getOrderDisplayCode(currentOrder)} para continuar con la validación.`;
+    const message = `Hola ${currentOrder.client}, por favor envÃ­anos el comprobante de pago del pedido ${getOrderDisplayCode(currentOrder)} para continuar con la validaciÃ³n.`;
 
     try {
       await navigator.clipboard.writeText(message);
       await onRequestPaymentProof(currentOrder.id);
       setWhatsAppFeedback("Mensaje listo para enviar por WhatsApp.");
     } catch {
-      setWhatsAppFeedback("No fue posible copiar el mensaje automáticamente.");
+      setWhatsAppFeedback("No fue posible copiar el mensaje automÃ¡ticamente.");
     }
   }
 
@@ -325,7 +334,7 @@ export function OrderDetailDrawer({
     const rule = getOrderStatusTransitionRule(currentOrder, nextStatus);
 
     if (!rule.allowed) {
-      setActionError(rule.reason ?? "Ese cambio de estado no está permitido.");
+      setActionError(rule.reason ?? "Ese cambio de estado no estÃ¡ permitido.");
       return;
     }
 
@@ -361,7 +370,7 @@ export function OrderDetailDrawer({
     const rule = getPaymentStatusTransitionRule(currentOrder, nextStatus);
 
     if (!rule.allowed) {
-      setActionError(rule.reason ?? "Ese cambio de pago no está permitido.");
+      setActionError(rule.reason ?? "Ese cambio de pago no estÃ¡ permitido.");
       return;
     }
 
@@ -391,14 +400,12 @@ export function OrderDetailDrawer({
                 <span className="rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
                   Pedido {getOrderDisplayCode(currentOrder)}
                 </span>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700">
-                  Pedido: {ORDER_STATUS_LABELS[currentOrder.status]}
-                </span>
-                <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700">
-                  Pago: {PAYMENT_STATUS_LABELS[currentOrder.paymentStatus]}
-                </span>
+                {showNewOrderBadge ? (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700">
+                    <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
+                    Pedido nuevo
+                  </span>
+                ) : null}
               </div>
             </div>
             <button
@@ -411,58 +418,9 @@ export function OrderDetailDrawer({
           </div>
         </div>
 
-        <div className="flex-1 space-y-5 overflow-y-auto px-6 py-6">
-          <section className="rounded-[24px] border border-slate-200 bg-white p-5">
-            <h3 className="text-lg font-semibold text-slate-950">Resumen operativo</h3>
-            <p className="mt-1 text-sm text-slate-600">
-              La información actual del pedido siempre queda visible antes de editar.
-            </p>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <div className={`rounded-2xl border px-4 py-3 ${orderToneStyles[currentOrder.status]}`}>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em]">Pedido</p>
-                <p className="mt-2 text-sm font-semibold">{ORDER_STATUS_LABELS[currentOrder.status]}</p>
-              </div>
-              <div className={`rounded-2xl border px-4 py-3 ${paymentToneStyles[currentOrder.paymentStatus]}`}>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em]">Pago</p>
-                <p className="mt-2 text-sm font-semibold">{PAYMENT_STATUS_LABELS[currentOrder.paymentStatus]}</p>
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Método de pago</p>
-                <p className="mt-2 text-sm font-medium text-slate-900">
-                  {getPaymentMethodLabel(currentOrder.paymentMethod, currentOrder.deliveryType)}
-                </p>
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Tipo de entrega</p>
-                <p className="mt-2 text-sm font-medium text-slate-900">
-                  {currentOrder.deliveryType === "domicilio" ? "Domicilio" : "Recogida en tienda"}
-                </p>
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Dirección</p>
-                <p className="mt-2 text-sm font-medium text-slate-900">
-                  {currentOrder.deliveryType === "domicilio"
-                    ? currentOrder.address ?? "Sin dirección registrada"
-                    : "No aplica"}
-                </p>
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Total</p>
-                <p className="mt-2 text-sm font-medium text-slate-900">
-                  {formatCurrency(currentOrder.total)}
-                </p>
-              </div>
-            </div>
-          </section>
-
-          <section className="rounded-[24px] border border-slate-200 bg-white p-5">
+        <div className="flex-1 space-y-5 overflow-y-auto px-6 py-6">          <section className="rounded-[24px] border border-slate-200 bg-white p-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h3 className="text-lg font-semibold text-slate-950">Editar pedido</h3>
-                <p className="mt-1 text-sm text-slate-600">
-                  Ajusta estados, cliente, entrega, pago, notas y total desde este drawer.
-                </p>
-              </div>
+              <h3 className="text-lg font-semibold text-slate-950">Detalle del pedido</h3>
               {isEditing ? (
                 <div className="flex gap-2">
                   <button
@@ -508,37 +466,38 @@ export function OrderDetailDrawer({
                 {editSuccess}
               </div>
             ) : null}
-            {isEditing ? (
-              <>
-                <div className="mt-5 grid gap-4 sm:grid-cols-2">
-                  <label className="space-y-2">
-                    <span className="text-sm font-medium text-slate-700">Estado del pedido</span>
-                    <select
-                      value={currentEditForm.status}
-                      onChange={(event) => setField("status", event.target.value as OrderStatus)}
-                      disabled={isSaving}
-                      className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900"
-                    >
-                      {ORDER_STATUSES.map((statusOption) => {
-                        const optionRule = getOrderStatusTransitionRule(
-                          transitionContext,
-                          statusOption,
-                        );
-
-                        return (
-                          <option
-                            key={statusOption}
-                            value={statusOption}
-                            disabled={!optionRule.allowed}
-                          >
+            <div className="mt-5 grid gap-4 sm:grid-cols-2">
+              {isEditing ? (
+                <>
+                  {canEditOrderStatus ? (
+                    <label className="space-y-2 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-4">
+                      <span className="text-sm font-semibold text-slate-900">Estado del pedido</span>
+                      <select
+                        value={currentEditForm.status}
+                        onChange={(event) => setField("status", event.target.value as OrderStatus)}
+                        disabled={isSaving}
+                        className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900"
+                      >
+                        {getAllowedOrderStatusTransitions(currentOrder.status).map((statusOption) => (
+                          <option key={statusOption} value={statusOption}>
                             {ORDER_STATUS_LABELS[statusOption]}
                           </option>
-                        );
-                      })}
-                    </select>
-                  </label>
-                  <label className="space-y-2">
-                    <span className="text-sm font-medium text-slate-700">Estado del pago</span>
+                        ))}
+                      </select>
+                    </label>
+                  ) : (
+                    <div className="space-y-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                      <span className="text-sm font-semibold text-slate-900">Estado del pedido</span>
+                      <p className="text-sm text-slate-700">
+                        Pedido: {ORDER_STATUS_LABELS[currentOrder.status]}
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        Confirma el pago para habilitar este cambio.
+                      </p>
+                    </div>
+                  )}
+                  <label className="space-y-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4">
+                    <span className="text-sm font-semibold text-slate-900">Estado del pago</span>
                     <select
                       value={currentEditForm.paymentStatus}
                       onChange={(event) =>
@@ -554,6 +513,27 @@ export function OrderDetailDrawer({
                       ))}
                     </select>
                   </label>
+                </>
+              ) : (
+                <>
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                    <p className="text-sm font-semibold text-slate-900">Estado del pedido</p>
+                    <p className="mt-2 text-sm text-slate-700">
+                      Pedido: {ORDER_STATUS_LABELS[currentOrder.status]}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                    <p className="text-sm font-semibold text-slate-900">Estado del pago</p>
+                    <p className="mt-2 text-sm text-slate-700">
+                      Pago: {PAYMENT_STATUS_LABELS[currentOrder.paymentStatus]}
+                    </p>
+                  </div>
+                </>
+              )}
+            </div>
+            {isEditing ? (
+              <>
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
                   <label className="space-y-2">
                     <span className="text-sm font-medium text-slate-700">Nombre del cliente</span>
                     <input
@@ -590,7 +570,7 @@ export function OrderDetailDrawer({
                     </select>
                   </label>
                   <label className="space-y-2">
-                    <span className="text-sm font-medium text-slate-700">Método de pago</span>
+                    <span className="text-sm font-medium text-slate-700">MÃ©todo de pago</span>
                     <select
                       value={effectivePaymentMethod}
                       onChange={(event) =>
@@ -607,7 +587,7 @@ export function OrderDetailDrawer({
                     </select>
                   </label>
                   <label className="space-y-2">
-                    <span className="text-sm font-medium text-slate-700">Dirección de entrega</span>
+                    <span className="text-sm font-medium text-slate-700">DirecciÃ³n de entrega</span>
                     <input
                       value={currentEditForm.deliveryAddress}
                       onChange={(event) => setField("deliveryAddress", event.target.value)}
@@ -656,7 +636,15 @@ export function OrderDetailDrawer({
                 ) : null}
               </>
             ) : (
-              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <div className={`rounded-2xl border px-4 py-4 ${orderToneStyles[currentOrder.status]}`}>
+                  <p className="text-sm font-semibold">Estado del pedido</p>
+                  <p className="mt-2 text-sm">Pedido: {ORDER_STATUS_LABELS[currentOrder.status]}</p>
+                </div>
+                <div className={`rounded-2xl border px-4 py-4 ${paymentToneStyles[currentOrder.paymentStatus]}`}>
+                  <p className="text-sm font-semibold">Estado del pago</p>
+                  <p className="mt-2 text-sm">Pago: {PAYMENT_STATUS_LABELS[currentOrder.paymentStatus]}</p>
+                </div>
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Cliente</p>
                   <p className="mt-2 text-sm font-medium text-slate-900">{currentOrder.client}</p>
@@ -668,12 +656,38 @@ export function OrderDetailDrawer({
                   </p>
                 </div>
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Método de pago</p>
+                  <p className="mt-2 text-sm font-medium text-slate-900">
+                    {getPaymentMethodLabel(currentOrder.paymentMethod, currentOrder.deliveryType)}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Tipo de entrega</p>
+                  <p className="mt-2 text-sm font-medium text-slate-900">
+                    {currentOrder.deliveryType === "domicilio" ? "Domicilio" : "Recogida en tienda"}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Dirección</p>
+                  <p className="mt-2 text-sm font-medium text-slate-900">
+                    {currentOrder.deliveryType === "domicilio"
+                      ? currentOrder.address ?? "Sin dirección registrada"
+                      : "No aplica"}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Total</p>
+                  <p className="mt-2 text-sm font-medium text-slate-900">
+                    {formatCurrency(currentOrder.total)}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 sm:col-span-2">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Notas</p>
                   <p className="mt-2 text-sm font-medium text-slate-900">
                     {currentOrder.observations ?? "Sin notas registradas"}
                   </p>
                 </div>
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 sm:col-span-2">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Creado</p>
                   <p className="mt-2 text-sm font-medium text-slate-900">
                     {historyFormatter.format(new Date(currentOrder.createdAt))}
@@ -684,9 +698,9 @@ export function OrderDetailDrawer({
           </section>
 
           <section className="rounded-[24px] border border-slate-200 bg-white p-5">
-            <h3 className="text-lg font-semibold text-slate-950">Acciones rápidas</h3>
+            <h3 className="text-lg font-semibold text-slate-950">Acciones rÃ¡pidas</h3>
             <p className="mt-1 text-sm text-slate-600">
-              Se mantiene el flujo operativo actual, con confirmaciones ligeras en cambios sensibles.
+              Confirma el pago primero y luego continÃºa con la operaciÃ³n del pedido.
             </p>
             {actionError ? (
               <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
@@ -731,7 +745,7 @@ export function OrderDetailDrawer({
                     </>
                   ) : (
                     <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
-                      Este método de pago no requiere validación de comprobante.
+                      Este mÃ©todo de pago no requiere validaciÃ³n de comprobante.
                     </div>
                   )}
                   {whatsAppFeedback ? (
@@ -742,36 +756,44 @@ export function OrderDetailDrawer({
 
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <p className="text-sm font-semibold text-slate-900">Pedido</p>
-                <p className="mt-2 text-sm text-slate-600">
-                  Confirma, avanza o cancela sin salir del detalle.
-                </p>
-                <div className="mt-4 grid gap-3">
-                  {canQuickConfirm ? (
-                    <button
-                      type="button"
-                      onClick={() => runQuickStatusChange("confirmado")}
-                      className="rounded-full bg-slate-900 px-4 py-3 text-sm font-medium text-white"
-                    >
-                      Confirmar pedido
-                    </button>
-                  ) : null}
-                  {nextQuickStatus ? (
-                    <button
-                      type="button"
-                      onClick={() => runQuickStatusChange(nextQuickStatus)}
-                      className="rounded-full border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-medium text-sky-700"
-                    >
-                      Avanzar a {ORDER_STATUS_LABELS[nextQuickStatus]}
-                    </button>
-                  ) : null}
-                  <button
-                    type="button"
-                    onClick={() => runQuickStatusChange("cancelado")}
-                    className="rounded-full border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700"
-                  >
-                    Cancelar pedido
-                  </button>
-                </div>
+                {canManageOrderStatus(currentOrder) ? (
+                  <>
+                    <p className="mt-2 text-sm text-slate-600">
+                      Confirma, avanza o cancela sin salir del detalle.
+                    </p>
+                    <div className="mt-4 grid gap-3">
+                      {canQuickConfirm ? (
+                        <button
+                          type="button"
+                          onClick={() => runQuickStatusChange("confirmado")}
+                          className="rounded-full bg-slate-900 px-4 py-3 text-sm font-medium text-white"
+                        >
+                          Confirmar pedido
+                        </button>
+                      ) : null}
+                      {nextQuickStatus ? (
+                        <button
+                          type="button"
+                          onClick={() => runQuickStatusChange(nextQuickStatus)}
+                          className="rounded-full border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-medium text-sky-700"
+                        >
+                          Avanzar a {ORDER_STATUS_LABELS[nextQuickStatus]}
+                        </button>
+                      ) : null}
+                      <button
+                        type="button"
+                        onClick={() => runQuickStatusChange("cancelado")}
+                        className="rounded-full border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700"
+                      >
+                        Cancelar pedido
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="mt-4 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
+                    El estado del pedido se habilita cuando el pago queda verificado.
+                  </div>
+                )}
               </div>
             </div>
 
@@ -846,3 +868,6 @@ export function OrderDetailDrawer({
     </>
   );
 }
+
+
+

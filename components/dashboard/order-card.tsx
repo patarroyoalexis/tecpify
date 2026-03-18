@@ -1,20 +1,41 @@
-import { formatCurrency, getOperationalPriority } from "@/data/orders";
-import { getOrderDisplayCode, type OperationalPriority, type Order, type PaymentStatus } from "@/types/orders";
+﻿"use client";
 
-const statusStyles: Record<string, string> = {
-  "pendiente de pago": "border border-amber-200 bg-amber-50 text-amber-800",
-  "pago por verificar": "border border-sky-200 bg-sky-50 text-sky-800",
-  confirmado: "border border-indigo-200 bg-indigo-50 text-indigo-800",
-  listo: "border border-emerald-200 bg-emerald-50 text-emerald-800",
-  entregado: "border border-green-200 bg-green-50 text-green-800",
-  cancelado: "border border-rose-200 bg-rose-50 text-rose-800",
+import { useEffect, useState } from "react";
+
+import {
+  canManageOrderStatus,
+  getAllowedOrderStatusTransitions,
+  getOrderStatusTransitionRule,
+  isNewOrder,
+  isFinalOrderStatus,
+  ORDER_STATUS_LABELS,
+  PAYMENT_STATUS_LABELS,
+} from "@/lib/orders/transitions";
+import { formatCurrency, getOperationalPriority } from "@/data/orders";
+import {
+  getOrderDisplayCode,
+  PAYMENT_STATUSES,
+  type OperationalPriority,
+  type Order,
+  type OrderStatus,
+  type PaymentStatus,
+} from "@/types/orders";
+
+const statusStyles: Record<OrderStatus, string> = {
+  "pendiente de pago": "border-amber-200 bg-amber-50 text-amber-800",
+  "pago por verificar": "border-sky-200 bg-sky-50 text-sky-800",
+  confirmado: "border-indigo-200 bg-indigo-50 text-indigo-800",
+  "en preparación": "border-orange-200 bg-orange-50 text-orange-800",
+  listo: "border-emerald-200 bg-emerald-50 text-emerald-800",
+  entregado: "border-green-200 bg-green-50 text-green-800",
+  cancelado: "border-rose-200 bg-rose-50 text-rose-800",
 };
 
 const paymentStatusStyles: Record<PaymentStatus, string> = {
-  pendiente: "border border-amber-200 bg-amber-50 text-amber-800",
-  verificado: "border border-emerald-200 bg-emerald-50 text-emerald-800",
-  "con novedad": "border border-orange-200 bg-orange-50 text-orange-800",
-  "no verificado": "border border-rose-200 bg-rose-50 text-rose-800",
+  pendiente: "border-amber-200 bg-amber-50 text-amber-800",
+  verificado: "border-emerald-200 bg-emerald-50 text-emerald-800",
+  "con novedad": "border-orange-200 bg-orange-50 text-orange-800",
+  "no verificado": "border-rose-200 bg-rose-50 text-rose-800",
 };
 
 const priorityStyles: Record<OperationalPriority, { accent: string }> = {
@@ -29,111 +50,239 @@ const priorityStyles: Record<OperationalPriority, { accent: string }> = {
   },
 };
 
-const orderStatusLabels: Record<string, string> = {
-  "pendiente de pago": "Pendiente",
-  "pago por verificar": "Por verificar",
-  confirmado: "Confirmado",
-  listo: "Listo",
-  entregado: "Entregado",
-  cancelado: "Cancelado",
-};
-
-const paymentStatusLabels: Record<PaymentStatus, string> = {
-  pendiente: "Pendiente",
-  verificado: "Ok",
-  "con novedad": "Con novedad",
-  "no verificado": "No verificado",
-};
-
 interface OrderCardProps {
   order: Order;
-  onOpenDetails?: (orderId: string) => void;
+  onOpenDetails: (orderId: string) => void;
+  onQuickUpdateOrderStatus: (orderId: string, status: OrderStatus) => Promise<void>;
+  onQuickUpdatePaymentStatus: (
+    orderId: string,
+    paymentStatus: PaymentStatus,
+  ) => Promise<void>;
   compact?: boolean;
 }
 
-function getOrderStatusLabel(order: Order) {
-  if (order.status.includes("prepar")) {
-    return "Pedido · Preparacion";
-  }
+type FeedbackKind = "order" | "payment" | null;
 
-  return `Pedido · ${orderStatusLabels[order.status] ?? order.status}`;
-}
-
-function getPaymentStatusLabel(order: Order) {
-  return `Pago · ${paymentStatusLabels[order.paymentStatus]}`;
-}
-
-function getOrderStatusStyle(order: Order) {
-  if (order.status.includes("prepar")) {
-    return "border border-orange-200 bg-orange-50 text-orange-800";
-  }
-
-  return statusStyles[order.status] ?? "border border-slate-200 bg-slate-100 text-slate-700";
+function StopPropagationWrapper({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      onClick={(event) => event.stopPropagation()}
+      onKeyDown={(event) => event.stopPropagation()}
+    >
+      {children}
+    </div>
+  );
 }
 
 export function OrderCard({
   order,
   onOpenDetails,
+  onQuickUpdateOrderStatus,
+  onQuickUpdatePaymentStatus,
   compact = false,
 }: OrderCardProps) {
   const operationalPriority = getOperationalPriority(order);
   const baseCardPadding = compact ? "px-4 py-3.5" : "px-4 py-4 sm:px-5";
+  const [selectedOrderStatus, setSelectedOrderStatus] = useState(order.status);
+  const [selectedPaymentStatus, setSelectedPaymentStatus] = useState(order.paymentStatus);
+  const [isUpdatingOrderStatus, setIsUpdatingOrderStatus] = useState(false);
+  const [isUpdatingPaymentStatus, setIsUpdatingPaymentStatus] = useState(false);
+  const [feedbackKind, setFeedbackKind] = useState<FeedbackKind>(null);
+  const [feedbackMessage, setFeedbackMessage] = useState("");
+
+  useEffect(() => {
+    setSelectedOrderStatus(order.status);
+    setSelectedPaymentStatus(order.paymentStatus);
+  }, [order.paymentStatus, order.status]);
+
+  useEffect(() => {
+    if (!feedbackKind) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setFeedbackKind(null);
+      setFeedbackMessage("");
+    }, 1800);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [feedbackKind]);
+
+  async function handleOrderStatusChange(nextStatus: OrderStatus) {
+    if (nextStatus === order.status) {
+      setSelectedOrderStatus(nextStatus);
+      return;
+    }
+
+    const rule = getOrderStatusTransitionRule(order, nextStatus);
+
+    if (!rule.allowed) {
+      setSelectedOrderStatus(order.status);
+      setFeedbackKind("order");
+      setFeedbackMessage(rule.reason ?? "Cambio de estado no permitido.");
+      return;
+    }
+
+    setSelectedOrderStatus(nextStatus);
+    setIsUpdatingOrderStatus(true);
+
+    try {
+      await onQuickUpdateOrderStatus(order.id, nextStatus);
+      setFeedbackKind("order");
+      setFeedbackMessage("Pedido actualizado.");
+    } catch (error) {
+      setSelectedOrderStatus(order.status);
+      setFeedbackKind("order");
+      setFeedbackMessage(
+        error instanceof Error ? error.message : "No fue posible actualizar el pedido.",
+      );
+    } finally {
+      setIsUpdatingOrderStatus(false);
+    }
+  }
+
+  async function handlePaymentStatusChange(nextStatus: PaymentStatus) {
+    if (nextStatus === order.paymentStatus) {
+      setSelectedPaymentStatus(nextStatus);
+      return;
+    }
+
+    setSelectedPaymentStatus(nextStatus);
+    setIsUpdatingPaymentStatus(true);
+
+    try {
+      await onQuickUpdatePaymentStatus(order.id, nextStatus);
+      setFeedbackKind("payment");
+      setFeedbackMessage("Pago actualizado.");
+    } catch (error) {
+      setSelectedPaymentStatus(order.paymentStatus);
+      setFeedbackKind("payment");
+      setFeedbackMessage(
+        error instanceof Error ? error.message : "No fue posible actualizar el pago.",
+      );
+    } finally {
+      setIsUpdatingPaymentStatus(false);
+    }
+  }
+
+  const allowedOrderStatuses = getAllowedOrderStatusTransitions(order.status);
+  const isOrderFlowClosed = isFinalOrderStatus(order.status);
+  const showNewOrderBadge = isNewOrder(order);
+  const canEditOrderStatus = canManageOrderStatus(order) && !isOrderFlowClosed;
 
   return (
     <article
-      role={onOpenDetails ? "button" : undefined}
-      tabIndex={onOpenDetails ? 0 : undefined}
-      onClick={onOpenDetails ? () => onOpenDetails(order.id) : undefined}
-      onKeyDown={
-        onOpenDetails
-          ? (event) => {
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                onOpenDetails(order.id);
-              }
-            }
-          : undefined
-      }
       className={`rounded-[22px] border bg-white ${baseCardPadding} shadow-[0_14px_34px_rgba(15,23,42,0.05)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_40px_rgba(15,23,42,0.08)] active:translate-y-0 ${
-        order.isReviewed
-          ? "border-slate-200/80"
-          : "border-rose-200 bg-rose-50/30"
-      } ${priorityStyles[operationalPriority].accent} ${onOpenDetails ? "cursor-pointer focus:outline-none focus:ring-2 focus:ring-slate-300 focus:ring-offset-2" : ""}`}
+        order.isReviewed ? "border-slate-200/80" : "border-rose-200 bg-rose-50/30"
+      } ${priorityStyles[operationalPriority].accent}`}
     >
-      <div className="space-y-2.5">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
+      <div className="space-y-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <h3 className="truncate text-[15px] font-semibold text-slate-950 sm:text-base">
                 {order.client}
               </h3>
-              {!order.isReviewed ? (
+              {showNewOrderBadge ? (
+                <span className="inline-flex items-center gap-1 rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[11px] font-semibold text-rose-700">
+                  <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
+                  Pedido nuevo
+                </span>
+              ) : !order.isReviewed ? (
                 <span className="inline-flex h-2.5 w-2.5 shrink-0 rounded-full bg-rose-500" />
               ) : null}
             </div>
+            <p className="mt-1 text-xs font-medium text-slate-500">
+              {getOrderDisplayCode(order)}
+            </p>
           </div>
 
-          <p className="shrink-0 text-[15px] font-semibold text-slate-950 sm:text-base">
-            {formatCurrency(order.total)}
-          </p>
+          <div className="flex items-center gap-2 self-start sm:flex-col sm:items-end">
+            <p className="shrink-0 text-[15px] font-semibold text-slate-950 sm:text-base">
+              {formatCurrency(order.total)}
+            </p>
+            <button
+              type="button"
+              onClick={() => onOpenDetails(order.id)}
+              className="rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+            >
+              Editar
+            </button>
+          </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold tracking-wide text-slate-600">
-            {getOrderDisplayCode(order)}
-          </span>
-          <span
-            className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${getOrderStatusStyle(order)}`}
-          >
-            {getOrderStatusLabel(order)}
-          </span>
-          <span
-            className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${paymentStatusStyles[order.paymentStatus]}`}
-          >
-            {getPaymentStatusLabel(order)}
-          </span>
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+          {canEditOrderStatus ? (
+            <StopPropagationWrapper>
+              <label
+                className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold ${statusStyles[selectedOrderStatus]}`}
+              >
+                <span className="whitespace-nowrap">Pedido</span>
+                <select
+                  value={selectedOrderStatus}
+                  onChange={(event) =>
+                    void handleOrderStatusChange(event.target.value as OrderStatus)
+                  }
+                  disabled={isUpdatingOrderStatus}
+                  className="min-w-0 bg-transparent pr-4 text-xs font-semibold outline-none"
+                >
+                  {allowedOrderStatuses.map((statusOption) => (
+                    <option key={statusOption} value={statusOption}>
+                      {ORDER_STATUS_LABELS[statusOption]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </StopPropagationWrapper>
+          ) : (
+            <div
+              className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold ${statusStyles[selectedOrderStatus]}`}
+            >
+              <span className="whitespace-nowrap">Pedido</span>
+              <span>{ORDER_STATUS_LABELS[selectedOrderStatus]}</span>
+            </div>
+          )}
+
+          <StopPropagationWrapper>
+            <label
+              className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold ${paymentStatusStyles[selectedPaymentStatus]}`}
+            >
+              <span className="whitespace-nowrap">Pago</span>
+              <select
+                value={selectedPaymentStatus}
+                onChange={(event) =>
+                  void handlePaymentStatusChange(event.target.value as PaymentStatus)
+                }
+                disabled={isUpdatingPaymentStatus}
+                className="min-w-0 bg-transparent pr-4 text-xs font-semibold outline-none"
+              >
+                {PAYMENT_STATUSES.map((statusOption) => (
+                  <option key={statusOption} value={statusOption}>
+                    {PAYMENT_STATUS_LABELS[statusOption]}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </StopPropagationWrapper>
+
+          {feedbackKind ? (
+            <span className="text-xs font-medium text-slate-500">{feedbackMessage}</span>
+          ) : isOrderFlowClosed ? (
+            <span className="text-xs font-medium text-slate-500">
+              Flujo del pedido finalizado.
+            </span>
+          ) : !canManageOrderStatus(order) ? (
+            <span className="text-xs font-medium text-slate-500">
+              Confirma el pago para habilitar el estado del pedido.
+            </span>
+          ) : null}
         </div>
       </div>
     </article>
   );
 }
+
