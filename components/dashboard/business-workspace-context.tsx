@@ -169,6 +169,7 @@ export function BusinessWorkspaceProvider({
 
       <OrderDetailDrawer
         key={selectedOrder?.id ?? "empty"}
+        businessName={businessName}
         order={selectedOrder}
         isOpen={selectedOrder !== null}
         onClose={() => setSelectedOrderId(null)}

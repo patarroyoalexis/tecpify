@@ -1,6 +1,7 @@
 "use client";
 
 import { OrderCard } from "@/components/dashboard/order-card";
+import { OrdersUiIcon } from "@/components/dashboard/orders-ui-icon";
 import { getOperationalPriorityScore } from "@/data/orders";
 import type { Order, OrderStatus, PaymentStatus } from "@/types/orders";
 
@@ -110,8 +111,13 @@ export function OrdersList({
               <button
                 type="button"
                 onClick={() => onToggleGroup(group.key)}
-                className="w-fit rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+                className="inline-flex w-fit items-center gap-1.5 rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+                aria-label={isExpanded ? "Ocultar grupo de pedidos" : "Mostrar grupo de pedidos"}
               >
+                <OrdersUiIcon
+                  icon={isExpanded ? "chevron-up" : "chevron-down"}
+                  className="h-4 w-4"
+                />
                 {isExpanded ? "Ocultar" : "Mostrar"}
               </button>
             </div>

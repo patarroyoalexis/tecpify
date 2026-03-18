@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
 
@@ -8,18 +8,22 @@ import {
   getPaymentMethodLabel,
   shouldShowPaymentVerificationActions,
 } from "@/components/dashboard/payment-helpers";
-import { formatCurrency } from "@/data/orders";
+import { OrdersUiIcon } from "@/components/dashboard/orders-ui-icon";
+import { StatusBadgeIcon } from "@/components/dashboard/status-badge-icon";
 import type { OrderApiUpdatePayload } from "@/lib/orders/mappers";
 import {
   canManageOrderStatus,
   getAllowedOrderStatusTransitions,
+  getOrderStatusIconKey,
   getOrderStatusTransitionRule,
+  getPaymentStatusIconKey,
   getPaymentStatusTransitionRule,
   isNewOrder,
   isFinalOrderStatus,
   ORDER_STATUS_LABELS,
   PAYMENT_STATUS_LABELS,
 } from "@/lib/orders/transitions";
+import { buildWhatsAppUrl } from "@/lib/whatsapp";
 import {
   DELIVERY_TYPES,
   getOrderDisplayCode,
@@ -33,6 +37,7 @@ import {
 } from "@/types/orders";
 
 interface OrderDetailDrawerProps {
+  businessName: string;
   order: Order | null;
   isOpen: boolean;
   onClose: () => void;
@@ -106,7 +111,20 @@ function getInitialEditOrderFormState(order: Order): EditOrderFormState {
   };
 }
 
+function getProductSummary(order: Order) {
+  const totalUnits = order.products.reduce((total, product) => total + product.quantity, 0);
+  const visibleProducts = order.products.slice(0, 2);
+  const hiddenProductsCount = Math.max(order.products.length - visibleProducts.length, 0);
+
+  return {
+    totalUnits,
+    visibleProducts,
+    hiddenProductsCount,
+  };
+}
+
 export function OrderDetailDrawer({
+  businessName,
   order,
   isOpen,
   onClose,
@@ -145,7 +163,6 @@ export function OrderDetailDrawer({
 
   const currentOrder = order;
   const currentEditForm = editForm ?? getInitialEditOrderFormState(currentOrder);
-
   const sortedHistory = [...currentOrder.history].sort(
     (left, right) =>
       new Date(right.occurredAt).getTime() - new Date(left.occurredAt).getTime(),
@@ -163,6 +180,23 @@ export function OrderDetailDrawer({
   const statusRule = getOrderStatusTransitionRule(transitionContext, currentEditForm.status);
   const paymentRule = getPaymentStatusTransitionRule(currentOrder, currentEditForm.paymentStatus);
   const totalValue = Number(currentEditForm.total);
+  const paymentHelpMessage = getPaymentHelpMessage(transitionContext);
+  const nextStatusByCurrent: Partial<Record<OrderStatus, OrderStatus>> = {
+    confirmado: "en preparación",
+    "en preparación": "listo",
+    listo: "entregado",
+  };
+  const nextQuickStatus = nextStatusByCurrent[currentOrder.status];
+  const canQuickConfirm = currentOrder.status === "pago por verificar";
+  const isOrderFlowClosed = isFinalOrderStatus(currentOrder.status);
+  const showNewOrderBadge = isNewOrder(currentOrder);
+  const canEditOrderStatus =
+    canManageOrderStatus({ paymentStatus: currentEditForm.paymentStatus }) && !isOrderFlowClosed;
+  const { totalUnits, visibleProducts, hiddenProductsCount } = getProductSummary(currentOrder);
+  const whatsappMessage = `Hola, te escribimos de ${businessName}. Te compartimos este mensaje por tu pedido ${getOrderDisplayCode(currentOrder)}. ¿Nos puedes enviar por favor el comprobante de pago?`;
+  const whatsappUrl = buildWhatsAppUrl(currentOrder.customerPhone ?? "", whatsappMessage);
+  const hasValidWhatsApp = Boolean(whatsappUrl);
+
   const changedFields = [
     currentEditForm.status !== currentOrder.status
       ? `Pedido: ${ORDER_STATUS_LABELS[currentOrder.status]} -> ${ORDER_STATUS_LABELS[currentEditForm.status]}`
@@ -178,26 +212,12 @@ export function OrderDetailDrawer({
       : "",
     currentEditForm.deliveryType !== currentOrder.deliveryType ? "Tipo de entrega" : "",
     currentEditForm.deliveryAddress.trim() !== (currentOrder.address ?? "").trim()
-      ? "DirecciÃ³n de entrega"
+      ? "Dirección de entrega"
       : "",
-    effectivePaymentMethod !== currentOrder.paymentMethod ? "MÃ©todo de pago" : "",
+    effectivePaymentMethod !== currentOrder.paymentMethod ? "Método de pago" : "",
     currentEditForm.notes.trim() !== (currentOrder.observations ?? "").trim() ? "Notas" : "",
     totalValue !== currentOrder.total ? "Total" : "",
   ].filter(Boolean);
-  const paymentHelpMessage = getPaymentHelpMessage(transitionContext);
-  const nextStatusByCurrent: Partial<Record<OrderStatus, OrderStatus>> = {
-    confirmado: "en preparación",
-    "en preparación": "listo",
-    listo: "entregado",
-  };
-  const nextQuickStatus = nextStatusByCurrent[currentOrder.status];
-  const canQuickConfirm =
-    currentOrder.status === "pago por verificar";
-  const isOrderFlowClosed = isFinalOrderStatus(currentOrder.status);
-  const showNewOrderBadge = isNewOrder(currentOrder);
-  const canEditOrderStatus = canManageOrderStatus({
-    paymentStatus: currentEditForm.paymentStatus,
-  }) && !isOrderFlowClosed;
 
   function setField<K extends keyof EditOrderFormState>(
     field: K,
@@ -236,22 +256,22 @@ export function OrderDetailDrawer({
     }
 
     if (!Number.isFinite(totalValue) || totalValue < 0) {
-      return "Ingresa un total vÃ¡lido.";
+      return "Ingresa un total válido.";
     }
 
     if (
       currentEditForm.deliveryType === "domicilio" &&
       !currentEditForm.deliveryAddress.trim()
     ) {
-      return "La direcciÃ³n es obligatoria para domicilio.";
+      return "La dirección es obligatoria para domicilio.";
     }
 
     if (!statusRule.allowed) {
-      return statusRule.reason ?? "Ese cambio de estado no estÃ¡ permitido.";
+      return statusRule.reason ?? "Ese cambio de estado no está permitido.";
     }
 
     if (!paymentRule.allowed) {
-      return paymentRule.reason ?? "Ese cambio de pago no estÃ¡ permitido.";
+      return paymentRule.reason ?? "Ese cambio de pago no está permitido.";
     }
 
     if (changedFields.length === 0) {
@@ -318,23 +338,22 @@ export function OrderDetailDrawer({
     }
   }
 
-  async function handleCopyWhatsAppMessage() {
-    const message = `Hola ${currentOrder.client}, por favor envÃ­anos el comprobante de pago del pedido ${getOrderDisplayCode(currentOrder)} para continuar con la validaciÃ³n.`;
-
-    try {
-      await navigator.clipboard.writeText(message);
-      await onRequestPaymentProof(currentOrder.id);
-      setWhatsAppFeedback("Mensaje listo para enviar por WhatsApp.");
-    } catch {
-      setWhatsAppFeedback("No fue posible copiar el mensaje automÃ¡ticamente.");
+  async function handleRequestPaymentByWhatsApp() {
+    if (!whatsappUrl) {
+      setWhatsAppFeedback("Este pedido no tiene un número de WhatsApp válido.");
+      return;
     }
+
+    window.open(whatsappUrl, "_blank", "noopener,noreferrer");
+    await onRequestPaymentProof(currentOrder.id);
+    setWhatsAppFeedback("Se abrió WhatsApp con el mensaje listo para enviar.");
   }
 
   function runQuickStatusChange(nextStatus: OrderStatus) {
     const rule = getOrderStatusTransitionRule(currentOrder, nextStatus);
 
     if (!rule.allowed) {
-      setActionError(rule.reason ?? "Ese cambio de estado no estÃ¡ permitido.");
+      setActionError(rule.reason ?? "Ese cambio de estado no está permitido.");
       return;
     }
 
@@ -370,7 +389,7 @@ export function OrderDetailDrawer({
     const rule = getPaymentStatusTransitionRule(currentOrder, nextStatus);
 
     if (!rule.allowed) {
-      setActionError(rule.reason ?? "Ese cambio de pago no estÃ¡ permitido.");
+      setActionError(rule.reason ?? "Ese cambio de pago no está permitido.");
       return;
     }
 
@@ -396,7 +415,7 @@ export function OrderDetailDrawer({
           <div className="flex items-start justify-between gap-4">
             <div className="space-y-3">
               <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-2xl font-semibold text-slate-950">{currentOrder.client}</h2>
+                <h2 className="text-2xl font-semibold text-slate-950">Detalle del pedido</h2>
                 <span className="rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
                   Pedido {getOrderDisplayCode(currentOrder)}
                 </span>
@@ -407,18 +426,21 @@ export function OrderDetailDrawer({
                   </span>
                 ) : null}
               </div>
+              <p className="text-sm text-slate-600">{currentOrder.client}</p>
             </div>
             <button
               type="button"
               onClick={onClose}
-              className="rounded-full border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 transition hover:border-slate-300 hover:bg-slate-50"
+              className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 transition hover:border-slate-300 hover:bg-slate-50"
             >
+              <OrdersUiIcon icon="x" className="h-4 w-4" />
               Cerrar
             </button>
           </div>
         </div>
 
-        <div className="flex-1 space-y-5 overflow-y-auto px-6 py-6">          <section className="rounded-[24px] border border-slate-200 bg-white p-5">
+        <div className="flex-1 space-y-5 overflow-y-auto px-6 py-6">
+          <section className="rounded-[24px] border border-slate-200 bg-white p-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <h3 className="text-lg font-semibold text-slate-950">Detalle del pedido</h3>
               {isEditing ? (
@@ -432,16 +454,18 @@ export function OrderDetailDrawer({
                       setIsEditing(false);
                     }}
                     disabled={isSaving}
-                    className="rounded-full border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700"
+                    className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700"
                   >
+                    <OrdersUiIcon icon="x" className="h-4 w-4" />
                     Cancelar
                   </button>
                   <button
                     type="button"
                     onClick={() => void handleSaveOrderChanges()}
                     disabled={isSaving}
-                    className="rounded-full bg-slate-900 px-4 py-2.5 text-sm font-medium text-white"
+                    className="inline-flex items-center gap-1.5 rounded-full bg-slate-900 px-4 py-2.5 text-sm font-medium text-white"
                   >
+                    <OrdersUiIcon icon="save" className="h-4 w-4" />
                     {isSaving ? "Guardando..." : "Guardar cambios"}
                   </button>
                 </div>
@@ -449,8 +473,9 @@ export function OrderDetailDrawer({
                 <button
                   type="button"
                   onClick={() => setIsEditing(true)}
-                  className="rounded-full border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700"
                 >
+                  <OrdersUiIcon icon="edit" className="h-4 w-4" />
                   Editar pedido
                 </button>
               )}
@@ -466,12 +491,16 @@ export function OrderDetailDrawer({
                 {editSuccess}
               </div>
             ) : null}
+
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
               {isEditing ? (
                 <>
                   {canEditOrderStatus ? (
                     <label className="space-y-2 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-4">
-                      <span className="text-sm font-semibold text-slate-900">Estado del pedido</span>
+                      <span className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                        <StatusBadgeIcon iconKey={getOrderStatusIconKey(currentEditForm.status)} />
+                        Estado del pedido
+                      </span>
                       <select
                         value={currentEditForm.status}
                         onChange={(event) => setField("status", event.target.value as OrderStatus)}
@@ -487,7 +516,10 @@ export function OrderDetailDrawer({
                     </label>
                   ) : (
                     <div className="space-y-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-                      <span className="text-sm font-semibold text-slate-900">Estado del pedido</span>
+                      <span className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                        <StatusBadgeIcon iconKey={getOrderStatusIconKey(currentOrder.status)} />
+                        Estado del pedido
+                      </span>
                       <p className="text-sm text-slate-700">
                         Pedido: {ORDER_STATUS_LABELS[currentOrder.status]}
                       </p>
@@ -497,7 +529,12 @@ export function OrderDetailDrawer({
                     </div>
                   )}
                   <label className="space-y-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4">
-                    <span className="text-sm font-semibold text-slate-900">Estado del pago</span>
+                    <span className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                      <StatusBadgeIcon
+                        iconKey={getPaymentStatusIconKey(currentEditForm.paymentStatus)}
+                      />
+                      Estado del pago
+                    </span>
                     <select
                       value={currentEditForm.paymentStatus}
                       onChange={(event) =>
@@ -516,17 +553,21 @@ export function OrderDetailDrawer({
                 </>
               ) : (
                 <>
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-                    <p className="text-sm font-semibold text-slate-900">Estado del pedido</p>
-                    <p className="mt-2 text-sm text-slate-700">
-                      Pedido: {ORDER_STATUS_LABELS[currentOrder.status]}
+                  <div className={`rounded-2xl border px-4 py-4 ${orderToneStyles[currentOrder.status]}`}>
+                    <p className="flex items-center gap-2 text-sm font-semibold">
+                      <StatusBadgeIcon iconKey={getOrderStatusIconKey(currentOrder.status)} />
+                      Estado del pedido
                     </p>
+                    <p className="mt-2 text-sm">Pedido: {ORDER_STATUS_LABELS[currentOrder.status]}</p>
                   </div>
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-                    <p className="text-sm font-semibold text-slate-900">Estado del pago</p>
-                    <p className="mt-2 text-sm text-slate-700">
-                      Pago: {PAYMENT_STATUS_LABELS[currentOrder.paymentStatus]}
+                  <div className={`rounded-2xl border px-4 py-4 ${paymentToneStyles[currentOrder.paymentStatus]}`}>
+                    <p className="flex items-center gap-2 text-sm font-semibold">
+                      <StatusBadgeIcon
+                        iconKey={getPaymentStatusIconKey(currentOrder.paymentStatus)}
+                      />
+                      Estado del pago
                     </p>
+                    <p className="mt-2 text-sm">Pago: {PAYMENT_STATUS_LABELS[currentOrder.paymentStatus]}</p>
                   </div>
                 </>
               )}
@@ -570,7 +611,7 @@ export function OrderDetailDrawer({
                     </select>
                   </label>
                   <label className="space-y-2">
-                    <span className="text-sm font-medium text-slate-700">MÃ©todo de pago</span>
+                    <span className="text-sm font-medium text-slate-700">Método de pago</span>
                     <select
                       value={effectivePaymentMethod}
                       onChange={(event) =>
@@ -587,7 +628,7 @@ export function OrderDetailDrawer({
                     </select>
                   </label>
                   <label className="space-y-2">
-                    <span className="text-sm font-medium text-slate-700">DirecciÃ³n de entrega</span>
+                    <span className="text-sm font-medium text-slate-700">Dirección de entrega</span>
                     <input
                       value={currentEditForm.deliveryAddress}
                       onChange={(event) => setField("deliveryAddress", event.target.value)}
@@ -637,14 +678,6 @@ export function OrderDetailDrawer({
               </>
             ) : (
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                <div className={`rounded-2xl border px-4 py-4 ${orderToneStyles[currentOrder.status]}`}>
-                  <p className="text-sm font-semibold">Estado del pedido</p>
-                  <p className="mt-2 text-sm">Pedido: {ORDER_STATUS_LABELS[currentOrder.status]}</p>
-                </div>
-                <div className={`rounded-2xl border px-4 py-4 ${paymentToneStyles[currentOrder.paymentStatus]}`}>
-                  <p className="text-sm font-semibold">Estado del pago</p>
-                  <p className="mt-2 text-sm">Pago: {PAYMENT_STATUS_LABELS[currentOrder.paymentStatus]}</p>
-                </div>
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Cliente</p>
                   <p className="mt-2 text-sm font-medium text-slate-900">{currentOrder.client}</p>
@@ -655,38 +688,49 @@ export function OrderDetailDrawer({
                     {currentOrder.customerPhone ?? "Sin WhatsApp registrado"}
                   </p>
                 </div>
+                {currentOrder.deliveryType === "domicilio" && currentOrder.address ? (
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Dirección</p>
+                    <p className="mt-2 text-sm font-medium text-slate-900">{currentOrder.address}</p>
+                  </div>
+                ) : null}
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Método de pago</p>
                   <p className="mt-2 text-sm font-medium text-slate-900">
                     {getPaymentMethodLabel(currentOrder.paymentMethod, currentOrder.deliveryType)}
                   </p>
                 </div>
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Tipo de entrega</p>
-                  <p className="mt-2 text-sm font-medium text-slate-900">
-                    {currentOrder.deliveryType === "domicilio" ? "Domicilio" : "Recogida en tienda"}
-                  </p>
-                </div>
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Dirección</p>
-                  <p className="mt-2 text-sm font-medium text-slate-900">
-                    {currentOrder.deliveryType === "domicilio"
-                      ? currentOrder.address ?? "Sin dirección registrada"
-                      : "No aplica"}
-                  </p>
-                </div>
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Total</p>
-                  <p className="mt-2 text-sm font-medium text-slate-900">
-                    {formatCurrency(currentOrder.total)}
-                  </p>
-                </div>
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 sm:col-span-2">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Notas</p>
-                  <p className="mt-2 text-sm font-medium text-slate-900">
-                    {currentOrder.observations ?? "Sin notas registradas"}
-                  </p>
-                </div>
+                {currentOrder.products.length > 0 ? (
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 sm:col-span-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Artículos</p>
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700">
+                        {totalUnits} unidad{totalUnits === 1 ? "" : "es"}
+                      </span>
+                      {visibleProducts.map((product) => (
+                        <span
+                          key={`${product.name}-${product.quantity}`}
+                          className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600"
+                        >
+                          {product.quantity} x {product.name}
+                        </span>
+                      ))}
+                      {hiddenProductsCount > 0 ? (
+                        <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600">
+                          +{hiddenProductsCount} más
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : null}
+                {currentOrder.observations ? (
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 sm:col-span-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Notas</p>
+                    <p className="mt-2 text-sm font-medium text-slate-900">
+                      {currentOrder.observations}
+                    </p>
+                  </div>
+                ) : null}
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 sm:col-span-2">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Creado</p>
                   <p className="mt-2 text-sm font-medium text-slate-900">
@@ -696,11 +740,10 @@ export function OrderDetailDrawer({
               </div>
             )}
           </section>
-
           <section className="rounded-[24px] border border-slate-200 bg-white p-5">
-            <h3 className="text-lg font-semibold text-slate-950">Acciones rÃ¡pidas</h3>
+            <h3 className="text-lg font-semibold text-slate-950">Acciones rápidas</h3>
             <p className="mt-1 text-sm text-slate-600">
-              Confirma el pago primero y luego continÃºa con la operaciÃ³n del pedido.
+              Confirma el pago primero y luego continúa con la operación del pedido.
             </p>
             {actionError ? (
               <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
@@ -716,36 +759,50 @@ export function OrderDetailDrawer({
                     <>
                       <button
                         type="button"
-                        onClick={() => void handleCopyWhatsAppMessage()}
-                        className="rounded-full border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700"
+                        onClick={() => void handleRequestPaymentByWhatsApp()}
+                        disabled={!hasValidWhatsApp}
+                        className={`inline-flex items-center justify-center gap-1.5 rounded-full px-4 py-3 text-sm font-medium ${
+                          hasValidWhatsApp
+                            ? "border border-slate-300 bg-white text-slate-700"
+                            : "cursor-not-allowed border border-slate-200 bg-slate-100 text-slate-400"
+                        }`}
+                        title={
+                          hasValidWhatsApp
+                            ? "Abrir WhatsApp con el mensaje listo"
+                            : "El pedido no tiene un número de WhatsApp válido"
+                        }
                       >
+                        <OrdersUiIcon icon="clipboard" className="h-4 w-4" />
                         Solicitar comprobante por WhatsApp
                       </button>
                       <button
                         type="button"
                         onClick={() => runQuickPaymentChange("verificado")}
-                        className="rounded-full border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700"
+                        className="inline-flex items-center justify-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700"
                       >
+                        <OrdersUiIcon icon="save" className="h-4 w-4" />
                         Marcar pago como verificado
                       </button>
                       <button
                         type="button"
                         onClick={() => runQuickPaymentChange("con novedad")}
-                        className="rounded-full border border-orange-200 bg-orange-50 px-4 py-3 text-sm font-medium text-orange-700"
+                        className="inline-flex items-center justify-center gap-1.5 rounded-full border border-orange-200 bg-orange-50 px-4 py-3 text-sm font-medium text-orange-700"
                       >
+                        <OrdersUiIcon icon="edit" className="h-4 w-4" />
                         Marcar pago con novedad
                       </button>
                       <button
                         type="button"
                         onClick={() => runQuickPaymentChange("no verificado")}
-                        className="rounded-full border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700"
+                        className="inline-flex items-center justify-center gap-1.5 rounded-full border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700"
                       >
+                        <OrdersUiIcon icon="x" className="h-4 w-4" />
                         Marcar pago como no verificado
                       </button>
                     </>
                   ) : (
                     <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
-                      Este mÃ©todo de pago no requiere validaciÃ³n de comprobante.
+                      Este método de pago no requiere validación de comprobante.
                     </div>
                   )}
                   {whatsAppFeedback ? (
@@ -766,8 +823,9 @@ export function OrderDetailDrawer({
                         <button
                           type="button"
                           onClick={() => runQuickStatusChange("confirmado")}
-                          className="rounded-full bg-slate-900 px-4 py-3 text-sm font-medium text-white"
+                          className="inline-flex items-center justify-center gap-1.5 rounded-full bg-slate-900 px-4 py-3 text-sm font-medium text-white"
                         >
+                          <OrdersUiIcon icon="clipboard-check" className="h-4 w-4" />
                           Confirmar pedido
                         </button>
                       ) : null}
@@ -775,16 +833,18 @@ export function OrderDetailDrawer({
                         <button
                           type="button"
                           onClick={() => runQuickStatusChange(nextQuickStatus)}
-                          className="rounded-full border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-medium text-sky-700"
+                          className="inline-flex items-center justify-center gap-1.5 rounded-full border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-medium text-sky-700"
                         >
+                          <OrdersUiIcon icon="chevron-down" className="h-4 w-4" />
                           Avanzar a {ORDER_STATUS_LABELS[nextQuickStatus]}
                         </button>
                       ) : null}
                       <button
                         type="button"
                         onClick={() => runQuickStatusChange("cancelado")}
-                        className="rounded-full border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700"
+                        className="inline-flex items-center justify-center gap-1.5 rounded-full border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700"
                       >
+                        <OrdersUiIcon icon="x" className="h-4 w-4" />
                         Cancelar pedido
                       </button>
                     </div>
@@ -868,6 +928,3 @@ export function OrderDetailDrawer({
     </>
   );
 }
-
-
-

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { NewActionsMenu } from "@/components/dashboard/new-actions-menu";
+import { OrdersUiIcon } from "@/components/dashboard/orders-ui-icon";
 
 interface WorkspaceNavbarProps {
   businessName: string;
@@ -51,20 +52,9 @@ export function WorkspaceNavbar({
               onClick={onSearch}
               className="ml-auto flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
               aria-label="Buscar pedidos globalmente"
+              title="Buscar pedidos globalmente"
             >
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="h-4 w-4"
-                aria-hidden="true"
-              >
-                <circle cx="11" cy="11" r="7" />
-                <path d="m20 20-3.5-3.5" />
-              </svg>
+              <OrdersUiIcon icon="search" className="h-4 w-4" />
             </button>
           </div>
 
@@ -109,20 +99,9 @@ export function WorkspaceNavbar({
                 onClick={onSearch}
                 className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
                 aria-label="Buscar pedidos globalmente"
+                title="Buscar pedidos globalmente"
               >
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="h-4 w-4"
-                  aria-hidden="true"
-                >
-                  <circle cx="11" cy="11" r="7" />
-                  <path d="m20 20-3.5-3.5" />
-                </svg>
+                <OrdersUiIcon icon="search" className="h-4 w-4" />
               </button>
 
               <NewActionsMenu

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { OrdersUiIcon } from "@/components/dashboard/orders-ui-icon";
 import { formatCurrency } from "@/data/orders";
 import { fetchOrdersByBusinessSlug } from "@/lib/orders/api";
 import {
@@ -16,24 +17,6 @@ interface GlobalOrderSearchProps {
   isOpen: boolean;
   onClose: () => void;
   onSelectOrder: (order: Order) => void;
-}
-
-function SearchIcon({ className = "h-4 w-4" }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-      aria-hidden="true"
-    >
-      <circle cx="11" cy="11" r="7" />
-      <path d="m20 20-3.5-3.5" />
-    </svg>
-  );
 }
 
 function escapeRegExp(value: string) {
@@ -194,7 +177,7 @@ export function GlobalOrderSearch({
           <div className="border-b border-slate-200 px-4 py-4 sm:px-5">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-slate-900 text-white">
-                <SearchIcon />
+                <OrdersUiIcon icon="search" />
               </div>
               <div className="min-w-0 flex-1">
                 <label className="sr-only" htmlFor="global-orders-search">
@@ -212,8 +195,9 @@ export function GlobalOrderSearch({
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-full border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+                className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
               >
+                <OrdersUiIcon icon="x" className="h-4 w-4" />
                 Cerrar
               </button>
             </div>

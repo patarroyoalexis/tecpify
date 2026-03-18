@@ -1,5 +1,18 @@
 import type { Order, OrderStatus, PaymentStatus } from "@/types/orders";
 
+export type StatusIconKey =
+  | "alert-circle"
+  | "circle-check"
+  | "circle-x"
+  | "clipboard-check"
+  | "clock"
+  | "dot"
+  | "inbox"
+  | "package-check"
+  | "package-open"
+  | "rotate-ccw"
+  | "truck";
+
 export interface TransitionRuleResult {
   allowed: boolean;
   reason?: string;
@@ -23,6 +36,25 @@ export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
   "no verificado": "No verificado",
 };
 
+const FALLBACK_STATUS_ICON_KEY: StatusIconKey = "dot";
+
+const ORDER_STATUS_ICON_KEYS: Partial<Record<OrderStatus, StatusIconKey>> = {
+  "pendiente de pago": "inbox",
+  "pago por verificar": "inbox",
+  confirmado: "clipboard-check",
+  "en preparaciÃ³n": "package-open",
+  listo: "truck",
+  entregado: "package-check",
+  cancelado: "circle-x",
+};
+
+const PAYMENT_STATUS_ICON_KEYS: Partial<Record<PaymentStatus, StatusIconKey>> = {
+  pendiente: "clock",
+  verificado: "circle-check",
+  "con novedad": "alert-circle",
+  "no verificado": "circle-x",
+};
+
 export const FINAL_ORDER_STATUSES: OrderStatus[] = ["entregado", "cancelado"];
 
 const ORDER_STATUS_SEQUENCE: OrderStatus[] = [
@@ -42,8 +74,16 @@ export function isPaymentConfirmed(paymentStatus: PaymentStatus) {
   return paymentStatus === "verificado";
 }
 
-export function isNewOrder(order: Pick<Order, "paymentStatus">) {
-  return order.paymentStatus === "pendiente";
+export function getOrderStatusIconKey(status: string): StatusIconKey {
+  return ORDER_STATUS_ICON_KEYS[status as OrderStatus] ?? FALLBACK_STATUS_ICON_KEY;
+}
+
+export function getPaymentStatusIconKey(status: string): StatusIconKey {
+  return PAYMENT_STATUS_ICON_KEYS[status as PaymentStatus] ?? FALLBACK_STATUS_ICON_KEY;
+}
+
+export function isNewOrder(order: Pick<Order, "isReviewed">) {
+  return !order.isReviewed;
 }
 
 export function canManageOrderStatus(order: Pick<Order, "paymentStatus">) {

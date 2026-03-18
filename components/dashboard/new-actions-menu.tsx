@@ -2,6 +2,8 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 
+import { OrdersUiIcon } from "@/components/dashboard/orders-ui-icon";
+
 interface NewActionsMenuProps {
   onNewOrder: () => void;
   onNewProduct: () => void;
@@ -13,64 +15,6 @@ interface ActionItem {
   label: string;
   description: string;
   onSelect: () => void;
-}
-
-function PlusIcon({ className = "h-4 w-4" }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.9"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-      aria-hidden="true"
-    >
-      <path d="M12 5v14" />
-      <path d="M5 12h14" />
-    </svg>
-  );
-}
-
-function PackageIcon({ className = "h-4 w-4" }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-      aria-hidden="true"
-    >
-      <path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z" />
-      <path d="M12 12 4 7.5" />
-      <path d="M12 12l8-4.5" />
-      <path d="M12 21v-9" />
-    </svg>
-  );
-}
-
-function ClipboardIcon({ className = "h-4 w-4" }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-      aria-hidden="true"
-    >
-      <rect x="6" y="4" width="12" height="16" rx="2" />
-      <path d="M9 4.5h6" />
-      <path d="M9 10h6" />
-      <path d="M9 14h4" />
-    </svg>
-  );
 }
 
 function ActionButton({
@@ -88,7 +32,7 @@ function ActionButton({
       className="flex w-full items-start gap-3 rounded-2xl border border-transparent px-3.5 py-3 text-left transition hover:border-slate-200 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300 focus:ring-offset-2"
     >
       <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-700">
-        {item.key === "order" ? <ClipboardIcon /> : <PackageIcon />}
+        <OrdersUiIcon icon={item.key === "order" ? "clipboard" : "package"} />
       </span>
       <span className="min-w-0">
         <span className="block text-sm font-semibold text-slate-950">
@@ -183,7 +127,7 @@ export function NewActionsMenu({
             aria-expanded={isOpen}
             aria-controls={menuId}
           >
-            <PlusIcon />
+            <OrdersUiIcon icon="plus" />
             <span>Nuevo</span>
           </button>
 
@@ -262,7 +206,10 @@ export function NewActionsMenu({
               aria-expanded={isOpen}
               aria-controls={`${menuId}-mobile`}
             >
-              <PlusIcon className={`h-5 w-5 transition ${isOpen ? "rotate-45" : ""}`} />
+              <OrdersUiIcon
+                icon={isOpen ? "x" : "plus"}
+                className="h-5 w-5 transition"
+              />
             </button>
           </div>
         </div>

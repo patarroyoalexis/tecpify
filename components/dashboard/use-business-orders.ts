@@ -431,8 +431,14 @@ export function useBusinessOrders({
       ...buildOrderHistoryEvents(currentOrder, payload),
       ...currentOrder.history,
     ];
+    const shouldMarkAsReviewed =
+      !currentOrder.isReviewed &&
+      ((payload.status !== undefined && payload.status !== currentOrder.status) ||
+        (payload.paymentStatus !== undefined &&
+          payload.paymentStatus !== currentOrder.paymentStatus));
     const optimisticPayload: OrderApiUpdatePayload = {
       ...payload,
+      ...(shouldMarkAsReviewed ? { isReviewed: true } : {}),
       history: nextHistory,
     };
     const optimisticOrder = applyOrderUpdatePayload(currentOrder, optimisticPayload);

@@ -2,10 +2,15 @@
 
 import { useEffect, useState } from "react";
 
+import { OrdersUiIcon } from "@/components/dashboard/orders-ui-icon";
+import { StatusBadgeIcon } from "@/components/dashboard/status-badge-icon";
+import { getPaymentMethodLabel } from "@/components/dashboard/payment-helpers";
 import {
   canManageOrderStatus,
   getAllowedOrderStatusTransitions,
+  getOrderStatusIconKey,
   getOrderStatusTransitionRule,
+  getPaymentStatusIconKey,
   isNewOrder,
   isFinalOrderStatus,
   ORDER_STATUS_LABELS,
@@ -62,6 +67,20 @@ interface OrderCardProps {
 }
 
 type FeedbackKind = "order" | "payment" | null;
+
+function getProductSummary(order: Order) {
+  const visibleProducts = order.products.slice(0, 2);
+  const hiddenProductsCount = Math.max(order.products.length - visibleProducts.length, 0);
+  const totalUnits = order.products.reduce((total, product) => total + product.quantity, 0);
+  const visibleNames = visibleProducts.map((product) => product.name).join(", ");
+  const moreLabel = hiddenProductsCount > 0 ? ` +${hiddenProductsCount} más` : "";
+
+  return {
+    totalUnits,
+    visibleNames,
+    moreLabel,
+  };
+}
 
 function StopPropagationWrapper({
   children,
@@ -173,6 +192,9 @@ export function OrderCard({
   const isOrderFlowClosed = isFinalOrderStatus(order.status);
   const showNewOrderBadge = isNewOrder(order);
   const canEditOrderStatus = canManageOrderStatus(order) && !isOrderFlowClosed;
+  const { totalUnits, visibleNames, moreLabel } = getProductSummary(order);
+  const paymentMethodLabel = getPaymentMethodLabel(order.paymentMethod, order.deliveryType);
+  const hasAddress = Boolean(order.address?.trim());
 
   return (
     <article
@@ -208,10 +230,37 @@ export function OrderCard({
             <button
               type="button"
               onClick={() => onOpenDetails(order.id)}
-              className="rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+              className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+              aria-label={`Ver detalles del pedido ${getOrderDisplayCode(order)}`}
+              title="Ver detalles"
             >
-              Editar
+              <OrdersUiIcon icon="clipboard" className="h-3.5 w-3.5" />
+              Detalles
             </button>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <p className="flex items-start gap-2 text-sm text-slate-700">
+            <OrdersUiIcon icon="package" className="mt-0.5 h-4 w-4 text-slate-400" />
+            <span className="min-w-0">
+              <span className="font-medium text-slate-900">
+                {totalUnits} ud{totalUnits === 1 ? "" : "s"}
+              </span>
+              {visibleNames ? ` · ${visibleNames}${moreLabel}` : ""}
+            </span>
+          </p>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+            {hasAddress ? (
+              <span className="inline-flex max-w-full items-center gap-1.5">
+                <OrdersUiIcon icon="map-pin" className="h-3.5 w-3.5 text-slate-400" />
+                <span className="truncate">{order.address}</span>
+              </span>
+            ) : null}
+            <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+              <OrdersUiIcon icon="wallet" className="h-3.5 w-3.5 text-slate-400" />
+              <span>Pago: {paymentMethodLabel}</span>
+            </span>
           </div>
         </div>
 
@@ -221,6 +270,7 @@ export function OrderCard({
               <label
                 className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold ${statusStyles[selectedOrderStatus]}`}
               >
+                <StatusBadgeIcon iconKey={getOrderStatusIconKey(selectedOrderStatus)} />
                 <span className="whitespace-nowrap">Pedido</span>
                 <select
                   value={selectedOrderStatus}
@@ -242,6 +292,7 @@ export function OrderCard({
             <div
               className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold ${statusStyles[selectedOrderStatus]}`}
             >
+              <StatusBadgeIcon iconKey={getOrderStatusIconKey(selectedOrderStatus)} />
               <span className="whitespace-nowrap">Pedido</span>
               <span>{ORDER_STATUS_LABELS[selectedOrderStatus]}</span>
             </div>
@@ -251,6 +302,7 @@ export function OrderCard({
             <label
               className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold ${paymentStatusStyles[selectedPaymentStatus]}`}
             >
+              <StatusBadgeIcon iconKey={getPaymentStatusIconKey(selectedPaymentStatus)} />
               <span className="whitespace-nowrap">Pago</span>
               <select
                 value={selectedPaymentStatus}
