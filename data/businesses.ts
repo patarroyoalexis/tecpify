@@ -1,4 +1,5 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { debugError, debugLog } from "@/lib/debug";
 import type { BusinessConfig } from "@/types/storefront";
 
 export const mockBusinesses: BusinessConfig[] = [
@@ -78,16 +79,6 @@ export type BusinessProductsLookupResult =
   | { status: "no_products"; business: BusinessConfig }
   | { status: "ok"; business: BusinessConfig };
 
-const isDevelopment = process.env.NODE_ENV !== "production";
-
-function logBusinessDebug(message: string, details: Record<string, unknown>) {
-  if (!isDevelopment) {
-    return;
-  }
-
-  console.info(`[businesses] ${message}`, details);
-}
-
 export function getBusinessBySlug(slug: string) {
   return mockBusinesses.find((business) => business.slug === slug) ?? null;
 }
@@ -95,7 +86,7 @@ export function getBusinessBySlug(slug: string) {
 export const getBusinessById = getBusinessBySlug;
 
 export async function getBusinessBySlugFromDatabase(slug: string) {
-  logBusinessDebug("Resolving business by slug", { slug });
+  debugLog("[businesses] Resolving business by slug", { slug });
 
   const supabase = createServerSupabaseClient();
   const { data, error } = await supabase
@@ -105,12 +96,12 @@ export async function getBusinessBySlugFromDatabase(slug: string) {
     .maybeSingle<SupabaseBusinessRow>();
 
   if (error) {
+    debugError("[businesses] Failed to resolve business", { slug });
     throw new Error(`Supabase businesses query failed: ${error.message}`);
   }
 
-  logBusinessDebug("Business row resolved from Supabase", {
+  debugLog("[businesses] Business resolved", {
     slug,
-    databaseId: data?.id ?? null,
     found: Boolean(data),
   });
 
@@ -122,7 +113,10 @@ export async function getBusinessBySlugWithProducts(
 ): Promise<BusinessProductsLookupResult> {
   const business = getBusinessBySlug(slug);
 
-  logBusinessDebug("Received storefront slug", { slug, foundInMock: Boolean(business) });
+  debugLog("[businesses] Received storefront slug", {
+    slug,
+    foundInMock: Boolean(business),
+  });
 
   if (!business) {
     return { status: "not_found" };
@@ -134,10 +128,9 @@ export async function getBusinessBySlugWithProducts(
     databaseId: databaseBusiness?.id ?? null,
   };
 
-  logBusinessDebug("Resolved business configuration", {
+  debugLog("[businesses] Resolved business configuration", {
     slug,
-    name: businessWithDatabaseId.name,
-    databaseId: businessWithDatabaseId.databaseId,
+    hasDatabaseMapping: Boolean(businessWithDatabaseId.databaseId),
   });
 
   if (!businessWithDatabaseId.databaseId) {
@@ -152,9 +145,8 @@ export async function getBusinessBySlugWithProducts(
   );
   const products = await getProductsByBusinessId(businessWithDatabaseId.databaseId);
 
-  logBusinessDebug("Products query completed", {
+  debugLog("[businesses] Products query completed", {
     slug,
-    databaseId: businessWithDatabaseId.databaseId,
     productsCount: products.length,
   });
 

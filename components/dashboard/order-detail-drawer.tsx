@@ -97,6 +97,8 @@ const paymentToneStyles: Record<PaymentStatus, string> = {
   "no verificado": "border-rose-200 bg-rose-50 text-rose-800",
 };
 
+const DRAWER_TRANSITION_MS = 220;
+
 function getInitialEditOrderFormState(order: Order): EditOrderFormState {
   return {
     customerName: order.client,
@@ -142,9 +144,52 @@ export function OrderDetailDrawer({
   const [actionError, setActionError] = useState("");
   const [whatsAppFeedback, setWhatsAppFeedback] = useState("");
   const [editForm, setEditForm] = useState<EditOrderFormState | null>(null);
+  const [renderedOrder, setRenderedOrder] = useState<Order | null>(order);
+  const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
     if (!order) {
+      return;
+    }
+
+    if (renderedOrder?.id !== order.id) {
+      setIsVisible(false);
+    }
+
+    setRenderedOrder(order);
+  }, [order, renderedOrder?.id]);
+
+  useEffect(() => {
+    if (isOpen) {
+      let nextAnimationFrame = 0;
+      const animationFrame = window.requestAnimationFrame(() => {
+        nextAnimationFrame = window.requestAnimationFrame(() => {
+          setIsVisible(true);
+        });
+      });
+
+      return () => {
+        window.cancelAnimationFrame(animationFrame);
+        window.cancelAnimationFrame(nextAnimationFrame);
+      };
+    }
+
+    setIsVisible(false);
+
+    if (!renderedOrder) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setRenderedOrder(null);
+    }, DRAWER_TRANSITION_MS);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [isOpen, renderedOrder]);
+
+  useEffect(() => {
+    if (!renderedOrder) {
+      setEditForm(null);
       return;
     }
 
@@ -154,14 +199,14 @@ export function OrderDetailDrawer({
     setEditSuccess("");
     setActionError("");
     setWhatsAppFeedback("");
-    setEditForm(getInitialEditOrderFormState(order));
-  }, [order]);
+    setEditForm(getInitialEditOrderFormState(renderedOrder));
+  }, [renderedOrder]);
 
-  if (!order) {
+  if (!renderedOrder) {
     return null;
   }
 
-  const currentOrder = order;
+  const currentOrder = renderedOrder;
   const currentEditForm = editForm ?? getInitialEditOrderFormState(currentOrder);
   const sortedHistory = [...currentOrder.history].sort(
     (left, right) =>
@@ -404,18 +449,22 @@ export function OrderDetailDrawer({
   return (
     <>
       <div
-        className={`fixed inset-0 z-40 bg-slate-950/30 transition ${isOpen ? "opacity-100" : "pointer-events-none opacity-0"}`}
+        className={`fixed inset-0 z-40 bg-slate-950/30 transition-opacity duration-200 ease-out ${
+          isVisible ? "opacity-100" : "pointer-events-none opacity-0"
+        }`}
         onClick={isSaving ? undefined : onClose}
       />
       <aside
-        className={`fixed right-0 top-0 z-50 flex h-screen w-full max-w-2xl flex-col border-l border-slate-200 bg-slate-50 transition-transform duration-200 ${isOpen ? "translate-x-0" : "translate-x-full"}`}
-        aria-hidden={!isOpen}
+        className={`fixed right-0 top-0 z-50 flex h-screen w-full max-w-2xl flex-col border-l border-slate-200 bg-slate-50 transition-all duration-200 ease-out will-change-transform ${
+          isVisible ? "translate-x-0 opacity-100" : "translate-x-full opacity-0"
+        }`}
+        aria-hidden={!isVisible}
       >
         <div className="border-b border-slate-200 bg-white px-6 py-5">
           <div className="flex items-start justify-between gap-4">
             <div className="space-y-3">
               <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-2xl font-semibold text-slate-950">Detalle del pedido</h2>
+                <h2 className="text-2xl font-semibold text-slate-950">{currentOrder.client}</h2>
                 <span className="rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
                   Pedido {getOrderDisplayCode(currentOrder)}
                 </span>
@@ -426,7 +475,9 @@ export function OrderDetailDrawer({
                   </span>
                 ) : null}
               </div>
-              <p className="text-sm text-slate-600">{currentOrder.client}</p>
+              <p className="text-sm text-slate-600">
+                Aquí podrás ver, editar o cancelar el pedido
+              </p>
             </div>
             <button
               type="button"
@@ -442,7 +493,14 @@ export function OrderDetailDrawer({
         <div className="flex-1 space-y-5 overflow-y-auto px-6 py-6">
           <section className="rounded-[24px] border border-slate-200 bg-white p-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <h3 className="text-lg font-semibold text-slate-950">Detalle del pedido</h3>
+              <div className="px-1">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                  Creado
+                </p>
+                <p className="mt-1 text-sm text-slate-500">
+                  {historyFormatter.format(new Date(currentOrder.createdAt))}
+                </p>
+              </div>
               {isEditing ? (
                 <div className="flex gap-2">
                   <button
@@ -731,12 +789,6 @@ export function OrderDetailDrawer({
                     </p>
                   </div>
                 ) : null}
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 sm:col-span-2">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Creado</p>
-                  <p className="mt-2 text-sm font-medium text-slate-900">
-                    {historyFormatter.format(new Date(currentOrder.createdAt))}
-                  </p>
-                </div>
               </div>
             )}
           </section>

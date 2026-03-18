@@ -7,6 +7,7 @@ import {
   readOrdersForBusiness,
   writeOrdersForBusiness,
 } from "@/data/order-storage";
+import { debugError } from "@/lib/debug";
 import { fetchOrdersByBusinessSlug, updateOrderViaApi } from "@/lib/orders/api";
 import { getInitialOrderState, type OrderApiUpdatePayload } from "@/lib/orders/mappers";
 import {
@@ -381,8 +382,8 @@ export function useBusinessOrders({
         persistOrdersFallback(syncedOrders);
         return syncedOrders;
       });
-    } catch (error) {
-      console.error("[dashboard] order mutation rollback", { orderId, error });
+    } catch {
+      debugError("[dashboard] Order mutation rollback", { orderId });
       setOrdersState(previousOrders);
       persistOrdersFallback(previousOrders);
     }
@@ -459,7 +460,10 @@ export function useBusinessOrders({
 
       return persistedOrder;
     } catch (error) {
-      console.error("[dashboard] order edit rollback", { orderId, error });
+      debugError("[dashboard] Order edit rollback", {
+        orderId,
+        fieldsUpdated: Object.keys(optimisticPayload ?? {}),
+      });
       setOrdersState(previousOrders);
       persistOrdersFallback(previousOrders);
       throw error;
@@ -504,8 +508,10 @@ export function useBusinessOrders({
         persistOrdersFallback(syncedOrders);
         return syncedOrders;
       });
-    } catch (error) {
-      console.error("[dashboard] bulk order mutation rollback", { orderIds, error });
+    } catch {
+      debugError("[dashboard] Bulk order mutation rollback", {
+        ordersCount: orderIds.length,
+      });
       setOrdersState(previousOrders);
       persistOrdersFallback(previousOrders);
     }
@@ -561,14 +567,14 @@ export function useBusinessOrders({
   }
 
   function handleUpdatePaymentStatus(orderId: string, paymentStatus: PaymentStatus) {
-    void handleEditOrder(orderId, { paymentStatus }).catch((error) => {
-      console.error("[dashboard] payment status mutation failed", { orderId, error });
+    void handleEditOrder(orderId, { paymentStatus }).catch(() => {
+      debugError("[dashboard] Payment status mutation failed", { orderId });
     });
   }
 
   function handleConfirmOrder(orderId: string) {
-    void handleEditOrder(orderId, { status: "confirmado" }).catch((error) => {
-      console.error("[dashboard] confirm order mutation failed", { orderId, error });
+    void handleEditOrder(orderId, { status: "confirmado" }).catch(() => {
+      debugError("[dashboard] Confirm order mutation failed", { orderId });
     });
   }
 
@@ -588,14 +594,14 @@ export function useBusinessOrders({
       return;
     }
 
-    void handleEditOrder(orderId, { status: nextStatus }).catch((error) => {
-      console.error("[dashboard] advance order mutation failed", { orderId, error });
+    void handleEditOrder(orderId, { status: nextStatus }).catch(() => {
+      debugError("[dashboard] Advance order mutation failed", { orderId });
     });
   }
 
   function handleCancelOrder(orderId: string) {
-    void handleEditOrder(orderId, { status: "cancelado" }).catch((error) => {
-      console.error("[dashboard] cancel order mutation failed", { orderId, error });
+    void handleEditOrder(orderId, { status: "cancelado" }).catch(() => {
+      debugError("[dashboard] Cancel order mutation failed", { orderId });
     });
   }
 

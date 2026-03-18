@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { debugError, debugLog } from "@/lib/debug";
 import { updateOrderInDatabase } from "@/lib/data/orders-server";
 
 export async function PATCH(
@@ -17,14 +18,14 @@ export async function PATCH(
       { status: 400 },
     );
   }
-
-  console.info("[orders-api] PATCH /api/orders/[orderId] payload", {
-    orderId,
-    payload,
-  });
+  const fieldsUpdated =
+    payload && typeof payload === "object" && !Array.isArray(payload)
+      ? Object.keys(payload as Record<string, unknown>)
+      : [];
 
   try {
     const order = await updateOrderInDatabase(orderId, payload);
+    debugLog("[orders-api] Updated order", { orderId, fieldsUpdated });
     return NextResponse.json({ order, persistedRemotely: true }, { status: 200 });
   } catch (error) {
     const message =
@@ -36,11 +37,11 @@ export async function PATCH(
           ? 404
           : 500;
 
-    console.error("[orders-api] PATCH /api/orders/[orderId] failed", {
+    debugError("[orders-api] Failed to update order", {
       orderId,
       statusCode,
       message,
-      payload,
+      fieldsUpdated,
     });
 
     return NextResponse.json({ error: message }, { status: statusCode });

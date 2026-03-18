@@ -11,6 +11,7 @@ import {
   type OrderApiCreatePayload,
   type OrderApiUpdatePayload,
 } from "@/lib/orders/mappers";
+import { debugError, debugLog } from "@/lib/debug";
 import { createServerSupabaseClient, getSupabaseServerAuthMode } from "@/lib/supabase/server";
 import type { Order } from "@/types/orders";
 
@@ -244,12 +245,11 @@ export async function createOrderInDatabase(payload: unknown): Promise<Order> {
     inserted_at: now,
   };
 
-  console.info("[orders-api] insert payload", {
+  debugLog("[orders-api] Preparing order insert", {
     authMode: getSupabaseServerAuthMode(),
     businessSlug: payload.businessSlug,
-    businessId: business.id,
     orderCode,
-    insertPayload,
+    productsCount: payload.products.length,
   });
 
   const supabase = createServerSupabaseClient();
@@ -260,17 +260,10 @@ export async function createOrderInDatabase(payload: unknown): Promise<Order> {
     .single();
 
   if (error) {
-    console.error("[orders-api] Supabase insert error", {
-      message: error.message,
-      details: error.details,
-      hint: error.hint,
-      code: error.code,
+    debugError("[orders-api] Supabase insert failed", {
       authMode: getSupabaseServerAuthMode(),
       businessSlug: payload.businessSlug,
-      businessId: business.id,
-      likelyCause: getSupabaseServerAuthMode().isUsingServiceRole
-        ? "Schema mismatch, constraint failure, or DB-side validation."
-        : "RLS or missing insert policy while using anon key on server.",
+      code: error.code ?? null,
     });
     throw new Error(`Supabase orders insert failed: ${error.message}`);
   }
@@ -518,9 +511,9 @@ export async function updateOrderInDatabase(
     updated_at: new Date().toISOString(),
   };
 
-  console.info("[orders-api] patch payload", {
+  debugLog("[orders-api] Preparing order patch", {
     orderId,
-    updatePayload,
+    fieldsUpdated: Object.keys(updatePayload),
   });
 
   const { data, error } = await supabase
@@ -531,12 +524,9 @@ export async function updateOrderInDatabase(
     .single();
 
   if (error) {
-    console.error("[orders-api] Supabase patch error", {
+    debugError("[orders-api] Supabase patch failed", {
       orderId,
-      message: error.message,
-      details: error.details,
-      hint: error.hint,
-      code: error.code,
+      code: error.code ?? null,
       authMode: getSupabaseServerAuthMode(),
     });
     throw new Error(`Supabase orders update failed: ${error.message}`);

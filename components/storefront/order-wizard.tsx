@@ -19,6 +19,7 @@ import {
   normalizeWhatsAppPhone,
 } from "@/data/customer-profiles";
 import { readOrdersForBusiness, writeOrdersForBusiness } from "@/data/order-storage";
+import { debugError } from "@/lib/debug";
 import { createOrderViaApi } from "@/lib/orders/api";
 import {
   getOrderDisplayCode,
@@ -548,7 +549,9 @@ export function StorefrontOrderWizard({
       setConfirmationMode("remote");
       setConfirmedOrder(persistedOrder);
     } catch (remoteError) {
-      console.error("[storefront] remote order persistence failed", remoteError);
+      debugError("[storefront] Remote order persistence failed", {
+        businessSlug: business.slug,
+      });
 
       try {
         const currentOrders = readOrdersForBusiness(business.slug) ?? [];

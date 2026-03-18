@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { debugError, debugLog } from "@/lib/debug";
 import {
   createOrderInDatabase,
   getBusinessDatabaseRecordBySlug,
@@ -53,8 +54,10 @@ export async function POST(request: Request) {
       { status: 400 },
     );
   }
-
-  console.info("[orders-api] POST /api/orders payload", payload);
+  const payloadFields =
+    payload && typeof payload === "object" && !Array.isArray(payload)
+      ? Object.keys(payload as Record<string, unknown>)
+      : [];
 
   try {
     const order = await createOrderInDatabase(payload);
@@ -63,7 +66,11 @@ export async function POST(request: Request) {
       orderCode: order.orderCode ?? null,
       persistedRemotely: true,
     };
-    console.info("[orders-api] POST /api/orders response", responsePayload);
+    debugLog("[orders-api] Created order", {
+      orderId: order.id,
+      hasOrderCode: Boolean(order.orderCode),
+      persistedRemotely: true,
+    });
     return NextResponse.json(responsePayload, { status: 201 });
   } catch (error) {
     const message =
@@ -75,10 +82,10 @@ export async function POST(request: Request) {
           ? 404
           : 500;
 
-    console.error("[orders-api] POST /api/orders failed", {
+    debugError("[orders-api] Failed to create order", {
       statusCode,
       message,
-      payload,
+      payloadFields,
     });
 
     return NextResponse.json({ error: message }, { status: statusCode });

@@ -1,4 +1,5 @@
 import type { OrderApiCreatePayload, OrderApiUpdatePayload } from "@/lib/orders/mappers";
+import { debugError, debugLog } from "@/lib/debug";
 import type { Order } from "@/types/orders";
 
 interface OrdersApiListResponse {
@@ -35,7 +36,10 @@ export async function fetchOrdersByBusinessSlug(businessSlug: string) {
 }
 
 export async function createOrderViaApi(payload: OrderApiCreatePayload) {
-  console.info("[storefront] orders API payload", payload);
+  debugLog("[storefront] Creating order via API", {
+    businessSlug: payload.businessSlug,
+    productsCount: payload.products.length,
+  });
 
   const response = await fetch("/api/orders", {
     method: "POST",
@@ -46,10 +50,9 @@ export async function createOrderViaApi(payload: OrderApiCreatePayload) {
   });
 
   const responseBody = await response.json().catch(() => null);
-  console.info("[storefront] orders API response", {
+  debugLog("[storefront] Orders API response received", {
     status: response.status,
     ok: response.ok,
-    body: responseBody,
   });
 
   if (!response.ok) {
@@ -57,6 +60,9 @@ export async function createOrderViaApi(payload: OrderApiCreatePayload) {
       responseBody && typeof responseBody === "object" && "error" in responseBody
         ? (responseBody as { error?: string }).error
         : "No fue posible procesar la solicitud.";
+    debugError("[storefront] Failed to create order via API", {
+      status: response.status,
+    });
     throw new Error(errorMessage ?? "No fue posible procesar la solicitud.");
   }
 
@@ -70,7 +76,10 @@ interface OrdersApiUpdateResponse {
 }
 
 export async function updateOrderViaApi(orderId: string, payload: OrderApiUpdatePayload) {
-  console.info("[dashboard] order PATCH payload", { orderId, payload });
+  debugLog("[dashboard] Updating order via API", {
+    orderId,
+    fieldsUpdated: Object.keys(payload ?? {}),
+  });
 
   const response = await fetch(`/api/orders/${encodeURIComponent(orderId)}`, {
     method: "PATCH",
@@ -81,10 +90,9 @@ export async function updateOrderViaApi(orderId: string, payload: OrderApiUpdate
   });
 
   const responseBody = await response.json().catch(() => null);
-  console.info("[dashboard] order PATCH response", {
+  debugLog("[dashboard] Order PATCH response received", {
     status: response.status,
     ok: response.ok,
-    body: responseBody,
   });
 
   if (!response.ok) {
@@ -92,6 +100,11 @@ export async function updateOrderViaApi(orderId: string, payload: OrderApiUpdate
       responseBody && typeof responseBody === "object" && "error" in responseBody
         ? (responseBody as { error?: string }).error
         : "No fue posible procesar la actualizacion del pedido.";
+    debugError("[dashboard] Failed to update order via API", {
+      orderId,
+      status: response.status,
+      fieldsUpdated: Object.keys(payload ?? {}),
+    });
     throw new Error(errorMessage ?? "No fue posible procesar la actualizacion del pedido.");
   }
 

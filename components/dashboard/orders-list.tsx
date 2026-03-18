@@ -123,7 +123,7 @@ export function OrdersList({
             </div>
 
             {isExpanded ? (
-              <div className="mt-3 space-y-3">
+              <div className="mt-3 grid items-stretch gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {group.orders.map((order) => (
                   <OrderCard
                     key={order.id}
@@ -131,6 +131,7 @@ export function OrdersList({
                     onOpenDetails={onOpenDetails}
                     onQuickUpdateOrderStatus={onQuickUpdateOrderStatus}
                     onQuickUpdatePaymentStatus={onQuickUpdatePaymentStatus}
+                    compact
                   />
                 ))}
               </div>

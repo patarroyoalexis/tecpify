@@ -168,7 +168,6 @@ export function BusinessWorkspaceProvider({
       {children}
 
       <OrderDetailDrawer
-        key={selectedOrder?.id ?? "empty"}
         businessName={businessName}
         order={selectedOrder}
         isOpen={selectedOrder !== null}

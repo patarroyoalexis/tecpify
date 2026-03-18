@@ -105,7 +105,7 @@ export function OrderCard({
   compact = false,
 }: OrderCardProps) {
   const operationalPriority = getOperationalPriority(order);
-  const baseCardPadding = compact ? "px-4 py-3.5" : "px-4 py-4 sm:px-5";
+  const baseCardPadding = compact ? "px-4 py-4 md:px-3.5 md:py-3" : "px-4 py-4 sm:px-5";
   const [selectedOrderStatus, setSelectedOrderStatus] = useState(order.status);
   const [selectedPaymentStatus, setSelectedPaymentStatus] = useState(order.paymentStatus);
   const [isUpdatingOrderStatus, setIsUpdatingOrderStatus] = useState(false);
@@ -195,109 +195,114 @@ export function OrderCard({
   const { totalUnits, visibleNames, moreLabel } = getProductSummary(order);
   const paymentMethodLabel = getPaymentMethodLabel(order.paymentMethod, order.deliveryType);
   const hasAddress = Boolean(order.address?.trim());
+  const orderStatusControl = canEditOrderStatus ? (
+    <StopPropagationWrapper>
+      <label
+        className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold ${statusStyles[selectedOrderStatus]}`}
+      >
+        <StatusBadgeIcon iconKey={getOrderStatusIconKey(selectedOrderStatus)} />
+        <span className="whitespace-nowrap">Pedido</span>
+        <select
+          value={selectedOrderStatus}
+          onChange={(event) =>
+            void handleOrderStatusChange(event.target.value as OrderStatus)
+          }
+          disabled={isUpdatingOrderStatus}
+          className="min-w-0 bg-transparent pr-4 text-xs font-semibold outline-none"
+        >
+          {allowedOrderStatuses.map((statusOption) => (
+            <option key={statusOption} value={statusOption}>
+              {ORDER_STATUS_LABELS[statusOption]}
+            </option>
+          ))}
+        </select>
+      </label>
+    </StopPropagationWrapper>
+  ) : (
+    <div
+      className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold ${statusStyles[selectedOrderStatus]}`}
+    >
+      <StatusBadgeIcon iconKey={getOrderStatusIconKey(selectedOrderStatus)} />
+      <span className="whitespace-nowrap">Pedido</span>
+      <span>{ORDER_STATUS_LABELS[selectedOrderStatus]}</span>
+    </div>
+  );
+  const detailsButton = (
+    <button
+      type="button"
+      onClick={() => onOpenDetails(order.id)}
+      className="inline-flex items-center justify-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+      aria-label={`Ver detalles del pedido ${getOrderDisplayCode(order)}`}
+      title="Ver detalles"
+    >
+      <OrdersUiIcon icon="clipboard" className="h-3.5 w-3.5" />
+      Detalles
+    </button>
+  );
 
   return (
     <article
-      className={`rounded-[22px] border bg-white ${baseCardPadding} shadow-[0_14px_34px_rgba(15,23,42,0.05)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_40px_rgba(15,23,42,0.08)] active:translate-y-0 ${
+      className={`h-full rounded-[22px] border bg-white ${compact ? baseCardPadding : "px-4 py-4 sm:px-4 sm:py-3.5"} shadow-[0_14px_34px_rgba(15,23,42,0.05)] transition-colors ${
         order.isReviewed ? "border-slate-200/80" : "border-rose-200 bg-rose-50/30"
-      } ${priorityStyles[operationalPriority].accent}`}
+      } ${priorityStyles[operationalPriority].accent} hover:border-slate-300/90`}
     >
-      <div className="space-y-3">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <h3 className="truncate text-[15px] font-semibold text-slate-950 sm:text-base">
-                {order.client}
-              </h3>
-              {showNewOrderBadge ? (
-                <span className="inline-flex items-center gap-1 rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[11px] font-semibold text-rose-700">
-                  <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
-                  Pedido nuevo
-                </span>
-              ) : !order.isReviewed ? (
-                <span className="inline-flex h-2.5 w-2.5 shrink-0 rounded-full bg-rose-500" />
-              ) : null}
+      <div className="flex h-full flex-col space-y-3 sm:space-y-2.5">
+        <div className="space-y-3 sm:grid sm:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)] sm:items-start sm:gap-x-6 sm:gap-y-2">
+          <div className="min-w-0 space-y-2 sm:space-y-1.5">
+            <div className="flex min-w-0 items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="flex min-w-0 items-start gap-2">
+                  <h3 className="truncate text-[15px] font-semibold text-slate-950 sm:text-base">
+                    {order.client}
+                  </h3>
+                  {showNewOrderBadge ? (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[11px] font-semibold text-rose-700">
+                      <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
+                      Pedido nuevo
+                    </span>
+                  ) : !order.isReviewed ? (
+                    <span className="inline-flex h-2.5 w-2.5 shrink-0 rounded-full bg-rose-500" />
+                  ) : null}
+                </div>
+                <p className="mt-1 text-xs font-medium text-slate-500">
+                  {getOrderDisplayCode(order)}
+                </p>
+              </div>
+              <div className="shrink-0 sm:hidden">{detailsButton}</div>
             </div>
-            <p className="mt-1 text-xs font-medium text-slate-500">
-              {getOrderDisplayCode(order)}
-            </p>
-          </div>
 
-          <div className="flex items-center gap-2 self-start sm:flex-col sm:items-end">
-            <p className="shrink-0 text-[15px] font-semibold text-slate-950 sm:text-base">
+            <p className="text-base font-semibold text-slate-950 sm:pt-0.5 sm:text-[15px]">
               {formatCurrency(order.total)}
             </p>
-            <button
-              type="button"
-              onClick={() => onOpenDetails(order.id)}
-              className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
-              aria-label={`Ver detalles del pedido ${getOrderDisplayCode(order)}`}
-              title="Ver detalles"
-            >
-              <OrdersUiIcon icon="clipboard" className="h-3.5 w-3.5" />
-              Detalles
-            </button>
           </div>
-        </div>
 
-        <div className="space-y-2">
-          <p className="flex items-start gap-2 text-sm text-slate-700">
-            <OrdersUiIcon icon="package" className="mt-0.5 h-4 w-4 text-slate-400" />
-            <span className="min-w-0">
-              <span className="font-medium text-slate-900">
-                {totalUnits} ud{totalUnits === 1 ? "" : "s"}
+          <div className="min-w-0 space-y-1.5">
+            <p className="flex items-start gap-2 text-sm text-slate-700">
+              <OrdersUiIcon icon="package" className="mt-0.5 h-4 w-4 text-slate-400" />
+              <span className="min-w-0">
+                <span className="font-medium text-slate-900">
+                  {totalUnits} ud{totalUnits === 1 ? "" : "s"}
+                </span>
+                {visibleNames ? ` · ${visibleNames}${moreLabel}` : ""}
               </span>
-              {visibleNames ? ` · ${visibleNames}${moreLabel}` : ""}
-            </span>
-          </p>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
-            {hasAddress ? (
-              <span className="inline-flex max-w-full items-center gap-1.5">
-                <OrdersUiIcon icon="map-pin" className="h-3.5 w-3.5 text-slate-400" />
-                <span className="truncate">{order.address}</span>
+            </p>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+              {hasAddress ? (
+                <span className="inline-flex max-w-full items-center gap-1.5">
+                  <OrdersUiIcon icon="map-pin" className="h-3.5 w-3.5 text-slate-400" />
+                  <span className="truncate">{order.address}</span>
+                </span>
+              ) : null}
+              <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                <OrdersUiIcon icon="wallet" className="h-3.5 w-3.5 text-slate-400" />
+                <span>Pago: {paymentMethodLabel}</span>
               </span>
-            ) : null}
-            <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
-              <OrdersUiIcon icon="wallet" className="h-3.5 w-3.5 text-slate-400" />
-              <span>Pago: {paymentMethodLabel}</span>
-            </span>
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-          {canEditOrderStatus ? (
-            <StopPropagationWrapper>
-              <label
-                className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold ${statusStyles[selectedOrderStatus]}`}
-              >
-                <StatusBadgeIcon iconKey={getOrderStatusIconKey(selectedOrderStatus)} />
-                <span className="whitespace-nowrap">Pedido</span>
-                <select
-                  value={selectedOrderStatus}
-                  onChange={(event) =>
-                    void handleOrderStatusChange(event.target.value as OrderStatus)
-                  }
-                  disabled={isUpdatingOrderStatus}
-                  className="min-w-0 bg-transparent pr-4 text-xs font-semibold outline-none"
-                >
-                  {allowedOrderStatuses.map((statusOption) => (
-                    <option key={statusOption} value={statusOption}>
-                      {ORDER_STATUS_LABELS[statusOption]}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </StopPropagationWrapper>
-          ) : (
-            <div
-              className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold ${statusStyles[selectedOrderStatus]}`}
-            >
-              <StatusBadgeIcon iconKey={getOrderStatusIconKey(selectedOrderStatus)} />
-              <span className="whitespace-nowrap">Pedido</span>
-              <span>{ORDER_STATUS_LABELS[selectedOrderStatus]}</span>
             </div>
-          )}
+          </div>
+        </div>
 
+        <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
+          <div className="min-w-0">{orderStatusControl}</div>
           <StopPropagationWrapper>
             <label
               className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold ${paymentStatusStyles[selectedPaymentStatus]}`}
@@ -320,18 +325,39 @@ export function OrderCard({
               </select>
             </label>
           </StopPropagationWrapper>
+        </div>
 
-          {feedbackKind ? (
-            <span className="text-xs font-medium text-slate-500">{feedbackMessage}</span>
-          ) : isOrderFlowClosed ? (
-            <span className="text-xs font-medium text-slate-500">
-              Flujo del pedido finalizado.
-            </span>
-          ) : !canManageOrderStatus(order) ? (
-            <span className="text-xs font-medium text-slate-500">
-              Confirma el pago para habilitar el estado del pedido.
-            </span>
-          ) : null}
+        <div className="pt-1 sm:mt-auto">
+          <div className="space-y-2 sm:hidden">
+            {feedbackKind ? (
+              <span className="text-xs font-medium text-slate-500">{feedbackMessage}</span>
+            ) : isOrderFlowClosed ? (
+              <span className="text-xs font-medium text-slate-500">
+                Flujo del pedido finalizado.
+              </span>
+            ) : !canManageOrderStatus(order) ? (
+              <span className="text-xs font-medium text-slate-500">
+                Confirma el pago para habilitar el estado del pedido.
+              </span>
+            ) : null}
+          </div>
+
+          <div className="hidden w-full items-center justify-between gap-3 sm:flex">
+            {feedbackKind ? (
+              <span className="flex-1 text-xs font-medium text-slate-500">{feedbackMessage}</span>
+            ) : isOrderFlowClosed ? (
+              <span className="flex-1 text-xs font-medium text-slate-500">
+                Flujo del pedido finalizado.
+              </span>
+            ) : !canManageOrderStatus(order) ? (
+              <span className="flex-1 text-xs font-medium text-slate-500">
+                Confirma el pago para habilitar el estado del pedido.
+              </span>
+            ) : (
+              <span className="flex-1" />
+            )}
+            <div className="shrink-0">{detailsButton}</div>
+          </div>
         </div>
       </div>
     </article>
