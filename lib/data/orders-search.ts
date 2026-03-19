@@ -9,7 +9,8 @@ function normalizeSearchValue(value: string) {
 export function mergeOrdersForGlobalSearch(localOrders: Order[], remoteOrders: Order[]) {
   const merged = new Map<string, Order>();
 
-  // Transitional rule: remote orders are the source of truth and local storage only fills gaps.
+  // Remote orders are the source of truth and the current in-memory state only fills the
+  // most recent UI changes until the next server refresh completes.
   for (const order of localOrders) {
     merged.set(order.id, order);
   }

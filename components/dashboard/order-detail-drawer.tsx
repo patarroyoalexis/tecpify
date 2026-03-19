@@ -43,7 +43,7 @@ interface OrderDetailDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   onRequestPaymentProof: (orderId: string) => Promise<boolean>;
-  onUpdatePaymentStatus: (orderId: string, paymentStatus: PaymentStatus) => void;
+  onUpdatePaymentStatus: (orderId: string, paymentStatus: PaymentStatus) => Promise<Order>;
   onEditOrder: (
     orderId: string,
     payload: Pick<
@@ -60,9 +60,9 @@ interface OrderDetailDrawerProps {
       | "total"
     >,
   ) => Promise<Order>;
-  onConfirmOrder: (orderId: string) => void;
-  onAdvanceOrderStatus: (orderId: string) => void;
-  onCancelOrder: (orderId: string) => void;
+  onConfirmOrder: (orderId: string) => Promise<Order>;
+  onAdvanceOrderStatus: (orderId: string) => Promise<Order | undefined>;
+  onCancelOrder: (orderId: string) => Promise<Order>;
 }
 
 interface EditOrderFormState {
@@ -469,13 +469,21 @@ export function OrderDetailDrawer({
 
   async function handleRequestPaymentByWhatsApp() {
     if (!whatsappUrl) {
-      setWhatsAppFeedback("Este pedido no tiene un número de WhatsApp válido.");
+      setWhatsAppFeedback("Este pedido no tiene un numero de WhatsApp valido.");
       return;
     }
 
     window.open(whatsappUrl, "_blank", "noopener,noreferrer");
-    await onRequestPaymentProof(currentOrder.id);
-    setWhatsAppFeedback("Se abrió WhatsApp con el mensaje listo para enviar.");
+    try {
+      await onRequestPaymentProof(currentOrder.id);
+      setWhatsAppFeedback("Se abrio WhatsApp con el mensaje listo para enviar.");
+    } catch (error) {
+      setActionError(
+        error instanceof Error
+          ? error.message
+          : "No fue posible registrar la solicitud de comprobante.",
+      );
+    }
   }
 
   function runQuickStatusChange(nextStatus: OrderStatus) {
@@ -493,17 +501,29 @@ export function OrderDetailDrawer({
     setActionError("");
 
     if (nextStatus === "confirmado") {
-      onConfirmOrder(currentOrder.id);
+      void onConfirmOrder(currentOrder.id).catch((error) => {
+        setActionError(
+          error instanceof Error ? error.message : "No fue posible actualizar el pedido.",
+        );
+      });
       return;
     }
 
     if (nextStatus === "cancelado") {
-      onCancelOrder(currentOrder.id);
+      void onCancelOrder(currentOrder.id).catch((error) => {
+        setActionError(
+          error instanceof Error ? error.message : "No fue posible actualizar el pedido.",
+        );
+      });
       return;
     }
 
     if (nextQuickStatus === nextStatus) {
-      onAdvanceOrderStatus(currentOrder.id);
+      void onAdvanceOrderStatus(currentOrder.id).catch((error) => {
+        setActionError(
+          error instanceof Error ? error.message : "No fue posible actualizar el pedido.",
+        );
+      });
       return;
     }
 
@@ -527,7 +547,11 @@ export function OrderDetailDrawer({
     }
 
     setActionError("");
-    onUpdatePaymentStatus(currentOrder.id, nextStatus);
+    void onUpdatePaymentStatus(currentOrder.id, nextStatus).catch((error) => {
+      setActionError(
+        error instanceof Error ? error.message : "No fue posible actualizar el pago.",
+      );
+    });
   }
 
   return (

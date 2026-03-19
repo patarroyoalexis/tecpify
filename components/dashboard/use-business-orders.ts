@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { debugError } from "@/lib/debug";
 import {
@@ -209,32 +209,6 @@ function buildOrderHistoryEvents(order: Order, payload: EditableOrderPayload): O
     });
 }
 
-function applyOrderUpdatePayload(order: Order, payload: OrderApiUpdatePayload): Order {
-  return {
-    ...order,
-    ...(payload.status !== undefined ? { status: payload.status } : {}),
-    ...(payload.paymentStatus !== undefined
-      ? { paymentStatus: payload.paymentStatus }
-      : {}),
-    ...(payload.customerName !== undefined ? { client: payload.customerName.trim() } : {}),
-    ...(payload.customerWhatsApp !== undefined
-      ? { customerPhone: payload.customerWhatsApp?.trim() || undefined }
-      : {}),
-    ...(payload.deliveryType !== undefined ? { deliveryType: payload.deliveryType } : {}),
-    ...(payload.deliveryAddress !== undefined
-      ? { address: payload.deliveryAddress?.trim() || undefined }
-      : {}),
-    ...(payload.paymentMethod !== undefined ? { paymentMethod: payload.paymentMethod } : {}),
-    ...(payload.products !== undefined ? { products: payload.products } : {}),
-    ...(payload.notes !== undefined
-      ? { observations: payload.notes?.trim() || undefined }
-      : {}),
-    ...(payload.total !== undefined ? { total: payload.total } : {}),
-    ...(payload.isReviewed !== undefined ? { isReviewed: payload.isReviewed } : {}),
-    ...(payload.history !== undefined ? { history: payload.history } : {}),
-  };
-}
-
 function buildOrdersSyncError(error: unknown) {
   if (error instanceof Error && error.message.trim().length > 0) {
     return error.message;
@@ -249,16 +223,37 @@ export function useBusinessOrders({
   orders,
   initialOrdersError = null,
 }: UseBusinessOrdersOptions) {
+  const resolvedBusinessSlug = businessSlug ?? businessId;
   const [ordersState, setOrdersState] = useState<Order[]>(orders);
   const [ordersError, setOrdersError] = useState<string | null>(initialOrdersError);
   const [hasHydrated, setHasHydrated] = useState(false);
+  const ordersStateRef = useRef<Order[]>(orders);
+
+  useEffect(() => {
+    ordersStateRef.current = ordersState;
+  }, [ordersState]);
+
+  const refreshOrders = useCallback(
+    async (options?: { suppressError?: boolean }) => {
+      try {
+        const remoteOrders = await fetchOrdersByBusinessSlug(resolvedBusinessSlug);
+        setOrdersState(remoteOrders);
+        setOrdersError(null);
+        return remoteOrders;
+      } catch (error) {
+        if (!options?.suppressError) {
+          setOrdersError(buildOrdersSyncError(error));
+        }
+        throw error;
+      }
+    },
+    [resolvedBusinessSlug],
+  );
 
   useEffect(() => {
     let isCancelled = false;
 
     async function hydrateOrders() {
-      const resolvedBusinessSlug = businessSlug ?? businessId;
-
       try {
         const remoteOrders = await fetchOrdersByBusinessSlug(resolvedBusinessSlug);
 
@@ -281,28 +276,12 @@ export function useBusinessOrders({
     return () => {
       isCancelled = true;
     };
-  }, [businessId, businessSlug, orders]);
+  }, [orders, resolvedBusinessSlug]);
 
   const newOrders = useMemo(
     () => ordersState.filter((order) => !order.isReviewed),
     [ordersState],
   );
-
-  function replaceOrderInState(currentOrders: Order[], nextOrder: Order) {
-    const orderIndex = currentOrders.findIndex((order) => order.id === nextOrder.id);
-
-    if (orderIndex === -1) {
-      return [nextOrder, ...currentOrders];
-    }
-
-    return currentOrders.map((order) => (order.id === nextOrder.id ? nextOrder : order));
-  }
-
-  function updateOrder(orderId: string, updater: (order: Order) => Order) {
-    setOrdersState((currentOrders) =>
-      currentOrders.map((order) => (order.id === orderId ? updater(order) : order)),
-    );
-  }
 
   function appendOrderEvent(
     order: Order,
@@ -312,46 +291,12 @@ export function useBusinessOrders({
     return [createHistoryEvent(order.id, title, description), ...order.history];
   }
 
-  async function synchronizeOrderMutation(
-    orderId: string,
-    computeNextOrder: (order: Order) => Order,
-  ) {
-    const currentOrder = ordersState.find((order) => order.id === orderId);
-
-    if (!currentOrder) {
-      return;
-    }
-
-    const nextOrder = computeNextOrder(currentOrder);
-
-    if (nextOrder === currentOrder) {
-      return;
-    }
-
-    const previousOrders = ordersState;
-    const optimisticOrders = replaceOrderInState(previousOrders, nextOrder);
-    setOrdersState(optimisticOrders);
-    setOrdersError(null);
-
-    try {
-      const persistedOrder = await updateOrderViaApi(orderId, {
-        status: nextOrder.status,
-        paymentStatus: nextOrder.paymentStatus,
-        isReviewed: nextOrder.isReviewed,
-        history: nextOrder.history,
-      });
-
-      setOrdersState((currentOrders) => replaceOrderInState(currentOrders, persistedOrder));
-    } catch (error) {
-      debugError("[dashboard] Order mutation rollback", { orderId });
-      setOrdersState(previousOrders);
-      setOrdersError(buildOrdersSyncError(error));
-      throw error;
-    }
+  function getCurrentOrderById(orderId: string) {
+    return ordersStateRef.current.find((order) => order.id === orderId) ?? null;
   }
 
   async function handleEditOrder(orderId: string, payload: EditableOrderPayload) {
-    const currentOrder = ordersState.find((order) => order.id === orderId);
+    const currentOrder = getCurrentOrderById(orderId);
 
     if (!currentOrder) {
       throw new Error("No encontramos el pedido que intentas editar.");
@@ -398,30 +343,56 @@ export function useBusinessOrders({
       ((payload.status !== undefined && payload.status !== currentOrder.status) ||
         (payload.paymentStatus !== undefined &&
           payload.paymentStatus !== currentOrder.paymentStatus));
-    const optimisticPayload: OrderApiUpdatePayload = {
+    const nextPayload: OrderApiUpdatePayload = {
       ...payload,
       ...(shouldMarkAsReviewed ? { isReviewed: true } : {}),
       history: nextHistory,
     };
-    const optimisticOrder = applyOrderUpdatePayload(currentOrder, optimisticPayload);
-    const previousOrders = ordersState;
-    const optimisticOrders = replaceOrderInState(previousOrders, optimisticOrder);
 
-    setOrdersState(optimisticOrders);
     setOrdersError(null);
 
     try {
-      const persistedOrder = await updateOrderViaApi(orderId, optimisticPayload);
-
-      setOrdersState((currentOrders) => replaceOrderInState(currentOrders, persistedOrder));
-
+      const persistedOrder = await updateOrderViaApi(orderId, nextPayload);
+      await refreshOrders({ suppressError: true });
       return persistedOrder;
     } catch (error) {
-      debugError("[dashboard] Order edit rollback", {
+      debugError("[dashboard] Order edit failed", {
         orderId,
-        fieldsUpdated: Object.keys(optimisticPayload ?? {}),
+        fieldsUpdated: Object.keys(nextPayload ?? {}),
       });
-      setOrdersState(previousOrders);
+      setOrdersError(buildOrdersSyncError(error));
+      throw error;
+    }
+  }
+
+  async function synchronizeOrderMutation(
+    orderId: string,
+    computeNextOrder: (order: Order) => Order,
+  ) {
+    const currentOrder = getCurrentOrderById(orderId);
+
+    if (!currentOrder) {
+      return;
+    }
+
+    const nextOrder = computeNextOrder(currentOrder);
+
+    if (nextOrder === currentOrder) {
+      return;
+    }
+
+    setOrdersError(null);
+
+    try {
+      await updateOrderViaApi(orderId, {
+        status: nextOrder.status,
+        paymentStatus: nextOrder.paymentStatus,
+        isReviewed: nextOrder.isReviewed,
+        history: nextOrder.history,
+      });
+      await refreshOrders({ suppressError: true });
+    } catch (error) {
+      debugError("[dashboard] Order mutation failed", { orderId });
       setOrdersError(buildOrdersSyncError(error));
       throw error;
     }
@@ -435,39 +406,29 @@ export function useBusinessOrders({
       return;
     }
 
-    const previousOrders = ordersState;
-    const optimisticOrders = previousOrders.map((order) =>
-      orderIds.includes(order.id) ? computeNextOrder(order) : order,
-    );
+    const currentOrders = ordersStateRef.current;
+    const ordersToUpdate = currentOrders
+      .filter((order) => orderIds.includes(order.id))
+      .map((order) => computeNextOrder(order));
 
-    setOrdersState(optimisticOrders);
     setOrdersError(null);
 
     try {
-      const persistedOrders = await Promise.all(
-        optimisticOrders
-          .filter((order) => orderIds.includes(order.id))
-          .map((order) =>
-            updateOrderViaApi(order.id, {
-              status: order.status,
-              paymentStatus: order.paymentStatus,
-              isReviewed: order.isReviewed,
-              history: order.history,
-            }),
-          ),
-      );
-
-      setOrdersState((currentOrders) =>
-        persistedOrders.reduce(
-          (nextOrders, persistedOrder) => replaceOrderInState(nextOrders, persistedOrder),
-          currentOrders,
+      await Promise.all(
+        ordersToUpdate.map((order) =>
+          updateOrderViaApi(order.id, {
+            status: order.status,
+            paymentStatus: order.paymentStatus,
+            isReviewed: order.isReviewed,
+            history: order.history,
+          }),
         ),
       );
+      await refreshOrders({ suppressError: true });
     } catch (error) {
-      debugError("[dashboard] Bulk order mutation rollback", {
+      debugError("[dashboard] Bulk order mutation failed", {
         ordersCount: orderIds.length,
       });
-      setOrdersState(previousOrders);
       setOrdersError(buildOrdersSyncError(error));
       throw error;
     }
@@ -487,12 +448,12 @@ export function useBusinessOrders({
             ),
           },
     ).catch(() => {
-      // The banner and state rollback already communicate this failure path.
+      // The banner already communicates the failure.
     });
   }
 
   function handleMarkAllAsReviewed() {
-    const pendingOrderIds = ordersState
+    const pendingOrderIds = ordersStateRef.current
       .filter((order) => !order.isReviewed)
       .map((order) => order.id);
 
@@ -509,37 +470,46 @@ export function useBusinessOrders({
             ),
           },
     ).catch(() => {
-      // The banner and state rollback already communicate this failure path.
+      // The banner already communicates the failure.
     });
   }
 
-  function handleRequestPaymentProof(orderId: string) {
-    updateOrder(orderId, (order) => ({
-      ...order,
-      history: appendOrderEvent(
-        order,
-        "Mensaje de comprobante preparado para WhatsApp",
-        "Se preparo un mensaje manual para solicitar el comprobante de pago al cliente.",
-      ),
-    }));
+  async function handleRequestPaymentProof(orderId: string) {
+    const currentOrder = getCurrentOrderById(orderId);
 
-    return Promise.resolve(true);
+    if (!currentOrder) {
+      return false;
+    }
+
+    setOrdersError(null);
+
+    try {
+      await updateOrderViaApi(orderId, {
+        history: appendOrderEvent(
+          currentOrder,
+          "Mensaje de comprobante preparado para WhatsApp",
+          "Se preparo un mensaje manual para solicitar el comprobante de pago al cliente.",
+        ),
+      });
+      await refreshOrders({ suppressError: true });
+      return true;
+    } catch (error) {
+      debugError("[dashboard] Payment proof request failed", { orderId });
+      setOrdersError(buildOrdersSyncError(error));
+      throw error;
+    }
   }
 
-  function handleUpdatePaymentStatus(orderId: string, paymentStatus: PaymentStatus) {
-    void handleEditOrder(orderId, { paymentStatus }).catch(() => {
-      debugError("[dashboard] Payment status mutation failed", { orderId });
-    });
+  async function handleUpdatePaymentStatus(orderId: string, paymentStatus: PaymentStatus) {
+    return handleEditOrder(orderId, { paymentStatus });
   }
 
-  function handleConfirmOrder(orderId: string) {
-    void handleEditOrder(orderId, { status: "confirmado" }).catch(() => {
-      debugError("[dashboard] Confirm order mutation failed", { orderId });
-    });
+  async function handleConfirmOrder(orderId: string) {
+    return handleEditOrder(orderId, { status: "confirmado" });
   }
 
-  function handleAdvanceOrderStatus(orderId: string) {
-    const currentOrder = ordersState.find((order) => order.id === orderId);
+  async function handleAdvanceOrderStatus(orderId: string) {
+    const currentOrder = getCurrentOrderById(orderId);
 
     if (!currentOrder) {
       return;
@@ -554,15 +524,11 @@ export function useBusinessOrders({
       return;
     }
 
-    void handleEditOrder(orderId, { status: nextStatus }).catch(() => {
-      debugError("[dashboard] Advance order mutation failed", { orderId });
-    });
+    return handleEditOrder(orderId, { status: nextStatus });
   }
 
-  function handleCancelOrder(orderId: string) {
-    void handleEditOrder(orderId, { status: "cancelado" }).catch(() => {
-      debugError("[dashboard] Cancel order mutation failed", { orderId });
-    });
+  async function handleCancelOrder(orderId: string) {
+    return handleEditOrder(orderId, { status: "cancelado" });
   }
 
   async function handleCreateOrder(input: NewOrderFormValue) {
@@ -577,9 +543,11 @@ export function useBusinessOrders({
       },
     ];
 
+    setOrdersError(null);
+
     try {
       const persistedOrder = await createOrderViaApi({
-        businessSlug: businessSlug ?? businessId,
+        businessSlug: resolvedBusinessSlug,
         customerName: input.client,
         customerWhatsApp: input.customerWhatsApp,
         deliveryType: input.deliveryType,
@@ -595,8 +563,7 @@ export function useBusinessOrders({
         history,
       });
 
-      setOrdersState((currentOrders) => [persistedOrder, ...currentOrders]);
-      setOrdersError(null);
+      await refreshOrders({ suppressError: true });
       return persistedOrder;
     } catch (error) {
       debugError("[dashboard] Manual order creation failed", { businessId });

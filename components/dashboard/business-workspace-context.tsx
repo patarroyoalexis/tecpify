@@ -61,13 +61,16 @@ interface BusinessWorkspaceContextValue {
     orderId: string,
     paymentStatus: PaymentStatus,
   ) => Promise<void>;
-  handleAdvanceOrderStatus: (orderId: string) => void;
-  handleCancelOrder: (orderId: string) => void;
-  handleConfirmOrder: (orderId: string) => void;
+  handleAdvanceOrderStatus: (orderId: string) => Promise<Order | undefined>;
+  handleCancelOrder: (orderId: string) => Promise<Order>;
+  handleConfirmOrder: (orderId: string) => Promise<Order>;
   handleHydrateOrder: (order: Order) => void;
   handleRequestPaymentProof: (orderId: string) => Promise<boolean>;
   handleResetOrders: () => void;
-  handleUpdatePaymentStatus: (orderId: string, paymentStatus: PaymentStatus) => void;
+  handleUpdatePaymentStatus: (
+    orderId: string,
+    paymentStatus: PaymentStatus,
+  ) => Promise<Order>;
 }
 
 const BusinessWorkspaceContext = createContext<BusinessWorkspaceContextValue | null>(null);
