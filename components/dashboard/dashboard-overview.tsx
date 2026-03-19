@@ -68,129 +68,174 @@ function CommerceReadinessCard({
 }) {
   const publicPath = `/pedido/${businessId}`;
   const [publicUrl, setPublicUrl] = useState(publicPath);
+  const readinessTone =
+    businessReadiness.status === "ready"
+      ? {
+          section:
+            "border-emerald-200 bg-[linear-gradient(135deg,rgba(236,253,245,0.98),rgba(255,255,255,0.98))]",
+          badge: "text-emerald-700",
+          panel: "border-emerald-200 bg-white/90",
+          statusChip:
+            "border border-emerald-200 bg-emerald-50 text-emerald-800",
+        }
+      : {
+          section:
+            "border-amber-200 bg-[linear-gradient(135deg,rgba(255,251,235,0.98),rgba(255,255,255,0.98))]",
+          badge: "text-amber-700",
+          panel: "border-white/80 bg-white/80",
+          statusChip:
+            "border border-amber-200 bg-amber-50 text-amber-800",
+        };
 
   useEffect(() => {
     setPublicUrl(`${window.location.origin}${publicPath}`);
   }, [publicPath]);
 
-  if (businessReadiness.status === "no_products") {
-    return (
-      <section className="rounded-[30px] border border-amber-200 bg-[linear-gradient(135deg,rgba(255,251,235,0.98),rgba(255,255,255,0.98))] p-6 shadow-[0_20px_50px_rgba(15,23,42,0.06)]">
-        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-700">
-          Negocio aun no listo
-        </p>
-        <h2 className="mt-2 text-3xl font-semibold text-slate-950">
-          Agrega tu primer producto para empezar a vender
-        </h2>
-        <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-          {businessName} ya fue creado, pero todavia no puede recibir pedidos porque su
-          catalogo esta vacio.
-        </p>
-
-        <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-          <button
-            type="button"
-            onClick={onOpenCreateProduct}
-            className="rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
-          >
-            Agregar primer producto
-          </button>
-          <button
-            type="button"
-            onClick={onOpenProductsManager}
-            className="rounded-full border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
-          >
-            Administrar catalogo
-          </button>
-        </div>
-
-        <div className="mt-5 rounded-[22px] border border-white/80 bg-white/80 p-4 text-sm leading-6 text-slate-700">
-          Cuando tengas al menos un producto activo, podras compartir tu link publico y
-          empezar a recibir pedidos reales.
-        </div>
-      </section>
-    );
-  }
-
-  if (businessReadiness.status === "inactive_catalog") {
-    return (
-      <section className="rounded-[30px] border border-amber-200 bg-[linear-gradient(135deg,rgba(255,251,235,0.98),rgba(255,255,255,0.98))] p-6 shadow-[0_20px_50px_rgba(15,23,42,0.06)]">
-        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-700">
-          Catalogo incompleto
-        </p>
-        <h2 className="mt-2 text-3xl font-semibold text-slate-950">
-          Activa al menos un producto para recibir pedidos
-        </h2>
-        <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-          {businessName} ya tiene {businessReadiness.totalProducts} producto
-          {businessReadiness.totalProducts === 1 ? "" : "s"}, pero ninguno esta activo.
-        </p>
-
-        <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-          <button
-            type="button"
-            onClick={onOpenProductsManager}
-            className="rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
-          >
-            Administrar catalogo
-          </button>
-          <button
-            type="button"
-            onClick={onOpenCreateProduct}
-            className="rounded-full border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
-          >
-            Agregar producto
-          </button>
-        </div>
-
-        <div className="mt-5 rounded-[22px] border border-white/80 bg-white/80 p-4 text-sm leading-6 text-slate-700">
-          Revisa disponibilidad desde el drawer de productos. En cuanto haya al menos un
-          producto activo, el negocio quedara listo para compartir su formulario publico.
-        </div>
-      </section>
-    );
-  }
-
   return (
-    <section className="rounded-[30px] border border-emerald-200 bg-[linear-gradient(135deg,rgba(236,253,245,0.98),rgba(255,255,255,0.98))] p-6 shadow-[0_20px_50px_rgba(15,23,42,0.06)]">
-      <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-700">
-        Listo para vender
+    <section
+      className={`rounded-[30px] border p-6 shadow-[0_20px_50px_rgba(15,23,42,0.06)] ${readinessTone.section}`}
+    >
+      <p className={`text-sm font-semibold uppercase tracking-[0.2em] ${readinessTone.badge}`}>
+        Estado de preparacion
       </p>
       <h2 className="mt-2 text-3xl font-semibold text-slate-950">
-        Tu negocio ya esta listo para recibir pedidos
+        {businessReadiness.headline}
       </h2>
       <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-        {businessName} ya tiene {businessReadiness.activeProducts} producto
-        {businessReadiness.activeProducts === 1 ? "" : "s"} activo
-        {businessReadiness.activeProducts === 1 ? "" : "s"} en el catalogo.
+        {businessName}. {businessReadiness.reason}
       </p>
 
-      <div className="mt-5 rounded-[24px] border border-emerald-200 bg-white/90 p-4">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-          Link publico
-        </p>
-        <p className="mt-2 break-all text-sm font-medium text-slate-900">{publicUrl}</p>
+      <div className="mt-5 grid gap-3 md:grid-cols-4">
+        <div className={`rounded-[22px] border p-4 ${readinessTone.panel}`}>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+            Negocio
+          </p>
+          <p className="mt-2 text-lg font-semibold text-slate-950">
+            {businessReadiness.businessExists ? "Creado" : "Pendiente"}
+          </p>
+        </div>
+        <div className={`rounded-[22px] border p-4 ${readinessTone.panel}`}>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+            Productos
+          </p>
+          <p className="mt-2 text-lg font-semibold text-slate-950">
+            {businessReadiness.totalProducts}
+          </p>
+        </div>
+        <div className={`rounded-[22px] border p-4 ${readinessTone.panel}`}>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+            Activos
+          </p>
+          <p className="mt-2 text-lg font-semibold text-slate-950">
+            {businessReadiness.activeProducts}
+          </p>
+        </div>
+        <div className={`rounded-[22px] border p-4 ${readinessTone.panel}`}>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+            Puede vender
+          </p>
+          <p className="mt-2 text-lg font-semibold text-slate-950">
+            {businessReadiness.canSell ? "Si" : "No"}
+          </p>
+        </div>
+      </div>
+
+      <div className={`mt-5 rounded-[24px] border p-4 ${readinessTone.panel}`}>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+              Estado actual
+            </p>
+            <div className="mt-2 flex flex-wrap items-center gap-3">
+              <span
+                className={`rounded-full px-3 py-1.5 text-xs font-semibold ${readinessTone.statusChip}`}
+              >
+                {businessReadiness.statusLabel}
+              </span>
+              <p className="text-sm text-slate-600">
+                {businessReadiness.canSell
+                  ? "Ya puedes compartir tu link publico."
+                  : "Todavia no puede recibir pedidos."}
+              </p>
+            </div>
+          </div>
+
+          {businessReadiness.canSell ? (
+            <div className="min-w-0 sm:max-w-sm">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                Link publico
+              </p>
+              <p className="mt-2 break-all text-sm font-medium text-slate-900">{publicUrl}</p>
+            </div>
+          ) : null}
+        </div>
+      </div>
+
+      <div className={`mt-5 rounded-[22px] border p-4 text-sm leading-6 text-slate-700 ${readinessTone.panel}`}>
+        {businessReadiness.nextStep}
       </div>
 
       <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start">
-        <CopyPublicLinkButton businessId={businessId} />
-        <Link
-          href={publicPath}
-          target="_blank"
-          className="rounded-full bg-slate-950 px-5 py-3 text-center text-sm font-semibold text-white transition hover:bg-slate-800"
-        >
-          Abrir formulario publico
-        </Link>
-        <button
-          type="button"
-          onClick={onOpenProductsManager}
-          className="rounded-full border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
-        >
-          Administrar catalogo
-        </button>
+        {businessReadiness.status === "no_products" ? (
+          <>
+            <button
+              type="button"
+              onClick={onOpenCreateProduct}
+              className="rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+            >
+              Agregar primer producto
+            </button>
+            <button
+              type="button"
+              onClick={onOpenProductsManager}
+              className="rounded-full border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+            >
+              Administrar catalogo
+            </button>
+          </>
+        ) : null}
+
+        {businessReadiness.status === "inactive_catalog" ? (
+          <>
+            <button
+              type="button"
+              onClick={onOpenProductsManager}
+              className="rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+            >
+              Activar productos
+            </button>
+            <button
+              type="button"
+              onClick={onOpenCreateProduct}
+              className="rounded-full border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+            >
+              Agregar producto
+            </button>
+          </>
+        ) : null}
+
+        {businessReadiness.status === "ready" ? (
+          <>
+            <CopyPublicLinkButton businessId={businessId} />
+            <Link
+              href={publicPath}
+              target="_blank"
+              className="rounded-full bg-slate-950 px-5 py-3 text-center text-sm font-semibold text-white transition hover:bg-slate-800"
+            >
+              Abrir formulario publico
+            </Link>
+            <button
+              type="button"
+              onClick={onOpenProductsManager}
+              className="rounded-full border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+            >
+              Administrar catalogo
+            </button>
+          </>
+        ) : null}
       </div>
 
-      {!hasOrders ? (
+      {businessReadiness.canSell && !hasOrders ? (
         <p className="mt-4 text-sm leading-6 text-slate-600">
           Aun no tienes pedidos. El siguiente paso es compartir el link publico y esperar el
           primer pedido para activar la operacion diaria.
