@@ -91,6 +91,21 @@ function CommerceReadinessCard({
     setPublicUrl(`${window.location.origin}${publicPath}`);
   }, [publicPath]);
 
+  const primaryCta =
+    businessReadiness.status === "no_products"
+      ? {
+          label: "Agregar primer producto",
+          helper: "Es el siguiente paso para habilitar el catalogo.",
+          action: onOpenCreateProduct,
+        }
+      : businessReadiness.status === "inactive_catalog"
+        ? {
+            label: "Activar productos",
+            helper: "Abre el catalogo y activa al menos uno.",
+            action: onOpenProductsManager,
+          }
+        : null;
+
   return (
     <section
       className={`rounded-[30px] border p-6 shadow-[0_20px_50px_rgba(15,23,42,0.06)] ${readinessTone.section}`}
@@ -175,16 +190,50 @@ function CommerceReadinessCard({
         {businessReadiness.nextStep}
       </div>
 
+      <div className={`mt-5 rounded-[24px] border p-4 ${readinessTone.panel}`}>
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+          Siguiente paso
+        </p>
+
+        {primaryCta ? (
+          <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-base font-semibold text-slate-950">{primaryCta.label}</p>
+              <p className="mt-1 text-sm text-slate-600">{primaryCta.helper}</p>
+            </div>
+
+            <button
+              type="button"
+              onClick={primaryCta.action}
+              className="rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+            >
+              {primaryCta.label}
+            </button>
+          </div>
+        ) : (
+          <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-base font-semibold text-slate-950">Compartir link de pedidos</p>
+              <p className="mt-1 text-sm text-slate-600">
+                Ya tienes catalogo activo. Comparte el formulario publico para buscar el
+                primer pedido real.
+              </p>
+            </div>
+
+            <Link
+              href={publicPath}
+              target="_blank"
+              className="rounded-full bg-slate-950 px-5 py-3 text-center text-sm font-semibold text-white transition hover:bg-slate-800"
+            >
+              Ver formulario publico
+            </Link>
+          </div>
+        )}
+      </div>
+
       <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start">
         {businessReadiness.status === "no_products" ? (
           <>
-            <button
-              type="button"
-              onClick={onOpenCreateProduct}
-              className="rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
-            >
-              Agregar primer producto
-            </button>
             <button
               type="button"
               onClick={onOpenProductsManager}
@@ -199,13 +248,6 @@ function CommerceReadinessCard({
           <>
             <button
               type="button"
-              onClick={onOpenProductsManager}
-              className="rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
-            >
-              Activar productos
-            </button>
-            <button
-              type="button"
               onClick={onOpenCreateProduct}
               className="rounded-full border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
             >
@@ -217,13 +259,6 @@ function CommerceReadinessCard({
         {businessReadiness.status === "ready" ? (
           <>
             <CopyPublicLinkButton businessId={businessId} />
-            <Link
-              href={publicPath}
-              target="_blank"
-              className="rounded-full bg-slate-950 px-5 py-3 text-center text-sm font-semibold text-white transition hover:bg-slate-800"
-            >
-              Abrir formulario publico
-            </Link>
             <button
               type="button"
               onClick={onOpenProductsManager}
