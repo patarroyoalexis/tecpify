@@ -8,7 +8,7 @@ Tecpify es un MVP para pequenos negocios que concentra tres frentes en una sola 
 - operacion interna para revisar y actualizar pedidos
 - catalogo y metricas basicas conectadas a Supabase
 
-Hoy el proyecto ya tiene flujo real de negocio -> catalogo -> pedido -> operacion, pero todavia con alcance acotado y varias piezas en modo basico.
+Actualmente el proyecto ya tiene un flujo real de negocio -> catalogo -> pedido -> operacion, pero todavia con alcance acotado y varias capas en modo piloto.
 
 ## Objetivo del MVP
 
@@ -21,28 +21,32 @@ Validar una operacion simple para negocios pequenos que hoy reciben pedidos por 
 
 ## Estado actual del MVP
 
-El nucleo del MVP ya esta conectado a Supabase para negocios, pedidos y productos. Los pedidos publicos se crean por API, el dashboard rehidrata pedidos desde servidor, las ediciones del drawer persisten en base de datos y la creacion basica de negocios ya es real.
+El nucleo del MVP ya persiste en Supabase para negocios, pedidos y productos. Los pedidos publicos se crean por API, el dashboard rehidrata pedidos desde servidor, las ediciones del drawer persisten en base de datos, la creacion basica de negocios ya es real y la gestion de productos ya permite crear, editar, activar, desactivar, destacar y reordenar catalogo por negocio.
 
-Lo mas incompleto hoy no es la persistencia base, sino el onboarding del negocio despues del alta y la gestion de catalogo como modulo de producto mas completo. El MVP funciona, pero todavia depende de un flujo operativo manual, sin auth, sin configuracion avanzada y con partes de demo que siguen visibles en la home.
+Lo mas incompleto hoy no es la persistencia base, sino el tramo negocio creado -> catalogo activo -> primer pedido real. El MVP funciona para pilotos internos, pero todavia depende de un flujo operativo manual, sin autenticacion, sin permisos y con partes demo que siguen disponibles en la home.
 
 ## Que ya funciona
 
-- Home en `/` que lista negocios reales desde Supabase y escenarios demo por separado.
-- Alta basica de negocios desde la app con nombre y slug.
+- Home en `/` con prioridad visual para negocios reales y soporte separado para demos.
+- Alta basica de negocios desde la app con `name` y `slug`.
 - Redireccion al dashboard del negocio creado.
+- Dashboard del negocio en `/dashboard/[negocioId]`.
+- Estado de preparacion del negocio en dashboard con conteo de productos y readiness comercial.
+- Accesos claros desde dashboard para crear productos, activar catalogo y compartir el link publico.
 - Formulario publico por negocio en `/pedido/[negocioId]`.
+- Empty states del storefront diferenciados para negocio no encontrado, catalogo vacio y catalogo sin productos activos.
 - Carga de productos activos reales para el formulario publico.
 - Creacion real de pedidos por `POST /api/orders`.
-- Dashboard del negocio en `/dashboard/[negocioId]`.
 - Vista operativa en `/pedidos/[negocioId]` con busqueda, filtros y agrupacion por estado.
 - Drawer de detalle para revisar y editar pedidos.
 - Cambios rapidos de estado del pedido y del pago.
 - Marcado de pedido revisado y marcado masivo de revisados.
+- Estado visual de pedido nuevo basado en `isReviewed`.
 - Creacion manual de pedidos desde la app interna.
-- Vista de metricas en `/metricas/[negocioId]` calculada sobre pedidos cargados desde Supabase.
-- Gestion basica de productos por negocio desde un drawer interno.
 - Busqueda global de pedidos dentro del negocio actual.
-- Estados vacios para negocio sin catalogo activo o sin pedidos.
+- Vista de metricas en `/metricas/[negocioId]` calculada sobre pedidos reales.
+- Gestion basica de productos por negocio desde un drawer interno.
+- Feedback de readiness del catalogo dentro del dashboard y dentro del drawer de productos.
 
 ## Que ya persiste de verdad
 
@@ -56,7 +60,7 @@ Ya persiste en Supabase por `POST /api/businesses`:
 - `created_at`
 - `updated_at`
 
-El slug se normaliza en codigo, se valida antes de insertar y tambien tiene indice unico en la migracion `supabase/migrations/20260319_enable_basic_business_creation.sql`.
+El slug se normaliza en codigo, se valida antes de insertar y ademas se verifica unicidad antes del insert. La migracion base para alta de negocios sigue en `supabase/migrations/20260319_enable_basic_business_creation.sql`.
 
 ### Pedidos
 
@@ -65,7 +69,7 @@ La fuente de verdad de pedidos ya es Supabase.
 Ya persiste por API real:
 
 - creacion publica de pedidos
-- creacion manual desde el drawer interno
+- creacion manual desde la app interna
 - lectura de pedidos por negocio
 - actualizacion de pedidos existentes
 - `isReviewed`
@@ -87,6 +91,12 @@ Campos de pedido que hoy se guardan y actualizan realmente:
 - `is_reviewed`
 - `history`
 
+La creacion publica valida que:
+
+- el negocio exista en Supabase
+- los productos referenciados existan en el catalogo del negocio
+- los productos ligados por `productId` esten activos para nuevos pedidos
+
 La rehidratacion desde servidor ya existe en:
 
 - `/dashboard/[negocioId]`
@@ -94,6 +104,18 @@ La rehidratacion desde servidor ya existe en:
 - `/metricas/[negocioId]`
 
 Esas rutas cargan pedidos iniciales desde servidor y luego el cliente vuelve a consultar `GET /api/orders`, con refresh en hidratacion, foco de ventana, visibilidad y cada 15 segundos.
+
+La operacion real de pedidos ya no depende de `localStorage`. `localStorage` sigue usandose solo para preferencias visuales de la vista de pedidos:
+
+- filtro seleccionado
+- busqueda
+- grupos expandidos
+
+Las mutaciones de pedidos son server-first. Si una mutacion falla:
+
+- la UI muestra banner de error
+- no consolida una fuente paralela local
+- luego vuelve a refrescar contra la API para mantener Supabase como fuente de verdad
 
 ### Productos
 
@@ -108,18 +130,29 @@ La gestion de productos ya persiste en Supabase por negocio real:
 
 El storefront solo publica productos activos.
 
+La gestion actual de productos permite:
+
+- crear productos desde el dashboard
+- editar nombre, descripcion, precio, disponibilidad, destacado y orden
+- activar y desactivar productos en forma rapida
+- reordenar productos cargados
+- ver conteo de activos e inactivos
+- recibir feedback cuando un cambio deja al negocio listo o no listo para vender
+
 ## Que sigue siendo basico o parcial
 
 - La alta de negocios sigue siendo minima: solo `name` y `slug`.
 - No hay autenticacion, permisos ni separacion de roles.
-- La home todavia muestra negocios demo junto a negocios reales.
+- La home todavia mantiene demos, aunque ahora estan mas separadas visualmente del flujo real.
 - Los negocios demo siguen resolviendose como fallback visual, pero no operan con `business_id` real.
 - Un negocio nuevo no queda listo para vender solo con crearse: necesita cargar y activar productos.
-- La gestion de productos existe, pero vive en un drawer; no hay modulo dedicado ni borrado de productos.
-- El formulario publico no tiene onboarding de catalogo: si no hay productos activos, solo muestra empty state.
-- Las metricas ya usan pedidos reales, pero son calculos en frontend sobre pedidos cargados; no hay tablas agregadas ni reporting avanzado.
+- La gestion de productos existe, pero sigue viviendo en un drawer; no hay modulo dedicado ni borrado de productos.
+- No hay categorias, variantes, imagenes ni inventario.
+- Las metricas usan datos reales, pero son calculos de frontend sobre pedidos cargados; no hay tablas agregadas ni reporting avanzado.
 - No existe una tabla dedicada de clientes: el autocompletado del storefront reutiliza pedidos recientes del negocio actual.
 - El manejo operativo sigue siendo manual. No hay automatizaciones, webhooks, notificaciones ni integraciones externas.
+- El storefront ya distingue mejor estados vacios, pero no hay un onboarding publico mas profundo que explique pasos al negocio desde esa ruta.
+- La experiencia analitica sigue en modo piloto y todavia no separa series agregadas o comparativos persistidos.
 
 ## Flujo actual del producto
 
@@ -134,8 +167,8 @@ El storefront solo publica productos activos.
 
 ## Rutas principales
 
-- `/`: home del MVP. Lista negocios reales, muestra demos y permite crear negocios.
-- `/dashboard/[negocioId]`: resumen operativo, readiness del negocio y accesos rapidos.
+- `/`: home del MVP. Prioriza negocios reales, permite crear negocios y mantiene demos en un bloque secundario.
+- `/dashboard/[negocioId]`: resumen operativo, readiness del negocio, estado del catalogo y accesos rapidos.
 - `/pedidos/[negocioId]`: vista operativa completa de pedidos.
 - `/metricas/[negocioId]`: metricas basicas calculadas sobre pedidos reales.
 - `/pedido/[negocioId]`: formulario publico del negocio.
@@ -154,7 +187,7 @@ El storefront solo publica productos activos.
   Lista pedidos reales de un negocio por slug.
 
 - `POST /api/orders`
-  Crea un pedido real, resuelve el negocio por slug y valida productos contra el catalogo del negocio.
+  Crea un pedido real, resuelve el negocio por slug y valida productos contra el catalogo activo del negocio cuando vienen ligados por `productId`.
 
 - `PATCH /api/orders/[orderId]`
   Actualiza estado, pago y datos editables del pedido. Tambien persiste `isReviewed` e `history`.
@@ -182,7 +215,7 @@ El storefront solo publica productos activos.
 
 ### Frontend
 
-- app router con rutas server-first para cargar negocio y pedidos iniciales
+- App Router con rutas server-first para cargar negocio y pedidos iniciales
 - componentes client para formularios, drawers, filtros, mutaciones y UX operativa
 
 ### Persistencia
@@ -206,6 +239,7 @@ Hoy Tecpify se usa asi:
 
 - se crea un negocio real
 - se carga un catalogo basico
+- se activa al menos un producto
 - se comparte el formulario publico del negocio
 - los pedidos entran a Supabase
 - el operador revisa pedidos nuevos, cambia estados, valida pagos y edita detalles desde la app interna
@@ -215,9 +249,7 @@ No es un sistema multiusuario completo ni un backoffice avanzado. Es una base op
 
 ## Siguiente prioridad recomendada
 
-La siguiente prioridad real ya no deberia ser "persistir pedidos" ni "crear negocios", porque esas bases ya existen. El cuello de botella actual esta en cerrar mejor el tramo negocio creado -> catalogo activo -> primer pedido real.
-
-El foco recomendado es fortalecer productos por negocio y el onboarding posterior al alta: hoy un negocio puede crearse y persiste bien, pero todavia depende de un drawer basico para cargar catalogo y sin eso no puede usar el formulario publico. Despues de ese paso, la segunda prioridad deberia ser endurecer la experiencia operativa de pedidos sobre la base ya persistida.
+La siguiente prioridad real ya no deberia ser persistir pedidos, editar pedidos o crear negocios, porque esas bases ya existen y estan conectadas a Supabase. El cuello de botella actual esta en cerrar mejor el tramo negocio creado -> catalogo activo -> primer pedido real. El foco recomendado es seguir fortaleciendo productos por negocio y el onboarding posterior al alta, pero sin abrir todavia un modulo grande: mejorar visibilidad, activacion y claridad del catalogo aporta mas valor inmediato al MVP que sumar complejidad de ecommerce o analitica avanzada.
 
 ## Como ejecutar el proyecto
 
@@ -266,8 +298,9 @@ npm run lint
 - `mockBusinesses` sigue existiendo en `data/businesses.ts` para demos y fallback visual.
 - `mockOrders` sigue existiendo en `data/orders.ts` como dataset de referencia para utilidades y UX, pero no es la fuente de verdad del flujo principal.
 - La operacion real de pedidos ya no depende de `localStorage`.
-- Las mutaciones de pedidos y productos son server-first: si fallan, la UI muestra error y conserva el estado persistido anterior.
-- El panel de pedidos sigue guardando en `localStorage` solo filtros, busqueda y grupos expandidos.
+- La vista de pedidos sigue guardando en `localStorage` solo filtros, busqueda y grupos expandidos.
+- Las mutaciones de pedidos y productos son server-first: si fallan, la UI muestra error y luego vuelve a sincronizar contra la API.
 - El storefront solo acepta pedidos cuando el negocio existe en Supabase y tiene productos activos.
+- Los empty states del storefront ya distinguen entre negocio no encontrado, catalogo vacio y catalogo sin productos activos.
 - La migracion de `order_code` vive en `supabase/migrations/20260316_add_order_code_to_orders.sql`.
 - La migracion de alta basica de negocios vive en `supabase/migrations/20260319_enable_basic_business_creation.sql`.
