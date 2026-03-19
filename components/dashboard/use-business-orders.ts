@@ -47,6 +47,7 @@ type EditableOrderPayload = Pick<
   | "deliveryType"
   | "deliveryAddress"
   | "paymentMethod"
+  | "products"
   | "notes"
   | "total"
 >;
@@ -106,6 +107,17 @@ function formatOrderValue(field: keyof EditableOrderPayload, value: unknown): st
     }).format(value);
   }
 
+  if (field === "products" && Array.isArray(value)) {
+    return value
+      .map((product) =>
+        product && typeof product === "object"
+          ? `${String((product as Order["products"][number]).quantity)} x ${String((product as Order["products"][number]).name)}`
+          : "",
+      )
+      .filter(Boolean)
+      .join(", ");
+  }
+
   return String(value);
 }
 
@@ -125,6 +137,8 @@ function getFieldLabel(field: keyof EditableOrderPayload): string {
       return "Direccion de entrega";
     case "paymentMethod":
       return "Metodo de pago";
+    case "products":
+      return "Articulos";
     case "notes":
       return "Notas";
     case "total":
@@ -150,6 +164,8 @@ function getCurrentFieldValue(order: Order, field: keyof EditableOrderPayload) {
       return order.address ?? "";
     case "paymentMethod":
       return order.paymentMethod;
+    case "products":
+      return order.products;
     case "notes":
       return order.observations ?? "";
     case "total":
@@ -202,13 +218,14 @@ function applyOrderUpdatePayload(order: Order, payload: OrderApiUpdatePayload): 
       : {}),
     ...(payload.customerName !== undefined ? { client: payload.customerName.trim() } : {}),
     ...(payload.customerWhatsApp !== undefined
-      ? { customerPhone: payload.customerWhatsApp.trim() }
+      ? { customerPhone: payload.customerWhatsApp?.trim() || undefined }
       : {}),
     ...(payload.deliveryType !== undefined ? { deliveryType: payload.deliveryType } : {}),
     ...(payload.deliveryAddress !== undefined
       ? { address: payload.deliveryAddress?.trim() || undefined }
       : {}),
     ...(payload.paymentMethod !== undefined ? { paymentMethod: payload.paymentMethod } : {}),
+    ...(payload.products !== undefined ? { products: payload.products } : {}),
     ...(payload.notes !== undefined
       ? { observations: payload.notes?.trim() || undefined }
       : {}),

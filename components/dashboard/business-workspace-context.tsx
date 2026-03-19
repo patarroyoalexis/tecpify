@@ -51,6 +51,7 @@ interface BusinessWorkspaceContextValue {
       | "deliveryType"
       | "deliveryAddress"
       | "paymentMethod"
+      | "products"
       | "notes"
       | "total"
     >,

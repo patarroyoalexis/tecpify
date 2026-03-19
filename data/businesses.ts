@@ -1,5 +1,6 @@
-import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { debugError, debugLog } from "@/lib/debug";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { DELIVERY_TYPES, PAYMENT_METHODS } from "@/types/orders";
 import type { BusinessConfig } from "@/types/storefront";
 
 export const mockBusinesses: BusinessConfig[] = [
@@ -73,17 +74,65 @@ type SupabaseBusinessRow = {
   slug: string;
 };
 
+export interface ResolvedBusiness {
+  business: BusinessConfig;
+  source: "database" | "demo";
+  hasDatabaseRecord: boolean;
+}
+
+export interface HomeBusinessesSnapshot {
+  realBusinesses: BusinessConfig[];
+  demoBusinesses: BusinessConfig[];
+}
+
 export type BusinessProductsLookupResult =
   | { status: "not_found" }
   | { status: "unmapped"; business: BusinessConfig }
   | { status: "no_products"; business: BusinessConfig }
   | { status: "ok"; business: BusinessConfig };
 
-export function getBusinessBySlug(slug: string) {
+function humanizeSlug(slug: string) {
+  return slug
+    .split("-")
+    .filter(Boolean)
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join(" ");
+}
+
+function createBaseBusinessConfig(
+  slug: string,
+  overrides?: Partial<BusinessConfig>,
+): BusinessConfig {
+  return {
+    slug,
+    databaseId: overrides?.databaseId ?? null,
+    name: overrides?.name ?? humanizeSlug(slug),
+    tagline:
+      overrides?.tagline ??
+      "Negocio operativo conectado a la base principal de Tecpify.",
+    accent: overrides?.accent ?? "from-slate-200 via-slate-100 to-white",
+    availablePaymentMethods: overrides?.availablePaymentMethods ?? [...PAYMENT_METHODS],
+    availableDeliveryTypes: overrides?.availableDeliveryTypes ?? [...DELIVERY_TYPES],
+    products: overrides?.products ?? [],
+  };
+}
+
+function withDatabaseId(
+  business: BusinessConfig,
+  databaseId: string | null,
+): BusinessConfig {
+  return {
+    ...business,
+    databaseId,
+  };
+}
+
+export function getDemoBusinessBySlug(slug: string) {
   return mockBusinesses.find((business) => business.slug === slug) ?? null;
 }
 
-export const getBusinessById = getBusinessBySlug;
+export const getBusinessBySlug = getDemoBusinessBySlug;
+export const getBusinessById = getDemoBusinessBySlug;
 
 export async function getBusinessBySlugFromDatabase(slug: string) {
   debugLog("[businesses] Resolving business by slug", { slug });
@@ -108,42 +157,109 @@ export async function getBusinessBySlugFromDatabase(slug: string) {
   return data;
 }
 
+async function getBusinessesFromDatabase() {
+  const supabase = createServerSupabaseClient();
+  const { data, error } = await supabase
+    .from("businesses")
+    .select("id, slug")
+    .order("slug", { ascending: true });
+
+  if (error) {
+    throw new Error(`Supabase businesses query failed: ${error.message}`);
+  }
+
+  return (data ?? []) as SupabaseBusinessRow[];
+}
+
+export async function resolveBusinessBySlug(slug: string): Promise<ResolvedBusiness | null> {
+  const demoBusiness = getDemoBusinessBySlug(slug);
+  const databaseBusiness = await getBusinessBySlugFromDatabase(slug);
+
+  if (!databaseBusiness && !demoBusiness) {
+    return null;
+  }
+
+  if (databaseBusiness) {
+    return {
+      business: withDatabaseId(
+        demoBusiness
+          ? demoBusiness
+          : createBaseBusinessConfig(databaseBusiness.slug, {
+              name: humanizeSlug(databaseBusiness.slug),
+            }),
+        databaseBusiness.id,
+      ),
+      source: "database",
+      hasDatabaseRecord: true,
+    };
+  }
+
+  return {
+    business: withDatabaseId(demoBusiness!, null),
+    source: "demo",
+    hasDatabaseRecord: false,
+  };
+}
+
+export async function getHomeBusinesses(): Promise<HomeBusinessesSnapshot> {
+  let databaseBusinesses: SupabaseBusinessRow[] = [];
+
+  try {
+    databaseBusinesses = await getBusinessesFromDatabase();
+  } catch (error) {
+    debugError("[businesses] Failed to list businesses for home", {
+      message: error instanceof Error ? error.message : "unknown",
+    });
+  }
+
+  const realBusinesses = databaseBusinesses.map((databaseBusiness) => {
+    const demoBusiness = getDemoBusinessBySlug(databaseBusiness.slug);
+
+    return withDatabaseId(
+      demoBusiness
+        ? demoBusiness
+        : createBaseBusinessConfig(databaseBusiness.slug, {
+            name: humanizeSlug(databaseBusiness.slug),
+          }),
+      databaseBusiness.id,
+    );
+  });
+
+  const databaseSlugs = new Set(realBusinesses.map((business) => business.slug));
+  const demoBusinesses = mockBusinesses.filter((business) => !databaseSlugs.has(business.slug));
+
+  return {
+    realBusinesses,
+    demoBusinesses,
+  };
+}
+
 export async function getBusinessBySlugWithProducts(
   slug: string,
 ): Promise<BusinessProductsLookupResult> {
-  const business = getBusinessBySlug(slug);
+  const resolvedBusiness = await resolveBusinessBySlug(slug);
 
   debugLog("[businesses] Received storefront slug", {
     slug,
-    foundInMock: Boolean(business),
+    resolved: Boolean(resolvedBusiness),
+    source: resolvedBusiness?.source ?? null,
   });
 
-  if (!business) {
+  if (!resolvedBusiness) {
     return { status: "not_found" };
   }
 
-  const databaseBusiness = await getBusinessBySlugFromDatabase(slug);
-  const businessWithDatabaseId: BusinessConfig = {
-    ...business,
-    databaseId: databaseBusiness?.id ?? null,
-  };
-
-  debugLog("[businesses] Resolved business configuration", {
-    slug,
-    hasDatabaseMapping: Boolean(businessWithDatabaseId.databaseId),
-  });
-
-  if (!businessWithDatabaseId.databaseId) {
+  if (!resolvedBusiness.hasDatabaseRecord || !resolvedBusiness.business.databaseId) {
     return {
       status: "unmapped",
-      business: businessWithDatabaseId,
+      business: resolvedBusiness.business,
     };
   }
 
   const { getProductsByBusinessId, mapProductToBusinessProduct } = await import(
     "@/lib/data/products"
   );
-  const products = await getProductsByBusinessId(businessWithDatabaseId.databaseId);
+  const products = await getProductsByBusinessId(resolvedBusiness.business.databaseId);
 
   debugLog("[businesses] Products query completed", {
     slug,
@@ -154,7 +270,7 @@ export async function getBusinessBySlugWithProducts(
     return {
       status: "no_products",
       business: {
-        ...businessWithDatabaseId,
+        ...resolvedBusiness.business,
         products: [],
       },
     };
@@ -163,7 +279,7 @@ export async function getBusinessBySlugWithProducts(
   return {
     status: "ok",
     business: {
-      ...businessWithDatabaseId,
+      ...resolvedBusiness.business,
       products: products.map(mapProductToBusinessProduct),
     },
   };

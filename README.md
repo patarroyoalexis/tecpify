@@ -232,3 +232,54 @@ Espacio para documentar el despliegue activo:
 ## Siguiente foco de desarrollo
 
 El siguiente foco recomendado es cerrar la persistencia real de pedidos de punta a punta, luego completar la edición real sin depender de respaldo local para el flujo principal y, después de eso, avanzar en dos frentes: productos mejor integrados y alta básica de negocios desde la app.
+
+## Consolidacion reciente de la base operativa
+
+Estado consolidado:
+
+- Pedidos ya operan con persistencia real por API y Supabase como fuente principal.
+- La edición real de pedidos ya persiste cambios principales y reconcilia la UI con la respuesta del servidor.
+- La home separa negocios reales de escenarios demo para no mezclar operación persistida con datos mockeados.
+- La resolución de negocio ya puede partir de Supabase aunque el slug no exista en `mockBusinesses`.
+- El storefront sigue mostrando solo productos activos y válidos.
+
+Mocks que todavía existen:
+
+- `mockBusinesses` en `data/businesses.ts`: quedan como catálogo demo y metadata visual de respaldo.
+- `mockOrders` en `data/orders.ts`: quedan aislados como datos demo/históricos y ya no alimentan el flujo principal de pedidos.
+
+## Requisitos minimos para alta basica de negocios
+
+Para habilitar alta básica de negocios desde la app sin abrir todavía un módulo grande, la base mínima recomendada es:
+
+1. Crear registro en tabla `businesses` con al menos:
+   - `id`
+   - `slug`
+   - nombre visible o equivalente
+   - timestamps básicos
+2. Definir regla simple de unicidad para `slug`.
+3. Resolver un estado inicial del negocio en producto:
+   - negocio creado sin productos
+   - negocio creado con catálogo vacío pero operativo
+4. Permitir que el home liste automáticamente negocios reales recién creados.
+5. Mantener el catálogo como paso posterior:
+   - primero crear negocio
+   - luego crear productos
+6. Documentar permisos mínimos:
+   - lectura de `businesses`
+   - escritura server-side de `businesses`
+   - relación segura entre `businesses`, `products` y `orders`
+
+Propuesta mínima de implementación:
+
+- Un formulario interno corto para crear negocio con nombre y slug.
+- Un endpoint `POST /api/businesses`.
+- Redirección inmediata al dashboard del nuevo negocio.
+- Mensaje vacío de estado inicial cuando aún no existan productos ni pedidos.
+
+Riesgos para el siguiente paso:
+
+- La tabla `businesses` hoy se consume seguro por `id` y `slug`, pero el modelo visible del negocio todavía depende parcialmente de metadata demo si no existe una capa completa de branding en base de datos.
+- Si se crea negocio sin catálogo inicial, el storefront debe seguir manejando correctamente el estado "sin productos" sin parecer error.
+- Si el alta no define una política clara para slug, se puede romper navegación y resolución de negocio.
+- Antes de abrir onboarding real conviene documentar mejor el esquema de `businesses` y las políticas de acceso asociadas.

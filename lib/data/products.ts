@@ -22,6 +22,16 @@ interface ProductUpdatePayload {
   sortOrder?: number;
 }
 
+function isValidStorefrontProduct(product: Product) {
+  return (
+    typeof product.name === "string" &&
+    product.name.trim().length > 0 &&
+    Number.isFinite(product.price) &&
+    product.price >= 0 &&
+    product.is_available === true
+  );
+}
+
 export async function getProductsByBusinessId(businessId: string): Promise<Product[]> {
   const supabase = createServerSupabaseClient();
   const { data, error } = await supabase
@@ -36,7 +46,7 @@ export async function getProductsByBusinessId(businessId: string): Promise<Produ
     throw new Error(`Supabase products query failed: ${error.message}`);
   }
 
-  return (data ?? []) as Product[];
+  return ((data ?? []) as Product[]).filter(isValidStorefrontProduct);
 }
 
 export async function getAdminProductsByBusinessId(businessId: string): Promise<Product[]> {

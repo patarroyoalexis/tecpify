@@ -1,6 +1,6 @@
 import { BusinessWorkspaceShell } from "@/components/dashboard/business-workspace-shell";
 import { DashboardOverview } from "@/components/dashboard/dashboard-overview";
-import { getBusinessBySlug, getBusinessBySlugFromDatabase } from "@/data/businesses";
+import { resolveBusinessBySlug } from "@/data/businesses";
 import { getOrdersByBusinessSlugFromDatabase } from "@/lib/data/orders-server";
 import type { Order } from "@/types/orders";
 
@@ -10,14 +10,12 @@ export default async function BusinessDashboardPage({
   params: Promise<{ negocioId: string }>;
 }) {
   const { negocioId } = await params;
-  const business = getBusinessBySlug(negocioId);
-  const databaseBusiness = business
-    ? await getBusinessBySlugFromDatabase(negocioId).catch(() => null)
-    : null;
+  const resolvedBusiness = await resolveBusinessBySlug(negocioId).catch(() => null);
+  const business = resolvedBusiness?.business ?? null;
   let initialOrders: Order[] = [];
   let initialOrdersError: string | null = null;
 
-  if (business && databaseBusiness) {
+  if (business && resolvedBusiness?.hasDatabaseRecord) {
     try {
       initialOrders = await getOrdersByBusinessSlugFromDatabase(negocioId);
     } catch (error) {
@@ -50,9 +48,9 @@ export default async function BusinessDashboardPage({
   }
 
   return (
-    <BusinessWorkspaceShell
+      <BusinessWorkspaceShell
       businessId={business.slug}
-      businessDatabaseId={databaseBusiness?.id ?? null}
+      businessDatabaseId={business.databaseId ?? null}
       businessName={business.name}
       businessSlug={business.slug}
       initialOrders={initialOrders}

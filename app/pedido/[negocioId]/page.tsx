@@ -2,8 +2,8 @@ import type { ReactNode } from "react";
 
 import { StorefrontOrderWizard } from "@/components/storefront/order-wizard";
 import {
-  getBusinessBySlug,
   getBusinessBySlugWithProducts,
+  resolveBusinessBySlug,
 } from "@/data/businesses";
 import { getOrdersByBusinessSlugFromDatabase } from "@/lib/data/orders-server";
 import type { Order } from "@/types/orders";
@@ -42,7 +42,8 @@ export default async function StorefrontOrderPage({
   params: Promise<{ negocioId: string }>;
 }) {
   const { negocioId } = await params;
-  const fallbackBusiness = getBusinessBySlug(negocioId);
+  const resolvedBusiness = await resolveBusinessBySlug(negocioId).catch(() => null);
+  const fallbackBusiness = resolvedBusiness?.business ?? null;
 
   if (!fallbackBusiness) {
     return (
@@ -98,10 +99,10 @@ export default async function StorefrontOrderPage({
         title="Negocio pendiente de sincronizacion"
         description={
           <>
-            {fallbackBusiness.name} existe en la demo, pero todavia no tiene un UUID
-            publico resuelto desde la tabla <code>businesses</code>. Cuando el slug
-            quede asociado a un registro visible en Supabase, el catalogo real cargara
-            automaticamente.
+            {fallbackBusiness.name} sigue disponible solo en modo demo y todavia no
+            tiene un registro operativo en la tabla <code>businesses</code>. Cuando el
+            slug quede asociado a un negocio real en Supabase, el catalogo publico
+            cargara automaticamente desde base de datos.
           </>
         }
       />

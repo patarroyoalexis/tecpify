@@ -32,6 +32,7 @@ interface OrderLookupRow {
   delivery_type: Order["deliveryType"];
   delivery_address: string | null;
   payment_method: Order["paymentMethod"];
+  products: Order["products"];
   total: number;
   notes: string | null;
 }
@@ -287,12 +288,14 @@ function validateUpdateOrderPayload(payload: unknown): payload is OrderApiUpdate
     (candidate.paymentStatus === undefined || isValidPaymentStatus(candidate.paymentStatus)) &&
     (candidate.customerName === undefined || typeof candidate.customerName === "string") &&
     (candidate.customerWhatsApp === undefined ||
+      candidate.customerWhatsApp === null ||
       typeof candidate.customerWhatsApp === "string") &&
     (candidate.deliveryType === undefined || isValidDeliveryType(candidate.deliveryType)) &&
     (candidate.deliveryAddress === undefined ||
       candidate.deliveryAddress === null ||
       typeof candidate.deliveryAddress === "string") &&
     (candidate.paymentMethod === undefined || isValidPaymentMethod(candidate.paymentMethod)) &&
+    (candidate.products === undefined || isValidOrderProducts(candidate.products)) &&
     (candidate.notes === undefined ||
       candidate.notes === null ||
       typeof candidate.notes === "string") &&
@@ -311,6 +314,7 @@ function validateUpdateOrderPayload(payload: unknown): payload is OrderApiUpdate
         "deliveryType",
         "deliveryAddress",
         "paymentMethod",
+        "products",
         "notes",
         "total",
         "isReviewed",
@@ -337,6 +341,7 @@ function describeUpdatePayloadProblems(payload: unknown) {
     "deliveryType",
     "deliveryAddress",
     "paymentMethod",
+    "products",
     "notes",
     "total",
     "isReviewed",
@@ -366,6 +371,7 @@ function describeUpdatePayloadProblems(payload: unknown) {
 
   if (
     candidate.customerWhatsApp !== undefined &&
+    candidate.customerWhatsApp !== null &&
     candidate.customerWhatsApp.trim().length === 0
   ) {
     problems.push("customerWhatsApp is required when provided.");
@@ -385,6 +391,10 @@ function describeUpdatePayloadProblems(payload: unknown) {
 
   if (candidate.paymentMethod !== undefined && !isValidPaymentMethod(candidate.paymentMethod)) {
     problems.push("paymentMethod is invalid for public.orders.");
+  }
+
+  if (candidate.products !== undefined && !isValidOrderProducts(candidate.products)) {
+    problems.push("products must contain at least one valid product.");
   }
 
   if (
@@ -430,7 +440,7 @@ export async function updateOrderInDatabase(
   const { data: existingOrder, error: lookupError } = await supabase
     .from("orders")
     .select(
-      "id, business_id, customer_name, customer_whatsapp, delivery_type, delivery_address, payment_method, total, notes",
+      "id, business_id, customer_name, customer_whatsapp, delivery_type, delivery_address, payment_method, products, total, notes",
     )
     .eq("id", orderId)
     .maybeSingle<OrderLookupRow>();
@@ -449,7 +459,7 @@ export async function updateOrderInDatabase(
       : existingOrder.customer_name;
   const nextCustomerWhatsApp =
     normalizedPayload.customerWhatsApp !== undefined
-      ? normalizedPayload.customerWhatsApp.trim()
+      ? normalizedPayload.customerWhatsApp?.trim() || ""
       : existingOrder.customer_whatsapp ?? "";
   const nextDeliveryType =
     normalizedPayload.deliveryType !== undefined
@@ -461,13 +471,11 @@ export async function updateOrderInDatabase(
       : existingOrder.delivery_address ?? "";
   const nextTotal =
     normalizedPayload.total !== undefined ? normalizedPayload.total : existingOrder.total;
+  const nextProducts =
+    normalizedPayload.products !== undefined ? normalizedPayload.products : existingOrder.products;
 
   if (nextCustomerName.length === 0) {
     throw new Error("Invalid order update payload. customerName is required.");
-  }
-
-  if (nextCustomerWhatsApp.length === 0) {
-    throw new Error("Invalid order update payload. customerWhatsApp is required.");
   }
 
   if (nextDeliveryType === "domicilio" && nextDeliveryAddress.length === 0) {
@@ -480,6 +488,12 @@ export async function updateOrderInDatabase(
     throw new Error("Invalid order update payload. total must be greater than or equal to 0.");
   }
 
+  if (!isValidOrderProducts(nextProducts)) {
+    throw new Error(
+      "Invalid order update payload. products must contain at least one valid product.",
+    );
+  }
+
   const updatePayload = {
     ...(normalizedPayload.status !== undefined ? { status: normalizedPayload.status } : {}),
     ...(normalizedPayload.paymentStatus !== undefined
@@ -489,7 +503,7 @@ export async function updateOrderInDatabase(
       ? { customer_name: nextCustomerName }
       : {}),
     ...(normalizedPayload.customerWhatsApp !== undefined
-      ? { customer_whatsapp: nextCustomerWhatsApp }
+      ? { customer_whatsapp: nextCustomerWhatsApp || null }
       : {}),
     ...(normalizedPayload.deliveryType !== undefined
       ? { delivery_type: normalizedPayload.deliveryType }
@@ -500,6 +514,7 @@ export async function updateOrderInDatabase(
     ...(normalizedPayload.paymentMethod !== undefined
       ? { payment_method: normalizedPayload.paymentMethod }
       : {}),
+    ...(normalizedPayload.products !== undefined ? { products: nextProducts } : {}),
     ...(normalizedPayload.notes !== undefined
       ? { notes: normalizedPayload.notes?.trim() || null }
       : {}),

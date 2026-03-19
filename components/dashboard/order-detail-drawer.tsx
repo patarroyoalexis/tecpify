@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
   getAvailablePaymentMethods,
@@ -31,6 +31,7 @@ import {
   PAYMENT_STATUSES,
   type DeliveryType,
   type Order,
+  type OrderProduct,
   type OrderStatus,
   type PaymentMethod,
   type PaymentStatus,
@@ -54,6 +55,7 @@ interface OrderDetailDrawerProps {
       | "deliveryType"
       | "deliveryAddress"
       | "paymentMethod"
+      | "products"
       | "notes"
       | "total"
     >,
@@ -69,10 +71,17 @@ interface EditOrderFormState {
   deliveryType: DeliveryType;
   deliveryAddress: string;
   paymentMethod: PaymentMethod;
+  products: OrderProduct[];
   notes: string;
   total: string;
   status: OrderStatus;
   paymentStatus: PaymentStatus;
+}
+
+interface EditableProductField {
+  id: string;
+  name: string;
+  quantity: string;
 }
 
 const historyFormatter = new Intl.DateTimeFormat("es-CO", {
@@ -106,10 +115,19 @@ function getInitialEditOrderFormState(order: Order): EditOrderFormState {
     deliveryType: order.deliveryType,
     deliveryAddress: order.address ?? "",
     paymentMethod: order.paymentMethod,
+    products: order.products,
     notes: order.observations ?? "",
     total: String(order.total),
     status: order.status,
     paymentStatus: order.paymentStatus,
+  };
+}
+
+function createEditableProduct(product?: OrderProduct): EditableProductField {
+  return {
+    id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+    name: product?.name ?? "",
+    quantity: product ? String(product.quantity) : "1",
   };
 }
 
@@ -144,8 +162,10 @@ export function OrderDetailDrawer({
   const [actionError, setActionError] = useState("");
   const [whatsAppFeedback, setWhatsAppFeedback] = useState("");
   const [editForm, setEditForm] = useState<EditOrderFormState | null>(null);
+  const [editableProducts, setEditableProducts] = useState<EditableProductField[]>([]);
   const [renderedOrder, setRenderedOrder] = useState<Order | null>(order);
   const [isVisible, setIsVisible] = useState(false);
+  const previousRenderedOrderIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!order) {
@@ -190,17 +210,34 @@ export function OrderDetailDrawer({
   useEffect(() => {
     if (!renderedOrder) {
       setEditForm(null);
+      setEditableProducts([]);
+      previousRenderedOrderIdRef.current = null;
       return;
     }
 
-    setIsEditing(false);
-    setIsSaving(false);
-    setEditError("");
-    setEditSuccess("");
-    setActionError("");
-    setWhatsAppFeedback("");
-    setEditForm(getInitialEditOrderFormState(renderedOrder));
-  }, [renderedOrder]);
+    const isDifferentOrder = previousRenderedOrderIdRef.current !== renderedOrder.id;
+
+    if (isDifferentOrder) {
+      setIsEditing(false);
+      setIsSaving(false);
+      setEditError("");
+      setEditSuccess("");
+      setActionError("");
+      setWhatsAppFeedback("");
+    }
+
+    if (!isEditing || isDifferentOrder) {
+      const nextFormState = getInitialEditOrderFormState(renderedOrder);
+      setEditForm(nextFormState);
+      setEditableProducts(
+        renderedOrder.products.length > 0
+          ? renderedOrder.products.map((product) => createEditableProduct(product))
+          : [createEditableProduct()],
+      );
+    }
+
+    previousRenderedOrderIdRef.current = renderedOrder.id;
+  }, [isEditing, renderedOrder]);
 
   if (!renderedOrder) {
     return null;
@@ -208,6 +245,15 @@ export function OrderDetailDrawer({
 
   const currentOrder = renderedOrder;
   const currentEditForm = editForm ?? getInitialEditOrderFormState(currentOrder);
+  const normalizedProducts = editableProducts
+    .map((product) => ({
+      name: product.name.trim(),
+      quantity: Number(product.quantity),
+    }))
+    .filter(
+      (product) =>
+        product.name.length > 0 && Number.isFinite(product.quantity) && product.quantity > 0,
+    );
   const sortedHistory = [...currentOrder.history].sort(
     (left, right) =>
       new Date(right.occurredAt).getTime() - new Date(left.occurredAt).getTime(),
@@ -260,6 +306,9 @@ export function OrderDetailDrawer({
       ? "Dirección de entrega"
       : "",
     effectivePaymentMethod !== currentOrder.paymentMethod ? "Método de pago" : "",
+    JSON.stringify(normalizedProducts) !== JSON.stringify(currentOrder.products)
+      ? "Articulos"
+      : "",
     currentEditForm.notes.trim() !== (currentOrder.observations ?? "").trim() ? "Notas" : "",
     totalValue !== currentOrder.total ? "Total" : "",
   ].filter(Boolean);
@@ -291,13 +340,46 @@ export function OrderDetailDrawer({
     });
   }
 
+  function handleEditableProductChange(
+    productId: string,
+    field: "name" | "quantity",
+    value: string,
+  ) {
+    setEditError("");
+    setEditSuccess("");
+    setActionError("");
+    setEditableProducts((currentProducts) =>
+      currentProducts.map((product) =>
+        product.id === productId ? { ...product, [field]: value } : product,
+      ),
+    );
+  }
+
+  function handleAddProductField() {
+    setEditError("");
+    setEditSuccess("");
+    setActionError("");
+    setEditableProducts((currentProducts) => [...currentProducts, createEditableProduct()]);
+  }
+
+  function handleRemoveProductField(productId: string) {
+    setEditError("");
+    setEditSuccess("");
+    setActionError("");
+    setEditableProducts((currentProducts) =>
+      currentProducts.length === 1
+        ? currentProducts
+        : currentProducts.filter((product) => product.id !== productId),
+    );
+  }
+
   function validateForm() {
     if (!currentEditForm.customerName.trim()) {
       return "Ingresa el nombre del cliente.";
     }
 
-    if (!currentEditForm.customerWhatsApp.trim()) {
-      return "Ingresa el WhatsApp del cliente.";
+    if (normalizedProducts.length === 0) {
+      return "Agrega al menos un articulo valido al pedido.";
     }
 
     if (!Number.isFinite(totalValue) || totalValue < 0) {
@@ -356,20 +438,22 @@ export function OrderDetailDrawer({
     setEditSuccess("");
 
     try {
-      await onEditOrder(currentOrder.id, {
+      const persistedOrder = await onEditOrder(currentOrder.id, {
         status: currentEditForm.status,
         paymentStatus: currentEditForm.paymentStatus,
         customerName: currentEditForm.customerName.trim(),
-        customerWhatsApp: currentEditForm.customerWhatsApp.trim(),
+        customerWhatsApp: currentEditForm.customerWhatsApp.trim() || null,
         deliveryType: currentEditForm.deliveryType,
         deliveryAddress:
           currentEditForm.deliveryType === "domicilio"
             ? currentEditForm.deliveryAddress.trim()
             : null,
         paymentMethod: effectivePaymentMethod,
+        products: normalizedProducts,
         notes: currentEditForm.notes.trim() || null,
         total: totalValue,
       });
+      setRenderedOrder(persistedOrder);
       setEditSuccess("Cambios guardados correctamente.");
       setIsEditing(false);
     } catch (error) {
@@ -706,6 +790,78 @@ export function OrderDetailDrawer({
                       className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm text-slate-900"
                     />
                   </label>
+                  <div className="space-y-3 sm:col-span-2">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-sm font-medium text-slate-700">Artículos</span>
+                      <button
+                        type="button"
+                        onClick={handleAddProductField}
+                        disabled={isSaving}
+                        className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+                      >
+                        <OrdersUiIcon icon="plus" className="h-3.5 w-3.5" />
+                        Agregar
+                      </button>
+                    </div>
+
+                    <div className="space-y-3">
+                      {editableProducts.map((product, index) => (
+                        <div
+                          key={product.id}
+                          className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-[1fr_120px_auto]"
+                        >
+                          <label className="space-y-2">
+                            <span className="text-xs font-medium text-slate-600">
+                              Artículo {index + 1}
+                            </span>
+                            <input
+                              value={product.name}
+                              onChange={(event) =>
+                                handleEditableProductChange(
+                                  product.id,
+                                  "name",
+                                  event.target.value,
+                                )
+                              }
+                              disabled={isSaving}
+                              className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900"
+                              placeholder="Nombre del artículo"
+                            />
+                          </label>
+
+                          <label className="space-y-2">
+                            <span className="text-xs font-medium text-slate-600">Cantidad</span>
+                            <input
+                              type="number"
+                              min="1"
+                              value={product.quantity}
+                              onChange={(event) =>
+                                handleEditableProductChange(
+                                  product.id,
+                                  "quantity",
+                                  event.target.value,
+                                )
+                              }
+                              disabled={isSaving}
+                              className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900"
+                            />
+                          </label>
+
+                          <div className="flex items-end">
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveProductField(product.id)}
+                              disabled={isSaving || editableProducts.length === 1}
+                              className="inline-flex items-center gap-1.5 rounded-full border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                            >
+                              <OrdersUiIcon icon="minus" className="h-3.5 w-3.5" />
+                              Quitar
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                   <label className="space-y-2 sm:col-span-2">
                     <span className="text-sm font-medium text-slate-700">Notas</span>
                     <textarea

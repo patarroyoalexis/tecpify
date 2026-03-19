@@ -38,10 +38,11 @@ export interface OrderApiUpdatePayload {
   paymentStatus?: PaymentStatus;
   payment_status?: PaymentStatus;
   customerName?: string;
-  customerWhatsApp?: string;
+  customerWhatsApp?: string | null;
   deliveryType?: DeliveryType;
   deliveryAddress?: string | null;
   paymentMethod?: PaymentMethod;
+  products?: OrderProduct[];
   notes?: string | null;
   total?: number;
   isReviewed?: boolean;
