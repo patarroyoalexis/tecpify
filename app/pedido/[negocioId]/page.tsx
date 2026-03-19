@@ -5,15 +5,18 @@ import {
   getBusinessBySlugWithProducts,
   resolveBusinessBySlug,
 } from "@/data/businesses";
+import { getAdminProductsByBusinessId } from "@/lib/data/products";
 import { getOrdersByBusinessSlugFromDatabase } from "@/lib/data/orders-server";
 import type { Order } from "@/types/orders";
 
 function StorefrontMessage({
   tone,
+  eyebrow,
   title,
   description,
 }: {
   tone: "rose" | "amber";
+  eyebrow: string;
   title: string;
   description: ReactNode;
 }) {
@@ -26,7 +29,7 @@ function StorefrontMessage({
               tone === "rose" ? "text-rose-500" : "text-amber-600"
             }`}
           >
-            {title}
+            {eyebrow}
           </p>
           <p className="mt-3 text-3xl font-semibold text-slate-950">{title}</p>
           <div className="mt-3 text-sm leading-6 text-slate-600">{description}</div>
@@ -49,11 +52,12 @@ export default async function StorefrontOrderPage({
     return (
       <StorefrontMessage
         tone="rose"
+        eyebrow="Link no disponible"
         title="Negocio no encontrado"
         description={
           <>
-            Este link no corresponde a una tienda activa en la demo. Verifica el
-            enlace o solicita uno nuevo al negocio.
+            Este enlace no corresponde a un negocio disponible. Verifica el link o
+            solicita uno nuevo.
           </>
         }
       />
@@ -61,63 +65,103 @@ export default async function StorefrontOrderPage({
   }
 
   let business = null;
-  let productsLoadFailed = false;
   let recentOrders: Order[] = [];
+  let totalProducts = 0;
+  let activeProducts = 0;
 
   try {
     const result = await getBusinessBySlugWithProducts(negocioId);
 
     if (result.status === "ok" || result.status === "no_products" || result.status === "unmapped") {
       business = result.business;
+      activeProducts = result.status === "ok" ? result.business.products.length : 0;
     } else {
       business = null;
     }
   } catch {
-    productsLoadFailed = true;
-  }
-
-  if (productsLoadFailed) {
-    return (
-      <StorefrontMessage
-        tone="rose"
-        title="No pudimos cargar los productos"
-        description={
-          <>
-            Hubo un problema consultando el catalogo real de {fallbackBusiness.name}.
-            Verifica las variables de entorno, la tabla <code>products</code> y las
-            politicas de lectura en Supabase.
-          </>
-        }
-      />
-    );
+    business = null;
   }
 
   if (business && business.databaseId === null) {
     return (
       <StorefrontMessage
         tone="amber"
-        title="Negocio pendiente de sincronizacion"
+        eyebrow="Catalogo no disponible"
+        title="Este negocio aun no esta listo para recibir pedidos"
         description={
           <>
-            {fallbackBusiness.name} sigue disponible solo en modo demo y todavia no
-            tiene un registro operativo en la tabla <code>businesses</code>. Cuando el
-            slug quede asociado a un negocio real en Supabase, el catalogo publico
-            cargara automaticamente desde base de datos.
+            {fallbackBusiness.name} todavia no tiene un catalogo publico disponible.
+            Intenta de nuevo mas tarde o solicita al negocio su link activo.
           </>
         }
       />
     );
   }
 
-  if (!business || business.products.length === 0) {
+  if (business?.databaseId) {
+    try {
+      const adminProducts = await getAdminProductsByBusinessId(business.databaseId);
+      totalProducts = adminProducts.length;
+      activeProducts = adminProducts.filter((product) => product.is_available).length;
+    } catch {
+      return (
+        <StorefrontMessage
+          tone="amber"
+          eyebrow="Catalogo no disponible"
+          title="Este catalogo no se pudo cargar en este momento"
+          description={
+            <>
+              {fallbackBusiness.name} no tiene su catalogo disponible por ahora. Intenta
+              de nuevo en unos minutos.
+            </>
+          }
+        />
+      );
+    }
+  }
+
+  if (!business) {
     return (
       <StorefrontMessage
         tone="amber"
-        title="Aun no has agregado productos"
+        eyebrow="Catalogo no disponible"
+        title="Este negocio aun no tiene catalogo disponible"
         description={
           <>
-            {fallbackBusiness.name} todavia no tiene productos activos para recibir
-            pedidos desde este formulario. Intenta de nuevo mas tarde o solicita apoyo al negocio.
+            {fallbackBusiness.name} todavia no tiene productos disponibles para pedir
+            desde este link.
+          </>
+        }
+      />
+    );
+  }
+
+  if (totalProducts === 0) {
+    return (
+      <StorefrontMessage
+        tone="amber"
+        eyebrow="Catalogo vacio"
+        title="Este negocio aun no ha cargado productos"
+        description={
+          <>
+            {fallbackBusiness.name} ya existe, pero todavia no publico su catalogo.
+            Vuelve mas tarde cuando termine de cargar sus primeros productos.
+          </>
+        }
+      />
+    );
+  }
+
+  if (activeProducts === 0) {
+    return (
+      <StorefrontMessage
+        tone="amber"
+        eyebrow="Catalogo en preparacion"
+        title="Este negocio aun no tiene productos disponibles"
+        description={
+          <>
+            {fallbackBusiness.name} ya cargo productos, pero todavia no activo ninguno
+            para recibir pedidos desde este formulario.
           </>
         }
       />
