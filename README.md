@@ -121,8 +121,8 @@ Lo real hoy:
 Lo incompleto:
 
 - La fuente principal visible en home sigue siendo `mockBusinesses`.
-- No existe alta básica de negocios desde UI.
-- La configuración inicial del negocio todavía depende de datos mockeados y/o configuración manual.
+- El alta basica ya existe, pero solo cubre nombre, slug y timestamps operativos.
+- La configuración inicial del negocio todavía no incluye branding, horarios ni ajustes avanzados.
 
 ### Dashboard
 
@@ -224,8 +224,8 @@ Espacio para documentar el despliegue activo:
 - El MVP todavía mezcla Supabase, mocks y `localStorage` según el flujo y la disponibilidad remota.
 - La creación manual de pedidos desde la app interna aún no cierra persistencia real end-to-end.
 - La edición de pedidos ya existe, pero sigue apoyándose en actualizaciones optimistas con fallback local.
-- El alta de negocios no está resuelta desde producto; depende de configuración manual y datos mockeados.
-- La home pública actual funciona como demo de negocios disponibles más que como onboarding dinámico real.
+- El alta básica ya está resuelta, pero todavía no cubre onboarding extendido del negocio.
+- La home interna ya mezcla descubrimiento y creación; un onboarding más guiado queda para una etapa posterior.
 - La gestión de productos ya existe, pero todavía vive como infraestructura interna en drawer, no como módulo completo de administración.
 - Solo se observa una migración de Supabase versionada en el repo; la documentación completa del esquema aún está pendiente.
 
@@ -240,6 +240,7 @@ Estado consolidado:
 - Pedidos ya operan con persistencia real por API y Supabase como fuente principal.
 - La edición real de pedidos ya persiste cambios principales y reconcilia la UI con la respuesta del servidor.
 - La home separa negocios reales de escenarios demo para no mezclar operación persistida con datos mockeados.
+- La home interna ya permite crear negocios reales y redirigir al dashboard del slug recién creado.
 - La resolución de negocio ya puede partir de Supabase aunque el slug no exista en `mockBusinesses`.
 - El storefront sigue mostrando solo productos activos y válidos.
 
@@ -283,3 +284,35 @@ Riesgos para el siguiente paso:
 - Si se crea negocio sin catálogo inicial, el storefront debe seguir manejando correctamente el estado "sin productos" sin parecer error.
 - Si el alta no define una política clara para slug, se puede romper navegación y resolución de negocio.
 - Antes de abrir onboarding real conviene documentar mejor el esquema de `businesses` y las políticas de acceso asociadas.
+
+## Alta basica de negocios
+
+Ya existe alta basica de negocios desde la app interna.
+
+Que guarda hoy:
+
+- `id`
+- `slug`
+- `name`
+- `createdAt`
+- `updatedAt`
+
+Que hace el flujo:
+
+- recibe `name` y `slug`
+- normaliza el slug con trim, minusculas, espacios a guiones y eliminacion de caracteres invalidos
+- valida unicidad antes de insertar y tambien queda cubierto por un indice unico en base de datos
+- redirige al dashboard visible en `/dashboard/[slug]`
+
+Que no incluye todavia:
+
+- catalogo inicial de productos
+- branding, logo o metadata avanzada
+- horarios
+- configuraciones operativas adicionales
+
+Notas operativas:
+
+- El catalogo queda como segundo paso del MVP.
+- Un negocio nuevo puede existir sin productos ni pedidos.
+- Dashboard, pedidos, metricas y storefront muestran empty states claros y no caen automaticamente a mocks como si fueran datos reales.

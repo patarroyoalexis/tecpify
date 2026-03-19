@@ -113,11 +113,11 @@ export default async function StorefrontOrderPage({
     return (
       <StorefrontMessage
         tone="amber"
-        title="Aun no hay productos disponibles"
+        title="Aun no has agregado productos"
         description={
           <>
-            {fallbackBusiness.name} todavia no tiene productos activos en este
-            formulario. Intenta de nuevo mas tarde o solicita apoyo al negocio.
+            {fallbackBusiness.name} todavia no tiene productos activos para recibir
+            pedidos desde este formulario. Intenta de nuevo mas tarde o solicita apoyo al negocio.
           </>
         }
       />

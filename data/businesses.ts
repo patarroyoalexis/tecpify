@@ -1,6 +1,8 @@
 import { debugError, debugLog } from "@/lib/debug";
+import { normalizeBusinessSlug } from "@/lib/businesses/slug";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { DELIVERY_TYPES, PAYMENT_METHODS } from "@/types/orders";
+import type { BusinessRecord } from "@/types/businesses";
 import type { BusinessConfig } from "@/types/storefront";
 
 export const mockBusinesses: BusinessConfig[] = [
@@ -72,6 +74,9 @@ export const mockBusinesses: BusinessConfig[] = [
 type SupabaseBusinessRow = {
   id: string;
   slug: string;
+  name: string;
+  created_at: string;
+  updated_at: string;
 };
 
 export interface ResolvedBusiness {
@@ -97,6 +102,16 @@ function humanizeSlug(slug: string) {
     .filter(Boolean)
     .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
     .join(" ");
+}
+
+function mapSupabaseBusinessRow(row: SupabaseBusinessRow): BusinessRecord {
+  return {
+    id: row.id,
+    slug: row.slug,
+    name: row.name,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
 }
 
 function createBaseBusinessConfig(
@@ -135,13 +150,14 @@ export const getBusinessBySlug = getDemoBusinessBySlug;
 export const getBusinessById = getDemoBusinessBySlug;
 
 export async function getBusinessBySlugFromDatabase(slug: string) {
+  const normalizedSlug = normalizeBusinessSlug(slug);
   debugLog("[businesses] Resolving business by slug", { slug });
 
   const supabase = createServerSupabaseClient();
   const { data, error } = await supabase
     .from("businesses")
-    .select("id, slug")
-    .eq("slug", slug)
+    .select("id, slug, name, created_at, updated_at")
+    .eq("slug", normalizedSlug)
     .maybeSingle<SupabaseBusinessRow>();
 
   if (error) {
@@ -150,29 +166,30 @@ export async function getBusinessBySlugFromDatabase(slug: string) {
   }
 
   debugLog("[businesses] Business resolved", {
-    slug,
+    slug: normalizedSlug,
     found: Boolean(data),
   });
 
-  return data;
+  return data ? mapSupabaseBusinessRow(data) : null;
 }
 
 async function getBusinessesFromDatabase() {
   const supabase = createServerSupabaseClient();
   const { data, error } = await supabase
     .from("businesses")
-    .select("id, slug")
+    .select("id, slug, name, created_at, updated_at")
     .order("slug", { ascending: true });
 
   if (error) {
     throw new Error(`Supabase businesses query failed: ${error.message}`);
   }
 
-  return (data ?? []) as SupabaseBusinessRow[];
+  return ((data ?? []) as SupabaseBusinessRow[]).map(mapSupabaseBusinessRow);
 }
 
 export async function resolveBusinessBySlug(slug: string): Promise<ResolvedBusiness | null> {
-  const demoBusiness = getDemoBusinessBySlug(slug);
+  const normalizedSlug = normalizeBusinessSlug(slug);
+  const demoBusiness = getDemoBusinessBySlug(normalizedSlug);
   const databaseBusiness = await getBusinessBySlugFromDatabase(slug);
 
   if (!databaseBusiness && !demoBusiness) {
@@ -184,9 +201,7 @@ export async function resolveBusinessBySlug(slug: string): Promise<ResolvedBusin
       business: withDatabaseId(
         demoBusiness
           ? demoBusiness
-          : createBaseBusinessConfig(databaseBusiness.slug, {
-              name: humanizeSlug(databaseBusiness.slug),
-            }),
+          : createBaseBusinessConfig(databaseBusiness.slug, { name: databaseBusiness.name }),
         databaseBusiness.id,
       ),
       source: "database",
@@ -202,7 +217,7 @@ export async function resolveBusinessBySlug(slug: string): Promise<ResolvedBusin
 }
 
 export async function getHomeBusinesses(): Promise<HomeBusinessesSnapshot> {
-  let databaseBusinesses: SupabaseBusinessRow[] = [];
+  let databaseBusinesses: BusinessRecord[] = [];
 
   try {
     databaseBusinesses = await getBusinessesFromDatabase();
@@ -218,9 +233,7 @@ export async function getHomeBusinesses(): Promise<HomeBusinessesSnapshot> {
     return withDatabaseId(
       demoBusiness
         ? demoBusiness
-        : createBaseBusinessConfig(databaseBusiness.slug, {
-            name: humanizeSlug(databaseBusiness.slug),
-          }),
+        : createBaseBusinessConfig(databaseBusiness.slug, { name: databaseBusiness.name }),
       databaseBusiness.id,
     );
   });

@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { CreateBusinessPanel } from "@/components/home/create-business-panel";
 import { getHomeBusinesses } from "@/data/businesses";
 
 function BusinessCard({
@@ -72,17 +73,21 @@ export default async function Home() {
   return (
     <main className="min-h-screen px-4 py-8 sm:px-6">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
-        <section className="rounded-[32px] border border-white/70 bg-white/90 p-8 shadow-[0_24px_80px_rgba(15,23,42,0.1)]">
-          <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-500">
-            Tecpify MVP
-          </p>
-          <h1 className="mt-3 text-4xl font-semibold tracking-tight text-slate-950">
-            Negocios disponibles
-          </h1>
-          <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-            La home ahora separa negocios conectados a la base real de escenarios
-            demo. Asi evitamos mezclar onboarding ficticio con operacion persistida.
-          </p>
+        <section className="grid gap-6 lg:grid-cols-[1.25fr_0.95fr]">
+          <div className="rounded-[32px] border border-white/70 bg-white/90 p-8 shadow-[0_24px_80px_rgba(15,23,42,0.1)]">
+            <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-500">
+              Tecpify MVP
+            </p>
+            <h1 className="mt-3 text-4xl font-semibold tracking-tight text-slate-950">
+              Negocios disponibles
+            </h1>
+            <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
+              La home separa negocios conectados a la base real de escenarios demo y ahora
+              tambien permite crear negocios operativos sin mezclar ese paso con catalogo.
+            </p>
+          </div>
+
+          <CreateBusinessPanel />
         </section>
 
         <section className="space-y-4">

@@ -11,8 +11,7 @@ import {
 import { OrdersFilters } from "@/components/dashboard/orders-filters";
 import { getBusinessDashboardStateKey } from "@/data/order-storage";
 import { getOperationalMetrics } from "@/data/orders";
-import { getOrderDisplayCode, type Order, type OrderStatus } from "@/types/orders";
-import { ORDER_STATUSES } from "@/types/orders";
+import { getOrderDisplayCode, ORDER_STATUSES, type Order, type OrderStatus } from "@/types/orders";
 import { useBusinessWorkspace } from "./business-workspace-context";
 
 interface OrdersWorkspaceProps {
@@ -46,9 +45,7 @@ function isValidExpandedGroups(value: unknown): value is Record<GroupKey, boolea
   );
 }
 
-function readPersistedOrdersViewState(
-  storageKey: string,
-): PersistedOrdersViewState | null {
+function readPersistedOrdersViewState(storageKey: string): PersistedOrdersViewState | null {
   if (typeof window === "undefined") {
     return null;
   }
@@ -103,25 +100,17 @@ function matchesSearch(order: Order, searchQuery: string) {
     ...order.products.map((product) => product.name),
   ];
 
-  return searchableValues.some((value) =>
-    value.toLowerCase().includes(normalizedQuery),
-  );
+  return searchableValues.some((value) => value.toLowerCase().includes(normalizedQuery));
 }
 
-export function OrdersWorkspace({
-  businessId,
-}: OrdersWorkspaceProps) {
+export function OrdersWorkspace({ businessId }: OrdersWorkspaceProps) {
   const dashboardStorageKey = getBusinessDashboardStateKey(businessId);
   const [initialOrdersViewState] = useState(() => getInitialOrdersViewState());
   const [selectedStatus, setSelectedStatus] = useState<OrderStatus | "todos">(
     initialOrdersViewState.selectedStatus,
   );
-  const [expandedGroups, setExpandedGroups] = useState(
-    initialOrdersViewState.expandedGroups,
-  );
-  const [searchQuery, setSearchQuery] = useState(
-    initialOrdersViewState.searchQuery,
-  );
+  const [expandedGroups, setExpandedGroups] = useState(initialOrdersViewState.expandedGroups);
+  const [searchQuery, setSearchQuery] = useState(initialOrdersViewState.searchQuery);
   const {
     hasHydrated,
     ordersError,
@@ -158,13 +147,7 @@ export function OrdersWorkspace({
     };
 
     window.localStorage.setItem(dashboardStorageKey, JSON.stringify(stateToPersist));
-  }, [
-    dashboardStorageKey,
-    expandedGroups,
-    hasHydrated,
-    searchQuery,
-    selectedStatus,
-  ]);
+  }, [dashboardStorageKey, expandedGroups, hasHydrated, searchQuery, selectedStatus]);
 
   const searchedOrders = ordersState.filter((order) => matchesSearch(order, searchQuery));
   const filteredOrders =
@@ -172,6 +155,7 @@ export function OrdersWorkspace({
       ? searchedOrders
       : searchedOrders.filter((order) => order.status === selectedStatus);
   const metrics = getOperationalMetrics(ordersState);
+  const hasActiveFilters = selectedStatus !== "todos" || searchQuery.trim().length > 0;
 
   function handleToggleGroup(groupKey: GroupKey) {
     setExpandedGroups((currentState) => ({
@@ -186,11 +170,7 @@ export function OrdersWorkspace({
     }
 
     function handleDevelopmentReset(event: KeyboardEvent) {
-      if (
-        event.altKey &&
-        event.shiftKey &&
-        event.key.toLowerCase() === "r"
-      ) {
+      if (event.altKey && event.shiftKey && event.key.toLowerCase() === "r") {
         event.preventDefault();
         window.localStorage.removeItem(dashboardStorageKey);
         handleResetOrders();
@@ -227,6 +207,7 @@ export function OrdersWorkspace({
 
       <OrdersList
         orders={filteredOrders}
+        hasActiveFilters={hasActiveFilters}
         expandedGroups={expandedGroups}
         onToggleGroup={handleToggleGroup}
         onOpenDetails={openOrderDetails}

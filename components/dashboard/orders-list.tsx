@@ -3,10 +3,11 @@
 import { OrderCard } from "@/components/dashboard/order-card";
 import { OrdersUiIcon } from "@/components/dashboard/orders-ui-icon";
 import { getOperationalPriorityScore } from "@/data/orders";
-import type { Order, OrderStatus, PaymentStatus } from "@/types/orders";
+import { ORDER_STATUSES, type Order, type OrderStatus, type PaymentStatus } from "@/types/orders";
 
 interface OrdersListProps {
   orders: Order[];
+  hasActiveFilters: boolean;
   expandedGroups: Record<GroupKey, boolean>;
   onToggleGroup: (groupKey: GroupKey) => void;
   onOpenDetails: (orderId: string) => void;
@@ -29,14 +30,14 @@ interface OrderGroup {
 const orderGroups: OrderGroup[] = [
   {
     key: "immediate",
-    title: "Requieren atención inmediata",
+    title: "Requieren atencion inmediata",
     statuses: ["pendiente de pago", "pago por verificar"],
     tone: "border-amber-200 bg-amber-50/60 text-amber-900",
   },
   {
     key: "active",
     title: "En curso",
-    statuses: ["confirmado", "en preparación", "listo"],
+    statuses: ["confirmado", ORDER_STATUSES[3], "listo"],
     tone: "border-sky-200 bg-sky-50/60 text-sky-900",
   },
   {
@@ -55,6 +56,7 @@ export const defaultExpandedGroupsState: Record<GroupKey, boolean> = {
 
 export function OrdersList({
   orders,
+  hasActiveFilters,
   expandedGroups,
   onToggleGroup,
   onOpenDetails,
@@ -65,10 +67,12 @@ export function OrdersList({
     return (
       <section className="rounded-[24px] border border-dashed border-slate-300 bg-white/70 p-10 text-center shadow-[0_16px_40px_rgba(15,23,42,0.04)]">
         <h2 className="text-lg font-semibold text-slate-950">
-          No hay pedidos en este estado
+          {hasActiveFilters ? "No hay pedidos en este estado" : "Aun no tienes pedidos"}
         </h2>
         <p className="mt-2 text-sm text-slate-600">
-          Prueba con otro filtro para revisar el resto de la operación.
+          {hasActiveFilters
+            ? "Prueba con otro filtro para revisar el resto de la operacion."
+            : "Cuando llegue el primer pedido, aparecera aqui sin necesidad de datos demo."}
         </p>
       </section>
     );

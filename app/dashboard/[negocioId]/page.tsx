@@ -1,6 +1,7 @@
 import { BusinessWorkspaceShell } from "@/components/dashboard/business-workspace-shell";
 import { DashboardOverview } from "@/components/dashboard/dashboard-overview";
 import { resolveBusinessBySlug } from "@/data/businesses";
+import { getAdminProductsByBusinessId } from "@/lib/data/products";
 import { getOrdersByBusinessSlugFromDatabase } from "@/lib/data/orders-server";
 import type { Order } from "@/types/orders";
 
@@ -14,6 +15,7 @@ export default async function BusinessDashboardPage({
   const business = resolvedBusiness?.business ?? null;
   let initialOrders: Order[] = [];
   let initialOrdersError: string | null = null;
+  let initialProductsCount = 0;
 
   if (business && resolvedBusiness?.hasDatabaseRecord) {
     try {
@@ -23,6 +25,15 @@ export default async function BusinessDashboardPage({
         error instanceof Error
           ? error.message
           : "No fue posible cargar los pedidos reales de este negocio.";
+    }
+
+    if (business.databaseId) {
+      try {
+        const products = await getAdminProductsByBusinessId(business.databaseId);
+        initialProductsCount = products.length;
+      } catch {
+        initialProductsCount = 0;
+      }
     }
   }
 
@@ -48,7 +59,7 @@ export default async function BusinessDashboardPage({
   }
 
   return (
-      <BusinessWorkspaceShell
+    <BusinessWorkspaceShell
       businessId={business.slug}
       businessDatabaseId={business.databaseId ?? null}
       businessName={business.name}
@@ -60,6 +71,7 @@ export default async function BusinessDashboardPage({
     >
       <DashboardOverview
         businessId={business.slug}
+        initialProductsCount={initialProductsCount}
       />
     </BusinessWorkspaceShell>
   );

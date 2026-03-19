@@ -14,25 +14,27 @@ import { useBusinessWorkspace } from "./business-workspace-context";
 
 interface DashboardOverviewProps {
   businessId: string;
+  initialProductsCount: number;
 }
 
 export function DashboardOverview({
   businessId,
+  initialProductsCount,
 }: DashboardOverviewProps) {
   const { openProductsManager, ordersError, ordersState } = useBusinessWorkspace();
   const summary = getDashboardSummary(ordersState);
   const insights = getBusinessInsights(ordersState).slice(0, 2);
   const unreviewedOrders = ordersState.filter((order) => !order.isReviewed);
-  const newOrdersToday = unreviewedOrders.filter(
-    (order) => summary.recentOrders.some((recentOrder) => recentOrder.id === order.id),
+  const newOrdersToday = unreviewedOrders.filter((order) =>
+    summary.recentOrders.some((recentOrder) => recentOrder.id === order.id),
   );
-  const urgentOrders = ordersState.filter(
-    (order) => getOperationalPriority(order) === "alta",
-  );
+  const urgentOrders = ordersState.filter((order) => getOperationalPriority(order) === "alta");
   const pendingAttention = ordersState.filter(
     (order) =>
       order.status === "pendiente de pago" || order.status === "pago por verificar",
   );
+  const hasOrders = ordersState.length > 0;
+  const hasProducts = initialProductsCount > 0;
 
   const executiveMetrics = [
     {
@@ -54,7 +56,7 @@ export function DashboardOverview({
       tone: "warning" as const,
     },
     {
-      title: "Pendientes de atención",
+      title: "Pendientes de atencion",
       value: `${pendingAttention.length}`,
       description: "Pedidos que requieren cobro, verificacion o una accion inmediata.",
       tone: "neutral" as const,
@@ -66,6 +68,39 @@ export function DashboardOverview({
       {ordersError ? (
         <section className="rounded-[22px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           {ordersError}
+        </section>
+      ) : null}
+
+      {!hasOrders ? (
+        <section className="rounded-[28px] border border-dashed border-slate-300 bg-white/90 p-6 shadow-[0_18px_45px_rgba(15,23,42,0.04)]">
+          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">
+            Estado inicial
+          </p>
+          <h2 className="mt-2 text-2xl font-semibold text-slate-950">
+            Aun no tienes pedidos
+          </h2>
+          <p className="mt-2 text-sm leading-6 text-slate-600">
+            Este negocio todavia no tiene informacion operativa. Cuando entren pedidos,
+            aqui veras actividad reciente, prioridades y metricas resumidas.
+          </p>
+
+          {!hasProducts ? (
+            <div className="mt-4 rounded-[22px] border border-amber-200 bg-amber-50/80 p-4">
+              <p className="text-sm font-semibold text-amber-800">
+                Aun no has agregado productos
+              </p>
+              <p className="mt-1 text-sm leading-6 text-slate-700">
+                Puedes crear el primer producto para habilitar el catalogo publico del negocio.
+              </p>
+              <button
+                type="button"
+                onClick={openProductsManager}
+                className="mt-4 rounded-full bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
+              >
+                Crear primer producto
+              </button>
+            </div>
+          ) : null}
         </section>
       ) : null}
 
@@ -117,9 +152,7 @@ export function DashboardOverview({
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-base font-semibold text-slate-950">
-                          {order.client}
-                        </p>
+                        <p className="text-base font-semibold text-slate-950">{order.client}</p>
                         <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600">
                           {getOrderDisplayCode(order)}
                         </span>

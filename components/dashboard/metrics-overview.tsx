@@ -46,7 +46,7 @@ export function MetricsOverview() {
       tone: "warning" as const,
     },
     {
-      title: "Producto más vendido",
+      title: "Producto mas vendido",
       value: summary.featuredProduct?.name ?? "Sin datos",
       description: summary.featuredProduct
         ? `${summary.featuredProduct.quantity} unidades acumuladas.`
@@ -63,6 +63,21 @@ export function MetricsOverview() {
         </section>
       ) : null}
 
+      {ordersState.length === 0 ? (
+        <section className="rounded-[28px] border border-dashed border-slate-300 bg-white/90 p-6 shadow-[0_18px_45px_rgba(15,23,42,0.04)]">
+          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">
+            Metricas iniciales
+          </p>
+          <h2 className="mt-2 text-2xl font-semibold text-slate-950">
+            Aun no tienes pedidos
+          </h2>
+          <p className="mt-2 text-sm leading-6 text-slate-600">
+            Este negocio todavia no tiene informacion operativa suficiente para construir
+            comparativos, rankings o insights confiables.
+          </p>
+        </section>
+      ) : null}
+
       <MetricsCards metrics={metrics} />
 
       <section className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
@@ -76,9 +91,7 @@ export function MetricsOverview() {
                 Ventas de los ultimos cortes disponibles
               </h2>
             </div>
-            <p className="text-sm text-slate-500">
-              Base inicial lista para crecer en piloto
-            </p>
+            <p className="text-sm text-slate-500">Base inicial lista para crecer en piloto</p>
           </div>
 
           <div className="mt-6 space-y-4">
@@ -134,9 +147,7 @@ export function MetricsOverview() {
                     <p className="text-sm font-semibold text-slate-950">
                       {index + 1}. {product.name}
                     </p>
-                    <p className="text-xs text-slate-500">
-                      {product.quantity} unidades
-                    </p>
+                    <p className="text-xs text-slate-500">{product.quantity} unidades</p>
                   </div>
                   <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600">
                     Top
@@ -183,9 +194,7 @@ export function MetricsOverview() {
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-700">
             Piloto premium
           </p>
-          <h2 className="mt-1 text-2xl font-semibold text-slate-950">
-            Espacio listo para crecer
-          </h2>
+          <h2 className="mt-1 text-2xl font-semibold text-slate-950">Espacio listo para crecer</h2>
           <p className="mt-3 text-sm leading-6 text-slate-700">
             Aqui puedes evolucionar hacia comparativos semanales, proyecciones, alertas
             de caida y recomendaciones comerciales sin mezclar esta capa analitica con la
