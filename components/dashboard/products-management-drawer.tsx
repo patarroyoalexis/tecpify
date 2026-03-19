@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import {
   createProductViaApi,
@@ -86,6 +87,7 @@ export function ProductsManagementDrawer({
   onClose,
   initialMode = "list",
 }: ProductsManagementDrawerProps) {
+  const router = useRouter();
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -242,6 +244,7 @@ export function ProductsManagementDrawer({
       }
 
       await loadProducts();
+      router.refresh();
       setMode("list");
       setEditingProductId(null);
       setFormState(createDefaultFormState(nextSortOrder));
@@ -275,6 +278,7 @@ export function ProductsManagementDrawer({
         [field]: value,
       });
       await loadProducts();
+      router.refresh();
       setFeedback(successMessage);
     } catch (toggleError) {
       setError(
@@ -306,6 +310,7 @@ export function ProductsManagementDrawer({
         sortOrder: targetIndex + 1,
       });
       await loadProducts();
+      router.refresh();
     } catch (moveError) {
       setError(
         moveError instanceof Error

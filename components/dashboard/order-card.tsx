@@ -194,6 +194,8 @@ export function OrderCard({
   const canEditOrderStatus = canManageOrderStatus(order) && !isOrderFlowClosed;
   const { totalUnits, visibleNames, moreLabel } = getProductSummary(order);
   const paymentMethodLabel = getPaymentMethodLabel(order.paymentMethod, order.deliveryType);
+  const deliveryLabel =
+    order.deliveryType === "domicilio" ? "Domicilio" : "Recogida en tienda";
   const hasAddress = Boolean(order.address?.trim());
   const orderStatusControl = canEditOrderStatus ? (
     <StopPropagationWrapper>
@@ -261,9 +263,14 @@ export function OrderCard({
                 <h3 className="truncate pr-4 text-[15px] font-semibold text-slate-950 sm:text-base">
                   {order.client}
                 </h3>
-                <p className="mt-1 text-xs font-medium text-slate-500">
-                  {getOrderDisplayCode(order)}
-                </p>
+                <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-medium text-slate-500">
+                  <span>{getOrderDisplayCode(order)}</span>
+                  <span className="hidden text-slate-300 sm:inline">•</span>
+                  <span>{order.dateLabel}</span>
+                </div>
+                {order.customerPhone ? (
+                  <p className="mt-1 text-xs text-slate-500">{order.customerPhone}</p>
+                ) : null}
               </div>
               <div className="shrink-0 sm:hidden">{detailsButton}</div>
             </div>
@@ -289,7 +296,12 @@ export function OrderCard({
                   <OrdersUiIcon icon="map-pin" className="h-3.5 w-3.5 text-slate-400" />
                   <span className="truncate">{order.address}</span>
                 </span>
-              ) : null}
+              ) : (
+                <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                  <OrdersUiIcon icon="store" className="h-3.5 w-3.5 text-slate-400" />
+                  <span>{deliveryLabel}</span>
+                </span>
+              )}
               <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
                 <OrdersUiIcon icon="wallet" className="h-3.5 w-3.5 text-slate-400" />
                 <span>Pago: {paymentMethodLabel}</span>
@@ -360,4 +372,3 @@ export function OrderCard({
     </article>
   );
 }
-

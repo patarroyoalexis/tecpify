@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { MetricsCards } from "@/components/dashboard/metrics-cards";
 import type { BusinessReadinessSnapshot } from "@/lib/businesses/readiness";
@@ -22,12 +22,13 @@ interface DashboardOverviewProps {
 
 function CopyPublicLinkButton({ businessId }: { businessId: string }) {
   const [feedback, setFeedback] = useState("");
+  const [publicUrl, setPublicUrl] = useState(`/pedido/${businessId}`);
+
+  useEffect(() => {
+    setPublicUrl(`${window.location.origin}/pedido/${businessId}`);
+  }, [businessId]);
 
   async function handleCopy() {
-    const publicPath = `/pedido/${businessId}`;
-    const publicUrl =
-      typeof window === "undefined" ? publicPath : `${window.location.origin}${publicPath}`;
-
     try {
       await navigator.clipboard.writeText(publicUrl);
       setFeedback("Link copiado");
@@ -66,6 +67,11 @@ function CommerceReadinessCard({
   onOpenProductsManager: () => void;
 }) {
   const publicPath = `/pedido/${businessId}`;
+  const [publicUrl, setPublicUrl] = useState(publicPath);
+
+  useEffect(() => {
+    setPublicUrl(`${window.location.origin}${publicPath}`);
+  }, [publicPath]);
 
   if (businessReadiness.status === "no_products") {
     return (
@@ -99,7 +105,7 @@ function CommerceReadinessCard({
         </div>
 
         <div className="mt-5 rounded-[22px] border border-white/80 bg-white/80 p-4 text-sm leading-6 text-slate-700">
-          Cuando tengas al menos un producto activo, podras compartir <code>{publicPath}</code> y
+          Cuando tengas al menos un producto activo, podras compartir tu link publico y
           empezar a recibir pedidos reales.
         </div>
       </section>
@@ -163,7 +169,7 @@ function CommerceReadinessCard({
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
           Link publico
         </p>
-        <p className="mt-2 break-all text-sm font-medium text-slate-900">{publicPath}</p>
+        <p className="mt-2 break-all text-sm font-medium text-slate-900">{publicUrl}</p>
       </div>
 
       <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start">

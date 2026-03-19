@@ -38,6 +38,8 @@ interface UseBusinessOrdersOptions {
   initialOrdersError?: string | null;
 }
 
+const ORDERS_AUTO_REFRESH_INTERVAL_MS = 15000;
+
 type EditableOrderPayload = Pick<
   OrderApiUpdatePayload,
   | "status"
@@ -277,6 +279,53 @@ export function useBusinessOrders({
       isCancelled = true;
     };
   }, [orders, resolvedBusinessSlug]);
+
+  useEffect(() => {
+    if (!hasHydrated || typeof window === "undefined") {
+      return;
+    }
+
+    let isRefreshing = false;
+
+    async function refreshInBackground() {
+      if (isRefreshing || document.visibilityState !== "visible") {
+        return;
+      }
+
+      isRefreshing = true;
+
+      try {
+        await refreshOrders({ suppressError: true });
+      } catch {
+        // Preserve current UI state and avoid noisy banners during background refresh.
+      } finally {
+        isRefreshing = false;
+      }
+    }
+
+    const intervalId = window.setInterval(() => {
+      void refreshInBackground();
+    }, ORDERS_AUTO_REFRESH_INTERVAL_MS);
+
+    function handleWindowFocus() {
+      void refreshInBackground();
+    }
+
+    function handleVisibilityChange() {
+      if (document.visibilityState === "visible") {
+        void refreshInBackground();
+      }
+    }
+
+    window.addEventListener("focus", handleWindowFocus);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", handleWindowFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [hasHydrated, refreshOrders]);
 
   const newOrders = useMemo(
     () => ordersState.filter((order) => !order.isReviewed),
