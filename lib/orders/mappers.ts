@@ -100,6 +100,12 @@ function mapProducts(value: unknown): OrderProduct[] {
     }
 
     const candidate = item as Record<string, unknown>;
+    const productId =
+      typeof candidate.productId === "string"
+        ? candidate.productId
+        : typeof candidate.product_id === "string"
+          ? candidate.product_id
+          : undefined;
     const name = typeof candidate.name === "string" ? candidate.name : "";
     const quantity =
       typeof candidate.quantity === "number"
@@ -107,12 +113,29 @@ function mapProducts(value: unknown): OrderProduct[] {
         : typeof candidate.quantity === "string"
           ? Number(candidate.quantity)
           : 0;
+    const unitPrice =
+      typeof candidate.unitPrice === "number"
+        ? candidate.unitPrice
+        : typeof candidate.unit_price === "number"
+          ? candidate.unit_price
+          : typeof candidate.price === "number"
+            ? candidate.price
+            : undefined;
 
     if (!name || !Number.isFinite(quantity) || quantity <= 0) {
       return [];
     }
 
-    return [{ name, quantity }];
+    return [
+      {
+        ...(productId ? { productId } : {}),
+        name,
+        quantity,
+        ...(unitPrice !== undefined && Number.isFinite(unitPrice) && unitPrice >= 0
+          ? { unitPrice }
+          : {}),
+      },
+    ];
   });
 }
 
@@ -286,15 +309,22 @@ export function normalizeOrderApiUpdatePayload(payload: unknown): unknown {
 export function isValidOrderProducts(value: unknown): value is OrderProduct[] {
   return (
     Array.isArray(value) &&
+    value.length > 0 &&
     value.every(
       (product) =>
         product &&
         typeof product === "object" &&
+        (product.productId === undefined ||
+          (typeof product.productId === "string" && product.productId.trim().length > 0)) &&
         typeof product.name === "string" &&
         product.name.trim().length > 0 &&
         typeof product.quantity === "number" &&
         Number.isFinite(product.quantity) &&
-        product.quantity > 0,
+        product.quantity > 0 &&
+        (product.unitPrice === undefined ||
+          (typeof product.unitPrice === "number" &&
+            Number.isFinite(product.unitPrice) &&
+            product.unitPrice >= 0)),
     )
   );
 }

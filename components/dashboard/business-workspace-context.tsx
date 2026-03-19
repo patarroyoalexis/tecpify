@@ -192,9 +192,15 @@ export function BusinessWorkspaceProvider({
       />
 
       <NewOrderDrawer
+        businessDatabaseId={businessDatabaseId}
         isOpen={isNewOrderDrawerOpen}
         onClose={() => setIsNewOrderDrawerOpen(false)}
         onCreateOrder={handleCreateOrder}
+        onOpenProducts={() => {
+          setIsNewOrderDrawerOpen(false);
+          setProductsDrawerMode("create");
+          setIsProductsDrawerOpen(true);
+        }}
       />
 
       <ProductsManagementDrawer

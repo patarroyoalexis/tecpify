@@ -179,8 +179,10 @@ function getSelectedProducts(
   return business.products
     .filter((product) => (quantities[product.id] ?? 0) > 0)
     .map((product) => ({
+      productId: product.id,
       name: product.name,
       quantity: quantities[product.id],
+      unitPrice: product.price,
     }));
 }
 

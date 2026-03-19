@@ -24,6 +24,13 @@ interface BusinessSlugRow {
   slug: string;
 }
 
+interface OrderProductLookupRow {
+  id: string;
+  name: string;
+  price: number;
+  is_available: boolean;
+}
+
 interface OrderLookupRow {
   id: string;
   business_id: string;
@@ -176,6 +183,64 @@ async function getBusinessSlugByDatabaseId(businessDatabaseId: string) {
   return data?.slug ?? null;
 }
 
+async function getBusinessProductsForOrder(
+  businessDatabaseId: string,
+): Promise<OrderProductLookupRow[]> {
+  const supabase = createServerSupabaseClient();
+  const { data, error } = await supabase
+    .from("products")
+    .select("id, name, price, is_available")
+    .eq("business_id", businessDatabaseId);
+
+  if (error) {
+    throw new Error(`Supabase products lookup failed: ${error.message}`);
+  }
+
+  return (data ?? []) as OrderProductLookupRow[];
+}
+
+function normalizeOrderProductsForPersistence(
+  products: Order["products"],
+  availableProducts: OrderProductLookupRow[],
+  options?: { requireActiveLinkedProducts?: boolean },
+) {
+  const productsById = new Map(availableProducts.map((product) => [product.id, product]));
+
+  return products.map((product) => {
+    const normalizedName = product.name.trim();
+
+    if (!product.productId) {
+      return {
+        name: normalizedName,
+        quantity: product.quantity,
+        ...(product.unitPrice !== undefined ? { unitPrice: product.unitPrice } : {}),
+      };
+    }
+
+    const catalogProduct = productsById.get(product.productId);
+
+    if (!catalogProduct) {
+      throw new Error(`Invalid order payload. productId "${product.productId}" no existe.`);
+    }
+
+    if (options?.requireActiveLinkedProducts && !catalogProduct.is_available) {
+      throw new Error(
+        `Invalid order payload. productId "${product.productId}" no esta activo para nuevos pedidos.`,
+      );
+    }
+
+    return {
+      productId: catalogProduct.id,
+      name: normalizedName || catalogProduct.name,
+      quantity: product.quantity,
+      unitPrice:
+        product.unitPrice !== undefined && Number.isFinite(product.unitPrice)
+          ? product.unitPrice
+          : catalogProduct.price,
+    };
+  });
+}
+
 export async function getOrdersByBusinessSlugFromDatabase(
   businessSlug: string,
 ): Promise<Order[]> {
@@ -214,6 +279,12 @@ export async function createOrderInDatabase(payload: unknown): Promise<Order> {
     throw new Error(`Business not found for slug "${payload.businessSlug}".`);
   }
 
+  const normalizedProducts = normalizeOrderProductsForPersistence(
+    payload.products,
+    await getBusinessProductsForOrder(business.id),
+    { requireActiveLinkedProducts: true },
+  );
+
   const now = new Date().toISOString();
   const orderId = crypto.randomUUID();
   const orderCode = await generateUniqueOrderCode();
@@ -238,7 +309,7 @@ export async function createOrderInDatabase(payload: unknown): Promise<Order> {
     status: payload.status ?? initialState.status,
     created_at: now,
     updated_at: now,
-    products: payload.products,
+    products: normalizedProducts,
     payment_status: payload.paymentStatus ?? initialState.paymentStatus,
     date_label: payload.dateLabel ?? null,
     is_reviewed: payload.isReviewed ?? false,
@@ -250,7 +321,7 @@ export async function createOrderInDatabase(payload: unknown): Promise<Order> {
     authMode: getSupabaseServerAuthMode(),
     businessSlug: payload.businessSlug,
     orderCode,
-    productsCount: payload.products.length,
+    productsCount: normalizedProducts.length,
   });
 
   const supabase = createServerSupabaseClient();
@@ -494,6 +565,14 @@ export async function updateOrderInDatabase(
     );
   }
 
+  const normalizedProducts =
+    normalizedPayload.products !== undefined
+      ? normalizeOrderProductsForPersistence(
+          normalizedPayload.products,
+          await getBusinessProductsForOrder(existingOrder.business_id),
+        )
+      : undefined;
+
   const updatePayload = {
     ...(normalizedPayload.status !== undefined ? { status: normalizedPayload.status } : {}),
     ...(normalizedPayload.paymentStatus !== undefined
@@ -514,7 +593,7 @@ export async function updateOrderInDatabase(
     ...(normalizedPayload.paymentMethod !== undefined
       ? { payment_method: normalizedPayload.paymentMethod }
       : {}),
-    ...(normalizedPayload.products !== undefined ? { products: nextProducts } : {}),
+    ...(normalizedProducts !== undefined ? { products: normalizedProducts } : {}),
     ...(normalizedPayload.notes !== undefined
       ? { notes: normalizedPayload.notes?.trim() || null }
       : {}),

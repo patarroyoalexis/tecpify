@@ -30,8 +30,10 @@ export type DeliveryType = (typeof DELIVERY_TYPES)[number];
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
 export interface OrderProduct {
+  productId?: string;
   name: string;
   quantity: number;
+  unitPrice?: number;
 }
 
 export interface OrderHistoryEvent {

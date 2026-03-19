@@ -1,12 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import {
   getAvailablePaymentMethods,
   getPaymentMethodLabel,
 } from "@/components/dashboard/payment-helpers";
 import { OrdersUiIcon } from "@/components/dashboard/orders-ui-icon";
+import { fetchProductsByBusinessId } from "@/lib/products/api";
+import type { Product } from "@/types/products";
 import type {
   DeliveryType,
   Order,
@@ -15,14 +17,16 @@ import type {
 } from "@/types/orders";
 
 interface NewOrderDrawerProps {
+  businessDatabaseId: string | null;
   isOpen: boolean;
   onClose: () => void;
   onCreateOrder: (input: NewOrderFormValue) => Promise<Order>;
+  onOpenProducts?: () => void;
 }
 
 interface ProductField {
   id: string;
-  name: string;
+  productId: string;
   quantity: string;
 }
 
@@ -42,19 +46,24 @@ const deliveryTypes: DeliveryType[] = ["domicilio", "recogida en tienda"];
 function createEmptyProduct(): ProductField {
   return {
     id: Math.random().toString(16).slice(2, 8),
-    name: "",
+    productId: "",
     quantity: "1",
   };
 }
 
 export function NewOrderDrawer({
+  businessDatabaseId,
   isOpen,
   onClose,
   onCreateOrder,
+  onOpenProducts,
 }: NewOrderDrawerProps) {
   const [client, setClient] = useState("");
   const [customerWhatsApp, setCustomerWhatsApp] = useState("");
-  const [products, setProducts] = useState<ProductField[]>([createEmptyProduct()]);
+  const [products, setProducts] = useState<ProductField[]>([]);
+  const [catalogProducts, setCatalogProducts] = useState<Product[]>([]);
+  const [isLoadingProducts, setIsLoadingProducts] = useState(false);
+  const [productsError, setProductsError] = useState("");
   const [total, setTotal] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | "">("");
   const [deliveryType, setDeliveryType] = useState<DeliveryType | "">("");
@@ -68,16 +77,91 @@ export function NewOrderDrawer({
     [deliveryType],
   );
 
+  const activeProducts = useMemo(
+    () => catalogProducts.filter((product) => product.is_available),
+    [catalogProducts],
+  );
+
+  const selectedProductIds = useMemo(
+    () => products.map((product) => product.productId).filter(Boolean),
+    [products],
+  );
+
+  const hasActiveProducts = activeProducts.length > 0;
+  const canAddAnotherProduct =
+    hasActiveProducts && selectedProductIds.length < activeProducts.length;
+
+  useEffect(() => {
+    if (!isOpen || !businessDatabaseId) {
+      return;
+    }
+
+    let isCancelled = false;
+
+    async function loadProducts() {
+      setIsLoadingProducts(true);
+      setProductsError("");
+
+      try {
+        const fetchedProducts = await fetchProductsByBusinessId(businessDatabaseId);
+
+        if (isCancelled) {
+          return;
+        }
+
+        setCatalogProducts(fetchedProducts);
+        setProducts((currentProducts) => {
+          if (fetchedProducts.length === 0) {
+            return [];
+          }
+
+          if (currentProducts.length > 0) {
+            const nextProducts = currentProducts.filter((product) =>
+              fetchedProducts.some((catalogProduct) => catalogProduct.id === product.productId),
+            );
+
+            return nextProducts.length > 0 ? nextProducts : [createEmptyProduct()];
+          }
+
+          return [createEmptyProduct()];
+        });
+      } catch (loadError) {
+        if (isCancelled) {
+          return;
+        }
+
+        setCatalogProducts([]);
+        setProducts([]);
+        setProductsError(
+          loadError instanceof Error
+            ? loadError.message
+            : "No fue posible cargar el catálogo activo.",
+        );
+      } finally {
+        if (!isCancelled) {
+          setIsLoadingProducts(false);
+        }
+      }
+    }
+
+    void loadProducts();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [businessDatabaseId, isOpen]);
+
   function resetForm() {
     setClient("");
     setCustomerWhatsApp("");
-    setProducts([createEmptyProduct()]);
+    setProducts(activeProducts.length > 0 ? [createEmptyProduct()] : []);
     setTotal("");
     setPaymentMethod("");
     setDeliveryType("");
     setDeliveryAddress("");
     setObservations("");
     setError("");
+    setProductsError("");
     setIsSubmitting(false);
   }
 
@@ -87,26 +171,33 @@ export function NewOrderDrawer({
   }
 
   function handleProductChange(
-    productId: string,
-    field: "name" | "quantity",
+    productFieldId: string,
+    field: "productId" | "quantity",
     value: string,
   ) {
+    setError("");
     setProducts((currentProducts) =>
       currentProducts.map((product) =>
-        product.id === productId ? { ...product, [field]: value } : product,
+        product.id === productFieldId ? { ...product, [field]: value } : product,
       ),
     );
   }
 
   function handleAddProduct() {
+    if (!canAddAnotherProduct) {
+      return;
+    }
+
+    setError("");
     setProducts((currentProducts) => [...currentProducts, createEmptyProduct()]);
   }
 
-  function handleRemoveProduct(productId: string) {
+  function handleRemoveProduct(productFieldId: string) {
+    setError("");
     setProducts((currentProducts) =>
       currentProducts.length === 1
         ? currentProducts
-        : currentProducts.filter((product) => product.id !== productId),
+        : currentProducts.filter((product) => product.id !== productFieldId),
     );
   }
 
@@ -126,12 +217,27 @@ export function NewOrderDrawer({
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    const normalizedProducts = products
-      .map((product) => ({
-        name: product.name.trim(),
+    if (!businessDatabaseId) {
+      setError("No fue posible identificar el negocio actual.");
+      return;
+    }
+
+    if (!hasActiveProducts) {
+      setError("Activa al menos un producto del catálogo para crear pedidos manuales.");
+      return;
+    }
+
+    const normalizedProducts = products.map((product) => {
+      const selectedProduct = activeProducts.find(
+        (catalogProduct) => catalogProduct.id === product.productId,
+      );
+
+      return {
+        fieldId: product.id,
+        selectedProduct,
         quantity: Number(product.quantity),
-      }))
-      .filter((product) => product.name.length > 0 && product.quantity > 0);
+      };
+    });
 
     if (!client.trim()) {
       setError("El nombre del cliente es obligatorio.");
@@ -144,7 +250,30 @@ export function NewOrderDrawer({
     }
 
     if (normalizedProducts.length === 0) {
-      setError("Agrega al menos un producto valido.");
+      setError("Agrega al menos un producto válido.");
+      return;
+    }
+
+    if (normalizedProducts.some((product) => !product.selectedProduct)) {
+      setError("Selecciona un producto del catálogo en cada fila.");
+      return;
+    }
+
+    if (
+      normalizedProducts.some(
+        (product) => !Number.isFinite(product.quantity) || product.quantity < 1,
+      )
+    ) {
+      setError("Cada producto debe tener una cantidad mayor o igual a 1.");
+      return;
+    }
+
+    const uniqueProductIds = new Set(
+      normalizedProducts.map((product) => product.selectedProduct?.id ?? ""),
+    );
+
+    if (uniqueProductIds.size !== normalizedProducts.length) {
+      setError("No puedes repetir el mismo producto en varias filas del pedido.");
       return;
     }
 
@@ -154,7 +283,7 @@ export function NewOrderDrawer({
     }
 
     if (!paymentMethod) {
-      setError("Selecciona un metodo de pago.");
+      setError("Selecciona un método de pago.");
       return;
     }
 
@@ -164,12 +293,12 @@ export function NewOrderDrawer({
     }
 
     if (deliveryType === "domicilio" && !deliveryAddress.trim()) {
-      setError("La direccion es obligatoria para pedidos a domicilio.");
+      setError("La dirección es obligatoria para pedidos a domicilio.");
       return;
     }
 
     if (!getAvailablePaymentMethods(deliveryType).includes(paymentMethod)) {
-      setError("Selecciona un metodo de pago valido para este tipo de entrega.");
+      setError("Selecciona un método de pago válido para este tipo de entrega.");
       return;
     }
 
@@ -180,7 +309,12 @@ export function NewOrderDrawer({
       await onCreateOrder({
         client: client.trim(),
         customerWhatsApp: customerWhatsApp.trim(),
-        products: normalizedProducts,
+        products: normalizedProducts.map(({ selectedProduct, quantity }) => ({
+          productId: selectedProduct!.id,
+          name: selectedProduct!.name,
+          quantity,
+          unitPrice: selectedProduct!.price,
+        })),
         total: Number(total),
         paymentMethod,
         deliveryType,
@@ -214,11 +348,9 @@ export function NewOrderDrawer({
         <div className="flex items-start justify-between border-b border-slate-200 px-6 py-5">
           <div className="space-y-1">
             <p className="text-sm font-medium text-slate-500">Tecpify</p>
-            <h2 className="text-2xl font-semibold text-slate-950">
-              Nuevo pedido
-            </h2>
+            <h2 className="text-2xl font-semibold text-slate-950">Nuevo pedido</h2>
             <p className="text-sm text-slate-600">
-              Registra manualmente un pedido y sumalo al flujo operativo.
+              Registra manualmente un pedido y súmalo al flujo operativo.
             </p>
           </div>
           <button
@@ -284,7 +416,7 @@ export function NewOrderDrawer({
 
                 <label className="space-y-2">
                   <span className="text-sm font-medium text-slate-700">
-                    Metodo de pago
+                    Método de pago
                   </span>
                   <select
                     value={paymentMethod}
@@ -302,7 +434,7 @@ export function NewOrderDrawer({
                     ))}
                   </select>
                   <p className="text-xs text-slate-500">
-                    Contra entrega solo esta disponible para pedidos a domicilio.
+                    Contra entrega solo está disponible para pedidos a domicilio.
                   </p>
                 </label>
 
@@ -331,7 +463,7 @@ export function NewOrderDrawer({
                 {deliveryType === "domicilio" ? (
                   <label className="space-y-2 sm:col-span-2">
                     <span className="text-sm font-medium text-slate-700">
-                      Direccion de entrega
+                      Dirección de entrega
                     </span>
                     <textarea
                       rows={3}
@@ -353,76 +485,155 @@ export function NewOrderDrawer({
                 <div>
                   <h3 className="text-lg font-semibold text-slate-950">Productos</h3>
                   <p className="text-sm text-slate-600">
-                    Agrega uno o mas productos con su cantidad.
+                    Selecciona productos activos del catálogo y define su cantidad.
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={handleAddProduct}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+                  disabled={!canAddAnotherProduct || isLoadingProducts}
+                  className={`inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-medium transition ${
+                    !canAddAnotherProduct || isLoadingProducts
+                      ? "cursor-not-allowed border border-slate-200 bg-slate-100 text-slate-400"
+                      : "border border-slate-300 bg-white text-slate-700 hover:border-slate-400 hover:bg-slate-50"
+                  }`}
                 >
                   <OrdersUiIcon icon="plus" className="h-4 w-4" />
                   Agregar producto
                 </button>
               </div>
 
-              <div className="mt-4 space-y-4">
-                {products.map((product, index) => (
-                  <div
-                    key={product.id}
-                    className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-[1fr_120px_auto]"
-                  >
-                    <label className="space-y-2">
-                      <span className="text-sm font-medium text-slate-700">
-                        Producto {index + 1}
-                      </span>
-                      <input
-                        value={product.name}
-                        onChange={(event) =>
-                          handleProductChange(product.id, "name", event.target.value)
-                        }
-                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-base leading-6 text-slate-900 outline-none transition focus:border-slate-400 sm:text-sm sm:leading-5"
-                        placeholder="Nombre del producto"
-                      />
-                    </label>
+              {isLoadingProducts ? (
+                <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-600">
+                  Cargando catálogo activo...
+                </div>
+              ) : productsError ? (
+                <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-4 text-sm text-rose-700">
+                  {productsError}
+                </div>
+              ) : !businessDatabaseId ? (
+                <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-4 text-sm text-rose-700">
+                  No fue posible identificar el negocio actual para cargar su catálogo.
+                </div>
+              ) : !hasActiveProducts ? (
+                <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                  <p className="text-sm font-medium text-slate-900">
+                    Este negocio todavía no tiene productos activos.
+                  </p>
+                  <p className="mt-1 text-sm text-slate-600">
+                    Activa o crea al menos un producto para registrar pedidos manuales con catálogo estandarizado.
+                  </p>
+                  {onOpenProducts ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleClose();
+                        onOpenProducts();
+                      }}
+                      className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+                    >
+                      <OrdersUiIcon icon="package" className="h-4 w-4" />
+                      Administrar catálogo
+                    </button>
+                  ) : null}
+                </div>
+              ) : (
+                <>
+                  <div className="mt-4 space-y-4">
+                    {products.map((product, index) => {
+                      const availableOptions = activeProducts.filter(
+                        (catalogProduct) =>
+                          catalogProduct.id === product.productId ||
+                          !selectedProductIds.includes(catalogProduct.id),
+                      );
+                      const selectedProduct = activeProducts.find(
+                        (catalogProduct) => catalogProduct.id === product.productId,
+                      );
 
-                    <label className="space-y-2">
-                      <span className="text-sm font-medium text-slate-700">
-                        Cantidad
-                      </span>
-                      <input
-                        type="number"
-                        min="1"
-                        value={product.quantity}
-                        onChange={(event) =>
-                          handleProductChange(
-                            product.id,
-                            "quantity",
-                            event.target.value,
-                          )
-                        }
-                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-base leading-6 text-slate-900 outline-none transition focus:border-slate-400 sm:text-sm sm:leading-5"
-                      />
-                    </label>
+                      return (
+                        <div
+                          key={product.id}
+                          className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-[1fr_120px_auto]"
+                        >
+                          <label className="space-y-2">
+                            <span className="text-sm font-medium text-slate-700">
+                              Producto {index + 1}
+                            </span>
+                            <select
+                              value={product.productId}
+                              onChange={(event) =>
+                                handleProductChange(
+                                  product.id,
+                                  "productId",
+                                  event.target.value,
+                                )
+                              }
+                              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-base leading-6 text-slate-900 outline-none transition focus:border-slate-400 sm:text-sm sm:leading-5"
+                            >
+                              <option value="">Selecciona un producto</option>
+                              {availableOptions.map((catalogProduct) => (
+                                <option key={catalogProduct.id} value={catalogProduct.id}>
+                                  {catalogProduct.name}
+                                </option>
+                              ))}
+                            </select>
+                            {selectedProduct ? (
+                              <p className="text-xs text-slate-500">
+                                {selectedProduct.price.toLocaleString("es-CO", {
+                                  style: "currency",
+                                  currency: "COP",
+                                  maximumFractionDigits: 0,
+                                })}
+                              </p>
+                            ) : null}
+                          </label>
 
-                    <div className="flex items-end">
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveProduct(product.id)}
-                        disabled={products.length === 1}
-                        className={`inline-flex items-center gap-1.5 rounded-full px-4 py-3 text-sm font-medium transition ${
-                          products.length === 1
-                            ? "cursor-not-allowed border border-slate-200 bg-slate-100 text-slate-400"
-                            : "border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100"
-                        }`}
-                      >
-                        <OrdersUiIcon icon="minus" className="h-4 w-4" />
-                        Quitar
-                      </button>
-                    </div>
+                          <label className="space-y-2">
+                            <span className="text-sm font-medium text-slate-700">
+                              Cantidad
+                            </span>
+                            <input
+                              type="number"
+                              min="1"
+                              value={product.quantity}
+                              onChange={(event) =>
+                                handleProductChange(
+                                  product.id,
+                                  "quantity",
+                                  event.target.value,
+                                )
+                              }
+                              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-base leading-6 text-slate-900 outline-none transition focus:border-slate-400 sm:text-sm sm:leading-5"
+                            />
+                          </label>
+
+                          <div className="flex items-end">
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveProduct(product.id)}
+                              disabled={products.length === 1}
+                              className={`inline-flex items-center gap-1.5 rounded-full px-4 py-3 text-sm font-medium transition ${
+                                products.length === 1
+                                  ? "cursor-not-allowed border border-slate-200 bg-slate-100 text-slate-400"
+                                  : "border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100"
+                              }`}
+                            >
+                              <OrdersUiIcon icon="minus" className="h-4 w-4" />
+                              Quitar
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                ))}
-              </div>
+
+                  {!canAddAnotherProduct ? (
+                    <p className="mt-4 text-xs text-slate-500">
+                      Ya usaste todos los productos activos disponibles para este pedido.
+                    </p>
+                  ) : null}
+                </>
+              )}
             </section>
 
             <section className="rounded-[24px] border border-slate-200 bg-white p-5">
@@ -458,7 +669,7 @@ export function NewOrderDrawer({
               </button>
               <button
                 type="submit"
-                disabled={isSubmitting}
+                disabled={isSubmitting || isLoadingProducts || !hasActiveProducts}
                 className="inline-flex items-center justify-center gap-1.5 rounded-full bg-slate-900 px-5 py-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
               >
                 <OrdersUiIcon icon="clipboard-check" className="h-4 w-4" />

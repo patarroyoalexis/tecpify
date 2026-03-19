@@ -81,8 +81,10 @@ interface EditOrderFormState {
 
 interface EditableProductField {
   id: string;
+  productId?: string;
   name: string;
   quantity: string;
+  unitPrice?: number;
 }
 
 const historyFormatter = new Intl.DateTimeFormat("es-CO", {
@@ -127,8 +129,10 @@ function getInitialEditOrderFormState(order: Order): EditOrderFormState {
 function createEditableProduct(product?: OrderProduct): EditableProductField {
   return {
     id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+    productId: product?.productId,
     name: product?.name ?? "",
     quantity: product ? String(product.quantity) : "1",
+    unitPrice: product?.unitPrice,
   };
 }
 
@@ -252,8 +256,10 @@ export function OrderDetailDrawer({
   const currentEditForm = editForm ?? getInitialEditOrderFormState(currentOrder);
   const normalizedProducts = editableProducts
     .map((product) => ({
+      ...(product.productId ? { productId: product.productId } : {}),
       name: product.name.trim(),
       quantity: Number(product.quantity),
+      ...(product.unitPrice !== undefined ? { unitPrice: product.unitPrice } : {}),
     }))
     .filter(
       (product) =>
@@ -355,7 +361,13 @@ export function OrderDetailDrawer({
     setActionError("");
     setEditableProducts((currentProducts) =>
       currentProducts.map((product) =>
-        product.id === productId ? { ...product, [field]: value } : product,
+        product.id === productId
+          ? {
+              ...product,
+              [field]: value,
+              ...(field === "name" ? { productId: undefined, unitPrice: undefined } : {}),
+            }
+          : product,
       ),
     );
   }
