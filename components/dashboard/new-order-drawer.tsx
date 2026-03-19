@@ -9,6 +9,7 @@ import {
 import { OrdersUiIcon } from "@/components/dashboard/orders-ui-icon";
 import type {
   DeliveryType,
+  Order,
   OrderProduct,
   PaymentMethod,
 } from "@/types/orders";
@@ -16,7 +17,7 @@ import type {
 interface NewOrderDrawerProps {
   isOpen: boolean;
   onClose: () => void;
-  onCreateOrder: (input: NewOrderFormValue) => void;
+  onCreateOrder: (input: NewOrderFormValue) => Promise<Order>;
 }
 
 interface ProductField {
@@ -27,10 +28,12 @@ interface ProductField {
 
 export interface NewOrderFormValue {
   client: string;
+  customerWhatsApp: string;
   products: OrderProduct[];
   total: number;
   paymentMethod: PaymentMethod;
   deliveryType: DeliveryType;
+  deliveryAddress?: string;
   observations?: string;
 }
 
@@ -50,12 +53,15 @@ export function NewOrderDrawer({
   onCreateOrder,
 }: NewOrderDrawerProps) {
   const [client, setClient] = useState("");
+  const [customerWhatsApp, setCustomerWhatsApp] = useState("");
   const [products, setProducts] = useState<ProductField[]>([createEmptyProduct()]);
   const [total, setTotal] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | "">("");
   const [deliveryType, setDeliveryType] = useState<DeliveryType | "">("");
+  const [deliveryAddress, setDeliveryAddress] = useState("");
   const [observations, setObservations] = useState("");
   const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const availablePaymentMethods = useMemo(
     () => getAvailablePaymentMethods(deliveryType),
@@ -64,12 +70,15 @@ export function NewOrderDrawer({
 
   function resetForm() {
     setClient("");
+    setCustomerWhatsApp("");
     setProducts([createEmptyProduct()]);
     setTotal("");
     setPaymentMethod("");
     setDeliveryType("");
+    setDeliveryAddress("");
     setObservations("");
     setError("");
+    setIsSubmitting(false);
   }
 
   function handleClose() {
@@ -105,12 +114,16 @@ export function NewOrderDrawer({
     setDeliveryType(value);
     setError("");
 
+    if (value !== "domicilio") {
+      setDeliveryAddress("");
+    }
+
     if (paymentMethod && !getAvailablePaymentMethods(value).includes(paymentMethod)) {
       setPaymentMethod("");
     }
   }
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     const normalizedProducts = products
@@ -122,6 +135,11 @@ export function NewOrderDrawer({
 
     if (!client.trim()) {
       setError("El nombre del cliente es obligatorio.");
+      return;
+    }
+
+    if (!customerWhatsApp.trim()) {
+      setError("El WhatsApp del cliente es obligatorio.");
       return;
     }
 
@@ -145,21 +163,42 @@ export function NewOrderDrawer({
       return;
     }
 
+    if (deliveryType === "domicilio" && !deliveryAddress.trim()) {
+      setError("La direccion es obligatoria para pedidos a domicilio.");
+      return;
+    }
+
     if (!getAvailablePaymentMethods(deliveryType).includes(paymentMethod)) {
       setError("Selecciona un metodo de pago valido para este tipo de entrega.");
       return;
     }
 
-    onCreateOrder({
-      client: client.trim(),
-      products: normalizedProducts,
-      total: Number(total),
-      paymentMethod,
-      deliveryType,
-      observations: observations.trim() || undefined,
-    });
+    setIsSubmitting(true);
+    setError("");
 
-    handleClose();
+    try {
+      await onCreateOrder({
+        client: client.trim(),
+        customerWhatsApp: customerWhatsApp.trim(),
+        products: normalizedProducts,
+        total: Number(total),
+        paymentMethod,
+        deliveryType,
+        deliveryAddress:
+          deliveryType === "domicilio" ? deliveryAddress.trim() : undefined,
+        observations: observations.trim() || undefined,
+      });
+
+      handleClose();
+    } catch (submitError) {
+      setError(
+        submitError instanceof Error
+          ? submitError.message
+          : "No fue posible crear el pedido.",
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -203,9 +242,27 @@ export function NewOrderDrawer({
                   <span className="text-sm font-medium text-slate-700">Cliente</span>
                   <input
                     value={client}
-                    onChange={(event) => setClient(event.target.value)}
+                    onChange={(event) => {
+                      setClient(event.target.value);
+                      setError("");
+                    }}
                     className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-base leading-6 text-slate-900 outline-none transition focus:border-slate-400 sm:text-sm sm:leading-5"
                     placeholder="Nombre del cliente o negocio"
+                  />
+                </label>
+
+                <label className="space-y-2 sm:col-span-2">
+                  <span className="text-sm font-medium text-slate-700">
+                    WhatsApp del cliente
+                  </span>
+                  <input
+                    value={customerWhatsApp}
+                    onChange={(event) => {
+                      setCustomerWhatsApp(event.target.value);
+                      setError("");
+                    }}
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-base leading-6 text-slate-900 outline-none transition focus:border-slate-400 sm:text-sm sm:leading-5"
+                    placeholder="3001234567"
                   />
                 </label>
 
@@ -216,7 +273,10 @@ export function NewOrderDrawer({
                     min="0"
                     step="100"
                     value={total}
-                    onChange={(event) => setTotal(event.target.value)}
+                    onChange={(event) => {
+                      setTotal(event.target.value);
+                      setError("");
+                    }}
                     className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-base leading-6 text-slate-900 outline-none transition focus:border-slate-400 sm:text-sm sm:leading-5"
                     placeholder="0"
                   />
@@ -228,9 +288,10 @@ export function NewOrderDrawer({
                   </span>
                   <select
                     value={paymentMethod}
-                    onChange={(event) =>
-                      setPaymentMethod(event.target.value as PaymentMethod | "")
-                    }
+                    onChange={(event) => {
+                      setPaymentMethod(event.target.value as PaymentMethod | "");
+                      setError("");
+                    }}
                     className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-base leading-6 text-slate-900 outline-none transition focus:border-slate-400 sm:text-sm sm:leading-5"
                   >
                     <option value="">Seleccionar</option>
@@ -266,6 +327,24 @@ export function NewOrderDrawer({
                     ))}
                   </select>
                 </label>
+
+                {deliveryType === "domicilio" ? (
+                  <label className="space-y-2 sm:col-span-2">
+                    <span className="text-sm font-medium text-slate-700">
+                      Direccion de entrega
+                    </span>
+                    <textarea
+                      rows={3}
+                      value={deliveryAddress}
+                      onChange={(event) => {
+                        setDeliveryAddress(event.target.value);
+                        setError("");
+                      }}
+                      className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-base leading-6 text-slate-900 outline-none transition focus:border-slate-400 sm:text-sm sm:leading-5"
+                      placeholder="Calle, barrio, referencias o apartamento"
+                    />
+                  </label>
+                ) : null}
               </div>
             </section>
 
@@ -353,7 +432,10 @@ export function NewOrderDrawer({
                 </span>
                 <textarea
                   value={observations}
-                  onChange={(event) => setObservations(event.target.value)}
+                  onChange={(event) => {
+                    setObservations(event.target.value);
+                    setError("");
+                  }}
                   rows={4}
                   className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-base leading-6 text-slate-900 outline-none transition focus:border-slate-400 sm:text-sm sm:leading-5"
                   placeholder="Notas internas, instrucciones o contexto adicional"
@@ -368,6 +450,7 @@ export function NewOrderDrawer({
               <button
                 type="button"
                 onClick={handleClose}
+                disabled={isSubmitting}
                 className="inline-flex items-center justify-center gap-1.5 rounded-full border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
               >
                 <OrdersUiIcon icon="x" className="h-4 w-4" />
@@ -375,10 +458,11 @@ export function NewOrderDrawer({
               </button>
               <button
                 type="submit"
-                className="inline-flex items-center justify-center gap-1.5 rounded-full bg-slate-900 px-5 py-3 text-sm font-medium text-white transition hover:bg-slate-800"
+                disabled={isSubmitting}
+                className="inline-flex items-center justify-center gap-1.5 rounded-full bg-slate-900 px-5 py-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
               >
                 <OrdersUiIcon icon="clipboard-check" className="h-4 w-4" />
-                Crear pedido
+                {isSubmitting ? "Creando pedido..." : "Crear pedido"}
               </button>
             </div>
           </div>

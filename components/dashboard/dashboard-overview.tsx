@@ -19,7 +19,7 @@ interface DashboardOverviewProps {
 export function DashboardOverview({
   businessId,
 }: DashboardOverviewProps) {
-  const { openProductsManager, ordersState } = useBusinessWorkspace();
+  const { openProductsManager, ordersError, ordersState } = useBusinessWorkspace();
   const summary = getDashboardSummary(ordersState);
   const insights = getBusinessInsights(ordersState).slice(0, 2);
   const unreviewedOrders = ordersState.filter((order) => !order.isReviewed);
@@ -63,6 +63,12 @@ export function DashboardOverview({
 
   return (
     <div className="space-y-6">
+      {ordersError ? (
+        <section className="rounded-[22px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          {ordersError}
+        </section>
+      ) : null}
+
       {insights.length > 0 ? (
         <section className="rounded-[24px] border border-sky-200 bg-[linear-gradient(135deg,rgba(224,242,254,0.9),rgba(255,255,255,0.98))] px-4 py-3.5 shadow-[0_16px_36px_rgba(15,23,42,0.05)] sm:px-5 sm:py-4">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between md:gap-4">

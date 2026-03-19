@@ -14,7 +14,7 @@ import {
 import { useBusinessWorkspace } from "./business-workspace-context";
 
 export function MetricsOverview() {
-  const { ordersState } = useBusinessWorkspace();
+  const { ordersError, ordersState } = useBusinessWorkspace();
   const summary = getDashboardSummary(ordersState);
   const topProducts = getTopProducts(ordersState, 5);
   const revenueSeries = getRevenueSeries(ordersState, 5);
@@ -57,6 +57,12 @@ export function MetricsOverview() {
 
   return (
     <div className="space-y-6">
+      {ordersError ? (
+        <section className="rounded-[22px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          {ordersError}
+        </section>
+      ) : null}
+
       <MetricsCards metrics={metrics} />
 
       <section className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">

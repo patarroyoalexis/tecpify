@@ -16,6 +16,7 @@ interface BusinessWorkspaceShellProps {
   businessName: string;
   businessSlug: string;
   initialOrders: Order[];
+  initialOrdersError?: string | null;
   title: string;
   description: string;
   headerActions?: ReactNode;
@@ -65,7 +66,7 @@ function BusinessWorkspaceShellContent({
 }
 
 export function BusinessWorkspaceShell(props: BusinessWorkspaceShellProps) {
-  const { businessId, businessSlug, initialOrders } = props;
+  const { businessId, businessSlug, initialOrders, initialOrdersError } = props;
 
   return (
     <BusinessWorkspaceProvider
@@ -74,6 +75,7 @@ export function BusinessWorkspaceShell(props: BusinessWorkspaceShellProps) {
       businessName={props.businessName}
       businessSlug={businessSlug}
       initialOrders={initialOrders}
+      initialOrdersError={initialOrdersError}
     >
       <BusinessWorkspaceShellContent {...props} />
     </BusinessWorkspaceProvider>

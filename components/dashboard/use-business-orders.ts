@@ -2,19 +2,21 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import {
-  getBusinessOrdersStorageKey,
-  readOrdersForBusiness,
-  writeOrdersForBusiness,
-} from "@/data/order-storage";
 import { debugError } from "@/lib/debug";
-import { fetchOrdersByBusinessSlug, updateOrderViaApi } from "@/lib/orders/api";
-import { getInitialOrderState, type OrderApiUpdatePayload } from "@/lib/orders/mappers";
+import {
+  createOrderViaApi,
+  fetchOrdersByBusinessSlug,
+  updateOrderViaApi,
+} from "@/lib/orders/api";
+import {
+  getInitialOrderState,
+  type OrderApiUpdatePayload,
+} from "@/lib/orders/mappers";
 import {
   getAllowedOrderStatusTransitions,
-  isPaymentConfirmed,
   getOrderStatusTransitionRule,
   getPaymentStatusTransitionRule,
+  isPaymentConfirmed,
   ORDER_STATUS_LABELS,
   PAYMENT_STATUS_LABELS,
 } from "@/lib/orders/transitions";
@@ -26,13 +28,14 @@ import type {
   PaymentMethod,
   PaymentStatus,
 } from "@/types/orders";
-import { DELIVERY_TYPES, ORDER_STATUSES } from "@/types/orders";
+import { DELIVERY_TYPES } from "@/types/orders";
 import type { NewOrderFormValue } from "./new-order-drawer";
 
 interface UseBusinessOrdersOptions {
   businessId: string;
   businessSlug?: string;
   orders: Order[];
+  initialOrdersError?: string | null;
 }
 
 type EditableOrderPayload = Pick<
@@ -67,36 +70,8 @@ function createHistoryEvent(
   };
 }
 
-function isValidOrderStatus(value: unknown): value is OrderStatus {
-  return typeof value === "string" && ORDER_STATUSES.includes(value as OrderStatus);
-}
-
 function isValidDeliveryType(value: unknown): value is DeliveryType {
   return typeof value === "string" && DELIVERY_TYPES.includes(value as DeliveryType);
-}
-
-function isValidOrder(order: unknown): order is Order {
-  if (!order || typeof order !== "object") {
-    return false;
-  }
-
-  const candidate = order as Partial<Order>;
-
-  return (
-    typeof candidate.id === "string" &&
-    typeof candidate.businessId === "string" &&
-    typeof candidate.client === "string" &&
-    Array.isArray(candidate.products) &&
-    typeof candidate.total === "number" &&
-    typeof candidate.paymentMethod === "string" &&
-    typeof candidate.paymentStatus === "string" &&
-    typeof candidate.deliveryType === "string" &&
-    isValidOrderStatus(candidate.status) &&
-    typeof candidate.dateLabel === "string" &&
-    typeof candidate.createdAt === "string" &&
-    typeof candidate.isReviewed === "boolean" &&
-    Array.isArray(candidate.history)
-  );
 }
 
 function buildDateLabel(createdAt: string) {
@@ -147,9 +122,9 @@ function getFieldLabel(field: keyof EditableOrderPayload): string {
     case "deliveryType":
       return "Tipo de entrega";
     case "deliveryAddress":
-      return "Dirección de entrega";
+      return "Direccion de entrega";
     case "paymentMethod":
-      return "Método de pago";
+      return "Metodo de pago";
     case "notes":
       return "Notas";
     case "total":
@@ -243,31 +218,22 @@ function applyOrderUpdatePayload(order: Order, payload: OrderApiUpdatePayload): 
   };
 }
 
-function generateNextOrderId(currentOrders: Order[]) {
-  const maxId = currentOrders.reduce((maxValue, order) => {
-    const numericValue = Number(order.id.replace("TEC-", ""));
-    return Number.isFinite(numericValue) ? Math.max(maxValue, numericValue) : maxValue;
-  }, 1000);
-
-  return `TEC-${maxId + 1}`;
-}
-
-function getFallbackOrders(businessId: string, orders: Order[]) {
-  const persistedOrders = readOrdersForBusiness(businessId);
-
-  if (persistedOrders && persistedOrders.every(isValidOrder)) {
-    return persistedOrders.filter((order) => order.businessId === businessId);
+function buildOrdersSyncError(error: unknown) {
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return error.message;
   }
 
-  return orders;
+  return "No fue posible sincronizar los pedidos en este momento.";
 }
 
 export function useBusinessOrders({
   businessId,
   businessSlug,
   orders,
+  initialOrdersError = null,
 }: UseBusinessOrdersOptions) {
   const [ordersState, setOrdersState] = useState<Order[]>(orders);
+  const [ordersError, setOrdersError] = useState<string | null>(initialOrdersError);
   const [hasHydrated, setHasHydrated] = useState(false);
 
   useEffect(() => {
@@ -281,12 +247,13 @@ export function useBusinessOrders({
 
         if (!isCancelled) {
           setOrdersState(remoteOrders);
-          writeOrdersForBusiness(businessId, remoteOrders);
+          setOrdersError(null);
           setHasHydrated(true);
         }
-      } catch {
+      } catch (error) {
         if (!isCancelled) {
-          setOrdersState(getFallbackOrders(businessId, orders));
+          setOrdersState(orders);
+          setOrdersError(buildOrdersSyncError(error));
           setHasHydrated(true);
         }
       }
@@ -298,14 +265,6 @@ export function useBusinessOrders({
       isCancelled = true;
     };
   }, [businessId, businessSlug, orders]);
-
-  useEffect(() => {
-    if (!hasHydrated) {
-      return;
-    }
-
-    writeOrdersForBusiness(businessId, ordersState);
-  }, [businessId, hasHydrated, ordersState]);
 
   const newOrders = useMemo(
     () => ordersState.filter((order) => !order.isReviewed),
@@ -322,22 +281,10 @@ export function useBusinessOrders({
     return currentOrders.map((order) => (order.id === nextOrder.id ? nextOrder : order));
   }
 
-  function persistOrdersFallback(nextOrders: Order[]) {
-    try {
-      writeOrdersForBusiness(businessId, nextOrders);
-    } catch {
-      // Transitional fallback should never block the operational flow.
-    }
-  }
-
   function updateOrder(orderId: string, updater: (order: Order) => Order) {
-    setOrdersState((currentOrders) => {
-      const nextOrders = currentOrders.map((order) =>
-        order.id === orderId ? updater(order) : order,
-      );
-      persistOrdersFallback(nextOrders);
-      return nextOrders;
-    });
+    setOrdersState((currentOrders) =>
+      currentOrders.map((order) => (order.id === orderId ? updater(order) : order)),
+    );
   }
 
   function appendOrderEvent(
@@ -367,7 +314,7 @@ export function useBusinessOrders({
     const previousOrders = ordersState;
     const optimisticOrders = replaceOrderInState(previousOrders, nextOrder);
     setOrdersState(optimisticOrders);
-    persistOrdersFallback(optimisticOrders);
+    setOrdersError(null);
 
     try {
       const persistedOrder = await updateOrderViaApi(orderId, {
@@ -377,15 +324,12 @@ export function useBusinessOrders({
         history: nextOrder.history,
       });
 
-      setOrdersState((currentOrders) => {
-        const syncedOrders = replaceOrderInState(currentOrders, persistedOrder);
-        persistOrdersFallback(syncedOrders);
-        return syncedOrders;
-      });
-    } catch {
+      setOrdersState((currentOrders) => replaceOrderInState(currentOrders, persistedOrder));
+    } catch (error) {
       debugError("[dashboard] Order mutation rollback", { orderId });
       setOrdersState(previousOrders);
-      persistOrdersFallback(previousOrders);
+      setOrdersError(buildOrdersSyncError(error));
+      throw error;
     }
   }
 
@@ -412,7 +356,7 @@ export function useBusinessOrders({
       const statusRule = getOrderStatusTransitionRule(currentOrder, payload.status);
 
       if (!statusRule.allowed) {
-        throw new Error(statusRule.reason ?? "Ese cambio de estado no está permitido.");
+        throw new Error(statusRule.reason ?? "Ese cambio de estado no esta permitido.");
       }
     }
 
@@ -420,12 +364,12 @@ export function useBusinessOrders({
       const paymentRule = getPaymentStatusTransitionRule(currentOrder, payload.paymentStatus);
 
       if (!paymentRule.allowed) {
-        throw new Error(paymentRule.reason ?? "Ese cambio de pago no está permitido.");
+        throw new Error(paymentRule.reason ?? "Ese cambio de pago no esta permitido.");
       }
     }
 
     if (payload.deliveryType !== undefined && !isValidDeliveryType(payload.deliveryType)) {
-      throw new Error("Selecciona un tipo de entrega válido.");
+      throw new Error("Selecciona un tipo de entrega valido.");
     }
 
     const nextHistory = [
@@ -447,16 +391,12 @@ export function useBusinessOrders({
     const optimisticOrders = replaceOrderInState(previousOrders, optimisticOrder);
 
     setOrdersState(optimisticOrders);
-    persistOrdersFallback(optimisticOrders);
+    setOrdersError(null);
 
     try {
       const persistedOrder = await updateOrderViaApi(orderId, optimisticPayload);
 
-      setOrdersState((currentOrders) => {
-        const syncedOrders = replaceOrderInState(currentOrders, persistedOrder);
-        persistOrdersFallback(syncedOrders);
-        return syncedOrders;
-      });
+      setOrdersState((currentOrders) => replaceOrderInState(currentOrders, persistedOrder));
 
       return persistedOrder;
     } catch (error) {
@@ -465,7 +405,7 @@ export function useBusinessOrders({
         fieldsUpdated: Object.keys(optimisticPayload ?? {}),
       });
       setOrdersState(previousOrders);
-      persistOrdersFallback(previousOrders);
+      setOrdersError(buildOrdersSyncError(error));
       throw error;
     }
   }
@@ -484,7 +424,7 @@ export function useBusinessOrders({
     );
 
     setOrdersState(optimisticOrders);
-    persistOrdersFallback(optimisticOrders);
+    setOrdersError(null);
 
     try {
       const persistedOrders = await Promise.all(
@@ -500,20 +440,19 @@ export function useBusinessOrders({
           ),
       );
 
-      setOrdersState((currentOrders) => {
-        const syncedOrders = persistedOrders.reduce(
+      setOrdersState((currentOrders) =>
+        persistedOrders.reduce(
           (nextOrders, persistedOrder) => replaceOrderInState(nextOrders, persistedOrder),
           currentOrders,
-        );
-        persistOrdersFallback(syncedOrders);
-        return syncedOrders;
-      });
-    } catch {
+        ),
+      );
+    } catch (error) {
       debugError("[dashboard] Bulk order mutation rollback", {
         ordersCount: orderIds.length,
       });
       setOrdersState(previousOrders);
-      persistOrdersFallback(previousOrders);
+      setOrdersError(buildOrdersSyncError(error));
+      throw error;
     }
   }
 
@@ -527,10 +466,12 @@ export function useBusinessOrders({
             history: appendOrderEvent(
               order,
               "Pedido revisado",
-              "El negocio revisó manualmente este pedido desde la operación.",
+              "El negocio reviso manualmente este pedido desde la operacion.",
             ),
           },
-    );
+    ).catch(() => {
+      // The banner and state rollback already communicate this failure path.
+    });
   }
 
   function handleMarkAllAsReviewed() {
@@ -547,10 +488,12 @@ export function useBusinessOrders({
             history: appendOrderEvent(
               order,
               "Pedido revisado",
-              "El negocio revisó manualmente este pedido desde la bandeja de nuevos.",
+              "El negocio reviso manualmente este pedido desde la bandeja de nuevos.",
             ),
           },
-    );
+    ).catch(() => {
+      // The banner and state rollback already communicate this failure path.
+    });
   }
 
   function handleRequestPaymentProof(orderId: string) {
@@ -559,7 +502,7 @@ export function useBusinessOrders({
       history: appendOrderEvent(
         order,
         "Mensaje de comprobante preparado para WhatsApp",
-        "Se preparó un mensaje manual para solicitar el comprobante de pago al cliente.",
+        "Se preparo un mensaje manual para solicitar el comprobante de pago al cliente.",
       ),
     }));
 
@@ -605,46 +548,49 @@ export function useBusinessOrders({
     });
   }
 
-  function handleCreateOrder(input: NewOrderFormValue) {
+  async function handleCreateOrder(input: NewOrderFormValue) {
     const createdAt = new Date().toISOString();
+    const initialState = getInitialOrderState(input.paymentMethod as PaymentMethod);
+    const history: OrderHistoryEvent[] = [
+      {
+        id: `${businessId}-${createdAt}-manual-created`,
+        title: "Pedido creado manualmente",
+        description: "El pedido fue registrado desde el centro operativo.",
+        occurredAt: createdAt,
+      },
+    ];
 
-    setOrdersState((currentOrders) => {
-      const orderId = generateNextOrderId(currentOrders);
-      const initialState = getInitialOrderState(input.paymentMethod as PaymentMethod);
-      const newOrder: Order = {
-        id: orderId,
-        businessId,
-        client: input.client,
-        products: input.products,
-        total: input.total,
-        paymentMethod: input.paymentMethod,
-        paymentStatus: initialState.paymentStatus,
+    try {
+      const persistedOrder = await createOrderViaApi({
+        businessSlug: businessSlug ?? businessId,
+        customerName: input.client,
+        customerWhatsApp: input.customerWhatsApp,
         deliveryType: input.deliveryType,
+        deliveryAddress: input.deliveryAddress,
+        paymentMethod: input.paymentMethod,
+        notes: input.observations,
+        total: input.total,
         status: initialState.status,
+        products: input.products,
+        paymentStatus: initialState.paymentStatus,
         dateLabel: `Hoy, ${buildDateLabel(createdAt)}`,
-        createdAt,
         isReviewed: false,
-        history: [
-          {
-            id: `${orderId}-created-manually`,
-            title: "Pedido creado manualmente",
-            description: "El pedido fue registrado desde el centro operativo.",
-            occurredAt: createdAt,
-          },
-        ],
-        observations: input.observations,
-      };
+        history,
+      });
 
-      return [newOrder, ...currentOrders];
-    });
+      setOrdersState((currentOrders) => [persistedOrder, ...currentOrders]);
+      setOrdersError(null);
+      return persistedOrder;
+    } catch (error) {
+      debugError("[dashboard] Manual order creation failed", { businessId });
+      setOrdersError(buildOrdersSyncError(error));
+      throw error;
+    }
   }
 
   function handleResetOrders() {
-    if (typeof window !== "undefined") {
-      window.localStorage.removeItem(getBusinessOrdersStorageKey(businessId));
-    }
-
     setOrdersState(orders);
+    setOrdersError(initialOrdersError);
   }
 
   function handleHydrateOrder(order: Order) {
@@ -664,6 +610,7 @@ export function useBusinessOrders({
   return {
     hasHydrated,
     newOrders,
+    ordersError,
     ordersState,
     handleAdvanceOrderStatus,
     handleCancelOrder,

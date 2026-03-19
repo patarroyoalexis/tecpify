@@ -3,7 +3,7 @@ import { OrdersHeaderActions } from "@/components/dashboard/orders-header-action
 import { OrdersWorkspace } from "@/components/dashboard/orders-workspace";
 import { getBusinessBySlug, getBusinessBySlugFromDatabase } from "@/data/businesses";
 import { getOrdersByBusinessSlugFromDatabase } from "@/lib/data/orders-server";
-import { getMockOrdersByBusinessId } from "@/data/orders";
+import type { Order } from "@/types/orders";
 
 export default async function OrdersPage({
   params,
@@ -13,13 +13,21 @@ export default async function OrdersPage({
   const { negocioId } = await params;
   const business = getBusinessBySlug(negocioId);
   const databaseBusiness = business
-    ? await getBusinessBySlugFromDatabase(negocioId)
+    ? await getBusinessBySlugFromDatabase(negocioId).catch(() => null)
     : null;
-  const initialOrders = business
-    ? await getOrdersByBusinessSlugFromDatabase(negocioId).catch(() =>
-        getMockOrdersByBusinessId(business.slug),
-      )
-    : [];
+  let initialOrders: Order[] = [];
+  let initialOrdersError: string | null = null;
+
+  if (business && databaseBusiness) {
+    try {
+      initialOrders = await getOrdersByBusinessSlugFromDatabase(negocioId);
+    } catch (error) {
+      initialOrdersError =
+        error instanceof Error
+          ? error.message
+          : "No fue posible cargar los pedidos reales de este negocio.";
+    }
+  }
 
   if (!business) {
     return (
@@ -48,7 +56,8 @@ export default async function OrdersPage({
       businessDatabaseId={databaseBusiness?.id ?? null}
       businessName={business.name}
       businessSlug={business.slug}
-      initialOrders={databaseBusiness ? initialOrders : getMockOrdersByBusinessId(business.slug)}
+      initialOrders={initialOrders}
+      initialOrdersError={initialOrdersError}
       title="Pedidos"
       description="Operacion diaria para revisar, cobrar, preparar y entregar."
       headerActions={<OrdersHeaderActions />}

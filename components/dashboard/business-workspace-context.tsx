@@ -23,6 +23,7 @@ interface BusinessWorkspaceProviderProps {
   businessName: string;
   businessSlug: string;
   initialOrders: Order[];
+  initialOrdersError?: string | null;
   children: ReactNode;
 }
 
@@ -30,6 +31,7 @@ interface BusinessWorkspaceContextValue {
   hasHydrated: boolean;
   newOrders: Order[];
   ordersState: Order[];
+  ordersError: string | null;
   openGlobalSearch: () => void;
   openNewOrder: () => void;
   openNewProduct: () => void;
@@ -37,7 +39,7 @@ interface BusinessWorkspaceContextValue {
   openProductsManager: () => void;
   handleMarkAllAsReviewed: () => void;
   handleMarkAsReviewed: (orderId: string) => void;
-  handleCreateOrder: (input: NewOrderFormValue) => void;
+  handleCreateOrder: (input: NewOrderFormValue) => Promise<Order>;
   handleEditOrder: (
     orderId: string,
     payload: Pick<
@@ -75,6 +77,7 @@ export function BusinessWorkspaceProvider({
   businessName,
   businessSlug,
   initialOrders,
+  initialOrdersError,
   children,
 }: BusinessWorkspaceProviderProps) {
   const [isGlobalSearchOpen, setIsGlobalSearchOpen] = useState(false);
@@ -86,6 +89,7 @@ export function BusinessWorkspaceProvider({
     hasHydrated,
     newOrders,
     ordersState,
+    ordersError,
     handleAdvanceOrderStatus,
     handleCancelOrder,
     handleConfirmOrder,
@@ -101,6 +105,7 @@ export function BusinessWorkspaceProvider({
     businessId,
     businessSlug,
     orders: initialOrders,
+    initialOrdersError,
   });
 
   const selectedOrder = ordersState.find((order) => order.id === selectedOrderId) ?? null;
@@ -110,6 +115,7 @@ export function BusinessWorkspaceProvider({
       hasHydrated,
       newOrders,
       ordersState,
+      ordersError,
       openGlobalSearch: () => setIsGlobalSearchOpen(true),
       openNewOrder: () => setIsNewOrderDrawerOpen(true),
       openNewProduct: () => {
@@ -156,6 +162,7 @@ export function BusinessWorkspaceProvider({
       handleUpdatePaymentStatus,
       hasHydrated,
       newOrders,
+      ordersError,
       ordersState,
       setIsGlobalSearchOpen,
       setIsNewOrderDrawerOpen,

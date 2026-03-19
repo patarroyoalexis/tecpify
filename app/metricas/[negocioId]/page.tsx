@@ -1,8 +1,8 @@
 import { BusinessWorkspaceShell } from "@/components/dashboard/business-workspace-shell";
 import { MetricsOverview } from "@/components/dashboard/metrics-overview";
 import { getBusinessBySlug, getBusinessBySlugFromDatabase } from "@/data/businesses";
-import { getMockOrdersByBusinessId } from "@/data/orders";
 import { getOrdersByBusinessSlugFromDatabase } from "@/lib/data/orders-server";
+import type { Order } from "@/types/orders";
 
 export default async function MetricsPage({
   params,
@@ -14,11 +14,19 @@ export default async function MetricsPage({
   const databaseBusiness = business
     ? await getBusinessBySlugFromDatabase(negocioId).catch(() => null)
     : null;
-  const initialOrders = business
-    ? await getOrdersByBusinessSlugFromDatabase(negocioId).catch(() =>
-        getMockOrdersByBusinessId(business.slug),
-      )
-    : [];
+  let initialOrders: Order[] = [];
+  let initialOrdersError: string | null = null;
+
+  if (business && databaseBusiness) {
+    try {
+      initialOrders = await getOrdersByBusinessSlugFromDatabase(negocioId);
+    } catch (error) {
+      initialOrdersError =
+        error instanceof Error
+          ? error.message
+          : "No fue posible cargar los pedidos reales de este negocio.";
+    }
+  }
 
   if (!business) {
     return (
@@ -48,6 +56,7 @@ export default async function MetricsPage({
       businessName={business.name}
       businessSlug={business.slug}
       initialOrders={initialOrders}
+      initialOrdersError={initialOrdersError}
       title="Metricas"
       description="Rendimiento del negocio en una capa separada de la operacion."
     >

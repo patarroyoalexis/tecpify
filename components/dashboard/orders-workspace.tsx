@@ -124,6 +124,7 @@ export function OrdersWorkspace({
   );
   const {
     hasHydrated,
+    ordersError,
     ordersState,
     handleResetOrders,
     quickUpdateOrderStatus,
@@ -208,6 +209,12 @@ export function OrdersWorkspace({
 
   return (
     <div className="w-full space-y-4 sm:space-y-5">
+      {ordersError ? (
+        <div className="rounded-[22px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          {ordersError}
+        </div>
+      ) : null}
+
       <MetricsCards metrics={metrics} compactOnMobile layout="orders" />
 
       <OrdersFilters

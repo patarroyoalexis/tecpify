@@ -1,4 +1,4 @@
-import { readOrdersForBusiness } from "@/data/order-storage";
+import type { Order } from "@/types/orders";
 
 export interface CustomerProfile {
   customerName: string;
@@ -25,7 +25,7 @@ export function isValidWhatsAppPhone(value: string) {
 }
 
 export function findCustomerProfileByWhatsApp(
-  businessId: string,
+  orders: Order[],
   phone: string,
 ): CustomerProfile | null {
   const normalizedPhone = normalizeWhatsAppPhone(phone);
@@ -34,7 +34,6 @@ export function findCustomerProfileByWhatsApp(
     return null;
   }
 
-  const orders = readOrdersForBusiness(businessId) ?? [];
   const matchingOrder = orders.find(
     (order) =>
       normalizeWhatsAppPhone(order.customerPhone ?? "") === normalizedPhone,

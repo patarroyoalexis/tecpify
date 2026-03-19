@@ -5,6 +5,8 @@ import {
   getBusinessBySlug,
   getBusinessBySlugWithProducts,
 } from "@/data/businesses";
+import { getOrdersByBusinessSlugFromDatabase } from "@/lib/data/orders-server";
+import type { Order } from "@/types/orders";
 
 function StorefrontMessage({
   tone,
@@ -59,6 +61,7 @@ export default async function StorefrontOrderPage({
 
   let business = null;
   let productsLoadFailed = false;
+  let recentOrders: Order[] = [];
 
   try {
     const result = await getBusinessBySlugWithProducts(negocioId);
@@ -120,5 +123,13 @@ export default async function StorefrontOrderPage({
     );
   }
 
-  return <StorefrontOrderWizard business={business} />;
+  if (business.databaseId) {
+    try {
+      recentOrders = await getOrdersByBusinessSlugFromDatabase(negocioId);
+    } catch {
+      recentOrders = [];
+    }
+  }
+
+  return <StorefrontOrderWizard business={business} recentOrders={recentOrders} />;
 }
