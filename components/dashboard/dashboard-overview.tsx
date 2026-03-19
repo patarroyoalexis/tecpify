@@ -51,6 +51,104 @@ function CopyPublicLinkButton({ businessId }: { businessId: string }) {
   );
 }
 
+function PublicOrderLinkCard({
+  businessId,
+  businessReadiness,
+  onOpenCreateProduct,
+  onOpenProductsManager,
+}: {
+  businessId: string;
+  businessReadiness: BusinessReadinessSnapshot;
+  onOpenCreateProduct: () => void;
+  onOpenProductsManager: () => void;
+}) {
+  const publicPath = `/pedido/${businessId}`;
+  const [publicUrl, setPublicUrl] = useState(publicPath);
+
+  useEffect(() => {
+    setPublicUrl(`${window.location.origin}${publicPath}`);
+  }, [publicPath]);
+
+  if (businessReadiness.canSell) {
+    return (
+      <section className="rounded-[28px] border border-emerald-200 bg-[linear-gradient(135deg,rgba(236,253,245,0.98),rgba(255,255,255,0.98))] p-6 shadow-[0_18px_45px_rgba(15,23,42,0.05)]">
+        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-700">
+          Formulario publico
+        </p>
+        <h2 className="mt-2 text-2xl font-semibold text-slate-950">
+          Ya puedes recibir pedidos
+        </h2>
+        <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+          Tu negocio ya tiene catalogo activo. Comparte este link o abre el formulario para
+          probarlo enseguida.
+        </p>
+
+        <div className="mt-5 rounded-[22px] border border-emerald-200 bg-white/90 p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+            Link de pedidos
+          </p>
+          <p className="mt-2 break-all text-sm font-medium text-slate-900">{publicUrl}</p>
+        </div>
+
+        <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+          <CopyPublicLinkButton businessId={businessId} />
+          <Link
+            href={publicPath}
+            target="_blank"
+            className="rounded-full bg-slate-950 px-5 py-3 text-center text-sm font-semibold text-white transition hover:bg-slate-800"
+          >
+            Abrir formulario publico
+          </Link>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="rounded-[28px] border border-amber-200 bg-[linear-gradient(135deg,rgba(255,251,235,0.98),rgba(255,255,255,0.98))] p-6 shadow-[0_18px_45px_rgba(15,23,42,0.05)]">
+      <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-700">
+        Formulario publico
+      </p>
+      <h2 className="mt-2 text-2xl font-semibold text-slate-950">
+        Aun no esta listo para compartir
+      </h2>
+      <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+        {businessReadiness.status === "no_products"
+          ? "Primero crea al menos un producto para habilitar el catalogo del negocio."
+          : "Ya tienes productos cargados, pero necesitas activar al menos uno para poder recibir pedidos."}
+      </p>
+
+      <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+        {businessReadiness.status === "no_products" ? (
+          <button
+            type="button"
+            onClick={onOpenCreateProduct}
+            className="rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+          >
+            Agregar primer producto
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={onOpenProductsManager}
+            className="rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+          >
+            Activar productos
+          </button>
+        )}
+
+        <button
+          type="button"
+          onClick={onOpenProductsManager}
+          className="rounded-full border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+        >
+          Ver catalogo
+        </button>
+      </div>
+    </section>
+  );
+}
+
 function CommerceReadinessCard({
   businessId,
   businessName,
@@ -344,6 +442,13 @@ export function DashboardOverview({
         businessName={businessName}
         businessReadiness={businessReadiness}
         hasOrders={hasOrders}
+        onOpenCreateProduct={openNewProduct}
+        onOpenProductsManager={openProductsManager}
+      />
+
+      <PublicOrderLinkCard
+        businessId={businessId}
+        businessReadiness={businessReadiness}
         onOpenCreateProduct={openNewProduct}
         onOpenProductsManager={openProductsManager}
       />
