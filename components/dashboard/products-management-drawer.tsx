@@ -29,6 +29,12 @@ interface ProductFormState {
   sortOrder: string;
 }
 
+interface ProductCatalogStatus {
+  totalProducts: number;
+  activeProducts: number;
+  canSell: boolean;
+}
+
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("es-CO", {
     style: "currency",
@@ -80,6 +86,16 @@ function ProductFlag({
   );
 }
 
+function getCatalogStatus(products: Product[]): ProductCatalogStatus {
+  const activeProducts = products.filter((product) => product.is_available).length;
+
+  return {
+    totalProducts: products.length,
+    activeProducts,
+    canSell: activeProducts > 0,
+  };
+}
+
 export function ProductsManagementDrawer({
   businessDatabaseId,
   businessName,
@@ -96,6 +112,7 @@ export function ProductsManagementDrawer({
   const [mode, setMode] = useState<"list" | "create" | "edit">("list");
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [formState, setFormState] = useState<ProductFormState>(() => createDefaultFormState(1));
+  const [createAnotherAfterSave, setCreateAnotherAfterSave] = useState(true);
 
   const nextSortOrder = useMemo(() => {
     if (products.length === 0) {
@@ -104,6 +121,7 @@ export function ProductsManagementDrawer({
 
     return Math.max(...products.map((product) => product.sort_order ?? 0)) + 1;
   }, [products]);
+  const catalogStatus = useMemo(() => getCatalogStatus(products), [products]);
 
   const loadProducts = useCallback(async () => {
     if (!businessDatabaseId) {
@@ -143,6 +161,7 @@ export function ProductsManagementDrawer({
       setError("");
       setFeedback("");
       setFormState(createDefaultFormState(nextSortOrder));
+      setCreateAnotherAfterSave(true);
     }
   }, [initialMode, isOpen, nextSortOrder]);
 
@@ -158,6 +177,7 @@ export function ProductsManagementDrawer({
     if (initialMode === "create") {
       setMode("create");
       setFormState(createDefaultFormState(nextSortOrder));
+      setCreateAnotherAfterSave(true);
       return;
     }
 
@@ -180,6 +200,7 @@ export function ProductsManagementDrawer({
     setError("");
     setFeedback("");
     setFormState(createDefaultFormState(nextSortOrder));
+    setCreateAnotherAfterSave(true);
   }
 
   function openEditForm(product: Product) {
@@ -236,18 +257,37 @@ export function ProductsManagementDrawer({
       const payload = normalizeSavePayload();
 
       if ("create" in payload) {
-        await createProductViaApi(payload.create);
-        setFeedback("Producto creado correctamente.");
+        const createdProduct = await createProductViaApi(payload.create);
+        const nextProducts = await fetchProductsByBusinessId(payload.create.businessId);
+        const nextCatalogStatus = getCatalogStatus(nextProducts);
+
+        setProducts(nextProducts);
+        setFeedback(
+          nextCatalogStatus.canSell
+            ? `"${createdProduct.name}" ya quedo listo y el negocio puede vender.`
+            : `"${createdProduct.name}" fue creado. Puedes cargar otro producto ahora.`,
+        );
+
+        router.refresh();
+
+        if (createAnotherAfterSave) {
+          setMode("create");
+          setEditingProductId(null);
+          setFormState(createDefaultFormState(nextProducts.length + 1));
+        } else {
+          setMode("list");
+          setEditingProductId(null);
+          setFormState(createDefaultFormState(nextProducts.length + 1));
+        }
       } else if (editingProductId) {
         await updateProductViaApi(editingProductId, payload.update);
+        await loadProducts();
+        router.refresh();
         setFeedback("Producto actualizado correctamente.");
+        setMode("list");
+        setEditingProductId(null);
+        setFormState(createDefaultFormState(nextSortOrder));
       }
-
-      await loadProducts();
-      router.refresh();
-      setMode("list");
-      setEditingProductId(null);
-      setFormState(createDefaultFormState(nextSortOrder));
     } catch (saveError) {
       setError(
         saveError instanceof Error
@@ -380,6 +420,34 @@ export function ProductsManagementDrawer({
               </button>
             </div>
           </div>
+
+          {businessDatabaseId ? (
+            <div className="mt-4 flex flex-wrap gap-2">
+              <span className="rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+                {catalogStatus.totalProducts} producto
+                {catalogStatus.totalProducts === 1 ? "" : "s"}
+              </span>
+              <span
+                className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                  catalogStatus.activeProducts > 0
+                    ? "border border-emerald-200 bg-emerald-50 text-emerald-800"
+                    : "border border-amber-200 bg-amber-50 text-amber-800"
+                }`}
+              >
+                {catalogStatus.activeProducts} activo
+                {catalogStatus.activeProducts === 1 ? "" : "s"}
+              </span>
+              <span
+                className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                  catalogStatus.canSell
+                    ? "border border-emerald-200 bg-emerald-50 text-emerald-800"
+                    : "border border-slate-200 bg-white text-slate-700"
+                }`}
+              >
+                {catalogStatus.canSell ? "Listo para vender" : "Aun no puede vender"}
+              </span>
+            </div>
+          ) : null}
         </div>
 
         {feedback ? (
@@ -417,7 +485,7 @@ export function ProductsManagementDrawer({
                   Aun no hay productos cargados
                 </h3>
                 <p className="mt-2 text-sm leading-6 text-slate-600">
-                  Crea el primer producto para empezar a alimentar el catalogo del negocio.
+                  Carga entre 1 y 3 productos base para dejar el negocio listo para vender.
                 </p>
                 <button
                   type="button"
@@ -428,7 +496,20 @@ export function ProductsManagementDrawer({
                 </button>
               </div>
             ) : (
-              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <div className="space-y-4">
+                <div
+                  className={`rounded-[22px] border p-4 text-sm ${
+                    catalogStatus.canSell
+                      ? "border-emerald-200 bg-emerald-50/80 text-emerald-900"
+                      : "border-amber-200 bg-amber-50/80 text-amber-900"
+                  }`}
+                >
+                  {catalogStatus.canSell
+                    ? `Ya tienes ${catalogStatus.activeProducts} producto${catalogStatus.activeProducts === 1 ? "" : "s"} activo${catalogStatus.activeProducts === 1 ? "" : "s"}. El negocio ya puede vender.`
+                    : `Tienes ${catalogStatus.totalProducts} producto${catalogStatus.totalProducts === 1 ? "" : "s"} cargado${catalogStatus.totalProducts === 1 ? "" : "s"}, pero aun necesitas activar al menos uno para vender.`}
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                 {products.map((product, index) => (
                   <article
                     key={product.id}
@@ -536,10 +617,11 @@ export function ProductsManagementDrawer({
                   </article>
                 ))}
 
-                <div className="rounded-[22px] border border-amber-200 bg-amber-50/80 p-4 text-sm leading-6 text-amber-900 lg:col-span-2">
-                  Por ahora priorizamos un comportamiento conservador: en lugar de borrar
-                  productos, puedes desactivarlos para evitar inconsistencias futuras con
-                  pedidos historicos.
+                  <div className="rounded-[22px] border border-amber-200 bg-amber-50/80 p-4 text-sm leading-6 text-amber-900 lg:col-span-2">
+                    Por ahora priorizamos un comportamiento conservador: en lugar de borrar
+                    productos, puedes desactivarlos para evitar inconsistencias futuras con
+                    pedidos historicos.
+                  </div>
                 </div>
               </div>
             )}
@@ -548,6 +630,18 @@ export function ProductsManagementDrawer({
           <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
             <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
               <div className="space-y-5">
+                {mode === "create" ? (
+                  <section className="rounded-[24px] border border-sky-200 bg-sky-50/80 p-5">
+                    <p className="text-sm font-semibold text-sky-900">
+                      Alta rapida para activacion
+                    </p>
+                    <p className="mt-1 text-sm leading-6 text-slate-700">
+                      Para empezar a vender solo necesitas nombre, precio y dejar activo el
+                      producto. La descripcion, el orden y destacado pueden esperar.
+                    </p>
+                  </section>
+                ) : null}
+
                 <section className="rounded-[24px] border border-slate-200 bg-white p-5">
                   <div className="grid gap-4 sm:grid-cols-2">
                     <label className="space-y-2 sm:col-span-2">
@@ -560,19 +654,13 @@ export function ProductsManagementDrawer({
                       />
                     </label>
 
-                    <label className="space-y-2 sm:col-span-2">
-                      <span className="text-sm font-medium text-slate-700">Descripcion</span>
-                      <textarea
-                        value={formState.description}
-                        onChange={(event) => updateFormField("description", event.target.value)}
-                        rows={4}
-                        className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-base leading-6 text-slate-900 outline-none transition focus:border-slate-400 sm:text-sm sm:leading-5"
-                        placeholder="Opcional. Ayuda a identificar mejor el producto."
-                      />
-                    </label>
-
                     <label className="space-y-2">
-                      <span className="text-sm font-medium text-slate-700">Precio</span>
+                      <span className="text-sm font-medium text-slate-700">
+                        Precio
+                        <span className="ml-2 text-xs font-medium text-slate-400">
+                          Obligatorio
+                        </span>
+                      </span>
                       <input
                         type="number"
                         min="0"
@@ -584,16 +672,64 @@ export function ProductsManagementDrawer({
                       />
                     </label>
 
-                    <label className="space-y-2">
-                      <span className="text-sm font-medium text-slate-700">Orden</span>
-                      <input
-                        type="number"
-                        min="1"
-                        value={formState.sortOrder}
-                        onChange={(event) => updateFormField("sortOrder", event.target.value)}
-                        className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-base leading-6 text-slate-900 outline-none transition focus:border-slate-400 sm:text-sm sm:leading-5"
-                      />
-                    </label>
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                      <p className="text-sm font-medium text-slate-900">Estado inicial</p>
+                      <p className="mt-1 text-sm text-slate-600">
+                        {formState.isAvailable
+                          ? "Activo. Se mostrara en el formulario publico."
+                          : "Guardado sin activar. Aun no se mostrara en el link publico."}
+                      </p>
+                    </div>
+                  </div>
+                </section>
+
+                <section className="rounded-[24px] border border-slate-200 bg-white p-5">
+                  <div className="space-y-4">
+                    <div>
+                      <p className="text-sm font-medium text-slate-900">Opcional para ahora</p>
+                      <p className="mt-1 text-sm text-slate-600">
+                        Completa esto solo si te suma en la carga inicial.
+                      </p>
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <label className="space-y-2 sm:col-span-2">
+                        <span className="text-sm font-medium text-slate-700">Descripcion</span>
+                        <textarea
+                          value={formState.description}
+                          onChange={(event) => updateFormField("description", event.target.value)}
+                          rows={3}
+                          className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-base leading-6 text-slate-900 outline-none transition focus:border-slate-400 sm:text-sm sm:leading-5"
+                          placeholder="Opcional. Puedes dejarlo vacio por ahora."
+                        />
+                      </label>
+
+                      <label className="space-y-2">
+                        <span className="text-sm font-medium text-slate-700">Orden</span>
+                        <input
+                          type="number"
+                          min="1"
+                          value={formState.sortOrder}
+                          onChange={(event) => updateFormField("sortOrder", event.target.value)}
+                          className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-base leading-6 text-slate-900 outline-none transition focus:border-slate-400 sm:text-sm sm:leading-5"
+                        />
+                      </label>
+
+                      <label className="flex items-start justify-between gap-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                        <div>
+                          <p className="text-sm font-medium text-slate-900">Destacado</p>
+                          <p className="text-sm text-slate-600">
+                            Opcional para resaltar este producto.
+                          </p>
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={formState.isFeatured}
+                          onChange={(event) => updateFormField("isFeatured", event.target.checked)}
+                          className="mt-1 h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-300"
+                        />
+                      </label>
+                    </div>
                   </div>
                 </section>
 
@@ -614,20 +750,24 @@ export function ProductsManagementDrawer({
                       />
                     </label>
 
-                    <label className="flex items-start justify-between gap-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                      <div>
-                        <p className="text-sm font-medium text-slate-900">Destacado</p>
-                        <p className="text-sm text-slate-600">
-                          Ayuda a priorizar el producto en experiencias publicas y resaltes.
-                        </p>
-                      </div>
-                      <input
-                        type="checkbox"
-                        checked={formState.isFeatured}
-                        onChange={(event) => updateFormField("isFeatured", event.target.checked)}
-                        className="mt-1 h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-300"
-                      />
-                    </label>
+                    {mode === "create" ? (
+                      <label className="flex items-start justify-between gap-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                        <div>
+                          <p className="text-sm font-medium text-slate-900">
+                            Seguir cargando productos
+                          </p>
+                          <p className="text-sm text-slate-600">
+                            Despues de guardar, deja este formulario abierto para crear otro.
+                          </p>
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={createAnotherAfterSave}
+                          onChange={(event) => setCreateAnotherAfterSave(event.target.checked)}
+                          className="mt-1 h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-300"
+                        />
+                      </label>
+                    ) : null}
                   </div>
                 </section>
               </div>
@@ -657,7 +797,9 @@ export function ProductsManagementDrawer({
                   {isSaving
                     ? "Guardando..."
                     : mode === "create"
-                      ? "Crear producto"
+                      ? createAnotherAfterSave
+                        ? "Guardar y crear otro"
+                        : "Crear producto"
                       : "Guardar cambios"}
                 </button>
               </div>
