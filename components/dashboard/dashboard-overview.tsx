@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 
 import { MetricsCards } from "@/components/dashboard/metrics-cards";
+import type { BusinessReadinessSnapshot } from "@/lib/businesses/readiness";
 import {
   formatCurrency,
   getBusinessInsights,
@@ -14,14 +16,195 @@ import { useBusinessWorkspace } from "./business-workspace-context";
 
 interface DashboardOverviewProps {
   businessId: string;
-  initialProductsCount: number;
+  businessName: string;
+  businessReadiness: BusinessReadinessSnapshot;
+}
+
+function CopyPublicLinkButton({ businessId }: { businessId: string }) {
+  const [feedback, setFeedback] = useState("");
+
+  async function handleCopy() {
+    const publicPath = `/pedido/${businessId}`;
+    const publicUrl =
+      typeof window === "undefined" ? publicPath : `${window.location.origin}${publicPath}`;
+
+    try {
+      await navigator.clipboard.writeText(publicUrl);
+      setFeedback("Link copiado");
+    } catch {
+      setFeedback("No pudimos copiar el link");
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+      <button
+        type="button"
+        onClick={() => void handleCopy()}
+        className="rounded-full border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+      >
+        Copiar link publico
+      </button>
+      {feedback ? <p className="text-xs text-slate-500">{feedback}</p> : null}
+    </div>
+  );
+}
+
+function CommerceReadinessCard({
+  businessId,
+  businessName,
+  businessReadiness,
+  hasOrders,
+  onOpenCreateProduct,
+  onOpenProductsManager,
+}: {
+  businessId: string;
+  businessName: string;
+  businessReadiness: BusinessReadinessSnapshot;
+  hasOrders: boolean;
+  onOpenCreateProduct: () => void;
+  onOpenProductsManager: () => void;
+}) {
+  const publicPath = `/pedido/${businessId}`;
+
+  if (businessReadiness.status === "no_products") {
+    return (
+      <section className="rounded-[30px] border border-amber-200 bg-[linear-gradient(135deg,rgba(255,251,235,0.98),rgba(255,255,255,0.98))] p-6 shadow-[0_20px_50px_rgba(15,23,42,0.06)]">
+        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-700">
+          Negocio aun no listo
+        </p>
+        <h2 className="mt-2 text-3xl font-semibold text-slate-950">
+          Agrega tu primer producto para empezar a vender
+        </h2>
+        <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
+          {businessName} ya fue creado, pero todavia no puede recibir pedidos porque su
+          catalogo esta vacio.
+        </p>
+
+        <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+          <button
+            type="button"
+            onClick={onOpenCreateProduct}
+            className="rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+          >
+            Agregar primer producto
+          </button>
+          <button
+            type="button"
+            onClick={onOpenProductsManager}
+            className="rounded-full border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+          >
+            Administrar catalogo
+          </button>
+        </div>
+
+        <div className="mt-5 rounded-[22px] border border-white/80 bg-white/80 p-4 text-sm leading-6 text-slate-700">
+          Cuando tengas al menos un producto activo, podras compartir <code>{publicPath}</code> y
+          empezar a recibir pedidos reales.
+        </div>
+      </section>
+    );
+  }
+
+  if (businessReadiness.status === "inactive_catalog") {
+    return (
+      <section className="rounded-[30px] border border-amber-200 bg-[linear-gradient(135deg,rgba(255,251,235,0.98),rgba(255,255,255,0.98))] p-6 shadow-[0_20px_50px_rgba(15,23,42,0.06)]">
+        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-700">
+          Catalogo incompleto
+        </p>
+        <h2 className="mt-2 text-3xl font-semibold text-slate-950">
+          Activa al menos un producto para recibir pedidos
+        </h2>
+        <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
+          {businessName} ya tiene {businessReadiness.totalProducts} producto
+          {businessReadiness.totalProducts === 1 ? "" : "s"}, pero ninguno esta activo.
+        </p>
+
+        <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+          <button
+            type="button"
+            onClick={onOpenProductsManager}
+            className="rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+          >
+            Administrar catalogo
+          </button>
+          <button
+            type="button"
+            onClick={onOpenCreateProduct}
+            className="rounded-full border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+          >
+            Agregar producto
+          </button>
+        </div>
+
+        <div className="mt-5 rounded-[22px] border border-white/80 bg-white/80 p-4 text-sm leading-6 text-slate-700">
+          Revisa disponibilidad desde el drawer de productos. En cuanto haya al menos un
+          producto activo, el negocio quedara listo para compartir su formulario publico.
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="rounded-[30px] border border-emerald-200 bg-[linear-gradient(135deg,rgba(236,253,245,0.98),rgba(255,255,255,0.98))] p-6 shadow-[0_20px_50px_rgba(15,23,42,0.06)]">
+      <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-700">
+        Listo para vender
+      </p>
+      <h2 className="mt-2 text-3xl font-semibold text-slate-950">
+        Tu negocio ya esta listo para recibir pedidos
+      </h2>
+      <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
+        {businessName} ya tiene {businessReadiness.activeProducts} producto
+        {businessReadiness.activeProducts === 1 ? "" : "s"} activo
+        {businessReadiness.activeProducts === 1 ? "" : "s"} en el catalogo.
+      </p>
+
+      <div className="mt-5 rounded-[24px] border border-emerald-200 bg-white/90 p-4">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+          Link publico
+        </p>
+        <p className="mt-2 break-all text-sm font-medium text-slate-900">{publicPath}</p>
+      </div>
+
+      <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start">
+        <CopyPublicLinkButton businessId={businessId} />
+        <Link
+          href={publicPath}
+          target="_blank"
+          className="rounded-full bg-slate-950 px-5 py-3 text-center text-sm font-semibold text-white transition hover:bg-slate-800"
+        >
+          Abrir formulario publico
+        </Link>
+        <button
+          type="button"
+          onClick={onOpenProductsManager}
+          className="rounded-full border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+        >
+          Administrar catalogo
+        </button>
+      </div>
+
+      {!hasOrders ? (
+        <p className="mt-4 text-sm leading-6 text-slate-600">
+          Aun no tienes pedidos. El siguiente paso es compartir el link publico y esperar el
+          primer pedido para activar la operacion diaria.
+        </p>
+      ) : null}
+    </section>
+  );
 }
 
 export function DashboardOverview({
   businessId,
-  initialProductsCount,
+  businessName,
+  businessReadiness,
 }: DashboardOverviewProps) {
-  const { openProductsManager, ordersError, ordersState } = useBusinessWorkspace();
+  const {
+    openNewProduct,
+    openProductsManager,
+    ordersError,
+    ordersState,
+  } = useBusinessWorkspace();
   const summary = getDashboardSummary(ordersState);
   const insights = getBusinessInsights(ordersState).slice(0, 2);
   const unreviewedOrders = ordersState.filter((order) => !order.isReviewed);
@@ -34,7 +217,6 @@ export function DashboardOverview({
       order.status === "pendiente de pago" || order.status === "pago por verificar",
   );
   const hasOrders = ordersState.length > 0;
-  const hasProducts = initialProductsCount > 0;
 
   const executiveMetrics = [
     {
@@ -71,38 +253,14 @@ export function DashboardOverview({
         </section>
       ) : null}
 
-      {!hasOrders ? (
-        <section className="rounded-[28px] border border-dashed border-slate-300 bg-white/90 p-6 shadow-[0_18px_45px_rgba(15,23,42,0.04)]">
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">
-            Estado inicial
-          </p>
-          <h2 className="mt-2 text-2xl font-semibold text-slate-950">
-            Aun no tienes pedidos
-          </h2>
-          <p className="mt-2 text-sm leading-6 text-slate-600">
-            Este negocio todavia no tiene informacion operativa. Cuando entren pedidos,
-            aqui veras actividad reciente, prioridades y metricas resumidas.
-          </p>
-
-          {!hasProducts ? (
-            <div className="mt-4 rounded-[22px] border border-amber-200 bg-amber-50/80 p-4">
-              <p className="text-sm font-semibold text-amber-800">
-                Aun no has agregado productos
-              </p>
-              <p className="mt-1 text-sm leading-6 text-slate-700">
-                Puedes crear el primer producto para habilitar el catalogo publico del negocio.
-              </p>
-              <button
-                type="button"
-                onClick={openProductsManager}
-                className="mt-4 rounded-full bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
-              >
-                Crear primer producto
-              </button>
-            </div>
-          ) : null}
-        </section>
-      ) : null}
+      <CommerceReadinessCard
+        businessId={businessId}
+        businessName={businessName}
+        businessReadiness={businessReadiness}
+        hasOrders={hasOrders}
+        onOpenCreateProduct={openNewProduct}
+        onOpenProductsManager={openProductsManager}
+      />
 
       {insights.length > 0 ? (
         <section className="rounded-[24px] border border-sky-200 bg-[linear-gradient(135deg,rgba(224,242,254,0.9),rgba(255,255,255,0.98))] px-4 py-3.5 shadow-[0_16px_36px_rgba(15,23,42,0.05)] sm:px-5 sm:py-4">
