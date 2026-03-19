@@ -298,7 +298,7 @@ export function OrderCard({
                 </span>
               ) : (
                 <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
-                  <OrdersUiIcon icon="store" className="h-3.5 w-3.5 text-slate-400" />
+                  <OrdersUiIcon icon="box" className="h-3.5 w-3.5 text-slate-400" />
                   <span>{deliveryLabel}</span>
                 </span>
               )}
