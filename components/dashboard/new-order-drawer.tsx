@@ -92,10 +92,19 @@ export function NewOrderDrawer({
     hasActiveProducts && selectedProductIds.length < activeProducts.length;
 
   useEffect(() => {
-    if (!isOpen || !businessDatabaseId) {
+    if (!isOpen) {
       return;
     }
 
+    if (!businessDatabaseId) {
+      setCatalogProducts([]);
+      setProducts([]);
+      setProductsError("");
+      setIsLoadingProducts(false);
+      return;
+    }
+
+    const currentBusinessId = businessDatabaseId;
     let isCancelled = false;
 
     async function loadProducts() {
@@ -103,7 +112,7 @@ export function NewOrderDrawer({
       setProductsError("");
 
       try {
-        const fetchedProducts = await fetchProductsByBusinessId(businessDatabaseId);
+        const fetchedProducts = await fetchProductsByBusinessId(currentBusinessId);
 
         if (isCancelled) {
           return;
