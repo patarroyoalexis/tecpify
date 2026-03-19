@@ -149,6 +149,116 @@ function PublicOrderLinkCard({
   );
 }
 
+function ProductsActivationCard({
+  businessReadiness,
+  onOpenCreateProduct,
+  onOpenProductsManager,
+}: {
+  businessReadiness: BusinessReadinessSnapshot;
+  onOpenCreateProduct: () => void;
+  onOpenProductsManager: () => void;
+}) {
+  const primaryAction =
+    businessReadiness.status === "no_products"
+      ? {
+          label: "Agregar primer producto",
+          helper: "Sin productos no hay catalogo para vender.",
+          action: onOpenCreateProduct,
+        }
+      : businessReadiness.status === "inactive_catalog"
+        ? {
+            label: "Activar productos",
+            helper: "Ya hay productos cargados, pero todavia no estan visibles para vender.",
+            action: onOpenProductsManager,
+          }
+        : {
+            label: "Gestionar catalogo",
+            helper: "El negocio ya puede vender y desde aqui puedes seguir ajustando el catalogo.",
+            action: onOpenProductsManager,
+          };
+
+  return (
+    <section
+      className={`rounded-[28px] border p-6 shadow-[0_18px_45px_rgba(15,23,42,0.05)] ${
+        businessReadiness.canSell
+          ? "border-emerald-200 bg-[linear-gradient(135deg,rgba(236,253,245,0.95),rgba(255,255,255,0.98))]"
+          : "border-amber-200 bg-[linear-gradient(135deg,rgba(255,251,235,0.95),rgba(255,255,255,0.98))]"
+      }`}
+    >
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">
+            Catalogo del negocio
+          </p>
+          <h2 className="mt-2 text-2xl font-semibold text-slate-950">
+            Productos que destraban ventas reales
+          </h2>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+            Haz visible el estado del catalogo y actua rapido sin salir del dashboard.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={primaryAction.action}
+          className="rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+        >
+          {primaryAction.label}
+        </button>
+      </div>
+
+      <div className="mt-5 grid gap-3 sm:grid-cols-3">
+        <div className="rounded-[22px] border border-white/80 bg-white/90 p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+            Total
+          </p>
+          <p className="mt-2 text-2xl font-semibold text-slate-950">
+            {businessReadiness.totalProducts}
+          </p>
+        </div>
+        <div className="rounded-[22px] border border-emerald-200 bg-white/90 p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+            Activos
+          </p>
+          <p className="mt-2 text-2xl font-semibold text-slate-950">
+            {businessReadiness.activeProducts}
+          </p>
+        </div>
+        <div className="rounded-[22px] border border-amber-200 bg-white/90 p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+            Inactivos
+          </p>
+          <p className="mt-2 text-2xl font-semibold text-slate-950">
+            {businessReadiness.inactiveProducts}
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-5 rounded-[22px] border border-white/80 bg-white/90 p-4">
+        <p className="text-base font-semibold text-slate-950">{primaryAction.label}</p>
+        <p className="mt-1 text-sm leading-6 text-slate-600">{primaryAction.helper}</p>
+      </div>
+
+      <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+        <button
+          type="button"
+          onClick={onOpenProductsManager}
+          className="rounded-full border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+        >
+          Abrir catalogo
+        </button>
+        <button
+          type="button"
+          onClick={onOpenCreateProduct}
+          className="rounded-full border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+        >
+          Cargar producto
+        </button>
+      </div>
+    </section>
+  );
+}
+
 function CommerceReadinessCard({
   businessId,
   businessName,
@@ -448,6 +558,12 @@ export function DashboardOverview({
 
       <PublicOrderLinkCard
         businessId={businessId}
+        businessReadiness={businessReadiness}
+        onOpenCreateProduct={openNewProduct}
+        onOpenProductsManager={openProductsManager}
+      />
+
+      <ProductsActivationCard
         businessReadiness={businessReadiness}
         onOpenCreateProduct={openNewProduct}
         onOpenProductsManager={openProductsManager}

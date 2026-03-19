@@ -4,6 +4,7 @@ export interface BusinessReadinessSnapshot {
   status: BusinessReadinessStatus;
   totalProducts: number;
   activeProducts: number;
+  inactiveProducts: number;
   businessExists: boolean;
   canSell: boolean;
   statusLabel: string;
@@ -21,6 +22,7 @@ export function getBusinessReadinessSnapshot(
       status: "no_products",
       totalProducts: 0,
       activeProducts: 0,
+      inactiveProducts: 0,
       businessExists: true,
       canSell: false,
       statusLabel: "Faltan productos",
@@ -35,6 +37,7 @@ export function getBusinessReadinessSnapshot(
       status: "inactive_catalog",
       totalProducts,
       activeProducts: 0,
+      inactiveProducts: totalProducts,
       businessExists: true,
       canSell: false,
       statusLabel: "Activa al menos un producto",
@@ -48,6 +51,7 @@ export function getBusinessReadinessSnapshot(
     status: "ready",
     totalProducts,
     activeProducts,
+    inactiveProducts: Math.max(totalProducts - activeProducts, 0),
     businessExists: true,
     canSell: true,
     statusLabel: "Listo para recibir pedidos",

@@ -32,6 +32,7 @@ interface ProductFormState {
 interface ProductCatalogStatus {
   totalProducts: number;
   activeProducts: number;
+  inactiveProducts: number;
   canSell: boolean;
 }
 
@@ -92,8 +93,25 @@ function getCatalogStatus(products: Product[]): ProductCatalogStatus {
   return {
     totalProducts: products.length,
     activeProducts,
+    inactiveProducts: Math.max(products.length - activeProducts, 0),
     canSell: activeProducts > 0,
   };
+}
+
+function getAvailabilityFeedback(
+  productName: string,
+  isAvailable: boolean,
+  catalogStatus: ProductCatalogStatus,
+) {
+  if (isAvailable) {
+    return catalogStatus.activeProducts === 1
+      ? `"${productName}" ya esta activo. El negocio ya puede vender.`
+      : `"${productName}" ya esta activo. Ahora tienes ${catalogStatus.activeProducts} productos activos.`;
+  }
+
+  return catalogStatus.canSell
+    ? `"${productName}" fue desactivado. Aun quedan ${catalogStatus.activeProducts} productos activos.`
+    : `"${productName}" fue desactivado. El negocio se quedo sin productos activos para vender.`;
 }
 
 export function ProductsManagementDrawer({
@@ -122,6 +140,14 @@ export function ProductsManagementDrawer({
     return Math.max(...products.map((product) => product.sort_order ?? 0)) + 1;
   }, [products]);
   const catalogStatus = useMemo(() => getCatalogStatus(products), [products]);
+  const activeProducts = useMemo(
+    () => products.filter((product) => product.is_available),
+    [products],
+  );
+  const inactiveProducts = useMemo(
+    () => products.filter((product) => !product.is_available),
+    [products],
+  );
 
   const loadProducts = useCallback(async () => {
     if (!businessDatabaseId) {
@@ -303,7 +329,6 @@ export function ProductsManagementDrawer({
     product: Product,
     field: "isAvailable" | "isFeatured",
     value: boolean,
-    successMessage: string,
   ) {
     if (!businessDatabaseId) {
       return;
@@ -317,9 +342,17 @@ export function ProductsManagementDrawer({
         businessId: businessDatabaseId,
         [field]: value,
       });
-      await loadProducts();
+      const nextProducts = await fetchProductsByBusinessId(businessDatabaseId);
+      const nextCatalogStatus = getCatalogStatus(nextProducts);
+      setProducts(nextProducts);
       router.refresh();
-      setFeedback(successMessage);
+      setFeedback(
+        field === "isAvailable"
+          ? getAvailabilityFeedback(product.name, value, nextCatalogStatus)
+          : value
+            ? `"${product.name}" fue marcado como destacado.`
+            : `"${product.name}" salio de destacados.`,
+      );
     } catch (toggleError) {
       setError(
         toggleError instanceof Error
@@ -437,6 +470,10 @@ export function ProductsManagementDrawer({
                 {catalogStatus.activeProducts} activo
                 {catalogStatus.activeProducts === 1 ? "" : "s"}
               </span>
+              <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700">
+                {catalogStatus.inactiveProducts} inactivo
+                {catalogStatus.inactiveProducts === 1 ? "" : "s"}
+              </span>
               <span
                 className={`rounded-full px-3 py-1 text-xs font-semibold ${
                   catalogStatus.canSell
@@ -509,6 +546,40 @@ export function ProductsManagementDrawer({
                     : `Tienes ${catalogStatus.totalProducts} producto${catalogStatus.totalProducts === 1 ? "" : "s"} cargado${catalogStatus.totalProducts === 1 ? "" : "s"}, pero aun necesitas activar al menos uno para vender.`}
                 </div>
 
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <section className="rounded-[22px] border border-emerald-200 bg-emerald-50/70 p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold uppercase tracking-[0.18em] text-emerald-700">
+                          Activos
+                        </p>
+                        <p className="mt-1 text-sm text-emerald-900">
+                          Ya aparecen en el formulario publico.
+                        </p>
+                      </div>
+                      <span className="rounded-full border border-emerald-200 bg-white px-3 py-1 text-sm font-medium text-emerald-800">
+                        {activeProducts.length}
+                      </span>
+                    </div>
+                  </section>
+
+                  <section className="rounded-[22px] border border-slate-200 bg-slate-50/80 p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          Inactivos
+                        </p>
+                        <p className="mt-1 text-sm text-slate-700">
+                          Estan cargados, pero aun no se venden.
+                        </p>
+                      </div>
+                      <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-sm font-medium text-slate-700">
+                        {inactiveProducts.length}
+                      </span>
+                    </div>
+                  </section>
+                </div>
+
                 <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                 {products.map((product, index) => (
                   <article
@@ -560,14 +631,7 @@ export function ProductsManagementDrawer({
                       <button
                         type="button"
                         onClick={() =>
-                          handleQuickToggle(
-                            product,
-                            "isAvailable",
-                            !product.is_available,
-                            product.is_available
-                              ? "Producto desactivado correctamente."
-                              : "Producto activado correctamente.",
-                          )
+                          handleQuickToggle(product, "isAvailable", !product.is_available)
                         }
                         className="rounded-full border border-slate-300 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
                       >
@@ -576,14 +640,7 @@ export function ProductsManagementDrawer({
                       <button
                         type="button"
                         onClick={() =>
-                          handleQuickToggle(
-                            product,
-                            "isFeatured",
-                            !product.is_featured,
-                            product.is_featured
-                              ? "Producto removido de destacados."
-                              : "Producto marcado como destacado.",
-                          )
+                          handleQuickToggle(product, "isFeatured", !product.is_featured)
                         }
                         className="rounded-full border border-slate-300 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
                       >
