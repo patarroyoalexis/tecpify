@@ -4,6 +4,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import {
+  getBusinessReadinessSnapshot,
+  getProductCatalogTransitionFeedback,
+  type BusinessReadinessSnapshot,
+} from "@/lib/businesses/readiness";
+import {
   createProductViaApi,
   fetchProductsByBusinessId,
   updateProductViaApi,
@@ -27,13 +32,6 @@ interface ProductFormState {
   isAvailable: boolean;
   isFeatured: boolean;
   sortOrder: string;
-}
-
-interface ProductCatalogStatus {
-  totalProducts: number;
-  activeProducts: number;
-  inactiveProducts: number;
-  canSell: boolean;
 }
 
 function formatCurrency(value: number) {
@@ -87,31 +85,11 @@ function ProductFlag({
   );
 }
 
-function getCatalogStatus(products: Product[]): ProductCatalogStatus {
-  const activeProducts = products.filter((product) => product.is_available).length;
-
-  return {
-    totalProducts: products.length,
-    activeProducts,
-    inactiveProducts: Math.max(products.length - activeProducts, 0),
-    canSell: activeProducts > 0,
-  };
-}
-
-function getAvailabilityFeedback(
-  productName: string,
-  isAvailable: boolean,
-  catalogStatus: ProductCatalogStatus,
-) {
-  if (isAvailable) {
-    return catalogStatus.activeProducts === 1
-      ? `"${productName}" ya esta activo. El negocio ya puede vender.`
-      : `"${productName}" ya esta activo. Ahora tienes ${catalogStatus.activeProducts} productos activos.`;
-  }
-
-  return catalogStatus.canSell
-    ? `"${productName}" fue desactivado. Aun quedan ${catalogStatus.activeProducts} productos activos.`
-    : `"${productName}" fue desactivado. El negocio se quedo sin productos activos para vender.`;
+function getReadinessFromProducts(products: Product[]): BusinessReadinessSnapshot {
+  return getBusinessReadinessSnapshot(
+    products.length,
+    products.filter((product) => product.is_available).length,
+  );
 }
 
 export function ProductsManagementDrawer({
@@ -139,7 +117,7 @@ export function ProductsManagementDrawer({
 
     return Math.max(...products.map((product) => product.sort_order ?? 0)) + 1;
   }, [products]);
-  const catalogStatus = useMemo(() => getCatalogStatus(products), [products]);
+  const catalogStatus = useMemo(() => getReadinessFromProducts(products), [products]);
   const activeProducts = useMemo(
     () => products.filter((product) => product.is_available),
     [products],
@@ -280,18 +258,22 @@ export function ProductsManagementDrawer({
     setFeedback("");
 
     try {
+      const previousCatalogStatus = getReadinessFromProducts(products);
       const payload = normalizeSavePayload();
 
       if ("create" in payload) {
         const createdProduct = await createProductViaApi(payload.create);
         const nextProducts = await fetchProductsByBusinessId(payload.create.businessId);
-        const nextCatalogStatus = getCatalogStatus(nextProducts);
+        const nextCatalogStatus = getReadinessFromProducts(nextProducts);
 
         setProducts(nextProducts);
         setFeedback(
-          nextCatalogStatus.canSell
-            ? `"${createdProduct.name}" ya quedo listo y el negocio puede vender.`
-            : `"${createdProduct.name}" fue creado. Puedes cargar otro producto ahora.`,
+          getProductCatalogTransitionFeedback({
+            previous: previousCatalogStatus,
+            next: nextCatalogStatus,
+            productName: createdProduct.name,
+            change: "created",
+          }),
         );
 
         router.refresh();
@@ -338,17 +320,23 @@ export function ProductsManagementDrawer({
     setFeedback("");
 
     try {
+      const previousCatalogStatus = getReadinessFromProducts(products);
       await updateProductViaApi(product.id, {
         businessId: businessDatabaseId,
         [field]: value,
       });
       const nextProducts = await fetchProductsByBusinessId(businessDatabaseId);
-      const nextCatalogStatus = getCatalogStatus(nextProducts);
+      const nextCatalogStatus = getReadinessFromProducts(nextProducts);
       setProducts(nextProducts);
       router.refresh();
       setFeedback(
         field === "isAvailable"
-          ? getAvailabilityFeedback(product.name, value, nextCatalogStatus)
+          ? getProductCatalogTransitionFeedback({
+              previous: previousCatalogStatus,
+              next: nextCatalogStatus,
+              productName: product.name,
+              change: value ? "activated" : "deactivated",
+            })
           : value
             ? `"${product.name}" fue marcado como destacado.`
             : `"${product.name}" salio de destacados.`,
