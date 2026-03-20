@@ -260,7 +260,14 @@ export function OrderDetailDrawer({
   }, [isEditing, renderedOrder]);
 
   useEffect(() => {
-    if (!isOpen || !businessDatabaseId) {
+    if (!isOpen) {
+      return;
+    }
+
+    if (!businessDatabaseId) {
+      setCatalogProducts([]);
+      setCatalogError("");
+      setIsLoadingCatalog(false);
       return;
     }
 
