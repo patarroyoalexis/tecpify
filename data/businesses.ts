@@ -85,6 +85,12 @@ export interface ResolvedBusiness {
   hasDatabaseRecord: boolean;
 }
 
+export interface OperationalBusinessResolution {
+  business: BusinessConfig;
+  source: "database";
+  hasDatabaseRecord: true;
+}
+
 export interface HomeBusinessesSnapshot {
   realBusinesses: BusinessConfig[];
   demoBusinesses: BusinessConfig[];
@@ -214,6 +220,18 @@ export async function resolveBusinessBySlug(slug: string): Promise<ResolvedBusin
     source: "demo",
     hasDatabaseRecord: false,
   };
+}
+
+export async function resolveOperationalBusinessBySlug(
+  slug: string,
+): Promise<OperationalBusinessResolution | null> {
+  const resolvedBusiness = await resolveBusinessBySlug(slug);
+
+  if (!resolvedBusiness || resolvedBusiness.source !== "database") {
+    return null;
+  }
+
+  return resolvedBusiness;
 }
 
 export async function getHomeBusinesses(): Promise<HomeBusinessesSnapshot> {

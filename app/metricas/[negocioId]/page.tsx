@@ -1,6 +1,6 @@
 import { BusinessWorkspaceShell } from "@/components/dashboard/business-workspace-shell";
 import { MetricsOverview } from "@/components/dashboard/metrics-overview";
-import { resolveBusinessBySlug } from "@/data/businesses";
+import { resolveOperationalBusinessBySlug } from "@/data/businesses";
 import { getOrdersByBusinessSlugFromDatabase } from "@/lib/data/orders-server";
 import type { Order } from "@/types/orders";
 
@@ -10,7 +10,7 @@ export default async function MetricsPage({
   params: Promise<{ negocioId: string }>;
 }) {
   const { negocioId } = await params;
-  const resolvedBusiness = await resolveBusinessBySlug(negocioId).catch(() => null);
+  const resolvedBusiness = await resolveOperationalBusinessBySlug(negocioId).catch(() => null);
   const business = resolvedBusiness?.business ?? null;
   let initialOrders: Order[] = [];
   let initialOrdersError: string | null = null;
@@ -35,11 +35,11 @@ export default async function MetricsPage({
               Metricas no disponibles
             </p>
             <h1 className="mt-3 text-3xl font-semibold text-slate-950">
-              Negocio no encontrado
+              Metricas solo disponibles para negocios reales
             </h1>
             <p className="mt-3 text-sm leading-6 text-slate-600">
-              Este panel no corresponde a una tienda activa en la demo. Verifica el
-              enlace privado del negocio.
+              Este espacio analitico solo se habilita para negocios persistidos en Supabase.
+              Verifica el enlace del negocio real o crea uno nuevo desde la home.
             </p>
           </section>
         </div>
@@ -49,7 +49,7 @@ export default async function MetricsPage({
 
   return (
     <BusinessWorkspaceShell
-      businessId={business.slug}
+      businessId={business.databaseId ?? business.slug}
       businessDatabaseId={business.databaseId ?? null}
       businessName={business.name}
       businessSlug={business.slug}

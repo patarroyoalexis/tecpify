@@ -1,6 +1,6 @@
 import { BusinessWorkspaceShell } from "@/components/dashboard/business-workspace-shell";
 import { DashboardOverview } from "@/components/dashboard/dashboard-overview";
-import { resolveBusinessBySlug } from "@/data/businesses";
+import { resolveOperationalBusinessBySlug } from "@/data/businesses";
 import { getBusinessReadinessSnapshot } from "@/lib/businesses/readiness";
 import { getAdminProductsByBusinessId } from "@/lib/data/products";
 import { getOrdersByBusinessSlugFromDatabase } from "@/lib/data/orders-server";
@@ -12,7 +12,7 @@ export default async function BusinessDashboardPage({
   params: Promise<{ negocioId: string }>;
 }) {
   const { negocioId } = await params;
-  const resolvedBusiness = await resolveBusinessBySlug(negocioId).catch(() => null);
+  const resolvedBusiness = await resolveOperationalBusinessBySlug(negocioId).catch(() => null);
   const business = resolvedBusiness?.business ?? null;
   let initialOrders: Order[] = [];
   let initialOrdersError: string | null = null;
@@ -50,11 +50,11 @@ export default async function BusinessDashboardPage({
               Dashboard no disponible
             </p>
             <h1 className="mt-3 text-3xl font-semibold text-slate-950">
-              Negocio no encontrado
+              Dashboard solo disponible para negocios reales
             </h1>
             <p className="mt-3 text-sm leading-6 text-slate-600">
-              Este panel no corresponde a una tienda activa en la demo. Verifica el
-              enlace privado del negocio.
+              Este espacio privado solo se habilita para negocios persistidos en Supabase.
+              Verifica el enlace del negocio real o crea uno nuevo desde la home.
             </p>
           </section>
         </div>
@@ -64,7 +64,7 @@ export default async function BusinessDashboardPage({
 
   return (
     <BusinessWorkspaceShell
-      businessId={business.slug}
+      businessId={business.databaseId ?? business.slug}
       businessDatabaseId={business.databaseId ?? null}
       businessName={business.name}
       businessSlug={business.slug}

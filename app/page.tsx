@@ -7,6 +7,7 @@ function BusinessCard({
   business,
   badge,
   tone = "default",
+  actions,
 }: {
   business: {
     slug: string;
@@ -16,6 +17,11 @@ function BusinessCard({
   };
   badge: string;
   tone?: "default" | "demo";
+  actions: Array<{
+    href: string;
+    label: string;
+    variant?: "primary" | "secondary";
+  }>;
 }) {
   return (
     <article
@@ -42,31 +48,20 @@ function BusinessCard({
         </p>
       </div>
 
-      <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-        <Link
-          href={`/pedido/${business.slug}`}
-          className="rounded-2xl bg-slate-900 px-5 py-3 text-center text-sm font-semibold text-white transition hover:bg-slate-800"
-        >
-          Abrir formulario publico
-        </Link>
-        <Link
-          href={`/dashboard/${business.slug}`}
-          className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-center text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
-        >
-          Abrir dashboard
-        </Link>
-        <Link
-          href={`/pedidos/${business.slug}`}
-          className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-center text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
-        >
-          Ir a pedidos
-        </Link>
-        <Link
-          href={`/metricas/${business.slug}`}
-          className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-center text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
-        >
-          Ver metricas
-        </Link>
+      <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+        {actions.map((action) => (
+          <Link
+            key={action.href}
+            href={action.href}
+            className={
+              action.variant === "secondary"
+                ? "rounded-2xl border border-slate-200 bg-white px-5 py-3 text-center text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                : "rounded-2xl bg-slate-900 px-5 py-3 text-center text-sm font-semibold text-white transition hover:bg-slate-800"
+            }
+          >
+            {action.label}
+          </Link>
+        ))}
       </div>
     </article>
   );
@@ -143,7 +138,32 @@ export default async function Home() {
           {realBusinesses.length > 0 ? (
             <div className="grid gap-4 lg:grid-cols-2">
               {realBusinesses.map((business) => (
-                <BusinessCard key={business.slug} business={business} badge="Real" />
+                <BusinessCard
+                  key={business.slug}
+                  business={business}
+                  badge="Real"
+                  actions={[
+                    {
+                      href: `/pedido/${business.slug}`,
+                      label: "Abrir formulario publico",
+                    },
+                    {
+                      href: `/dashboard/${business.slug}`,
+                      label: "Abrir dashboard",
+                      variant: "secondary",
+                    },
+                    {
+                      href: `/pedidos/${business.slug}`,
+                      label: "Ir a pedidos",
+                      variant: "secondary",
+                    },
+                    {
+                      href: `/metricas/${business.slug}`,
+                      label: "Ver metricas",
+                      variant: "secondary",
+                    },
+                  ]}
+                />
               ))}
             </div>
           ) : (
@@ -181,6 +201,12 @@ export default async function Home() {
                   business={business}
                   badge="Demo"
                   tone="demo"
+                  actions={[
+                    {
+                      href: `/pedido/${business.slug}`,
+                      label: "Ver storefront demo",
+                    },
+                  ]}
                 />
               ))}
             </div>
