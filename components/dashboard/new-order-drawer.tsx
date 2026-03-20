@@ -64,7 +64,6 @@ export function NewOrderDrawer({
   const [catalogProducts, setCatalogProducts] = useState<Product[]>([]);
   const [isLoadingProducts, setIsLoadingProducts] = useState(false);
   const [productsError, setProductsError] = useState("");
-  const [total, setTotal] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | "">("");
   const [deliveryType, setDeliveryType] = useState<DeliveryType | "">("");
   const [deliveryAddress, setDeliveryAddress] = useState("");
@@ -80,6 +79,32 @@ export function NewOrderDrawer({
   const activeProducts = useMemo(
     () => catalogProducts.filter((product) => product.is_available),
     [catalogProducts],
+  );
+  const normalizedProducts = useMemo(
+    () =>
+      products.map((product) => {
+        const selectedProduct = activeProducts.find(
+          (catalogProduct) => catalogProduct.id === product.productId,
+        );
+
+        return {
+          fieldId: product.id,
+          selectedProduct,
+          quantity: Number(product.quantity),
+        };
+      }),
+    [activeProducts, products],
+  );
+  const calculatedTotal = useMemo(
+    () =>
+      normalizedProducts.reduce((sum, product) => {
+        if (!product.selectedProduct || !Number.isFinite(product.quantity) || product.quantity < 1) {
+          return sum;
+        }
+
+        return sum + product.selectedProduct.price * product.quantity;
+      }, 0),
+    [normalizedProducts],
   );
 
   const selectedProductIds = useMemo(
@@ -164,7 +189,6 @@ export function NewOrderDrawer({
     setClient("");
     setCustomerWhatsApp("");
     setProducts(activeProducts.length > 0 ? [createEmptyProduct()] : []);
-    setTotal("");
     setPaymentMethod("");
     setDeliveryType("");
     setDeliveryAddress("");
@@ -236,18 +260,6 @@ export function NewOrderDrawer({
       return;
     }
 
-    const normalizedProducts = products.map((product) => {
-      const selectedProduct = activeProducts.find(
-        (catalogProduct) => catalogProduct.id === product.productId,
-      );
-
-      return {
-        fieldId: product.id,
-        selectedProduct,
-        quantity: Number(product.quantity),
-      };
-    });
-
     if (!client.trim()) {
       setError("El nombre del cliente es obligatorio.");
       return;
@@ -286,8 +298,8 @@ export function NewOrderDrawer({
       return;
     }
 
-    if (Number(total) <= 0) {
-      setError("El total debe ser mayor que 0.");
+    if (calculatedTotal <= 0) {
+      setError("El pedido debe tener un total valido calculado desde el catalogo.");
       return;
     }
 
@@ -324,7 +336,7 @@ export function NewOrderDrawer({
           quantity,
           unitPrice: selectedProduct!.price,
         })),
-        total: Number(total),
+        total: calculatedTotal,
         paymentMethod,
         deliveryType,
         deliveryAddress:
@@ -407,21 +419,21 @@ export function NewOrderDrawer({
                   />
                 </label>
 
-                <label className="space-y-2">
-                  <span className="text-sm font-medium text-slate-700">Total</span>
-                  <input
-                    type="number"
-                    min="0"
-                    step="100"
-                    value={total}
-                    onChange={(event) => {
-                      setTotal(event.target.value);
-                      setError("");
-                    }}
-                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-base leading-6 text-slate-900 outline-none transition focus:border-slate-400 sm:text-sm sm:leading-5"
-                    placeholder="0"
-                  />
-                </label>
+                <div className="space-y-2">
+                  <span className="text-sm font-medium text-slate-700">Total calculado</span>
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                    <p className="text-base font-semibold text-slate-950">
+                      {calculatedTotal.toLocaleString("es-CO", {
+                        style: "currency",
+                        currency: "COP",
+                        maximumFractionDigits: 0,
+                      })}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Se calcula automaticamente desde productos reales y cantidades.
+                    </p>
+                  </div>
+                </div>
 
                 <label className="space-y-2">
                   <span className="text-sm font-medium text-slate-700">
@@ -548,6 +560,11 @@ export function NewOrderDrawer({
                 </div>
               ) : (
                 <>
+                  <div className="mt-4 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-4 text-sm text-sky-900">
+                    El pedido manual usa productos activos reales del catalogo. El total se
+                    calcula automaticamente para evitar diferencias con la operacion y el
+                    storefront.
+                  </div>
                   <div className="mt-4 space-y-4">
                     {products.map((product, index) => {
                       const availableOptions = activeProducts.filter(

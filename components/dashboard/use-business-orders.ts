@@ -409,6 +409,7 @@ export function useBusinessOrders({
         orderId,
         fieldsUpdated: Object.keys(nextPayload ?? {}),
       });
+      await refreshOrders({ suppressError: true });
       setOrdersError(buildOrdersSyncError(error));
       throw error;
     }
@@ -442,6 +443,7 @@ export function useBusinessOrders({
       await refreshOrders({ suppressError: true });
     } catch (error) {
       debugError("[dashboard] Order mutation failed", { orderId });
+      await refreshOrders({ suppressError: true });
       setOrdersError(buildOrdersSyncError(error));
       throw error;
     }
@@ -478,6 +480,7 @@ export function useBusinessOrders({
       debugError("[dashboard] Bulk order mutation failed", {
         ordersCount: orderIds.length,
       });
+      await refreshOrders({ suppressError: true });
       setOrdersError(buildOrdersSyncError(error));
       throw error;
     }
@@ -544,6 +547,7 @@ export function useBusinessOrders({
       return true;
     } catch (error) {
       debugError("[dashboard] Payment proof request failed", { orderId });
+      await refreshOrders({ suppressError: true });
       setOrdersError(buildOrdersSyncError(error));
       throw error;
     }

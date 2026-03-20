@@ -6,12 +6,14 @@ import {
   getAvailablePaymentMethods,
   getPaymentHelpMessage,
   getPaymentMethodLabel,
+  isDigitalPayment,
   shouldShowPaymentVerificationActions,
 } from "@/components/dashboard/payment-helpers";
 import { OrdersUiIcon } from "@/components/dashboard/orders-ui-icon";
 import { StatusBadgeIcon } from "@/components/dashboard/status-badge-icon";
 import { formatCurrency } from "@/data/orders";
 import type { OrderApiUpdatePayload } from "@/lib/orders/mappers";
+import { fetchProductsByBusinessId } from "@/lib/products/api";
 import {
   canManageOrderStatus,
   getAllowedOrderStatusTransitions,
@@ -37,8 +39,10 @@ import {
   type PaymentMethod,
   type PaymentStatus,
 } from "@/types/orders";
+import type { Product } from "@/types/products";
 
 interface OrderDetailDrawerProps {
+  businessDatabaseId: string | null;
   businessName: string;
   order: Order | null;
   isOpen: boolean;
@@ -153,6 +157,7 @@ function getDeliveryTypeLabel(deliveryType: DeliveryType) {
 }
 
 export function OrderDetailDrawer({
+  businessDatabaseId,
   businessName,
   order,
   isOpen,
@@ -170,6 +175,9 @@ export function OrderDetailDrawer({
   const [editSuccess, setEditSuccess] = useState("");
   const [actionError, setActionError] = useState("");
   const [whatsAppFeedback, setWhatsAppFeedback] = useState("");
+  const [catalogProducts, setCatalogProducts] = useState<Product[]>([]);
+  const [catalogError, setCatalogError] = useState("");
+  const [isLoadingCatalog, setIsLoadingCatalog] = useState(false);
   const [editForm, setEditForm] = useState<EditOrderFormState | null>(null);
   const [editableProducts, setEditableProducts] = useState<EditableProductField[]>([]);
   const [renderedOrder, setRenderedOrder] = useState<Order | null>(order);
@@ -220,6 +228,9 @@ export function OrderDetailDrawer({
     if (!renderedOrder) {
       setEditForm(null);
       setEditableProducts([]);
+      setCatalogProducts([]);
+      setCatalogError("");
+      setIsLoadingCatalog(false);
       previousRenderedOrderIdRef.current = null;
       return;
     }
@@ -248,18 +259,78 @@ export function OrderDetailDrawer({
     previousRenderedOrderIdRef.current = renderedOrder.id;
   }, [isEditing, renderedOrder]);
 
+  useEffect(() => {
+    if (!isOpen || !businessDatabaseId) {
+      return;
+    }
+
+    let isCancelled = false;
+
+    async function loadCatalogProducts() {
+      setIsLoadingCatalog(true);
+      setCatalogError("");
+
+      try {
+        const fetchedProducts = await fetchProductsByBusinessId(businessDatabaseId);
+
+        if (!isCancelled) {
+          setCatalogProducts(fetchedProducts);
+        }
+      } catch (error) {
+        if (!isCancelled) {
+          setCatalogProducts([]);
+          setCatalogError(
+            error instanceof Error
+              ? error.message
+              : "No fue posible cargar el catalogo del negocio.",
+          );
+        }
+      } finally {
+        if (!isCancelled) {
+          setIsLoadingCatalog(false);
+        }
+      }
+    }
+
+    void loadCatalogProducts();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [businessDatabaseId, isOpen]);
+
   if (!renderedOrder) {
     return null;
   }
 
   const currentOrder = renderedOrder;
   const currentEditForm = editForm ?? getInitialEditOrderFormState(currentOrder);
+  const selectableCatalogProducts = catalogProducts.filter(
+    (product) =>
+      product.is_available ||
+      editableProducts.some((editableProduct) => editableProduct.productId === product.id),
+  );
+  const selectedCatalogProductIds = editableProducts
+    .map((product) => product.productId ?? "")
+    .filter(Boolean);
   const normalizedProducts = editableProducts
     .map((product) => ({
       ...(product.productId ? { productId: product.productId } : {}),
-      name: product.name.trim(),
+      name:
+        product.productId
+          ? selectableCatalogProducts.find((catalogProduct) => catalogProduct.id === product.productId)
+              ?.name ?? product.name.trim()
+          : product.name.trim(),
       quantity: Number(product.quantity),
-      ...(product.unitPrice !== undefined ? { unitPrice: product.unitPrice } : {}),
+      ...(product.productId
+        ? {
+            unitPrice:
+              selectableCatalogProducts.find((catalogProduct) => catalogProduct.id === product.productId)
+                ?.price ?? product.unitPrice,
+          }
+        : product.unitPrice !== undefined
+          ? { unitPrice: product.unitPrice }
+          : {}),
     }))
     .filter(
       (product) =>
@@ -283,6 +354,16 @@ export function OrderDetailDrawer({
   const paymentRule = getPaymentStatusTransitionRule(currentOrder, currentEditForm.paymentStatus);
   const totalValue = Number(currentEditForm.total);
   const paymentHelpMessage = getPaymentHelpMessage(transitionContext);
+  const isEditingCatalogBackedOrder = selectableCatalogProducts.length > 0;
+  const calculatedEditTotal = normalizedProducts.reduce((sum, product) => {
+    const unitPrice = product.unitPrice ?? 0;
+
+    if (!Number.isFinite(unitPrice) || unitPrice < 0) {
+      return sum;
+    }
+
+    return sum + unitPrice * product.quantity;
+  }, 0);
   const nextStatusByCurrent: Partial<Record<OrderStatus, OrderStatus>> = {
     confirmado: "en preparación",
     "en preparación": "listo",
@@ -347,13 +428,17 @@ export function OrderDetailDrawer({
         nextValue.paymentMethod = nextPaymentMethods[0];
       }
 
+      if (field === "paymentMethod" && !isDigitalPayment(nextValue.paymentMethod)) {
+        nextValue.paymentStatus = "verificado";
+      }
+
       return nextValue;
     });
   }
 
   function handleEditableProductChange(
     productId: string,
-    field: "name" | "quantity",
+    field: "name" | "quantity" | "productId",
     value: string,
   ) {
     setEditError("");
@@ -366,6 +451,16 @@ export function OrderDetailDrawer({
               ...product,
               [field]: value,
               ...(field === "name" ? { productId: undefined, unitPrice: undefined } : {}),
+              ...(field === "productId"
+                ? {
+                    name:
+                      selectableCatalogProducts.find((catalogProduct) => catalogProduct.id === value)
+                        ?.name ?? "",
+                    unitPrice:
+                      selectableCatalogProducts.find((catalogProduct) => catalogProduct.id === value)
+                        ?.price,
+                  }
+                : {}),
             }
           : product,
       ),
@@ -398,6 +493,20 @@ export function OrderDetailDrawer({
     if (normalizedProducts.length === 0) {
       return "Agrega al menos un articulo valido al pedido.";
     }
+    if (isEditingCatalogBackedOrder && editableProducts.some((product) => !product.productId)) {
+      return "Selecciona productos reales del catalogo en cada fila del pedido.";
+    }
+
+    if (
+      isEditingCatalogBackedOrder &&
+      new Set(
+        editableProducts
+          .map((product) => product.productId)
+          .filter((productId): productId is string => Boolean(productId)),
+      ).size !== editableProducts.length
+    ) {
+      return "No repitas productos del catalogo dentro del mismo pedido.";
+    }
 
     if (!Number.isFinite(totalValue) || totalValue < 0) {
       return "Ingresa un total válido.";
@@ -416,6 +525,10 @@ export function OrderDetailDrawer({
 
     if (!paymentRule.allowed) {
       return paymentRule.reason ?? "Ese cambio de pago no está permitido.";
+    }
+
+    if (!isDigitalPayment(effectivePaymentMethod) && currentEditForm.paymentStatus !== "verificado") {
+      return "Para pagos no digitales, el estado del pago debe quedar en Verificado.";
     }
 
     if (changedFields.length === 0) {
@@ -468,7 +581,7 @@ export function OrderDetailDrawer({
         paymentMethod: effectivePaymentMethod,
         products: normalizedProducts,
         notes: currentEditForm.notes.trim() || null,
-        total: totalValue,
+        total: isEditingCatalogBackedOrder ? calculatedEditTotal : totalValue,
       });
       setRenderedOrder(persistedOrder);
       setEditSuccess("Cambios guardados correctamente.");
@@ -724,28 +837,39 @@ export function OrderDetailDrawer({
                     </p>
                   </div>
                 )}
-                <label className="space-y-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4">
+                <div className="space-y-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4">
                   <span className="flex items-center gap-2 text-sm font-semibold text-slate-900">
                     <StatusBadgeIcon
                       iconKey={getPaymentStatusIconKey(currentEditForm.paymentStatus)}
                     />
                     Estado del pago
                   </span>
-                  <select
-                    value={currentEditForm.paymentStatus}
-                    onChange={(event) =>
-                      setField("paymentStatus", event.target.value as PaymentStatus)
-                    }
-                    disabled={isSaving}
-                    className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900"
-                  >
-                    {PAYMENT_STATUSES.map((statusOption) => (
-                      <option key={statusOption} value={statusOption}>
-                        {PAYMENT_STATUS_LABELS[statusOption]}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                  {isDigitalPayment(effectivePaymentMethod) ? (
+                    <select
+                      value={currentEditForm.paymentStatus}
+                      onChange={(event) =>
+                        setField("paymentStatus", event.target.value as PaymentStatus)
+                      }
+                      disabled={isSaving}
+                      className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900"
+                    >
+                      {PAYMENT_STATUSES.map((statusOption) => (
+                        <option key={statusOption} value={statusOption}>
+                          {PAYMENT_STATUS_LABELS[statusOption]}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900">
+                      {PAYMENT_STATUS_LABELS.verificado}
+                    </div>
+                  )}
+                  {!isDigitalPayment(effectivePaymentMethod) ? (
+                    <p className="text-xs text-slate-600">
+                      Para pagos no digitales dejamos el pago como verificado en operacion.
+                    </p>
+                  ) : null}
+                </div>
               </div>
             ) : null}
             {isEditing ? (
@@ -814,15 +938,26 @@ export function OrderDetailDrawer({
                   </label>
                   <label className="space-y-2">
                     <span className="text-sm font-medium text-slate-700">Total</span>
-                    <input
-                      type="number"
-                      min="0"
-                      step="100"
-                      value={currentEditForm.total}
-                      onChange={(event) => setField("total", event.target.value)}
-                      disabled={isSaving}
-                      className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm text-slate-900"
-                    />
+                    {isEditingCatalogBackedOrder ? (
+                      <div className="rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3">
+                        <p className="text-sm font-semibold text-slate-900">
+                          {formatCurrency(calculatedEditTotal)}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          Calculado automaticamente desde productos vinculados al catalogo.
+                        </p>
+                      </div>
+                    ) : (
+                      <input
+                        type="number"
+                        min="0"
+                        step="100"
+                        value={currentEditForm.total}
+                        onChange={(event) => setField("total", event.target.value)}
+                        disabled={isSaving}
+                        className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm text-slate-900"
+                      />
+                    )}
                   </label>
                   <div className="space-y-3 sm:col-span-2">
                     <div className="flex items-center justify-between gap-3">
@@ -838,6 +973,25 @@ export function OrderDetailDrawer({
                       </button>
                     </div>
 
+                    {isLoadingCatalog ? (
+                      <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                        Cargando catalogo del negocio...
+                      </div>
+                    ) : null}
+
+                    {catalogError ? (
+                      <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                        {catalogError}
+                      </div>
+                    ) : null}
+
+                    {isEditingCatalogBackedOrder ? (
+                      <div className="rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
+                        Este pedido usa catalogo real. Para mantener consistencia, los
+                        articulos editables deben seguir vinculados a productos del negocio.
+                      </div>
+                    ) : null}
+
                     <div className="space-y-3">
                       {editableProducts.map((product, index) => (
                         <div
@@ -848,19 +1002,61 @@ export function OrderDetailDrawer({
                             <span className="text-xs font-medium text-slate-600">
                               Artículo {index + 1}
                             </span>
-                            <input
-                              value={product.name}
-                              onChange={(event) =>
-                                handleEditableProductChange(
-                                  product.id,
-                                  "name",
-                                  event.target.value,
-                                )
-                              }
-                              disabled={isSaving}
-                              className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900"
-                              placeholder="Nombre del artículo"
-                            />
+                            {isEditingCatalogBackedOrder ? (
+                              <>
+                                <select
+                                  value={product.productId ?? ""}
+                                  onChange={(event) =>
+                                    handleEditableProductChange(
+                                      product.id,
+                                      "productId",
+                                      event.target.value,
+                                    )
+                                  }
+                                  disabled={isSaving}
+                                  className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900"
+                                >
+                                  <option value="">Selecciona un producto del catalogo</option>
+                                  {selectableCatalogProducts
+                                    .filter(
+                                      (catalogProduct) =>
+                                        catalogProduct.id === product.productId ||
+                                        !selectedCatalogProductIds.includes(catalogProduct.id),
+                                    )
+                                    .map((catalogProduct) => (
+                                      <option key={catalogProduct.id} value={catalogProduct.id}>
+                                        {catalogProduct.name}
+                                      </option>
+                                    ))}
+                                </select>
+                                {product.productId ? (
+                                  <p className="text-xs text-slate-500">
+                                    Precio unitario del catalogo:{" "}
+                                    {formatCurrency(
+                                      selectableCatalogProducts.find(
+                                        (catalogProduct) =>
+                                          catalogProduct.id === product.productId,
+                                      )?.price ?? 0,
+                                    )}
+                                  </p>
+                                ) : null}
+                              </>
+                            ) : null}
+                            {isEditingCatalogBackedOrder ? null : (
+                              <input
+                                value={product.name}
+                                onChange={(event) =>
+                                  handleEditableProductChange(
+                                    product.id,
+                                    "name",
+                                    event.target.value,
+                                  )
+                                }
+                                disabled={isSaving}
+                                className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900"
+                                placeholder="Nombre del articulo"
+                              />
+                            )}
                           </label>
 
                           <label className="space-y-2">

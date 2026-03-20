@@ -202,6 +202,7 @@ export function BusinessWorkspaceProvider({
       {children}
 
       <OrderDetailDrawer
+        businessDatabaseId={businessDatabaseId}
         businessName={businessName}
         order={selectedOrder}
         isOpen={selectedOrder !== null}
