@@ -366,6 +366,19 @@ export interface RevenuePoint {
   ordersCount: number;
 }
 
+export interface MetricsOverviewFocusItem {
+  label: string;
+  value: string;
+  description: string;
+  tone: MetricTone;
+}
+
+export interface MetricsOverviewSnapshot {
+  metrics: MetricCard[];
+  focusItems: MetricsOverviewFocusItem[];
+  topProducts: ProductPerformance[];
+}
+
 export function getOrdersForReferenceDay(orders: Order[]) {
   const referenceDate = getReferenceDate(orders);
 
@@ -597,4 +610,91 @@ export function getOperationalMetrics(orders: Order[]): MetricCard[] {
       tone: "success",
     },
   ];
+}
+
+export function getMetricsOverviewSnapshot(orders: Order[]): MetricsOverviewSnapshot {
+  const todayOrders = getOrdersForReferenceDay(orders);
+  const pendingActions = orders.filter((order) =>
+    actionableStatuses.includes(order.status),
+  ).length;
+  const inProgress = orders.filter((order) =>
+    productionStatuses.includes(order.status),
+  ).length;
+  const deliveredRevenue = orders
+    .filter((order) => order.status === "entregado")
+    .reduce((total, order) => total + order.total, 0);
+  const cancelledCount = orders.filter((order) => order.status === "cancelado").length;
+  const pendingPaymentsCount = orders.filter(isPendingPayment).length;
+  const topProducts = getTopProducts(orders, 3);
+  const todayRevenue = todayOrders
+    .filter(isActiveOrder)
+    .reduce((total, order) => total + order.total, 0);
+
+  return {
+    metrics: [
+      {
+        title: "Pedidos del dia",
+        value: `${todayOrders.length}`,
+        description: "Pedidos reales registrados en el corte mas reciente.",
+        tone: "neutral",
+      },
+      {
+        title: "Pendientes de atencion",
+        value: `${pendingActions}`,
+        description: "Cobros o validaciones de pago que pueden frenar la operacion.",
+        tone: "warning",
+      },
+      {
+        title: "En operacion",
+        value: `${inProgress}`,
+        description: "Pedidos confirmados, en preparacion o listos para entregar.",
+        tone: "info",
+      },
+      {
+        title: "Ingresos entregados",
+        value: formatCurrency(deliveredRevenue),
+        description: "Venta ya cerrada en pedidos entregados del historial actual.",
+        tone: "success",
+      },
+    ],
+    focusItems: [
+      {
+        label: "Cobros por revisar",
+        value: `${pendingPaymentsCount}`,
+        description:
+          pendingPaymentsCount > 0
+            ? "Conviene resolver estos pagos primero para destrabar pedidos."
+            : "No hay pagos pendientes frenando el flujo en este momento.",
+        tone: pendingPaymentsCount > 0 ? "warning" : "success",
+      },
+      {
+        label: "Carga activa",
+        value: `${inProgress}`,
+        description:
+          inProgress > 0
+            ? "Pedidos actualmente en produccion o listos para entregar."
+            : "No hay pedidos en produccion abiertos ahora mismo.",
+        tone: inProgress > 0 ? "info" : "neutral",
+      },
+      {
+        label: "Venta del dia",
+        value: formatCurrency(todayRevenue),
+        description:
+          todayOrders.length > 0
+            ? `Basado en ${todayOrders.length} pedido${todayOrders.length === 1 ? "" : "s"} del corte actual.`
+            : "Aun no hay pedidos en el dia de referencia actual.",
+        tone: todayRevenue > 0 ? "success" : "neutral",
+      },
+      {
+        label: "Cancelaciones",
+        value: `${cancelledCount}`,
+        description:
+          cancelledCount > 0
+            ? "Sirve para revisar friccion comercial o fallas en cierre."
+            : "No hay cancelaciones registradas en el historial actual.",
+        tone: cancelledCount > 0 ? "warning" : "neutral",
+      },
+    ],
+    topProducts,
+  };
 }
