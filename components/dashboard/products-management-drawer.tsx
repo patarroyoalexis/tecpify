@@ -115,6 +115,7 @@ export function ProductsManagementDrawer({
   const [createAnotherAfterSave, setCreateAnotherAfterSave] = useState(true);
   const [copyFeedback, setCopyFeedback] = useState("");
   const publicPath = `/pedido/${businessSlug}`;
+  const publicTestPath = `${publicPath}?mode=test-order`;
   const [publicUrl, setPublicUrl] = useState(publicPath);
 
   const nextSortOrder = useMemo(() => {
@@ -360,6 +361,8 @@ export function ProductsManagementDrawer({
       });
       const nextProducts = await fetchProductsByBusinessId(businessDatabaseId);
       const nextCatalogStatus = getReadinessFromProducts(nextProducts);
+      const justUnlockedSelling =
+        field === "isAvailable" && value && !previousCatalogStatus.canSell && nextCatalogStatus.canSell;
       setProducts(nextProducts);
       router.refresh();
       setFeedback(
@@ -374,6 +377,11 @@ export function ProductsManagementDrawer({
             ? `"${product.name}" fue marcado como destacado.`
             : `"${product.name}" salio de destacados.`,
       );
+
+      if (justUnlockedSelling) {
+        setMode("ready");
+        setCopyFeedback("");
+      }
     } catch (toggleError) {
       setError(
         toggleError instanceof Error
@@ -546,7 +554,8 @@ export function ProductsManagementDrawer({
                 <p className="mt-3 text-sm leading-6 text-slate-700">
                   Acabas de dejar al menos un producto activo. No hace falta volver al
                   dashboard para seguir: desde aqui ya puedes probar el storefront o copiar
-                  el link correcto para compartirlo.
+                  el link correcto para compartirlo. El mejor siguiente paso es validar un
+                  pedido de prueba.
                 </p>
               </section>
 
@@ -571,12 +580,12 @@ export function ProductsManagementDrawer({
                   </button>
 
                   <Link
-                    href={publicPath}
+                    href={publicTestPath}
                     target="_blank"
                     className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
                   >
                     <ExternalLink className="h-4 w-4" aria-hidden="true" />
-                    Probar storefront
+                    Probar pedido de prueba
                   </Link>
                 </div>
 
@@ -588,9 +597,9 @@ export function ProductsManagementDrawer({
               <section className="rounded-[24px] border border-slate-200 bg-slate-50/80 p-5">
                 <p className="text-sm font-semibold text-slate-950">Siguiente paso recomendado</p>
                 <p className="mt-2 text-sm leading-6 text-slate-600">
-                  1. Abre el storefront y recorre el formulario como si fueras cliente.
-                  2. Si el flujo esta claro, comparte el link para buscar el primer pedido
-                  real. 3. Si quieres, vuelve al catalogo para cargar mas productos.
+                  1. Abre el formulario publico en modo prueba. 2. Crea un pedido corto para
+                  verificar que entre bien al flujo. 3. Luego comparte el link o vuelve al
+                  catalogo para seguir ajustandolo.
                 </p>
 
                 <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
@@ -647,6 +656,42 @@ export function ProductsManagementDrawer({
                     ? `Ya tienes ${catalogStatus.activeProducts} producto${catalogStatus.activeProducts === 1 ? "" : "s"} activo${catalogStatus.activeProducts === 1 ? "" : "s"}. El negocio ya puede vender.`
                     : `Tienes ${catalogStatus.totalProducts} producto${catalogStatus.totalProducts === 1 ? "" : "s"} cargado${catalogStatus.totalProducts === 1 ? "" : "s"}, pero aun necesitas activar al menos uno para vender.`}
                 </div>
+
+                {catalogStatus.canSell ? (
+                  <section className="rounded-[22px] border border-sky-200 bg-sky-50/80 p-4">
+                    <p className="text-sm font-semibold text-sky-900">
+                      Link listo para validar el primer pedido
+                    </p>
+                    <p className="mt-1 break-all text-sm font-medium text-slate-900">
+                      {publicUrl}
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-slate-700">
+                      El catalogo ya esta activo. Desde aqui puedes copiar el link o abrir
+                      una prueba del formulario real.
+                    </p>
+                    <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => void handleCopyPublicLink()}
+                        className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+                      >
+                        <Copy className="h-4 w-4" aria-hidden="true" />
+                        Copiar link publico
+                      </button>
+                      <Link
+                        href={publicTestPath}
+                        target="_blank"
+                        className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+                      >
+                        <ExternalLink className="h-4 w-4" aria-hidden="true" />
+                        Probar pedido
+                      </Link>
+                    </div>
+                    {copyFeedback ? (
+                      <p className="mt-3 text-sm text-slate-600">{copyFeedback}</p>
+                    ) : null}
+                  </section>
+                ) : null}
 
                 <div className="grid gap-4 lg:grid-cols-2">
                   <section className="rounded-[22px] border border-emerald-200 bg-emerald-50/70 p-4">

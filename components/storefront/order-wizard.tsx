@@ -310,9 +310,11 @@ function ProductRow({
 export function StorefrontOrderWizard({
   business,
   recentOrders = [],
+  isTestMode = false,
 }: {
   business: BusinessConfig;
   recentOrders?: Order[];
+  isTestMode?: boolean;
 }) {
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
@@ -545,6 +547,12 @@ export function StorefrontOrderWizard({
                 Tu solicitud fue registrada para <strong>{business.name}</strong>.
                 Comparte este numero si necesitas soporte o seguimiento.
               </p>
+              {isTestMode ? (
+                <p className="mt-3 rounded-[20px] border border-sky-200 bg-sky-50 px-4 py-3 text-sm leading-6 text-sky-900">
+                  Si estabas validando la activacion, este pedido ya deberia aparecer en el
+                  panel interno del negocio.
+                </p>
+              ) : null}
             </div>
 
             <div className="mt-6 rounded-[24px] border border-slate-200 bg-slate-50 p-5">
@@ -613,6 +621,21 @@ export function StorefrontOrderWizard({
       <div className="mx-auto w-full max-w-5xl px-4 pb-10 pt-24 sm:px-6 sm:pt-28">
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
           <div className="space-y-4">
+            {isTestMode ? (
+              <section className="rounded-[24px] border border-sky-200 bg-sky-50/85 p-4 shadow-[0_16px_40px_rgba(15,23,42,0.05)]">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">
+                  Prueba de activacion
+                </p>
+                <h1 className="mt-2 text-xl font-semibold text-slate-950">
+                  Este es el link publico real del negocio
+                </h1>
+                <p className="mt-2 text-sm leading-6 text-slate-700">
+                  Haz un pedido corto como cliente para validar el recorrido completo. Cuando
+                  lo envies, deberia verse en la operacion interna sin pasos manuales extra.
+                </p>
+              </section>
+            ) : null}
+
             <CompactSection
               title="Tus datos"
               description="Empieza con tu WhatsApp y te ayudamos a llenar lo repetido."

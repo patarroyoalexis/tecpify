@@ -41,10 +41,14 @@ function StorefrontMessage({
 
 export default async function StorefrontOrderPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ negocioId: string }>;
+  searchParams?: Promise<{ mode?: string }>;
 }) {
   const { negocioId } = await params;
+  const resolvedSearchParams = (await searchParams) ?? {};
+  const isTestMode = resolvedSearchParams.mode === "test-order";
   const resolvedBusiness = await resolveBusinessBySlug(negocioId).catch(() => null);
   const fallbackBusiness = resolvedBusiness?.business ?? null;
 
@@ -176,5 +180,11 @@ export default async function StorefrontOrderPage({
     }
   }
 
-  return <StorefrontOrderWizard business={business} recentOrders={recentOrders} />;
+  return (
+    <StorefrontOrderWizard
+      business={business}
+      recentOrders={recentOrders}
+      isTestMode={isTestMode}
+    />
+  );
 }
