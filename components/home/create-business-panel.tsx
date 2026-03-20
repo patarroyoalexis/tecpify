@@ -62,7 +62,7 @@ export function CreateBusinessPanel() {
         slug: normalizedSlug,
       });
 
-      router.push(`/dashboard/${business.slug}`);
+      router.push(`/dashboard/${business.slug}?onboarding=create-product`);
       router.refresh();
     } catch (error) {
       const message =

@@ -74,7 +74,7 @@ export default async function BusinessDashboardPage({
       description="Resumen rapido del negocio para priorizar el dia."
     >
       <DashboardOverview
-        businessId={business.slug}
+        businessSlug={business.slug}
         businessName={business.name}
         businessReadiness={businessReadiness}
       />

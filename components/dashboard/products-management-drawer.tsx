@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { Copy, ExternalLink } from "lucide-react";
 
 import {
   getBusinessReadinessSnapshot,
@@ -20,6 +22,7 @@ import type { Product } from "@/types/products";
 interface ProductsManagementDrawerProps {
   businessDatabaseId: string | null;
   businessName: string;
+  businessSlug: string;
   isOpen: boolean;
   onClose: () => void;
   initialMode?: "list" | "create";
@@ -95,6 +98,7 @@ function getReadinessFromProducts(products: Product[]): BusinessReadinessSnapsho
 export function ProductsManagementDrawer({
   businessDatabaseId,
   businessName,
+  businessSlug,
   isOpen,
   onClose,
   initialMode = "list",
@@ -105,10 +109,13 @@ export function ProductsManagementDrawer({
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
   const [feedback, setFeedback] = useState("");
-  const [mode, setMode] = useState<"list" | "create" | "edit">("list");
+  const [mode, setMode] = useState<"list" | "create" | "edit" | "ready">("list");
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [formState, setFormState] = useState<ProductFormState>(() => createDefaultFormState(1));
   const [createAnotherAfterSave, setCreateAnotherAfterSave] = useState(true);
+  const [copyFeedback, setCopyFeedback] = useState("");
+  const publicPath = `/pedido/${businessSlug}`;
+  const [publicUrl, setPublicUrl] = useState(publicPath);
 
   const nextSortOrder = useMemo(() => {
     if (products.length === 0) {
@@ -159,6 +166,10 @@ export function ProductsManagementDrawer({
   }, [isOpen, loadProducts]);
 
   useEffect(() => {
+    setPublicUrl(`${window.location.origin}${publicPath}`);
+  }, [publicPath]);
+
+  useEffect(() => {
     if (!isOpen) {
       setMode(initialMode);
       setEditingProductId(null);
@@ -177,6 +188,7 @@ export function ProductsManagementDrawer({
     setError("");
     setFeedback("");
     setEditingProductId(null);
+    setCopyFeedback("");
 
     if (initialMode === "create") {
       setMode("create");
@@ -203,6 +215,7 @@ export function ProductsManagementDrawer({
     setEditingProductId(null);
     setError("");
     setFeedback("");
+    setCopyFeedback("");
     setFormState(createDefaultFormState(nextSortOrder));
     setCreateAnotherAfterSave(true);
   }
@@ -212,7 +225,21 @@ export function ProductsManagementDrawer({
     setEditingProductId(product.id);
     setError("");
     setFeedback("");
+    setCopyFeedback("");
     setFormState(createFormStateFromProduct(product));
+  }
+
+  async function handleCopyPublicLink() {
+    try {
+      await navigator.clipboard.writeText(publicUrl);
+      setCopyFeedback("Link publico copiado. Ya puedes probarlo o compartirlo.");
+    } catch {
+      setCopyFeedback("No pudimos copiar el link. Intenta de nuevo.");
+    }
+
+    window.setTimeout(() => {
+      setCopyFeedback("");
+    }, 2400);
   }
 
   function normalizeSavePayload():
@@ -265,6 +292,7 @@ export function ProductsManagementDrawer({
         const createdProduct = await createProductViaApi(payload.create);
         const nextProducts = await fetchProductsByBusinessId(payload.create.businessId);
         const nextCatalogStatus = getReadinessFromProducts(nextProducts);
+        const justUnlockedSelling = !previousCatalogStatus.canSell && nextCatalogStatus.canSell;
 
         setProducts(nextProducts);
         setFeedback(
@@ -278,7 +306,12 @@ export function ProductsManagementDrawer({
 
         router.refresh();
 
-        if (createAnotherAfterSave) {
+        if (justUnlockedSelling) {
+          setMode("ready");
+          setEditingProductId(null);
+          setCreateAnotherAfterSave(false);
+          setFormState(createDefaultFormState(nextProducts.length + 1));
+        } else if (createAnotherAfterSave) {
           setMode("create");
           setEditingProductId(null);
           setFormState(createDefaultFormState(nextProducts.length + 1));
@@ -402,6 +435,8 @@ export function ProductsManagementDrawer({
                   ? "Gestionar productos"
                   : mode === "create"
                     ? "Agregar producto"
+                    : mode === "ready"
+                      ? "Listo para vender"
                     : "Editar producto"}
               </h2>
               <p className="text-sm text-slate-600">
@@ -496,6 +531,85 @@ export function ProductsManagementDrawer({
                 No encontramos un `business_id` de base de datos para este negocio.
                 Cuando la relacion exista, este drawer podra administrar los productos.
               </p>
+            </div>
+          </div>
+        ) : mode === "ready" ? (
+          <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
+            <div className="mx-auto max-w-3xl space-y-5">
+              <section className="rounded-[28px] border border-emerald-200 bg-[linear-gradient(135deg,rgba(236,253,245,0.98),rgba(255,255,255,0.98))] p-6 shadow-[0_18px_45px_rgba(15,23,42,0.05)]">
+                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-700">
+                  Activacion completada
+                </p>
+                <h3 className="mt-2 text-3xl font-semibold text-slate-950">
+                  El negocio ya puede recibir pedidos
+                </h3>
+                <p className="mt-3 text-sm leading-6 text-slate-700">
+                  Acabas de dejar al menos un producto activo. No hace falta volver al
+                  dashboard para seguir: desde aqui ya puedes probar el storefront o copiar
+                  el link correcto para compartirlo.
+                </p>
+              </section>
+
+              <section className="rounded-[24px] border border-slate-200 bg-white p-5">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                  Link publico del negocio
+                </p>
+                <p className="mt-2 break-all text-sm font-medium text-slate-950">{publicUrl}</p>
+                <p className="mt-2 text-sm leading-6 text-slate-600">
+                  Usa este link para hacer una prueba del flujo o para compartirlo con el
+                  negocio una vez validado.
+                </p>
+
+                <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => void handleCopyPublicLink()}
+                    className="inline-flex items-center justify-center gap-2 rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+                  >
+                    <Copy className="h-4 w-4" aria-hidden="true" />
+                    Copiar link publico
+                  </button>
+
+                  <Link
+                    href={publicPath}
+                    target="_blank"
+                    className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+                  >
+                    <ExternalLink className="h-4 w-4" aria-hidden="true" />
+                    Probar storefront
+                  </Link>
+                </div>
+
+                {copyFeedback ? (
+                  <p className="mt-3 text-sm text-slate-600">{copyFeedback}</p>
+                ) : null}
+              </section>
+
+              <section className="rounded-[24px] border border-slate-200 bg-slate-50/80 p-5">
+                <p className="text-sm font-semibold text-slate-950">Siguiente paso recomendado</p>
+                <p className="mt-2 text-sm leading-6 text-slate-600">
+                  1. Abre el storefront y recorre el formulario como si fueras cliente.
+                  2. Si el flujo esta claro, comparte el link para buscar el primer pedido
+                  real. 3. Si quieres, vuelve al catalogo para cargar mas productos.
+                </p>
+
+                <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => setMode("list")}
+                    className="rounded-full border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+                  >
+                    Seguir gestionando productos
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="rounded-full border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+                  >
+                    Volver al dashboard
+                  </button>
+                </div>
+              </section>
             </div>
           </div>
         ) : mode === "list" ? (

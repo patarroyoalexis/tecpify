@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CheckCircle2, CircleDashed, Copy, ExternalLink, LockKeyhole } from "lucide-react";
 
 import type {
@@ -10,12 +10,20 @@ import type {
 } from "@/lib/businesses/readiness";
 
 interface BusinessActivationChecklistProps {
-  businessId: string;
+  businessSlug: string;
   businessName: string;
   businessReadiness: BusinessReadinessSnapshot;
   hasOrders: boolean;
   onOpenCreateProduct: () => void;
   onOpenProductsManager: () => void;
+}
+
+interface ActivationPrimaryAction {
+  label: string;
+  description: string;
+  helper: string;
+  onClick?: () => void;
+  href?: string;
 }
 
 function getChecklistIcon(status: BusinessReadinessChecklistItem["status"]) {
@@ -56,14 +64,33 @@ function getChecklistTone(status: BusinessReadinessChecklistItem["status"]) {
 
 function CopyPublicLinkButton({ publicUrl }: { publicUrl: string }) {
   const [feedback, setFeedback] = useState("");
+  const timeoutRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        window.clearTimeout(timeoutRef.current);
+      }
+    };
+  }, []);
 
   async function handleCopy() {
+    if (timeoutRef.current) {
+      window.clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+
     try {
       await navigator.clipboard.writeText(publicUrl);
-      setFeedback("Link copiado");
+      setFeedback("Link publico copiado. Ya lo puedes compartir.");
     } catch {
-      setFeedback("No pudimos copiar el link");
+      setFeedback("No pudimos copiar el link. Intenta de nuevo.");
     }
+
+    timeoutRef.current = window.setTimeout(() => {
+      setFeedback("");
+      timeoutRef.current = null;
+    }, 2400);
   }
 
   return (
@@ -81,15 +108,103 @@ function CopyPublicLinkButton({ publicUrl }: { publicUrl: string }) {
   );
 }
 
+function getActivationSummary(
+  businessReadiness: BusinessReadinessSnapshot,
+  hasOrders: boolean,
+) {
+  if (businessReadiness.status === "no_products") {
+    return {
+      title: "Este negocio todavia no esta listo para vender",
+      description:
+        "Falta cargar el primer producto. Sin ese paso el catalogo publico no puede recibir pedidos.",
+      highlight: "Paso bloqueante actual: crear el primer producto.",
+    };
+  }
+
+  if (businessReadiness.status === "inactive_catalog") {
+    return {
+      title: "El catalogo existe, pero todavia no esta activo para venta",
+      description:
+        "Ya hay productos cargados, pero ninguno aparece en el formulario publico del negocio.",
+      highlight: "Paso bloqueante actual: activar al menos un producto.",
+    };
+  }
+
+  if (!hasOrders) {
+    return {
+      title: "Ya puedes vender y toca empujar el primer pedido real",
+      description:
+        "El negocio ya tiene catalogo activo. Ahora el objetivo es compartir el link correcto y probar el flujo antes de mover trafico real.",
+      highlight: "Siguiente objetivo: conseguir o simular el primer pedido del negocio.",
+    };
+  }
+
+  return {
+    title: "El negocio ya esta activo y operando",
+    description:
+      "El catalogo ya esta publicado y el negocio ya tiene pedidos registrados en el flujo real.",
+    highlight: "Siguiente paso: seguir optimizando catalogo y operacion diaria.",
+  };
+}
+
+function getPrimaryAction(
+  businessReadiness: BusinessReadinessSnapshot,
+  hasOrders: boolean,
+  publicPath: string,
+  onOpenCreateProduct: () => void,
+  onOpenProductsManager: () => void,
+): ActivationPrimaryAction {
+  if (businessReadiness.primaryAction === "create_product") {
+    return {
+      label: "Crear primer producto",
+      description: "Es la accion que destraba todo el flujo comercial del negocio.",
+      helper:
+        "Abre el drawer de productos en modo creacion para cargar el primer item del catalogo.",
+      onClick: onOpenCreateProduct,
+    };
+  }
+
+  if (businessReadiness.primaryAction === "activate_products") {
+    return {
+      label: "Abrir gestion de productos",
+      description:
+        "Ya hay productos cargados. Desde la gestion de productos puedes activar el primero que quieras vender.",
+      helper:
+        "Esta accion no activa el catalogo automaticamente: abre el drawer para que actives al menos un producto.",
+      onClick: onOpenProductsManager,
+    };
+  }
+
+  if (!hasOrders) {
+    return {
+      label: "Probar formulario",
+      description:
+        "El negocio ya puede vender. Antes de compartirlo masivamente, prueba el flujo completo.",
+      helper:
+        "Abre el storefront en una nueva pestana y valida que el recorrido de pedido quede claro.",
+      href: publicPath,
+    };
+  }
+
+  return {
+    label: "Abrir storefront",
+    description:
+      "El negocio ya esta listo y con historial. El storefront sigue siendo el acceso principal para nuevos pedidos.",
+    helper:
+      "Desde el bloque de compartir puedes copiar el link o abrirlo cuando necesites revisarlo.",
+    href: publicPath,
+  };
+}
+
 export function BusinessActivationChecklist({
-  businessId,
+  businessSlug,
   businessName,
   businessReadiness,
   hasOrders,
   onOpenCreateProduct,
   onOpenProductsManager,
 }: BusinessActivationChecklistProps) {
-  const publicPath = `/pedido/${businessId}`;
+  const publicPath = `/pedido/${businessSlug}`;
   const [publicUrl, setPublicUrl] = useState(publicPath);
   const isReady = businessReadiness.canSell;
   const readinessTone = isReady
@@ -109,6 +224,15 @@ export function BusinessActivationChecklist({
   useEffect(() => {
     setPublicUrl(`${window.location.origin}${publicPath}`);
   }, [publicPath]);
+
+  const activationSummary = getActivationSummary(businessReadiness, hasOrders);
+  const primaryAction = getPrimaryAction(
+    businessReadiness,
+    hasOrders,
+    publicPath,
+    onOpenCreateProduct,
+    onOpenProductsManager,
+  );
 
   return (
     <section
@@ -151,6 +275,69 @@ export function BusinessActivationChecklist({
         </div>
       </div>
 
+      <section className={`mt-5 rounded-[28px] border p-5 ${readinessTone.panel}`}>
+        <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+          <div className="space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+              Estado de activacion
+            </p>
+            <h3 className="text-2xl font-semibold text-slate-950">{activationSummary.title}</h3>
+            <p className="text-sm leading-6 text-slate-600">{activationSummary.description}</p>
+            <div
+              className={`rounded-[20px] border px-4 py-3 text-sm font-medium ${
+                isReady
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+                  : "border-amber-200 bg-amber-50 text-amber-900"
+              }`}
+            >
+              {activationSummary.highlight}
+            </div>
+          </div>
+
+          <div className="rounded-[22px] border border-slate-200 bg-white/90 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+              Siguiente accion recomendada
+            </p>
+            <p className="mt-3 text-lg font-semibold text-slate-950">{primaryAction.label}</p>
+            <p className="mt-2 text-sm leading-6 text-slate-600">{primaryAction.description}</p>
+            <p className="mt-3 text-sm leading-6 text-slate-500">{primaryAction.helper}</p>
+
+            <div className="mt-4 flex flex-col gap-3">
+              {primaryAction.onClick ? (
+                <button
+                  type="button"
+                  onClick={primaryAction.onClick}
+                  className="rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+                >
+                  {primaryAction.label}
+                </button>
+              ) : null}
+
+              {primaryAction.href ? (
+                <Link
+                  href={primaryAction.href}
+                  target="_blank"
+                  className="inline-flex items-center justify-center gap-2 rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+                >
+                  <ExternalLink className="h-4 w-4" aria-hidden="true" />
+                  {primaryAction.label}
+                </Link>
+              ) : null}
+
+              {businessReadiness.canSell ? null : (
+                <button
+                  type="button"
+                  onClick={onOpenProductsManager}
+                  className="rounded-full border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+                >
+                  Ver catalogo actual
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+
       <div className="mt-5 grid gap-4 xl:grid-cols-[1.35fr_0.95fr]">
         <div className="space-y-3">
           {businessReadiness.checklist.map((item) => {
@@ -172,56 +359,6 @@ export function BusinessActivationChecklist({
                     </div>
                     <p className="mt-2 text-sm leading-6 text-slate-600">{item.description}</p>
                   </div>
-
-                  {item.key === "catalog_has_products" && item.status !== "completed" ? (
-                    <button
-                      type="button"
-                      onClick={onOpenCreateProduct}
-                      className="rounded-full bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
-                    >
-                      Crear producto
-                    </button>
-                  ) : null}
-
-                  {item.key === "catalog_has_active_product" && item.status !== "completed" ? (
-                    <button
-                      type="button"
-                      onClick={item.status === "blocked" ? onOpenCreateProduct : onOpenProductsManager}
-                      className="rounded-full bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
-                    >
-                      {item.status === "blocked" ? "Crear producto" : "Activar productos"}
-                    </button>
-                  ) : null}
-
-                  {item.key === "public_link_ready" ? (
-                    <div className="flex flex-wrap gap-2">
-                      <CopyPublicLinkButton publicUrl={publicUrl} />
-                      <Link
-                        href={publicPath}
-                        target="_blank"
-                        className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
-                      >
-                        <ExternalLink className="h-4 w-4" aria-hidden="true" />
-                        Abrir formulario
-                      </Link>
-                    </div>
-                  ) : null}
-
-                  {item.key === "business_ready" && item.status !== "completed" ? (
-                    <button
-                      type="button"
-                      onClick={
-                        businessReadiness.primaryAction === "create_product"
-                          ? onOpenCreateProduct
-                          : onOpenProductsManager
-                      }
-                      className="rounded-full border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
-                    >
-                      {businessReadiness.primaryAction === "create_product"
-                        ? "Agregar primer producto"
-                        : "Activar catalogo"}
-                    </button>
-                  ) : null}
                 </div>
               </article>
             );
@@ -231,72 +368,25 @@ export function BusinessActivationChecklist({
         <aside className="space-y-4">
           <section className={`rounded-[24px] border p-4 ${readinessTone.panel}`}>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-              Link publico del negocio
+              Compartir storefront
             </p>
             <p className="mt-2 break-all text-sm font-medium text-slate-950">{publicUrl}</p>
             <p className="mt-2 text-sm leading-6 text-slate-600">
               {isReady
-                ? "Ya puedes compartir este link con clientes reales."
-                : "El link ya existe, pero el negocio todavia no esta listo para compartirlo ampliamente."}
+                ? "Este es el link correcto para compartir o para validar el flujo en una prueba."
+                : "El link ya existe, pero conviene compartirlo cuando el negocio tenga al menos un producto activo."}
             </p>
-          </section>
-
-          <section className={`rounded-[24px] border p-4 ${readinessTone.panel}`}>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-              Accion principal
-            </p>
-
-            {businessReadiness.primaryAction === "create_product" ? (
-              <div className="mt-3 space-y-3">
-                <p className="text-base font-semibold text-slate-950">Crear el primer producto</p>
-                <p className="text-sm leading-6 text-slate-600">
-                  Es el paso que destraba todo el onboarding operativo del negocio.
-                </p>
-                <button
-                  type="button"
-                  onClick={onOpenCreateProduct}
-                  className="rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
-                >
-                  Agregar primer producto
-                </button>
-              </div>
-            ) : null}
-
-            {businessReadiness.primaryAction === "activate_products" ? (
-              <div className="mt-3 space-y-3">
-                <p className="text-base font-semibold text-slate-950">Activar al menos un producto</p>
-                <p className="text-sm leading-6 text-slate-600">
-                  Ya tienes catalogo cargado. Solo falta volver visible al menos un producto.
-                </p>
-                <button
-                  type="button"
-                  onClick={onOpenProductsManager}
-                  className="rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
-                >
-                  Activar productos
-                </button>
-              </div>
-            ) : null}
-
-            {businessReadiness.primaryAction === "share_public_link" ? (
-              <div className="mt-3 space-y-3">
-                <p className="text-base font-semibold text-slate-950">Compartir y probar el link</p>
-                <p className="text-sm leading-6 text-slate-600">
-                  El onboarding ya se completo. Ahora toca buscar el primer pedido real.
-                </p>
-                <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-                  <CopyPublicLinkButton publicUrl={publicUrl} />
-                  <Link
-                    href={publicPath}
-                    target="_blank"
-                    className="inline-flex items-center justify-center gap-2 rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
-                  >
-                    <ExternalLink className="h-4 w-4" aria-hidden="true" />
-                    Probar formulario
-                  </Link>
-                </div>
-              </div>
-            ) : null}
+            <div className="mt-4 flex flex-col gap-3">
+              <CopyPublicLinkButton publicUrl={publicUrl} />
+              <Link
+                href={publicPath}
+                target="_blank"
+                className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+              >
+                <ExternalLink className="h-4 w-4" aria-hidden="true" />
+                Abrir storefront
+              </Link>
+            </div>
           </section>
 
           <section className={`rounded-[24px] border p-4 ${readinessTone.panel}`}>
@@ -332,8 +422,15 @@ export function BusinessActivationChecklist({
 
             {isReady && !hasOrders ? (
               <p className="mt-4 text-sm leading-6 text-slate-600">
-                Todo quedo listo. El siguiente paso natural es compartir el link y esperar el
-                primer pedido real.
+                Todo quedo listo. Comparte el link o haz un pedido de prueba para validar el
+                recorrido antes de buscar trafico real.
+              </p>
+            ) : null}
+
+            {isReady && hasOrders ? (
+              <p className="mt-4 text-sm leading-6 text-slate-600">
+                Este negocio ya supero la etapa de activacion inicial. El storefront sigue
+                disponible para seguir captando pedidos.
               </p>
             ) : null}
           </section>

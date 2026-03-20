@@ -15,13 +15,13 @@ import { getOrderDisplayCode } from "@/types/orders";
 import { useBusinessWorkspace } from "./business-workspace-context";
 
 interface DashboardOverviewProps {
-  businessId: string;
+  businessSlug: string;
   businessName: string;
   businessReadiness: BusinessReadinessSnapshot;
 }
 
 export function DashboardOverview({
-  businessId,
+  businessSlug,
   businessName,
   businessReadiness,
 }: DashboardOverviewProps) {
@@ -80,7 +80,7 @@ export function DashboardOverview({
       ) : null}
 
       <BusinessActivationChecklist
-        businessId={businessId}
+        businessSlug={businessSlug}
         businessName={businessName}
         businessReadiness={businessReadiness}
         hasOrders={hasOrders}
@@ -96,7 +96,7 @@ export function DashboardOverview({
             </p>
 
             <Link
-              href={`/metricas/${businessId}`}
+              href={`/metricas/${businessSlug}`}
               className="inline-flex shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
             >
               Ver mas metricas
@@ -119,7 +119,7 @@ export function DashboardOverview({
               </h2>
             </div>
             <Link
-              href={`/pedidos/${businessId}`}
+              href={`/pedidos/${businessSlug}`}
               className="text-sm font-semibold text-slate-700 transition hover:text-slate-950"
             >
               Ver operacion completa
@@ -174,7 +174,7 @@ export function DashboardOverview({
 
           <div className="mt-5 space-y-3">
             <Link
-              href={`/pedidos/${businessId}`}
+              href={`/pedidos/${businessSlug}`}
               className="block rounded-[22px] border border-slate-200 bg-slate-50 px-5 py-4 transition hover:border-slate-300 hover:bg-slate-100"
             >
               <p className="text-base font-semibold text-slate-950">Ir a pedidos</p>
@@ -184,7 +184,7 @@ export function DashboardOverview({
             </Link>
 
             <Link
-              href={`/metricas/${businessId}`}
+              href={`/metricas/${businessSlug}`}
               className="block rounded-[22px] border border-slate-200 bg-slate-50 px-5 py-4 transition hover:border-slate-300 hover:bg-slate-100"
             >
               <p className="text-base font-semibold text-slate-950">Ver metricas</p>

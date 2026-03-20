@@ -3,10 +3,13 @@
 import {
   createContext,
   useContext,
+  useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import type { NewOrderFormValue } from "@/components/dashboard/new-order-drawer";
 import { GlobalOrderSearch } from "@/components/dashboard/global-order-search";
@@ -84,11 +87,20 @@ export function BusinessWorkspaceProvider({
   initialOrdersError,
   children,
 }: BusinessWorkspaceProviderProps) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const shouldStartProductOnboarding = searchParams.get("onboarding") === "create-product";
   const [isGlobalSearchOpen, setIsGlobalSearchOpen] = useState(false);
   const [isNewOrderDrawerOpen, setIsNewOrderDrawerOpen] = useState(false);
-  const [isProductsDrawerOpen, setIsProductsDrawerOpen] = useState(false);
-  const [productsDrawerMode, setProductsDrawerMode] = useState<"list" | "create">("list");
+  const [isProductsDrawerOpen, setIsProductsDrawerOpen] = useState(
+    () => shouldStartProductOnboarding,
+  );
+  const [productsDrawerMode, setProductsDrawerMode] = useState<"list" | "create">(() =>
+    shouldStartProductOnboarding ? "create" : "list",
+  );
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const hasHandledOnboardingIntentRef = useRef(false);
   const {
     hasHydrated,
     newOrders,
@@ -113,6 +125,17 @@ export function BusinessWorkspaceProvider({
   });
 
   const selectedOrder = ordersState.find((order) => order.id === selectedOrderId) ?? null;
+
+  useEffect(() => {
+    const onboardingIntent = searchParams.get("onboarding");
+
+    if (onboardingIntent !== "create-product" || hasHandledOnboardingIntentRef.current) {
+      return;
+    }
+
+    hasHandledOnboardingIntentRef.current = true;
+    router.replace(pathname, { scroll: false });
+  }, [pathname, router, searchParams]);
 
   const value = useMemo<BusinessWorkspaceContextValue>(
     () => ({
@@ -206,6 +229,7 @@ export function BusinessWorkspaceProvider({
       <ProductsManagementDrawer
         businessDatabaseId={businessDatabaseId}
         businessName={businessName}
+        businessSlug={businessSlug}
         isOpen={isProductsDrawerOpen}
         onClose={() => setIsProductsDrawerOpen(false)}
         initialMode={productsDrawerMode}
