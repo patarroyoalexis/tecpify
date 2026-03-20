@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { createBusinessViaApi } from "@/lib/businesses/api";
@@ -87,14 +86,7 @@ export function CreateBusinessPanel() {
         <h2 className="text-2xl font-semibold text-slate-950">Crear negocio real</h2>
         <p className="text-sm leading-6 text-slate-600">
           Crea un negocio operativo en Supabase con nombre y slug. El catalogo se agrega despues.
-          Esta accion ahora requiere sesion operativa.
         </p>
-        <Link
-          href="/login"
-          className="text-sm font-medium text-slate-700 underline decoration-slate-300 underline-offset-4 transition hover:text-slate-950"
-        >
-          Iniciar sesion operativa
-        </Link>
       </div>
 
       <form onSubmit={handleSubmit} className="mt-5 space-y-4">

@@ -2,7 +2,7 @@ import { BusinessWorkspaceShell } from "@/components/dashboard/business-workspac
 import { MetricsOverview } from "@/components/dashboard/metrics-overview";
 import { resolveOperationalBusinessBySlug } from "@/data/businesses";
 import { canOperatorAccessBusiness } from "@/lib/auth/business-access";
-import { requireOperatorSession } from "@/lib/auth/server";
+import { getOperatorSession } from "@/lib/auth/server";
 import { getOrdersByBusinessSlugFromDatabase } from "@/lib/data/orders-server";
 import type { Order } from "@/types/orders";
 
@@ -12,13 +12,17 @@ export default async function MetricsPage({
   params: Promise<{ negocioId: string }>;
 }) {
   const { negocioId } = await params;
-  const operator = await requireOperatorSession(`/metricas/${negocioId}`);
+  const operator = await getOperatorSession();
   const resolvedBusiness = await resolveOperationalBusinessBySlug(negocioId).catch(() => null);
   const business = resolvedBusiness?.business ?? null;
   let initialOrders: Order[] = [];
   let initialOrdersError: string | null = null;
 
-  if (business && !canOperatorAccessBusiness(operator, { createdByUserId: business.createdByUserId ?? null })) {
+  if (
+    business &&
+    operator &&
+    !canOperatorAccessBusiness(operator, { createdByUserId: business.createdByUserId ?? null })
+  ) {
     return (
       <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(244,114,182,0.16),transparent_26%),linear-gradient(180deg,#f8fafc_0%,#eff6ff_100%)] px-4 py-8 sm:px-6">
         <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-xl items-center">
@@ -76,7 +80,7 @@ export default async function MetricsPage({
       businessDatabaseId={business.databaseId ?? null}
       businessName={business.name}
       businessSlug={business.slug}
-      operatorEmail={operator.email}
+      operatorEmail={operator?.email ?? null}
       initialOrders={initialOrders}
       initialOrdersError={initialOrdersError}
       title="Metricas"

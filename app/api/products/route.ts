@@ -4,20 +4,14 @@ import {
   canOperatorAccessBusiness,
   getBusinessAccessRecordById,
 } from "@/lib/auth/business-access";
-import { requireOperatorApiSession } from "@/lib/auth/server";
+import { getOperatorSession } from "@/lib/auth/server";
 import {
   createProductInDatabase,
   getAdminProductsByBusinessId,
 } from "@/lib/data/products";
 
 export async function GET(request: Request) {
-  const auth = await requireOperatorApiSession();
-
-  if (!auth.ok) {
-    return auth.response;
-  }
-
-  const { session } = auth;
+  const session = await getOperatorSession();
 
   const { searchParams } = new URL(request.url);
   const businessId = searchParams.get("businessId")?.trim();
@@ -32,7 +26,7 @@ export async function GET(request: Request) {
   try {
     const accessRecord = await getBusinessAccessRecordById(businessId);
 
-    if (accessRecord && !canOperatorAccessBusiness(session, accessRecord)) {
+    if (accessRecord && session && !canOperatorAccessBusiness(session, accessRecord)) {
       return NextResponse.json(
         { error: "No tienes acceso operativo a este negocio." },
         { status: 403 },
@@ -55,13 +49,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const auth = await requireOperatorApiSession();
-
-  if (!auth.ok) {
-    return auth.response;
-  }
-
-  const { session } = auth;
+  const session = await getOperatorSession();
 
   let payload: unknown;
 
@@ -90,7 +78,7 @@ export async function POST(request: Request) {
       ? await getBusinessAccessRecordById(businessId)
       : null;
 
-    if (accessRecord && !canOperatorAccessBusiness(session, accessRecord)) {
+    if (accessRecord && session && !canOperatorAccessBusiness(session, accessRecord)) {
       return NextResponse.json(
         { error: "No tienes acceso operativo a este negocio." },
         { status: 403 },

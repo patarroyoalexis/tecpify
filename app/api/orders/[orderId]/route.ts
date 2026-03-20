@@ -4,7 +4,7 @@ import {
   canOperatorAccessBusiness,
   getBusinessAccessRecordByOrderId,
 } from "@/lib/auth/business-access";
-import { requireOperatorApiSession } from "@/lib/auth/server";
+import { getOperatorSession } from "@/lib/auth/server";
 import { debugError, debugLog } from "@/lib/debug";
 import { updateOrderInDatabase } from "@/lib/data/orders-server";
 
@@ -13,13 +13,7 @@ export async function PATCH(
   context: { params: Promise<{ orderId: string }> },
 ) {
   const { orderId } = await context.params;
-  const auth = await requireOperatorApiSession();
-
-  if (!auth.ok) {
-    return auth.response;
-  }
-
-  const { session } = auth;
+  const session = await getOperatorSession();
 
   let payload: unknown;
 
@@ -39,7 +33,7 @@ export async function PATCH(
   try {
     const accessRecord = await getBusinessAccessRecordByOrderId(orderId);
 
-    if (accessRecord && !canOperatorAccessBusiness(session, accessRecord)) {
+    if (accessRecord && session && !canOperatorAccessBusiness(session, accessRecord)) {
       return NextResponse.json(
         { error: "No tienes acceso operativo a este negocio." },
         { status: 403 },

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { requireOperatorApiSession } from "@/lib/auth/server";
+import { getOperatorSession } from "@/lib/auth/server";
 import { debugError, debugLog } from "@/lib/debug";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { normalizeBusinessSlug } from "@/lib/businesses/slug";
@@ -37,13 +37,7 @@ function validateCreateBusinessPayload(payload: unknown): payload is CreateBusin
 }
 
 export async function POST(request: Request) {
-  const auth = await requireOperatorApiSession();
-
-  if (!auth.ok) {
-    return auth.response;
-  }
-
-  const { session } = auth;
+  const session = await getOperatorSession();
 
   let payload: unknown;
 
@@ -114,7 +108,7 @@ export async function POST(request: Request) {
     id: businessId,
     slug: normalizedSlug,
     name: normalizedName,
-    created_by_user_id: session.userId,
+    created_by_user_id: session?.userId ?? null,
     created_at: now,
     updated_at: now,
   };

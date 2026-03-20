@@ -4,7 +4,7 @@ import {
   canOperatorAccessBusiness,
   getBusinessAccessRecordById,
 } from "@/lib/auth/business-access";
-import { requireOperatorApiSession } from "@/lib/auth/server";
+import { getOperatorSession } from "@/lib/auth/server";
 import { deleteProductInDatabase, updateProductInDatabase } from "@/lib/data/products";
 
 export async function PATCH(
@@ -12,13 +12,7 @@ export async function PATCH(
   context: { params: Promise<{ productId: string }> },
 ) {
   const { productId } = await context.params;
-  const auth = await requireOperatorApiSession();
-
-  if (!auth.ok) {
-    return auth.response;
-  }
-
-  const { session } = auth;
+  const session = await getOperatorSession();
 
   let payload: unknown;
 
@@ -47,7 +41,7 @@ export async function PATCH(
       ? await getBusinessAccessRecordById(businessId)
       : null;
 
-    if (accessRecord && !canOperatorAccessBusiness(session, accessRecord)) {
+    if (accessRecord && session && !canOperatorAccessBusiness(session, accessRecord)) {
       return NextResponse.json(
         { error: "No tienes acceso operativo a este negocio." },
         { status: 403 },
@@ -80,13 +74,7 @@ export async function DELETE(
   context: { params: Promise<{ productId: string }> },
 ) {
   const { productId } = await context.params;
-  const auth = await requireOperatorApiSession();
-
-  if (!auth.ok) {
-    return auth.response;
-  }
-
-  const { session } = auth;
+  const session = await getOperatorSession();
 
   const { searchParams } = new URL(request.url);
   const businessId = searchParams.get("businessId")?.trim();
@@ -101,7 +89,7 @@ export async function DELETE(
   try {
     const accessRecord = await getBusinessAccessRecordById(businessId);
 
-    if (accessRecord && !canOperatorAccessBusiness(session, accessRecord)) {
+    if (accessRecord && session && !canOperatorAccessBusiness(session, accessRecord)) {
       return NextResponse.json(
         { error: "No tienes acceso operativo a este negocio." },
         { status: 403 },

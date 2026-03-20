@@ -4,7 +4,7 @@ import {
   canOperatorAccessBusiness,
   getBusinessAccessRecordBySlug,
 } from "@/lib/auth/business-access";
-import { requireOperatorApiSession } from "@/lib/auth/server";
+import { getOperatorSession } from "@/lib/auth/server";
 import { debugError, debugLog } from "@/lib/debug";
 import {
   createOrderInDatabase,
@@ -13,13 +13,7 @@ import {
 } from "@/lib/data/orders-server";
 
 export async function GET(request: Request) {
-  const auth = await requireOperatorApiSession();
-
-  if (!auth.ok) {
-    return auth.response;
-  }
-
-  const { session } = auth;
+  const session = await getOperatorSession();
 
   const { searchParams } = new URL(request.url);
   const businessSlug = searchParams.get("businessSlug")?.trim();
@@ -34,7 +28,7 @@ export async function GET(request: Request) {
   try {
     const accessRecord = await getBusinessAccessRecordBySlug(businessSlug);
 
-    if (accessRecord && !canOperatorAccessBusiness(session, accessRecord)) {
+    if (accessRecord && session && !canOperatorAccessBusiness(session, accessRecord)) {
       return NextResponse.json(
         { error: "No tienes acceso operativo a este negocio." },
         { status: 403 },

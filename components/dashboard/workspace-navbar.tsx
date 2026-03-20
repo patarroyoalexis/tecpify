@@ -8,7 +8,7 @@ import { OrdersUiIcon } from "@/components/dashboard/orders-ui-icon";
 interface WorkspaceNavbarProps {
   businessName: string;
   businessSlug: string;
-  operatorEmail: string;
+  operatorEmail: string | null;
   activeTab?: "dashboard" | "pedidos" | "metricas";
   onSearch: () => void;
   onNewOrder: () => void;
@@ -60,10 +60,12 @@ export function WorkspaceNavbar({
               <OrdersUiIcon icon="search" className="h-4 w-4" />
             </button>
 
-            <LogoutButton
-              label="Salir"
-              className="inline-flex h-9 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
-            />
+            {operatorEmail ? (
+              <LogoutButton
+                label="Salir"
+                className="inline-flex h-9 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+              />
+            ) : null}
           </div>
 
           <div className="hidden items-center justify-between gap-4 sm:flex">
@@ -79,12 +81,18 @@ export function WorkspaceNavbar({
             </div>
 
             <div className="flex shrink-0 items-center gap-2">
-              <div className="hidden items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 lg:flex">
-                <span className="text-xs font-medium text-slate-500">Sesion</span>
-                <span className="max-w-44 truncate text-sm font-semibold text-slate-800">
-                  {operatorEmail}
-                </span>
-              </div>
+              {operatorEmail ? (
+                <div className="hidden items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 lg:flex">
+                  <span className="text-xs font-medium text-slate-500">Sesion</span>
+                  <span className="max-w-44 truncate text-sm font-semibold text-slate-800">
+                    {operatorEmail}
+                  </span>
+                </div>
+              ) : (
+                <div className="hidden items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800 lg:flex">
+                  Modo MVP sin sesion
+                </div>
+              )}
 
               <nav
                 aria-label="Navegacion privada"
@@ -125,9 +133,11 @@ export function WorkspaceNavbar({
                 variant="desktop"
               />
 
-              <LogoutButton
-                className="inline-flex h-9 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
-              />
+              {operatorEmail ? (
+                <LogoutButton
+                  className="inline-flex h-9 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                />
+              ) : null}
             </div>
           </div>
         </div>

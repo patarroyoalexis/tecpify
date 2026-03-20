@@ -15,7 +15,7 @@ interface BusinessWorkspaceShellProps {
   businessDatabaseId: string | null;
   businessName: string;
   businessSlug: string;
-  operatorEmail: string;
+  operatorEmail: string | null;
   initialOrders: Order[];
   initialOrdersError?: string | null;
   title: string;
