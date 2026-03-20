@@ -2,7 +2,14 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { CheckCircle2, CircleDashed, Copy, ExternalLink, LockKeyhole } from "lucide-react";
+import {
+  CheckCircle2,
+  CircleDashed,
+  Copy,
+  ExternalLink,
+  LockKeyhole,
+  Store,
+} from "lucide-react";
 
 import type {
   BusinessReadinessChecklistItem,
@@ -18,19 +25,28 @@ interface BusinessActivationChecklistProps {
   onOpenProductsManager: () => void;
 }
 
+type ActivationStageKey =
+  | "business_created"
+  | "catalog_incomplete"
+  | "no_active_products"
+  | "ready_to_share"
+  | "first_order_received";
+
+type ActivationStageStatus = "completed" | "current" | "upcoming";
+
+interface ActivationStage {
+  key: ActivationStageKey;
+  title: string;
+  description: string;
+  status: ActivationStageStatus;
+}
+
 interface ActivationPrimaryAction {
   label: string;
   description: string;
   helper: string;
   onClick?: () => void;
   href?: string;
-}
-
-interface ActivationJourneyStep {
-  key: "create" | "activate" | "share";
-  title: string;
-  description: string;
-  status: "completed" | "current" | "blocked";
 }
 
 function getChecklistIcon(status: BusinessReadinessChecklistItem["status"]) {
@@ -49,7 +65,7 @@ function getChecklistTone(status: BusinessReadinessChecklistItem["status"]) {
   if (status === "completed") {
     return {
       badge: "border border-emerald-200 bg-emerald-50 text-emerald-800",
-      card: "border-emerald-200 bg-emerald-50/60",
+      card: "border-emerald-200 bg-emerald-50/70",
       label: "Completado",
     };
   }
@@ -66,69 +82,6 @@ function getChecklistTone(status: BusinessReadinessChecklistItem["status"]) {
     badge: "border border-slate-200 bg-slate-100 text-slate-700",
     card: "border-slate-200 bg-white",
     label: "Pendiente",
-  };
-}
-
-function getJourneySteps(
-  businessReadiness: BusinessReadinessSnapshot,
-  hasOrders: boolean,
-): ActivationJourneyStep[] {
-  const hasProducts = businessReadiness.totalProducts > 0;
-  const hasActiveProducts = businessReadiness.activeProducts > 0;
-
-  return [
-    {
-      key: "create",
-      title: "Crear primer producto",
-      description: hasProducts
-        ? "Ya hay al menos un producto cargado en este negocio."
-        : "Carga un producto base para destrabar la activacion comercial.",
-      status: hasProducts ? "completed" : "current",
-    },
-    {
-      key: "activate",
-      title: "Activar producto",
-      description: hasActiveProducts
-        ? "Ya hay al menos un producto visible para venta."
-        : hasProducts
-          ? "Activa el primer producto para que aparezca en el link publico."
-          : "Este paso se habilita apenas exista el primer producto.",
-      status: hasActiveProducts ? "completed" : hasProducts ? "current" : "blocked",
-    },
-    {
-      key: "share",
-      title: hasOrders ? "Seguir compartiendo el link" : "Probar y compartir link",
-      description: businessReadiness.canSell
-        ? hasOrders
-          ? "El negocio ya tuvo pedidos. El link sigue listo para captar mas."
-          : "Con el catalogo activo, toca validar el recorrido con un pedido de prueba."
-        : "El link se vuelve comercialmente util cuando haya al menos un producto activo.",
-      status: businessReadiness.canSell ? "current" : "blocked",
-    },
-  ];
-}
-
-function getJourneyStepTone(status: ActivationJourneyStep["status"]) {
-  if (status === "completed") {
-    return {
-      badge: "border border-emerald-200 bg-emerald-50 text-emerald-800",
-      card: "border-emerald-200 bg-emerald-50/70",
-      label: "Hecho",
-    };
-  }
-
-  if (status === "current") {
-    return {
-      badge: "border border-sky-200 bg-sky-50 text-sky-800",
-      card: "border-sky-200 bg-sky-50/70",
-      label: "Ahora",
-    };
-  }
-
-  return {
-    badge: "border border-slate-200 bg-slate-100 text-slate-700",
-    card: "border-slate-200 bg-white",
-    label: "Luego",
   };
 }
 
@@ -173,102 +126,222 @@ function CopyPublicLinkButton({
     <div className="space-y-2">
       <button type="button" onClick={() => void handleCopy()} className={className}>
         <Copy className="h-4 w-4" aria-hidden="true" />
-        Copiar link publico
+        Copiar link
       </button>
       {feedback ? <p className="text-xs text-slate-500">{feedback}</p> : null}
     </div>
   );
 }
 
-function getActivationSummary(
+function getActivationCurrentStage(
   businessReadiness: BusinessReadinessSnapshot,
   hasOrders: boolean,
-) {
-  if (businessReadiness.status === "no_products") {
-    return {
-      title: "Este negocio todavia no esta listo para recibir pedidos",
+): ActivationStageKey {
+  if (hasOrders) {
+    return "first_order_received";
+  }
+
+  if (businessReadiness.canSell) {
+    return "ready_to_share";
+  }
+
+  if (businessReadiness.totalProducts === 0) {
+    return "catalog_incomplete";
+  }
+
+  if (businessReadiness.activeProducts === 0) {
+    return "no_active_products";
+  }
+
+  return "business_created";
+}
+
+function getActivationStages(
+  businessReadiness: BusinessReadinessSnapshot,
+  hasOrders: boolean,
+): ActivationStage[] {
+  const currentStage = getActivationCurrentStage(businessReadiness, hasOrders);
+  const stageOrder: ActivationStageKey[] = [
+    "business_created",
+    "catalog_incomplete",
+    "no_active_products",
+    "ready_to_share",
+    "first_order_received",
+  ];
+  const currentIndex = stageOrder.indexOf(currentStage);
+
+  return [
+    {
+      key: "business_created",
+      title: "Negocio creado",
+      description: "La base ya existe y el dashboard esta listo para operar.",
+      status: currentIndex > 0 ? "completed" : "current",
+    },
+    {
+      key: "catalog_incomplete",
+      title: "Catalogo incompleto",
       description:
-        "Crear el negocio no alcanza para activar ventas. El paso que bloquea hoy es cargar el primer producto.",
-      highlight: "Prioridad inmediata: crear el primer producto del catalogo.",
-      statusPill: "Paso 1 de 3",
+        businessReadiness.totalProducts > 0
+          ? `Ya hay ${businessReadiness.totalProducts} producto${businessReadiness.totalProducts === 1 ? "" : "s"} cargado${businessReadiness.totalProducts === 1 ? "" : "s"}.`
+          : "Todavia falta crear el primer producto del negocio.",
+      status:
+        businessReadiness.totalProducts > 0
+          ? "completed"
+          : currentStage === "catalog_incomplete"
+            ? "current"
+            : "upcoming",
+    },
+    {
+      key: "no_active_products",
+      title: "Sin productos activos",
+      description:
+        businessReadiness.activeProducts > 0
+          ? `Ya hay ${businessReadiness.activeProducts} producto${businessReadiness.activeProducts === 1 ? "" : "s"} activo${businessReadiness.activeProducts === 1 ? "" : "s"}.`
+          : businessReadiness.totalProducts > 0
+            ? "Activa al menos uno para que el formulario publico pueda vender."
+            : "Este paso se destraba cuando exista el primer producto.",
+      status:
+        businessReadiness.activeProducts > 0
+          ? "completed"
+          : currentStage === "no_active_products"
+            ? "current"
+            : "upcoming",
+    },
+    {
+      key: "ready_to_share",
+      title: "Listo para compartir link",
+      description: businessReadiness.canSell
+        ? "El negocio ya puede recibir pedidos reales desde el formulario publico."
+        : "El link se vuelve comercialmente util cuando exista al menos un producto activo.",
+      status:
+        businessReadiness.canSell
+          ? hasOrders
+            ? "completed"
+            : "current"
+          : "upcoming",
+    },
+    {
+      key: "first_order_received",
+      title: "Primer pedido recibido",
+      description: hasOrders
+        ? "La activacion minima ya se valido con un pedido dentro del flujo real."
+        : "Cuando entre el primer pedido, el negocio ya sale de activacion inicial.",
+      status: hasOrders ? "current" : "upcoming",
+    },
+  ];
+}
+
+function getStageTone(status: ActivationStageStatus) {
+  if (status === "completed") {
+    return {
+      badge: "border border-emerald-200 bg-emerald-50 text-emerald-800",
+      card: "border-emerald-200 bg-emerald-50/70",
+      label: "Hecho",
     };
   }
 
-  if (businessReadiness.status === "inactive_catalog") {
+  if (status === "current") {
     return {
-      title: "El catalogo ya existe, pero aun no vende",
-      description:
-        "El negocio ya tiene productos cargados, pero ninguno aparece en el formulario publico porque siguen inactivos.",
-      highlight: "Prioridad inmediata: activar al menos un producto.",
-      statusPill: "Paso 2 de 3",
-    };
-  }
-
-  if (!hasOrders) {
-    return {
-      title: "El negocio ya quedo listo para activar su primera venta",
-      description:
-        "El catalogo ya esta publicado. Ahora conviene probar el link real y validar el recorrido completo con un pedido corto.",
-      highlight: "Prioridad inmediata: hacer o conseguir el primer pedido de prueba.",
-      statusPill: "Paso 3 de 3",
+      badge: "border border-sky-200 bg-sky-50 text-sky-800",
+      card: "border-sky-200 bg-sky-50/80 shadow-[0_16px_36px_rgba(14,116,144,0.08)]",
+      label: "Ahora",
     };
   }
 
   return {
-    title: "La activacion comercial minima ya quedo cerrada",
+    badge: "border border-slate-200 bg-slate-100 text-slate-700",
+    card: "border-slate-200 bg-white",
+    label: "Luego",
+  };
+}
+
+function getActivationSummary(
+  businessReadiness: BusinessReadinessSnapshot,
+  hasOrders: boolean,
+) {
+  if (hasOrders) {
+    return {
+      title: "El negocio ya esta operativo",
+      description:
+        "Ya hay catalogo activo y al menos un pedido recibido dentro del flujo real.",
+      highlight: "Estado actual: negocio operativo y listo para seguir captando pedidos.",
+      statusPill: "Operativo",
+    };
+  }
+
+  if (businessReadiness.totalProducts === 0) {
+    return {
+      title: "El primer bloqueo real es cargar el catalogo minimo",
+      description:
+        "Crear el negocio fue solo el primer paso. Todavia no existe ningun producto para vender.",
+      highlight: "Siguiente paso exacto: crear el primer producto.",
+      statusPill: "Falta catalogo",
+    };
+  }
+
+  if (businessReadiness.activeProducts === 0) {
+    return {
+      title: "El catalogo existe, pero todavia no vende",
+      description:
+        "Ya hay productos cargados, pero ninguno esta activo para aparecer en el formulario publico.",
+      highlight: "Siguiente paso exacto: activar al menos un producto.",
+      statusPill: "Falta activar",
+    };
+  }
+
+  return {
+    title: "El negocio ya esta listo para compartir su link publico",
     description:
-      "El negocio ya tiene catalogo activo y al menos un pedido registrado en el flujo real.",
-    highlight: "Estado actual: activo y con base operativa en marcha.",
-    statusPill: "Activado",
+      "La configuracion minima ya esta cerrada. Ahora toca probar el recorrido real y empujar el primer pedido.",
+    highlight: "Siguiente paso exacto: abrir el formulario publico y crear un pedido de prueba.",
+    statusPill: "Listo para vender",
   };
 }
 
 function getPrimaryAction(
   businessReadiness: BusinessReadinessSnapshot,
   hasOrders: boolean,
-  publicTestPath: string,
+  publicPath: string,
   onOpenCreateProduct: () => void,
   onOpenProductsManager: () => void,
 ): ActivationPrimaryAction {
-  if (businessReadiness.primaryAction === "create_product") {
+  if (businessReadiness.totalProducts === 0) {
     return {
       label: "Crear primer producto",
-      description: "Es la accion que destraba el resto del flujo comercial.",
-      helper:
-        "Abrimos el drawer directamente en modo creacion para que cargues el primer item del catalogo.",
+      description: "Es la unica accion que destraba el flujo comercial desde este punto.",
+      helper: "Abrimos el drawer directamente en modo creacion para cargar el primer item.",
       onClick: onOpenCreateProduct,
     };
   }
 
-  if (businessReadiness.primaryAction === "activate_products") {
+  if (businessReadiness.activeProducts === 0) {
     return {
-      label: "Activar primer producto",
+      label: "Activar al menos un producto",
       description:
-        "Ya hay catalogo base. Solo falta dejar un producto visible para habilitar el link publico.",
+        "Ya existe catalogo base. Solo falta dejar un producto visible para habilitar ventas.",
       helper:
-        "Abre la gestion de productos y activa el primero que quieras vender. En cuanto haya uno activo, el link queda listo.",
+        "Abre la gestion de productos y activa el primero que quieras mostrar en el formulario publico.",
       onClick: onOpenProductsManager,
     };
   }
 
   if (!hasOrders) {
     return {
-      label: "Hacer pedido de prueba",
+      label: "Abrir formulario publico",
       description:
-        "El negocio ya puede vender. El siguiente paso natural es validar el recorrido completo desde el link real.",
+        "El negocio ya puede vender. Lo mas util ahora es probar el flujo real desde el link del cliente.",
       helper:
-        "Abre el formulario publico en modo prueba, crea un pedido corto y luego revisalo dentro del panel.",
-      href: publicTestPath,
+        "Abre el formulario, crea un pedido corto y luego confirma que aparezca en pedidos.",
+      href: publicPath,
     };
   }
 
   return {
-    label: "Abrir storefront",
+    label: "Abrir formulario publico",
     description:
-      "El negocio ya esta operando. El link publico sigue siendo la entrada para nuevos pedidos.",
-    helper:
-      "Desde aqui puedes revisar el formulario, copiar el link o compartirlo cuando haga falta.",
-    href: publicTestPath,
+      "El negocio ya esta operativo. El formulario sigue siendo la puerta de entrada para nuevos pedidos.",
+    helper: "Desde aqui puedes revisarlo, compartirlo o usarlo para nuevas pruebas puntuales.",
+    href: publicPath,
   };
 }
 
@@ -281,36 +354,41 @@ export function BusinessActivationChecklist({
   onOpenProductsManager,
 }: BusinessActivationChecklistProps) {
   const publicPath = `/pedido/${businessSlug}`;
-  const publicTestPath = `${publicPath}?mode=test-order`;
   const [publicUrl, setPublicUrl] = useState(publicPath);
-  const isReady = businessReadiness.canSell;
-  const readinessTone = isReady
+  const isReadyToSell = businessReadiness.canSell;
+  const activationSummary = getActivationSummary(businessReadiness, hasOrders);
+  const primaryAction = getPrimaryAction(
+    businessReadiness,
+    hasOrders,
+    publicPath,
+    onOpenCreateProduct,
+    onOpenProductsManager,
+  );
+  const stages = getActivationStages(businessReadiness, hasOrders);
+  const readinessTone = hasOrders
     ? {
         section:
           "border-emerald-200 bg-[linear-gradient(135deg,rgba(236,253,245,0.98),rgba(255,255,255,0.98))]",
         badge: "border border-emerald-200 bg-emerald-50 text-emerald-800",
         panel: "border-emerald-200 bg-white/90",
       }
-    : {
-        section:
-          "border-amber-200 bg-[linear-gradient(135deg,rgba(255,251,235,0.98),rgba(255,255,255,0.98))]",
-        badge: "border border-amber-200 bg-amber-50 text-amber-800",
-        panel: "border-white/80 bg-white/90",
-      };
+    : isReadyToSell
+      ? {
+          section:
+            "border-sky-200 bg-[linear-gradient(135deg,rgba(240,249,255,0.98),rgba(255,255,255,0.98))]",
+          badge: "border border-sky-200 bg-sky-50 text-sky-800",
+          panel: "border-sky-200 bg-white/90",
+        }
+      : {
+          section:
+            "border-amber-200 bg-[linear-gradient(135deg,rgba(255,251,235,0.98),rgba(255,255,255,0.98))]",
+          badge: "border border-amber-200 bg-amber-50 text-amber-800",
+          panel: "border-white/80 bg-white/90",
+        };
 
   useEffect(() => {
     setPublicUrl(`${window.location.origin}${publicPath}`);
   }, [publicPath]);
-
-  const activationSummary = getActivationSummary(businessReadiness, hasOrders);
-  const primaryAction = getPrimaryAction(
-    businessReadiness,
-    hasOrders,
-    publicTestPath,
-    onOpenCreateProduct,
-    onOpenProductsManager,
-  );
-  const journeySteps = getJourneySteps(businessReadiness, hasOrders);
 
   return (
     <section
@@ -323,14 +401,16 @@ export function BusinessActivationChecklist({
           </p>
           <div className="mt-3 flex flex-wrap items-center gap-3">
             <h2 className="text-3xl font-semibold text-slate-950">
-              {businessReadiness.headline}
+              {hasOrders
+                ? "El negocio ya paso de activacion inicial a operacion real"
+                : businessReadiness.headline}
             </h2>
             <span className={`rounded-full px-3 py-1.5 text-xs font-semibold ${readinessTone.badge}`}>
-              {businessReadiness.statusLabel}
+              {activationSummary.statusPill}
             </span>
           </div>
           <p className="mt-3 text-sm leading-6 text-slate-600">
-            {businessName}. {businessReadiness.reason}
+            {businessName}. {activationSummary.description}
           </p>
         </div>
 
@@ -344,7 +424,7 @@ export function BusinessActivationChecklist({
           <p className="mt-1 text-sm text-slate-600">{businessReadiness.progressLabel}</p>
           <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-200">
             <div
-              className={`h-full rounded-full ${isReady ? "bg-emerald-500" : "bg-amber-500"}`}
+              className={`h-full rounded-full ${hasOrders ? "bg-emerald-500" : isReadyToSell ? "bg-sky-500" : "bg-amber-500"}`}
               style={{
                 width: `${(businessReadiness.completedSteps / businessReadiness.totalSteps) * 100}%`,
               }}
@@ -357,20 +437,21 @@ export function BusinessActivationChecklist({
         <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
           <div className="space-y-3">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-              Estado de activacion
+              Estado actual
             </p>
             <div className="flex flex-wrap items-center gap-2">
               <h3 className="text-2xl font-semibold text-slate-950">{activationSummary.title}</h3>
               <span className={`rounded-full px-3 py-1 text-[11px] font-semibold ${readinessTone.badge}`}>
-                {activationSummary.statusPill}
+                {hasOrders ? "Primer pedido logrado" : businessReadiness.statusLabel}
               </span>
             </div>
-            <p className="text-sm leading-6 text-slate-600">{activationSummary.description}</p>
             <div
               className={`rounded-[20px] border px-4 py-3 text-sm font-medium ${
-                isReady
+                hasOrders
                   ? "border-emerald-200 bg-emerald-50 text-emerald-900"
-                  : "border-amber-200 bg-amber-50 text-amber-900"
+                  : isReadyToSell
+                    ? "border-sky-200 bg-sky-50 text-sky-900"
+                    : "border-amber-200 bg-amber-50 text-amber-900"
               }`}
             >
               {activationSummary.highlight}
@@ -385,12 +466,12 @@ export function BusinessActivationChecklist({
             <p className="mt-2 text-sm leading-6 text-slate-600">{primaryAction.description}</p>
             <p className="mt-3 text-sm leading-6 text-slate-500">{primaryAction.helper}</p>
 
-            <div className="mt-4 flex flex-col gap-3">
+            <div className="mt-4">
               {primaryAction.onClick ? (
                 <button
                   type="button"
                   onClick={primaryAction.onClick}
-                  className="rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+                  className="w-full rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
                 >
                   {primaryAction.label}
                 </button>
@@ -400,145 +481,139 @@ export function BusinessActivationChecklist({
                 <Link
                   href={primaryAction.href}
                   target="_blank"
-                  className="inline-flex items-center justify-center gap-2 rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
                 >
                   <ExternalLink className="h-4 w-4" aria-hidden="true" />
                   {primaryAction.label}
                 </Link>
               ) : null}
-
-              <button
-                type="button"
-                onClick={onOpenProductsManager}
-                className="rounded-full border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
-              >
-                Ver catalogo actual
-              </button>
             </div>
+
+            {!hasOrders && isReadyToSell ? (
+              <p className="mt-3 text-xs leading-5 text-slate-500">
+                Despues del pedido de prueba, revisalo en pedidos para confirmar que el flujo quedo cerrado.
+              </p>
+            ) : null}
           </div>
         </div>
       </section>
 
-      <div className="mt-5 grid gap-4 xl:grid-cols-[1.35fr_0.95fr]">
-        <div className="space-y-4">
-          <section className={`rounded-[24px] border p-4 ${readinessTone.panel}`}>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-              Ruta corta para activar este negocio
-            </p>
-            <div className="mt-4 grid gap-3 lg:grid-cols-3">
-              {journeySteps.map((step, index) => {
-                const tone = getJourneyStepTone(step.status);
+      <section className={`mt-5 rounded-[24px] border p-4 ${readinessTone.panel}`}>
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+          Secuencia de activacion
+        </p>
+        <div className="mt-4 grid gap-3 xl:grid-cols-5">
+          {stages.map((stage, index) => {
+            const tone = getStageTone(stage.status);
 
-                return (
-                  <article
-                    key={step.key}
-                    className={`rounded-[22px] border p-4 ${tone.card}`}
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-sm font-semibold text-slate-950">
-                        {index + 1}. {step.title}
-                      </span>
-                      <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${tone.badge}`}>
-                        {tone.label}
-                      </span>
-                    </div>
-                    <p className="mt-2 text-sm leading-6 text-slate-600">{step.description}</p>
-                  </article>
-                );
-              })}
-            </div>
-          </section>
-
-          <div className="space-y-3">
-            {businessReadiness.checklist.map((item) => {
-              const tone = getChecklistTone(item.status);
-
-              return (
-                <article
-                  key={item.key}
-                  className={`rounded-[24px] border p-4 shadow-[0_12px_30px_rgba(15,23,42,0.04)] ${tone.card}`}
-                >
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        {getChecklistIcon(item.status)}
-                        <p className="text-base font-semibold text-slate-950">{item.label}</p>
-                        <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${tone.badge}`}>
-                          {tone.label}
-                        </span>
-                      </div>
-                      <p className="mt-2 text-sm leading-6 text-slate-600">{item.description}</p>
-                    </div>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
+            return (
+              <article key={stage.key} className={`rounded-[22px] border p-4 ${tone.card}`}>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-sm font-semibold text-slate-950">
+                    {index + 1}. {stage.title}
+                  </span>
+                  <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${tone.badge}`}>
+                    {tone.label}
+                  </span>
+                </div>
+                <p className="mt-2 text-sm leading-6 text-slate-600">{stage.description}</p>
+              </article>
+            );
+          })}
         </div>
+      </section>
 
-        <aside className="space-y-4">
-          {isReady ? (
-            <section className={`rounded-[24px] border p-4 ${readinessTone.panel}`}>
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                Link publico activo
+      <div className="mt-5 grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+        <div className="space-y-4">
+          {isReadyToSell ? (
+            <section className={`rounded-[24px] border p-5 ${readinessTone.panel}`}>
+              <div className="flex items-center gap-2">
+                <Store className="h-5 w-5 text-slate-700" aria-hidden="true" />
+                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">
+                  Link publico del negocio
+                </p>
+              </div>
+              <p className="mt-3 break-all rounded-[18px] border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-950">
+                {publicUrl}
               </p>
-              <p className="mt-2 break-all text-sm font-medium text-slate-950">{publicUrl}</p>
-              <p className="mt-2 text-sm leading-6 text-slate-600">
+              <p className="mt-3 text-sm leading-6 text-slate-600">
                 {hasOrders
-                  ? "Este link ya esta listo para seguir compartiendose y recibir mas pedidos."
-                  : "Este link ya esta listo para compartir o para hacer una prueba del primer pedido."}
+                  ? "El link ya esta validado en operacion real y puede seguir compartiendose."
+                  : "Este link ya se puede compartir. Si todavia no hubo pedidos, usalo para crear una prueba real ahora mismo."}
               </p>
-              <div className="mt-4 flex flex-col gap-3">
-                <CopyPublicLinkButton publicUrl={publicUrl} />
+              <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+                <CopyPublicLinkButton
+                  publicUrl={publicUrl}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+                />
                 <Link
-                  href={publicTestPath}
+                  href={publicPath}
                   target="_blank"
-                  className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
                 >
                   <ExternalLink className="h-4 w-4" aria-hidden="true" />
-                  {hasOrders ? "Abrir storefront" : "Probar pedido de prueba"}
+                  Abrir formulario publico
                 </Link>
-                {!hasOrders ? (
-                  <Link
-                    href={`/pedidos/${businessSlug}`}
-                    className="inline-flex items-center justify-center rounded-full border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
-                  >
-                    Despues revisar en pedidos
-                  </Link>
-                ) : null}
               </div>
             </section>
           ) : (
-            <section className={`rounded-[24px] border p-4 ${readinessTone.panel}`}>
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                Link publico
+            <section className={`rounded-[24px] border p-5 ${readinessTone.panel}`}>
+              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">
+                Bloqueo actual
               </p>
               <div className="mt-3 rounded-[20px] border border-dashed border-slate-300 bg-white/80 p-4">
-                <p className="text-sm font-semibold text-slate-950">Aun no conviene compartirlo</p>
+                <p className="text-sm font-semibold text-slate-950">
+                  El link publico todavia no conviene compartirse
+                </p>
                 <p className="mt-2 text-sm leading-6 text-slate-600">
-                  El link existe, pero se vuelve util para venta apenas el negocio tenga al menos
-                  un producto activo. En cuanto eso pase, aqui quedara visible para copiarlo y
-                  probarlo.
+                  El formulario existe, pero solo queda realmente listo para vender cuando haya al
+                  menos un producto activo en el catalogo.
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={onOpenProductsManager}
-                className="mt-4 rounded-full border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
-              >
-                Ir a productos
-              </button>
             </section>
           )}
 
+          {!hasOrders && isReadyToSell ? (
+            <section className={`rounded-[24px] border p-5 ${readinessTone.panel}`}>
+              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">
+                Cierra el ciclo real
+              </p>
+              <p className="mt-3 text-lg font-semibold text-slate-950">
+                Haz un pedido de prueba desde el formulario publico
+              </p>
+              <p className="mt-2 text-sm leading-6 text-slate-600">
+                La configuracion minima ya esta resuelta. El siguiente hito no es editar mas el
+                dashboard, sino comprobar que el negocio recibe su primer pedido en el flujo real.
+              </p>
+              <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+                <Link
+                  href={publicPath}
+                  target="_blank"
+                  className="inline-flex items-center justify-center gap-2 rounded-full bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
+                >
+                  <ExternalLink className="h-4 w-4" aria-hidden="true" />
+                  Ir al formulario
+                </Link>
+                <Link
+                  href={`/pedidos/${businessSlug}`}
+                  className="inline-flex items-center justify-center rounded-full border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+                >
+                  Despues revisar pedidos
+                </Link>
+              </div>
+            </section>
+          ) : null}
+        </div>
+
+        <aside className="space-y-4">
           <section className={`rounded-[24px] border p-4 ${readinessTone.panel}`}>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-              Estado comercial
+              Lectura rapida
             </p>
             <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
               <div className="rounded-[18px] border border-slate-200 bg-white/80 p-3">
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                  Productos
+                  Productos cargados
                 </p>
                 <p className="mt-1 text-lg font-semibold text-slate-950">
                   {businessReadiness.totalProducts}
@@ -546,7 +621,7 @@ export function BusinessActivationChecklist({
               </div>
               <div className="rounded-[18px] border border-emerald-200 bg-white/80 p-3">
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                  Activos
+                  Productos activos
                 </p>
                 <p className="mt-1 text-lg font-semibold text-slate-950">
                   {businessReadiness.activeProducts}
@@ -554,34 +629,70 @@ export function BusinessActivationChecklist({
               </div>
               <div className="rounded-[18px] border border-slate-200 bg-white/80 p-3">
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                  Primer pedido
+                  Estado comercial
                 </p>
                 <p className="mt-1 text-lg font-semibold text-slate-950">
-                  {hasOrders ? "Listo" : "Pendiente"}
+                  {hasOrders ? "Operativo" : isReadyToSell ? "Listo para vender" : "En activacion"}
                 </p>
               </div>
               <div className="rounded-[18px] border border-slate-200 bg-white/80 p-3">
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                  Venta habilitada
+                  Primer pedido
                 </p>
                 <p className="mt-1 text-lg font-semibold text-slate-950">
-                  {isReady ? "Si" : "No"}
+                  {hasOrders ? "Recibido" : "Pendiente"}
                 </p>
               </div>
             </div>
 
-            {isReady && !hasOrders ? (
-              <p className="mt-4 text-sm leading-6 text-slate-600">
-                Ya no falta configuracion minima. El siguiente hito real es enviar un pedido de
-                prueba y verificar que aparezca en la operacion interna.
-              </p>
+            {hasOrders ? (
+              <div className="mt-4 rounded-[18px] border border-emerald-200 bg-emerald-50 p-3 text-sm leading-6 text-emerald-900">
+                La activacion minima ya se valido. Desde aqui el foco pasa a sostener catalogo,
+                compartir el link y gestionar pedidos.
+              </div>
             ) : null}
 
-            {isReady && hasOrders ? (
-              <p className="mt-4 text-sm leading-6 text-slate-600">
-                El negocio ya salio de la etapa de activacion inicial. Desde aqui toca sostener
-                catalogo, pedidos y seguimiento diario.
-              </p>
+            {!hasOrders && isReadyToSell ? (
+              <div className="mt-4 rounded-[18px] border border-sky-200 bg-sky-50 p-3 text-sm leading-6 text-sky-900">
+                Ya no falta configuracion base. Lo unico que separa a este negocio de la operacion
+                real es recibir su primer pedido.
+              </div>
+            ) : null}
+          </section>
+
+          <section className={`rounded-[24px] border p-4 ${readinessTone.panel}`}>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+              Checklist operativo
+            </p>
+            <div className="mt-3 space-y-3">
+              {businessReadiness.checklist.map((item) => {
+                const tone = getChecklistTone(item.status);
+
+                return (
+                  <article key={item.key} className={`rounded-[20px] border p-3 ${tone.card}`}>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {getChecklistIcon(item.status)}
+                      <p className="text-sm font-semibold text-slate-950">{item.label}</p>
+                      <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${tone.badge}`}>
+                        {tone.label}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-slate-600">{item.description}</p>
+                  </article>
+                );
+              })}
+            </div>
+
+            {!isReadyToSell ? (
+              <button
+                type="button"
+                onClick={businessReadiness.totalProducts === 0 ? onOpenCreateProduct : onOpenProductsManager}
+                className="mt-4 w-full rounded-full border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+              >
+                {businessReadiness.totalProducts === 0
+                  ? "Crear primer producto"
+                  : "Activar productos"}
+              </button>
             ) : null}
           </section>
         </aside>

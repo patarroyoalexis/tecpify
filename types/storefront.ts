@@ -17,7 +17,6 @@ export interface BusinessProduct {
 export interface BusinessConfig {
   slug: string;
   databaseId?: string | null;
-  createdByUserId?: string | null;
   name: string;
   tagline: string;
   accent: string;

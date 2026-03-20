@@ -208,8 +208,10 @@ export function DashboardOverview({
           <div className="mt-5 rounded-[22px] border border-amber-200 bg-amber-50/80 p-4">
             <p className="text-sm font-semibold text-amber-800">Siguiente foco</p>
             <p className="mt-1 text-sm leading-6 text-slate-700">
-              {insights[1] ??
-                "Cuando tengas mas historial disponible, este espacio mostrara alertas y recomendaciones automaticas."}
+              {hasOrders
+                ? insights[1] ??
+                  "Cuando tengas mas historial disponible, este espacio mostrara alertas y recomendaciones automaticas."
+                : businessReadiness.nextStep}
             </p>
           </div>
         </article>

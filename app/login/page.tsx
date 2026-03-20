@@ -32,8 +32,8 @@ export default async function LoginPage({
               convertir el MVP en un sistema de permisos complejo.
             </p>
             <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 px-4 py-4 text-sm text-slate-200">
-              Usa un usuario real de Supabase Auth. Si el negocio ya tiene
-              `created_by_user_id`, solo ese operador podra entrar a su espacio privado.
+              Usa un usuario real de Supabase Auth si necesitas probar el flujo de login
+              aislado. El MVP operativo actual no depende de esa capa para crear negocios.
             </div>
           </div>
 

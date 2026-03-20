@@ -1,10 +1,5 @@
 import { NextResponse } from "next/server";
 
-import {
-  canOperatorAccessBusiness,
-  getBusinessAccessRecordById,
-} from "@/lib/auth/business-access";
-import { getOperatorSession } from "@/lib/auth/server";
 import { deleteProductInDatabase, updateProductInDatabase } from "@/lib/data/products";
 
 export async function PATCH(
@@ -12,8 +7,6 @@ export async function PATCH(
   context: { params: Promise<{ productId: string }> },
 ) {
   const { productId } = await context.params;
-  const session = await getOperatorSession();
-
   let payload: unknown;
 
   try {
@@ -33,21 +26,6 @@ export async function PATCH(
   }
 
   try {
-    const businessId =
-      typeof (payload as { businessId?: unknown }).businessId === "string"
-        ? (payload as { businessId: string }).businessId
-        : "";
-    const accessRecord = businessId
-      ? await getBusinessAccessRecordById(businessId)
-      : null;
-
-    if (accessRecord && session && !canOperatorAccessBusiness(session, accessRecord)) {
-      return NextResponse.json(
-        { error: "No tienes acceso operativo a este negocio." },
-        { status: 403 },
-      );
-    }
-
     const product = await updateProductInDatabase(
       productId,
       payload as Parameters<typeof updateProductInDatabase>[1],
@@ -74,8 +52,6 @@ export async function DELETE(
   context: { params: Promise<{ productId: string }> },
 ) {
   const { productId } = await context.params;
-  const session = await getOperatorSession();
-
   const { searchParams } = new URL(request.url);
   const businessId = searchParams.get("businessId")?.trim();
 
@@ -87,15 +63,6 @@ export async function DELETE(
   }
 
   try {
-    const accessRecord = await getBusinessAccessRecordById(businessId);
-
-    if (accessRecord && session && !canOperatorAccessBusiness(session, accessRecord)) {
-      return NextResponse.json(
-        { error: "No tienes acceso operativo a este negocio." },
-        { status: 403 },
-      );
-    }
-
     const result = await deleteProductInDatabase(productId, businessId);
     return NextResponse.json(result, { status: 200 });
   } catch (error) {
