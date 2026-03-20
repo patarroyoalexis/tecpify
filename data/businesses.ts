@@ -238,7 +238,7 @@ export async function resolveOperationalBusinessBySlug(
   return {
     business: resolvedBusiness.business,
     source: resolvedBusiness.source,
-    hasDatabaseRecord: resolvedBusiness.hasDatabaseRecord,
+    hasDatabaseRecord: true,
   };
 }
 
