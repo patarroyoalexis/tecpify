@@ -1,7 +1,9 @@
 import Link from "next/link";
 
+import { LogoutButton } from "@/components/auth/logout-button";
 import { CreateBusinessPanel } from "@/components/home/create-business-panel";
 import { getHomeBusinesses } from "@/data/businesses";
+import { getOperatorSession } from "@/lib/auth/server";
 
 function BusinessCard({
   business,
@@ -69,15 +71,35 @@ function BusinessCard({
 
 export default async function Home() {
   const { realBusinesses, demoBusinesses } = await getHomeBusinesses();
+  const operator = await getOperatorSession();
 
   return (
     <main className="min-h-screen px-4 py-8 sm:px-6">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
         <section className="grid gap-6 lg:grid-cols-[1.25fr_0.95fr]">
           <div className="rounded-[32px] border border-white/70 bg-white/90 p-8 shadow-[0_24px_80px_rgba(15,23,42,0.1)]">
-            <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-500">
-              Tecpify MVP
-            </p>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-500">
+                Tecpify MVP
+              </p>
+              {operator ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-sm font-medium text-slate-700">
+                    Sesion: {operator.email}
+                  </span>
+                  <LogoutButton
+                    className="rounded-full border border-slate-200 bg-white px-3 py-1 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                  />
+                </div>
+              ) : (
+                <Link
+                  href="/login"
+                  className="rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+                >
+                  Iniciar sesion
+                </Link>
+              )}
+            </div>
             <h1 className="mt-3 text-4xl font-semibold tracking-tight text-slate-950">
               Flujo real del MVP
             </h1>

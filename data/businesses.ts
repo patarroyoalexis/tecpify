@@ -75,6 +75,7 @@ type SupabaseBusinessRow = {
   id: string;
   slug: string;
   name: string;
+  created_by_user_id: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -115,6 +116,7 @@ function mapSupabaseBusinessRow(row: SupabaseBusinessRow): BusinessRecord {
     id: row.id,
     slug: row.slug,
     name: row.name,
+    createdByUserId: row.created_by_user_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -127,6 +129,7 @@ function createBaseBusinessConfig(
   return {
     slug,
     databaseId: overrides?.databaseId ?? null,
+    createdByUserId: overrides?.createdByUserId ?? null,
     name: overrides?.name ?? humanizeSlug(slug),
     tagline:
       overrides?.tagline ??
@@ -162,7 +165,7 @@ export async function getBusinessBySlugFromDatabase(slug: string) {
   const supabase = createServerSupabaseClient();
   const { data, error } = await supabase
     .from("businesses")
-    .select("id, slug, name, created_at, updated_at")
+    .select("id, slug, name, created_by_user_id, created_at, updated_at")
     .eq("slug", normalizedSlug)
     .maybeSingle<SupabaseBusinessRow>();
 
@@ -183,7 +186,7 @@ async function getBusinessesFromDatabase() {
   const supabase = createServerSupabaseClient();
   const { data, error } = await supabase
     .from("businesses")
-    .select("id, slug, name, created_at, updated_at")
+    .select("id, slug, name, created_by_user_id, created_at, updated_at")
     .order("slug", { ascending: true });
 
   if (error) {
@@ -206,8 +209,14 @@ export async function resolveBusinessBySlug(slug: string): Promise<ResolvedBusin
     return {
       business: withDatabaseId(
         demoBusiness
-          ? demoBusiness
-          : createBaseBusinessConfig(databaseBusiness.slug, { name: databaseBusiness.name }),
+          ? {
+              ...demoBusiness,
+              createdByUserId: databaseBusiness.createdByUserId,
+            }
+          : createBaseBusinessConfig(databaseBusiness.slug, {
+              name: databaseBusiness.name,
+              createdByUserId: databaseBusiness.createdByUserId,
+            }),
         databaseBusiness.id,
       ),
       source: "database",
@@ -258,8 +267,14 @@ export async function getHomeBusinesses(): Promise<HomeBusinessesSnapshot> {
 
     return withDatabaseId(
       demoBusiness
-        ? demoBusiness
-        : createBaseBusinessConfig(databaseBusiness.slug, { name: databaseBusiness.name }),
+        ? {
+            ...demoBusiness,
+            createdByUserId: databaseBusiness.createdByUserId,
+          }
+        : createBaseBusinessConfig(databaseBusiness.slug, {
+            name: databaseBusiness.name,
+            createdByUserId: databaseBusiness.createdByUserId,
+          }),
       databaseBusiness.id,
     );
   });

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { requireOperatorApiSession } from "@/lib/auth/server";
 import { debugError, debugLog } from "@/lib/debug";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { normalizeBusinessSlug } from "@/lib/businesses/slug";
@@ -9,6 +10,7 @@ interface SupabaseBusinessRow {
   id: string;
   slug: string;
   name: string;
+  created_by_user_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -18,6 +20,7 @@ function mapBusinessRow(row: SupabaseBusinessRow): BusinessRecord {
     id: row.id,
     slug: row.slug,
     name: row.name,
+    createdByUserId: row.created_by_user_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -34,6 +37,14 @@ function validateCreateBusinessPayload(payload: unknown): payload is CreateBusin
 }
 
 export async function POST(request: Request) {
+  const auth = await requireOperatorApiSession();
+
+  if (!auth.ok) {
+    return auth.response;
+  }
+
+  const { session } = auth;
+
   let payload: unknown;
 
   try {
@@ -103,6 +114,7 @@ export async function POST(request: Request) {
     id: businessId,
     slug: normalizedSlug,
     name: normalizedName,
+    created_by_user_id: session.userId,
     created_at: now,
     updated_at: now,
   };
@@ -110,7 +122,7 @@ export async function POST(request: Request) {
   const { data, error } = await supabase
     .from("businesses")
     .insert(insertPayload)
-    .select("id, slug, name, created_at, updated_at")
+    .select("id, slug, name, created_by_user_id, created_at, updated_at")
     .single<SupabaseBusinessRow>();
 
   if (error) {

@@ -15,6 +15,7 @@ interface BusinessWorkspaceShellProps {
   businessDatabaseId: string | null;
   businessName: string;
   businessSlug: string;
+  operatorEmail: string;
   initialOrders: Order[];
   initialOrdersError?: string | null;
   title: string;
@@ -26,6 +27,7 @@ interface BusinessWorkspaceShellProps {
 function BusinessWorkspaceShellContent({
   businessName,
   businessSlug,
+  operatorEmail,
   title,
   description,
   headerActions,
@@ -44,6 +46,7 @@ function BusinessWorkspaceShellContent({
       <WorkspaceNavbar
         businessName={businessName}
         businessSlug={businessSlug}
+        operatorEmail={operatorEmail}
         activeTab={activeTab}
         onSearch={openGlobalSearch}
         onNewOrder={openNewOrder}

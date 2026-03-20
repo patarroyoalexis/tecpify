@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
 
+import {
+  canOperatorAccessBusiness,
+  getBusinessAccessRecordById,
+} from "@/lib/auth/business-access";
+import { requireOperatorApiSession } from "@/lib/auth/server";
 import { deleteProductInDatabase, updateProductInDatabase } from "@/lib/data/products";
 
 export async function PATCH(
@@ -7,6 +12,14 @@ export async function PATCH(
   context: { params: Promise<{ productId: string }> },
 ) {
   const { productId } = await context.params;
+  const auth = await requireOperatorApiSession();
+
+  if (!auth.ok) {
+    return auth.response;
+  }
+
+  const { session } = auth;
+
   let payload: unknown;
 
   try {
@@ -26,6 +39,21 @@ export async function PATCH(
   }
 
   try {
+    const businessId =
+      typeof (payload as { businessId?: unknown }).businessId === "string"
+        ? (payload as { businessId: string }).businessId
+        : "";
+    const accessRecord = businessId
+      ? await getBusinessAccessRecordById(businessId)
+      : null;
+
+    if (accessRecord && !canOperatorAccessBusiness(session, accessRecord)) {
+      return NextResponse.json(
+        { error: "No tienes acceso operativo a este negocio." },
+        { status: 403 },
+      );
+    }
+
     const product = await updateProductInDatabase(
       productId,
       payload as Parameters<typeof updateProductInDatabase>[1],
@@ -52,6 +80,14 @@ export async function DELETE(
   context: { params: Promise<{ productId: string }> },
 ) {
   const { productId } = await context.params;
+  const auth = await requireOperatorApiSession();
+
+  if (!auth.ok) {
+    return auth.response;
+  }
+
+  const { session } = auth;
+
   const { searchParams } = new URL(request.url);
   const businessId = searchParams.get("businessId")?.trim();
 
@@ -63,6 +99,15 @@ export async function DELETE(
   }
 
   try {
+    const accessRecord = await getBusinessAccessRecordById(businessId);
+
+    if (accessRecord && !canOperatorAccessBusiness(session, accessRecord)) {
+      return NextResponse.json(
+        { error: "No tienes acceso operativo a este negocio." },
+        { status: 403 },
+      );
+    }
+
     const result = await deleteProductInDatabase(productId, businessId);
     return NextResponse.json(result, { status: 200 });
   } catch (error) {

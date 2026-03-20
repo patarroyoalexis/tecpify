@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { LogoutButton } from "@/components/auth/logout-button";
 import { NewActionsMenu } from "@/components/dashboard/new-actions-menu";
 import { OrdersUiIcon } from "@/components/dashboard/orders-ui-icon";
 
 interface WorkspaceNavbarProps {
   businessName: string;
   businessSlug: string;
+  operatorEmail: string;
   activeTab?: "dashboard" | "pedidos" | "metricas";
   onSearch: () => void;
   onNewOrder: () => void;
@@ -22,6 +24,7 @@ const tabs = [
 export function WorkspaceNavbar({
   businessName,
   businessSlug,
+  operatorEmail,
   activeTab = "dashboard",
   onSearch,
   onNewOrder,
@@ -56,6 +59,11 @@ export function WorkspaceNavbar({
             >
               <OrdersUiIcon icon="search" className="h-4 w-4" />
             </button>
+
+            <LogoutButton
+              label="Salir"
+              className="inline-flex h-9 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+            />
           </div>
 
           <div className="hidden items-center justify-between gap-4 sm:flex">
@@ -71,6 +79,13 @@ export function WorkspaceNavbar({
             </div>
 
             <div className="flex shrink-0 items-center gap-2">
+              <div className="hidden items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 lg:flex">
+                <span className="text-xs font-medium text-slate-500">Sesion</span>
+                <span className="max-w-44 truncate text-sm font-semibold text-slate-800">
+                  {operatorEmail}
+                </span>
+              </div>
+
               <nav
                 aria-label="Navegacion privada"
                 className="hidden items-center gap-1 px-3 md:flex"
@@ -108,6 +123,10 @@ export function WorkspaceNavbar({
                 onNewOrder={onNewOrder}
                 onNewProduct={onNewProduct}
                 variant="desktop"
+              />
+
+              <LogoutButton
+                className="inline-flex h-9 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
               />
             </div>
           </div>
