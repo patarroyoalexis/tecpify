@@ -1,5 +1,6 @@
 import type {
   MetricCard,
+  MetricTone,
   OperationalPriority,
   Order,
   OrderHistoryEvent,
