@@ -3,7 +3,16 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Copy, ExternalLink } from "lucide-react";
+import {
+  Copy,
+  ExternalLink,
+  Eye,
+  EyeOff,
+  Search,
+  Star,
+  StarOff,
+  Trash2,
+} from "lucide-react";
 
 import {
   getBusinessReadinessSnapshot,
@@ -12,6 +21,7 @@ import {
 } from "@/lib/businesses/readiness";
 import {
   createProductViaApi,
+  deleteProductViaApi,
   fetchProductsByBusinessId,
   updateProductViaApi,
   type ProductApiCreatePayload,
@@ -36,6 +46,8 @@ interface ProductFormState {
   isFeatured: boolean;
   sortOrder: string;
 }
+
+type ProductListFilter = "all" | "active" | "inactive" | "featured";
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("es-CO", {
@@ -72,13 +84,15 @@ function ProductFlag({
   tone,
 }: {
   label: string;
-  tone: "neutral" | "success" | "warning";
+  tone: "neutral" | "success" | "warning" | "danger";
 }) {
   const className =
     tone === "success"
       ? "border border-emerald-200 bg-emerald-50 text-emerald-800"
       : tone === "warning"
         ? "border border-amber-200 bg-amber-50 text-amber-800"
+        : tone === "danger"
+          ? "border border-rose-200 bg-rose-50 text-rose-700"
         : "border border-slate-200 bg-slate-100 text-slate-700";
 
   return (
@@ -95,6 +109,95 @@ function getReadinessFromProducts(products: Product[]): BusinessReadinessSnapsho
   );
 }
 
+function matchesProductFilter(product: Product, filter: ProductListFilter) {
+  if (filter === "active") {
+    return product.is_available;
+  }
+
+  if (filter === "inactive") {
+    return !product.is_available;
+  }
+
+  if (filter === "featured") {
+    return product.is_featured;
+  }
+
+  return true;
+}
+
+function matchesProductQuery(product: Product, query: string) {
+  const normalizedQuery = query.trim().toLowerCase();
+
+  if (!normalizedQuery) {
+    return true;
+  }
+
+  return `${product.name} ${product.description ?? ""}`
+    .toLowerCase()
+    .includes(normalizedQuery);
+}
+
+function DeleteProductDialog({
+  product,
+  isDeleting,
+  onCancel,
+  onConfirm,
+}: {
+  product: Product | null;
+  isDeleting: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  if (!product) {
+    return null;
+  }
+
+  return (
+    <>
+      <div className="fixed inset-0 z-[60] bg-slate-950/50" onClick={onCancel} />
+      <div className="fixed inset-0 z-[70] flex items-center justify-center px-4">
+        <section className="w-full max-w-lg rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_28px_80px_rgba(15,23,42,0.24)]">
+          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-rose-600">
+            Borrado de producto
+          </p>
+          <h3 className="mt-2 text-2xl font-semibold text-slate-950">
+            Confirmar borrado de {product.name}
+          </h3>
+          <p className="mt-3 text-sm leading-6 text-slate-600">
+            Este cambio elimina el producto del catalogo del negocio. Antes de borrarlo,
+            validaremos que no aparezca en pedidos ya persistidos.
+          </p>
+          <div className="mt-4 rounded-[20px] border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
+            Si el producto ya fue usado en pedidos reales, el borrado se bloqueara y te
+            pediremos desactivarlo en lugar de eliminarlo.
+          </div>
+          <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:justify-end">
+            <button
+              type="button"
+              onClick={onCancel}
+              className="rounded-full border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={onConfirm}
+              disabled={isDeleting}
+              className={`rounded-full px-5 py-2.5 text-sm font-semibold text-white transition ${
+                isDeleting
+                  ? "cursor-not-allowed bg-rose-300"
+                  : "bg-rose-600 hover:bg-rose-500"
+              }`}
+            >
+              {isDeleting ? "Borrando..." : "Borrar producto"}
+            </button>
+          </div>
+        </section>
+      </div>
+    </>
+  );
+}
+
 export function ProductsManagementDrawer({
   businessDatabaseId,
   businessName,
@@ -107,13 +210,17 @@ export function ProductsManagementDrawer({
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState("");
   const [feedback, setFeedback] = useState("");
   const [mode, setMode] = useState<"list" | "create" | "edit" | "ready">("list");
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
+  const [deleteCandidate, setDeleteCandidate] = useState<Product | null>(null);
   const [formState, setFormState] = useState<ProductFormState>(() => createDefaultFormState(1));
   const [createAnotherAfterSave, setCreateAnotherAfterSave] = useState(true);
   const [copyFeedback, setCopyFeedback] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [listFilter, setListFilter] = useState<ProductListFilter>("all");
   const publicPath = `/pedido/${businessSlug}`;
   const publicTestPath = `${publicPath}?mode=test-order`;
   const [publicUrl, setPublicUrl] = useState(publicPath);
@@ -134,6 +241,23 @@ export function ProductsManagementDrawer({
     () => products.filter((product) => !product.is_available),
     [products],
   );
+  const featuredProducts = useMemo(
+    () => products.filter((product) => product.is_featured),
+    [products],
+  );
+  const visibleProducts = useMemo(
+    () =>
+      products.filter(
+        (product) =>
+          matchesProductFilter(product, listFilter) &&
+          matchesProductQuery(product, searchQuery),
+      ),
+    [listFilter, products, searchQuery],
+  );
+  const editingProduct =
+    editingProductId === null
+      ? null
+      : products.find((product) => product.id === editingProductId) ?? null;
 
   const loadProducts = useCallback(async () => {
     if (!businessDatabaseId) {
@@ -174,8 +298,12 @@ export function ProductsManagementDrawer({
     if (!isOpen) {
       setMode(initialMode);
       setEditingProductId(null);
+      setDeleteCandidate(null);
       setError("");
       setFeedback("");
+      setCopyFeedback("");
+      setSearchQuery("");
+      setListFilter("all");
       setFormState(createDefaultFormState(nextSortOrder));
       setCreateAnotherAfterSave(true);
     }
@@ -189,6 +317,7 @@ export function ProductsManagementDrawer({
     setError("");
     setFeedback("");
     setEditingProductId(null);
+    setDeleteCandidate(null);
     setCopyFeedback("");
 
     if (initialMode === "create") {
@@ -214,6 +343,7 @@ export function ProductsManagementDrawer({
   function openCreateForm() {
     setMode("create");
     setEditingProductId(null);
+    setDeleteCandidate(null);
     setError("");
     setFeedback("");
     setCopyFeedback("");
@@ -224,6 +354,7 @@ export function ProductsManagementDrawer({
   function openEditForm(product: Product) {
     setMode("edit");
     setEditingProductId(product.id);
+    setDeleteCandidate(null);
     setError("");
     setFeedback("");
     setCopyFeedback("");
@@ -279,6 +410,18 @@ export function ProductsManagementDrawer({
     return mode === "edit" ? { update: sharedPayload } : { create: sharedPayload };
   }
 
+  async function reloadProducts() {
+    if (!businessDatabaseId) {
+      setProducts([]);
+      return [];
+    }
+
+    const nextProducts = await fetchProductsByBusinessId(businessDatabaseId);
+    setProducts(nextProducts);
+    router.refresh();
+    return nextProducts;
+  }
+
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsSaving(true);
@@ -291,7 +434,7 @@ export function ProductsManagementDrawer({
 
       if ("create" in payload) {
         const createdProduct = await createProductViaApi(payload.create);
-        const nextProducts = await fetchProductsByBusinessId(payload.create.businessId);
+        const nextProducts = await reloadProducts();
         const nextCatalogStatus = getReadinessFromProducts(nextProducts);
         const justUnlockedSelling = !previousCatalogStatus.canSell && nextCatalogStatus.canSell;
 
@@ -304,9 +447,6 @@ export function ProductsManagementDrawer({
             change: "created",
           }),
         );
-
-        router.refresh();
-
         if (justUnlockedSelling) {
           setMode("ready");
           setEditingProductId(null);
@@ -322,10 +462,9 @@ export function ProductsManagementDrawer({
           setFormState(createDefaultFormState(nextProducts.length + 1));
         }
       } else if (editingProductId) {
-        await updateProductViaApi(editingProductId, payload.update);
-        await loadProducts();
-        router.refresh();
-        setFeedback("Producto actualizado correctamente.");
+        const updatedProduct = await updateProductViaApi(editingProductId, payload.update);
+        await reloadProducts();
+        setFeedback(`"${updatedProduct.name}" se actualizo correctamente.`);
         setMode("list");
         setEditingProductId(null);
         setFormState(createDefaultFormState(nextSortOrder));
@@ -359,12 +498,10 @@ export function ProductsManagementDrawer({
         businessId: businessDatabaseId,
         [field]: value,
       });
-      const nextProducts = await fetchProductsByBusinessId(businessDatabaseId);
+      const nextProducts = await reloadProducts();
       const nextCatalogStatus = getReadinessFromProducts(nextProducts);
       const justUnlockedSelling =
         field === "isAvailable" && value && !previousCatalogStatus.canSell && nextCatalogStatus.canSell;
-      setProducts(nextProducts);
-      router.refresh();
       setFeedback(
         field === "isAvailable"
           ? getProductCatalogTransitionFeedback({
@@ -411,14 +548,43 @@ export function ProductsManagementDrawer({
         businessId: businessDatabaseId,
         sortOrder: targetIndex + 1,
       });
-      await loadProducts();
-      router.refresh();
+      await reloadProducts();
+      setFeedback(`"${product.name}" cambio de posicion en el catalogo.`);
     } catch (moveError) {
       setError(
         moveError instanceof Error
           ? moveError.message
           : "No fue posible reordenar el producto.",
       );
+    }
+  }
+
+  async function handleDeleteProduct() {
+    if (!deleteCandidate || !businessDatabaseId) {
+      return;
+    }
+
+    setIsDeleting(true);
+    setError("");
+    setFeedback("");
+
+    try {
+      const result = await deleteProductViaApi(deleteCandidate.id, businessDatabaseId);
+      const nextProducts = await reloadProducts();
+      setDeleteCandidate(null);
+      setMode("list");
+      setEditingProductId(null);
+      setFormState(createDefaultFormState(nextProducts.length + 1));
+      setFeedback(`"${result.deletedProduct.name}" fue borrado del catalogo.`);
+    } catch (deleteError) {
+      setError(
+        deleteError instanceof Error
+          ? deleteError.message
+          : "No fue posible borrar el producto.",
+      );
+      setDeleteCandidate(null);
+    } finally {
+      setIsDeleting(false);
     }
   }
 
@@ -467,6 +633,7 @@ export function ProductsManagementDrawer({
                   onClick={() => {
                     setMode("list");
                     setEditingProductId(null);
+                    setDeleteCandidate(null);
                     setError("");
                   }}
                   className="rounded-full border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
@@ -645,6 +812,37 @@ export function ProductsManagementDrawer({
               </div>
             ) : (
               <div className="space-y-4">
+                <section className="grid gap-4 lg:grid-cols-4">
+                  <article className="rounded-[22px] border border-slate-200 bg-white p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                      Total
+                    </p>
+                    <p className="mt-2 text-2xl font-semibold text-slate-950">{products.length}</p>
+                    <p className="mt-1 text-sm text-slate-600">Productos cargados en el catalogo.</p>
+                  </article>
+                  <article className="rounded-[22px] border border-emerald-200 bg-emerald-50/70 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
+                      Activos
+                    </p>
+                    <p className="mt-2 text-2xl font-semibold text-slate-950">{activeProducts.length}</p>
+                    <p className="mt-1 text-sm text-emerald-900">Ya se muestran en el storefront.</p>
+                  </article>
+                  <article className="rounded-[22px] border border-slate-200 bg-slate-50/80 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                      Inactivos
+                    </p>
+                    <p className="mt-2 text-2xl font-semibold text-slate-950">{inactiveProducts.length}</p>
+                    <p className="mt-1 text-sm text-slate-700">Quedan fuera del link publico.</p>
+                  </article>
+                  <article className="rounded-[22px] border border-amber-200 bg-amber-50/80 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-700">
+                      Destacados
+                    </p>
+                    <p className="mt-2 text-2xl font-semibold text-slate-950">{featuredProducts.length}</p>
+                    <p className="mt-1 text-sm text-amber-900">Priorizados en la seleccion rapida.</p>
+                  </article>
+                </section>
+
                 <div
                   className={`rounded-[22px] border p-4 text-sm ${
                     catalogStatus.canSell
@@ -693,140 +891,191 @@ export function ProductsManagementDrawer({
                   </section>
                 ) : null}
 
-                <div className="grid gap-4 lg:grid-cols-2">
-                  <section className="rounded-[22px] border border-emerald-200 bg-emerald-50/70 p-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-semibold uppercase tracking-[0.18em] text-emerald-700">
-                          Activos
-                        </p>
-                        <p className="mt-1 text-sm text-emerald-900">
-                          Ya aparecen en el formulario publico.
-                        </p>
-                      </div>
-                      <span className="rounded-full border border-emerald-200 bg-white px-3 py-1 text-sm font-medium text-emerald-800">
-                        {activeProducts.length}
-                      </span>
-                    </div>
-                  </section>
-
-                  <section className="rounded-[22px] border border-slate-200 bg-slate-50/80 p-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Inactivos
-                        </p>
-                        <p className="mt-1 text-sm text-slate-700">
-                          Estan cargados, pero aun no se venden.
-                        </p>
-                      </div>
-                      <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-sm font-medium text-slate-700">
-                        {inactiveProducts.length}
-                      </span>
-                    </div>
-                  </section>
-                </div>
-
-                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                {products.map((product, index) => (
-                  <article
-                    key={product.id}
-                    className="min-w-0 rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_14px_34px_rgba(15,23,42,0.05)]"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0 space-y-2">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="text-base font-semibold text-slate-950">
-                            {product.name}
-                          </h3>
-                          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
-                            Orden {product.sort_order ?? index + 1}
-                          </span>
-                        </div>
-                        <p className="text-sm font-medium text-slate-900">
-                          {formatCurrency(product.price)}
-                        </p>
-                        {product.description ? (
-                          <p className="text-sm leading-6 text-slate-600">
-                            {product.description}
-                          </p>
-                        ) : (
-                          <p className="text-sm text-slate-400">Sin descripcion</p>
-                        )}
-                        <div className="flex flex-wrap gap-2">
-                          <ProductFlag
-                            label={product.is_available ? "Disponible" : "No disponible"}
-                            tone={product.is_available ? "success" : "neutral"}
-                          />
-                          <ProductFlag
-                            label={product.is_featured ? "Destacado" : "Normal"}
-                            tone={product.is_featured ? "warning" : "neutral"}
-                          />
-                        </div>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => openEditForm(product)}
-                        className="shrink-0 rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
-                      >
-                        Editar
-                      </button>
+                <section className="rounded-[24px] border border-slate-200 bg-white p-4">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="relative lg:max-w-sm lg:flex-1">
+                      <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                      <input
+                        value={searchQuery}
+                        onChange={(event) => setSearchQuery(event.target.value)}
+                        placeholder="Buscar por nombre o descripcion"
+                        className="w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-11 pr-4 text-sm text-slate-900 outline-none transition focus:border-slate-400 focus:bg-white"
+                      />
                     </div>
 
-                    <div className="mt-4 flex flex-wrap items-start gap-2">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          handleQuickToggle(product, "isAvailable", !product.is_available)
-                        }
-                        className="rounded-full border border-slate-300 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
-                      >
-                        {product.is_available ? "Desactivar" : "Activar"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          handleQuickToggle(product, "isFeatured", !product.is_featured)
-                        }
-                        className="rounded-full border border-slate-300 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
-                      >
-                        {product.is_featured ? "Quitar destacado" : "Destacar"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleMove(product, "up")}
-                        disabled={index === 0}
-                        className={`rounded-full px-3.5 py-2 text-sm font-medium transition ${
-                          index === 0
-                            ? "cursor-not-allowed border border-slate-200 bg-slate-100 text-slate-400"
-                            : "border border-slate-300 bg-white text-slate-700 hover:border-slate-400 hover:bg-slate-50"
-                        }`}
-                      >
-                        Subir
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleMove(product, "down")}
-                        disabled={index === products.length - 1}
-                        className={`rounded-full px-3.5 py-2 text-sm font-medium transition ${
-                          index === products.length - 1
-                            ? "cursor-not-allowed border border-slate-200 bg-slate-100 text-slate-400"
-                            : "border border-slate-300 bg-white text-slate-700 hover:border-slate-400 hover:bg-slate-50"
-                        }`}
-                      >
-                        Bajar
-                      </button>
+                    <div className="flex flex-wrap gap-2">
+                      {([
+                        { key: "all", label: "Todos" },
+                        { key: "active", label: "Activos" },
+                        { key: "inactive", label: "Inactivos" },
+                        { key: "featured", label: "Destacados" },
+                      ] as Array<{ key: ProductListFilter; label: string }>).map((filter) => (
+                        <button
+                          key={filter.key}
+                          type="button"
+                          onClick={() => setListFilter(filter.key)}
+                          className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+                            listFilter === filter.key
+                              ? "bg-slate-950 text-white"
+                              : "border border-slate-300 bg-white text-slate-700 hover:border-slate-400 hover:bg-slate-50"
+                          }`}
+                        >
+                          {filter.label}
+                        </button>
+                      ))}
                     </div>
-                  </article>
-                ))}
-
-                  <div className="rounded-[22px] border border-amber-200 bg-amber-50/80 p-4 text-sm leading-6 text-amber-900 lg:col-span-2">
-                    Por ahora priorizamos un comportamiento conservador: en lugar de borrar
-                    productos, puedes desactivarlos para evitar inconsistencias futuras con
-                    pedidos historicos.
                   </div>
-                </div>
+
+                  <p className="mt-3 text-sm text-slate-500">
+                    {visibleProducts.length} resultado{visibleProducts.length === 1 ? "" : "s"} para
+                    operar rapido el catalogo.
+                  </p>
+                </section>
+
+                {visibleProducts.length === 0 ? (
+                  <div className="rounded-[24px] border border-dashed border-slate-300 bg-slate-50/80 p-6 text-center text-sm text-slate-600">
+                    No encontramos productos con ese filtro. Ajusta la busqueda o vuelve a todos.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                    {visibleProducts.map((product) => {
+                      const productIndex = products.findIndex((item) => item.id === product.id);
+
+                      return (
+                        <article
+                          key={product.id}
+                          className="min-w-0 rounded-[24px] border border-slate-200 bg-white p-5 shadow-[0_14px_34px_rgba(15,23,42,0.05)]"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0 space-y-3">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <h3 className="text-lg font-semibold text-slate-950">
+                                  {product.name}
+                                </h3>
+                                <ProductFlag
+                                  label={product.is_available ? "Activo" : "Inactivo"}
+                                  tone={product.is_available ? "success" : "neutral"}
+                                />
+                                {product.is_featured ? (
+                                  <ProductFlag label="Destacado" tone="warning" />
+                                ) : null}
+                                <ProductFlag
+                                  label={`Orden ${product.sort_order ?? productIndex + 1}`}
+                                  tone="neutral"
+                                />
+                              </div>
+                              <p className="text-base font-semibold text-slate-950">
+                                {formatCurrency(product.price)}
+                              </p>
+                              <p className="min-h-12 text-sm leading-6 text-slate-600">
+                                {product.description?.trim() ||
+                                  "Sin descripcion. Puedes agregarla si ayuda a vender mejor el producto."}
+                              </p>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => openEditForm(product)}
+                              className="shrink-0 rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+                            >
+                              Editar
+                            </button>
+                          </div>
+
+                          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                            <div className="rounded-[18px] border border-slate-200 bg-slate-50/80 p-3">
+                              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                                Storefront
+                              </p>
+                              <p className="mt-1 text-sm font-medium text-slate-900">
+                                {product.is_available ? "Visible" : "Oculto"}
+                              </p>
+                            </div>
+                            <div className="rounded-[18px] border border-slate-200 bg-slate-50/80 p-3">
+                              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                                Destacado
+                              </p>
+                              <p className="mt-1 text-sm font-medium text-slate-900">
+                                {product.is_featured ? "Si" : "No"}
+                              </p>
+                            </div>
+                            <div className="rounded-[18px] border border-slate-200 bg-slate-50/80 p-3">
+                              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                                Posicion
+                              </p>
+                              <p className="mt-1 text-sm font-medium text-slate-900">
+                                {product.sort_order ?? productIndex + 1}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="mt-4 flex flex-wrap items-start gap-2">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleQuickToggle(product, "isAvailable", !product.is_available)
+                              }
+                              className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+                            >
+                              {product.is_available ? (
+                                <EyeOff className="h-4 w-4" aria-hidden="true" />
+                              ) : (
+                                <Eye className="h-4 w-4" aria-hidden="true" />
+                              )}
+                              {product.is_available ? "Desactivar" : "Activar"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleQuickToggle(product, "isFeatured", !product.is_featured)
+                              }
+                              className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+                            >
+                              {product.is_featured ? (
+                                <StarOff className="h-4 w-4" aria-hidden="true" />
+                              ) : (
+                                <Star className="h-4 w-4" aria-hidden="true" />
+                              )}
+                              {product.is_featured ? "Quitar destacado" : "Destacar"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleMove(product, "up")}
+                              disabled={productIndex === 0}
+                              className={`rounded-full px-3.5 py-2 text-sm font-medium transition ${
+                                productIndex === 0
+                                  ? "cursor-not-allowed border border-slate-200 bg-slate-100 text-slate-400"
+                                  : "border border-slate-300 bg-white text-slate-700 hover:border-slate-400 hover:bg-slate-50"
+                              }`}
+                            >
+                              Subir
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleMove(product, "down")}
+                              disabled={productIndex === products.length - 1}
+                              className={`rounded-full px-3.5 py-2 text-sm font-medium transition ${
+                                productIndex === products.length - 1
+                                  ? "cursor-not-allowed border border-slate-200 bg-slate-100 text-slate-400"
+                                  : "border border-slate-300 bg-white text-slate-700 hover:border-slate-400 hover:bg-slate-50"
+                              }`}
+                            >
+                              Bajar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setDeleteCandidate(product)}
+                              className="inline-flex items-center gap-2 rounded-full border border-rose-200 bg-rose-50 px-3.5 py-2 text-sm font-medium text-rose-700 transition hover:bg-rose-100"
+                            >
+                              <Trash2 className="h-4 w-4" aria-hidden="true" />
+                              Borrar
+                            </button>
+                          </div>
+                        </article>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -842,6 +1091,25 @@ export function ProductsManagementDrawer({
                     <p className="mt-1 text-sm leading-6 text-slate-700">
                       Para empezar a vender solo necesitas nombre, precio y dejar activo el
                       producto. La descripcion, el orden y destacado pueden esperar.
+                    </p>
+                  </section>
+                ) : editingProduct ? (
+                  <section className="rounded-[24px] border border-slate-200 bg-slate-50/80 p-5">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="text-lg font-semibold text-slate-950">
+                        {editingProduct.name}
+                      </h3>
+                      <ProductFlag
+                        label={editingProduct.is_available ? "Activo" : "Inactivo"}
+                        tone={editingProduct.is_available ? "success" : "neutral"}
+                      />
+                      {editingProduct.is_featured ? (
+                        <ProductFlag label="Destacado" tone="warning" />
+                      ) : null}
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-slate-600">
+                      Ajusta nombre, precio, visibilidad y orden sin salir de la gestion del
+                      catalogo.
                     </p>
                   </section>
                 ) : null}
@@ -877,11 +1145,16 @@ export function ProductsManagementDrawer({
                     </label>
 
                     <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                      <p className="text-sm font-medium text-slate-900">Estado inicial</p>
+                      <p className="text-sm font-medium text-slate-900">Lectura rapida</p>
                       <p className="mt-1 text-sm text-slate-600">
                         {formState.isAvailable
                           ? "Activo. Se mostrara en el formulario publico."
-                          : "Guardado sin activar. Aun no se mostrara en el link publico."}
+                          : "Inactivo. No se mostrara en el link publico."}
+                      </p>
+                      <p className="mt-1 text-sm text-slate-600">
+                        {formState.isFeatured
+                          ? "Destacado para seleccion rapida."
+                          : "Sin destacado por ahora."}
                       </p>
                     </div>
                   </div>
@@ -890,9 +1163,9 @@ export function ProductsManagementDrawer({
                 <section className="rounded-[24px] border border-slate-200 bg-white p-5">
                   <div className="space-y-4">
                     <div>
-                      <p className="text-sm font-medium text-slate-900">Opcional para ahora</p>
+                      <p className="text-sm font-medium text-slate-900">Detalle del producto</p>
                       <p className="mt-1 text-sm text-slate-600">
-                        Completa esto solo si te suma en la carga inicial.
+                        Completa esto solo si suma claridad comercial al catalogo.
                       </p>
                     </div>
 
@@ -923,7 +1196,7 @@ export function ProductsManagementDrawer({
                         <div>
                           <p className="text-sm font-medium text-slate-900">Destacado</p>
                           <p className="text-sm text-slate-600">
-                            Opcional para resaltar este producto.
+                            Resalta este producto en la seleccion rapida del storefront.
                           </p>
                         </div>
                         <input
@@ -974,6 +1247,25 @@ export function ProductsManagementDrawer({
                     ) : null}
                   </div>
                 </section>
+
+                {mode === "edit" && editingProduct ? (
+                  <section className="rounded-[24px] border border-rose-200 bg-rose-50/70 p-5">
+                    <p className="text-sm font-semibold text-rose-700">Borrado seguro</p>
+                    <p className="mt-2 text-sm leading-6 text-slate-700">
+                      Puedes borrar este producto si no aparece en pedidos ya persistidos.
+                      Si ya fue usado, el sistema bloqueara el borrado y te sugerira
+                      desactivarlo para conservar el historial.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setDeleteCandidate(editingProduct)}
+                      className="mt-4 inline-flex items-center gap-2 rounded-full border border-rose-300 bg-white px-4 py-2.5 text-sm font-semibold text-rose-700 transition hover:bg-rose-100"
+                    >
+                      <Trash2 className="h-4 w-4" aria-hidden="true" />
+                      Borrar producto
+                    </button>
+                  </section>
+                ) : null}
               </div>
             </div>
 
@@ -984,6 +1276,7 @@ export function ProductsManagementDrawer({
                   onClick={() => {
                     setMode("list");
                     setEditingProductId(null);
+                    setDeleteCandidate(null);
                   }}
                   className="rounded-full border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
                 >
@@ -1011,6 +1304,17 @@ export function ProductsManagementDrawer({
           </form>
         )}
       </aside>
+
+      <DeleteProductDialog
+        product={deleteCandidate}
+        isDeleting={isDeleting}
+        onCancel={() => {
+          if (!isDeleting) {
+            setDeleteCandidate(null);
+          }
+        }}
+        onConfirm={() => void handleDeleteProduct()}
+      />
     </>
   );
 }

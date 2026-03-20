@@ -1,6 +1,7 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type { Product } from "@/types/products";
 import type { BusinessProduct } from "@/types/storefront";
+import { getOrderDisplayCode, type OrderProduct } from "@/types/orders";
 
 interface ProductCreatePayload {
   businessId: string;
@@ -20,6 +21,22 @@ interface ProductUpdatePayload {
   isAvailable?: boolean;
   isFeatured?: boolean;
   sortOrder?: number;
+}
+
+interface ProductUsageOrderReference {
+  id: string;
+  orderCode?: string;
+}
+
+export interface ProductDeleteValidation {
+  canDelete: boolean;
+  referencedOrdersCount: number;
+  sampleOrders: ProductUsageOrderReference[];
+}
+
+export interface ProductDeleteResult {
+  deletedProduct: Product;
+  validation: ProductDeleteValidation;
 }
 
 function isValidStorefrontProduct(product: Product) {
@@ -165,6 +182,70 @@ function mapSupabaseProductError(error: { code?: string; message: string }) {
   return `Supabase products mutation failed: ${error.message}`;
 }
 
+function readOrderProducts(value: unknown): OrderProduct[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((item) => {
+    if (!item || typeof item !== "object") {
+      return [];
+    }
+
+    const candidate = item as Record<string, unknown>;
+    const name = typeof candidate.name === "string" ? candidate.name : "";
+    const quantity =
+      typeof candidate.quantity === "number"
+        ? candidate.quantity
+        : typeof candidate.quantity === "string"
+          ? Number(candidate.quantity)
+          : 0;
+    const productId =
+      typeof candidate.productId === "string"
+        ? candidate.productId
+        : typeof candidate.product_id === "string"
+          ? candidate.product_id
+          : undefined;
+
+    if (!name || !Number.isFinite(quantity) || quantity <= 0) {
+      return [];
+    }
+
+    return [{ name, quantity, ...(productId ? { productId } : {}) }];
+  });
+}
+
+async function getProductUsageValidation(
+  businessId: string,
+  productId: string,
+): Promise<ProductDeleteValidation> {
+  const supabase = createServerSupabaseClient();
+  const { data, error } = await supabase
+    .from("orders")
+    .select("id, order_code, products")
+    .eq("business_id", businessId);
+
+  if (error) {
+    throw new Error(`Supabase product usage lookup failed: ${error.message}`);
+  }
+
+  const matchingOrders = ((data ?? []) as Record<string, unknown>[]).filter((order) =>
+    readOrderProducts(order.products).some((product) => product.productId === productId),
+  );
+
+  return {
+    canDelete: matchingOrders.length === 0,
+    referencedOrdersCount: matchingOrders.length,
+    sampleOrders: matchingOrders.slice(0, 3).map((order) => ({
+      id: typeof order.id === "string" ? order.id : "",
+      orderCode:
+        typeof order.order_code === "string"
+          ? getOrderDisplayCode({ id: typeof order.id === "string" ? order.id : "", orderCode: order.order_code })
+          : undefined,
+    })),
+  };
+}
+
 export async function createProductInDatabase(payload: ProductCreatePayload): Promise<Product> {
   assertValidBusinessId(payload.businessId);
   assertValidProductName(payload.name);
@@ -272,4 +353,49 @@ export async function updateProductInDatabase(
   }
 
   return data as Product;
+}
+
+export async function deleteProductInDatabase(
+  productId: string,
+  businessId: string,
+): Promise<ProductDeleteResult> {
+  assertValidBusinessId(businessId);
+  const currentProducts = await getAdminProductsByBusinessId(businessId);
+  const existingProduct = currentProducts.find((product) => product.id === productId);
+
+  if (!existingProduct) {
+    throw new Error(`Product not found for id "${productId}".`);
+  }
+
+  const validation = await getProductUsageValidation(businessId, productId);
+
+  if (!validation.canDelete) {
+    throw new Error(
+      `No puedes borrar "${existingProduct.name}" porque ya aparece en ${validation.referencedOrdersCount} pedido${validation.referencedOrdersCount === 1 ? "" : "s"} real${validation.referencedOrdersCount === 1 ? "" : "es"}. Desactivalo en lugar de borrarlo.`,
+    );
+  }
+
+  const supabase = createServerSupabaseClient();
+  const { error } = await supabase
+    .from("products")
+    .delete()
+    .eq("business_id", businessId)
+    .eq("id", productId);
+
+  if (error) {
+    throw new Error(mapSupabaseProductError(error));
+  }
+
+  const remainingIds = currentProducts
+    .filter((product) => product.id !== productId)
+    .map((product) => product.id);
+
+  if (remainingIds.length > 0) {
+    await writeNormalizedSortOrders(businessId, remainingIds);
+  }
+
+  return {
+    deletedProduct: existingProduct,
+    validation,
+  };
 }

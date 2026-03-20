@@ -8,6 +8,20 @@ interface ProductsApiMutationResponse {
   product: Product;
 }
 
+interface ProductDeleteValidation {
+  canDelete: boolean;
+  referencedOrdersCount: number;
+  sampleOrders: Array<{
+    id: string;
+    orderCode?: string;
+  }>;
+}
+
+interface ProductDeleteResponse {
+  deletedProduct: Product;
+  validation: ProductDeleteValidation;
+}
+
 async function parseApiError(response: Response) {
   try {
     const payload = (await response.json()) as { error?: string };
@@ -86,4 +100,19 @@ export async function updateProductViaApi(
 
   const result = (await response.json()) as ProductsApiMutationResponse;
   return result.product;
+}
+
+export async function deleteProductViaApi(productId: string, businessId: string) {
+  const response = await fetch(
+    `/api/products/${encodeURIComponent(productId)}?businessId=${encodeURIComponent(businessId)}`,
+    {
+      method: "DELETE",
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(await parseApiError(response));
+  }
+
+  return (await response.json()) as ProductDeleteResponse;
 }
