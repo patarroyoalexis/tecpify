@@ -271,6 +271,7 @@ export function OrderDetailDrawer({
       return;
     }
 
+    const safeBusinessDatabaseId = businessDatabaseId;
     let isCancelled = false;
 
     async function loadCatalogProducts() {
@@ -278,7 +279,7 @@ export function OrderDetailDrawer({
       setCatalogError("");
 
       try {
-        const fetchedProducts = await fetchProductsByBusinessId(businessDatabaseId);
+        const fetchedProducts = await fetchProductsByBusinessId(safeBusinessDatabaseId);
 
         if (!isCancelled) {
           setCatalogProducts(fetchedProducts);
