@@ -227,11 +227,19 @@ export async function resolveOperationalBusinessBySlug(
 ): Promise<OperationalBusinessResolution | null> {
   const resolvedBusiness = await resolveBusinessBySlug(slug);
 
-  if (!resolvedBusiness || resolvedBusiness.source !== "database") {
+  if (!resolvedBusiness) {
     return null;
   }
 
-  return resolvedBusiness;
+  if (resolvedBusiness.source !== "database") {
+    return null;
+  }
+
+  return {
+    business: resolvedBusiness.business,
+    source: resolvedBusiness.source,
+    hasDatabaseRecord: resolvedBusiness.hasDatabaseRecord,
+  };
 }
 
 export async function getHomeBusinesses(): Promise<HomeBusinessesSnapshot> {
