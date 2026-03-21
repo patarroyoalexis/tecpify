@@ -3,7 +3,7 @@
 import { MetricsCards } from "@/components/dashboard/metrics-cards";
 import {
   formatCurrency,
-  getAverageTicket,
+  getOrdersMetricsSummary,
   getMetricsOverviewSnapshot,
 } from "@/data/orders";
 import { useBusinessWorkspace } from "./business-workspace-context";
@@ -11,7 +11,7 @@ import { useBusinessWorkspace } from "./business-workspace-context";
 export function MetricsOverview() {
   const { ordersError, ordersState } = useBusinessWorkspace();
   const snapshot = getMetricsOverviewSnapshot(ordersState);
-  const averageTicket = getAverageTicket(ordersState);
+  const summary = getOrdersMetricsSummary(ordersState);
 
   return (
     <div className="space-y-6">
@@ -33,6 +33,13 @@ export function MetricsOverview() {
             Cuando empiecen a entrar pedidos reales, aqui veras solo las señales clave
             para operar y validar el negocio sin depender de analitica compleja.
           </p>
+        </section>
+      ) : null}
+
+      {snapshot.hasOrders ? (
+        <section className="rounded-[22px] border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
+          Corte actual basado en pedidos persistidos hasta{" "}
+          <span className="font-semibold">{snapshot.referenceDateLabel}</span>.
         </section>
       ) : null}
 
@@ -128,7 +135,7 @@ export function MetricsOverview() {
           <div className="mt-5 rounded-[22px] border border-slate-200 bg-slate-50/80 p-4">
             <p className="text-sm font-semibold text-slate-950">Referencia de valor</p>
             <p className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">
-              {formatCurrency(averageTicket)}
+              {formatCurrency(summary.averageTicket)}
             </p>
             <p className="mt-2 text-sm leading-6 text-slate-600">
               Ticket promedio actual sobre pedidos no cancelados. Sirve para validar si el

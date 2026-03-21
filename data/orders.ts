@@ -378,6 +378,38 @@ export interface MetricsOverviewSnapshot {
   metrics: MetricCard[];
   focusItems: MetricsOverviewFocusItem[];
   topProducts: ProductPerformance[];
+  referenceDateLabel: string;
+  hasOrders: boolean;
+}
+
+export interface OrdersMetricsSummary {
+  totalOrders: number;
+  activeOrders: Order[];
+  referenceDayOrders: Order[];
+  recentOrders: Order[];
+  topProducts: ProductPerformance[];
+  featuredProduct: ProductPerformance | null;
+  deliveredRevenue: number;
+  activeRevenue: number;
+  referenceDayRevenue: number;
+  averageTicket: number;
+  pendingActionsCount: number;
+  pendingPaymentsCount: number;
+  inProgressCount: number;
+  deliveredCount: number;
+  cancelledCount: number;
+  unreviewedCount: number;
+  referenceDateLabel: string;
+  hasOrders: boolean;
+}
+
+function formatReferenceDateLabel(date: Date) {
+  return new Intl.DateTimeFormat("es-CO", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(date);
 }
 
 export function getOrdersForReferenceDay(orders: Order[]) {
@@ -463,31 +495,63 @@ export function getAverageTicket(orders: Order[]) {
   );
 }
 
-export function getDashboardSummary(orders: Order[]) {
-  const todayOrders = getOrdersForReferenceDay(orders);
+export function getOrdersMetricsSummary(orders: Order[]): OrdersMetricsSummary {
+  const referenceDate = getReferenceDate(orders);
+  const referenceDayOrders = getOrdersForReferenceDay(orders);
+  const activeOrders = orders.filter(isActiveOrder);
+  const topProducts = getTopProducts(orders, 3);
+  const featuredProduct = getTopProducts(referenceDayOrders, 1)[0] ?? topProducts[0] ?? null;
   const recentOrders = [...orders]
     .sort(
       (left, right) =>
         new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
     )
     .slice(0, 4);
-  const todayTopProducts = getTopProducts(todayOrders, 1);
-  const overallTopProducts = getTopProducts(orders, 1);
 
   return {
-    todayOrdersCount: todayOrders.length,
-    todayRevenue: todayOrders
+    totalOrders: orders.length,
+    activeOrders,
+    referenceDayOrders,
+    recentOrders,
+    topProducts,
+    featuredProduct,
+    deliveredRevenue: orders
+      .filter((order) => order.status === "entregado")
+      .reduce((total, order) => total + order.total, 0),
+    activeRevenue: activeOrders.reduce((total, order) => total + order.total, 0),
+    referenceDayRevenue: referenceDayOrders
       .filter(isActiveOrder)
       .reduce((total, order) => total + order.total, 0),
+    averageTicket: activeOrders.length > 0
+      ? activeOrders.reduce((total, order) => total + order.total, 0) / activeOrders.length
+      : 0,
+    pendingActionsCount: orders.filter((order) => actionableStatuses.includes(order.status)).length,
     pendingPaymentsCount: orders.filter(isPendingPayment).length,
-    featuredProduct: todayTopProducts[0] ?? overallTopProducts[0] ?? null,
-    recentOrders,
+    inProgressCount: orders.filter((order) => productionStatuses.includes(order.status)).length,
+    deliveredCount: orders.filter((order) => order.status === "entregado").length,
+    cancelledCount: orders.filter((order) => order.status === "cancelado").length,
+    unreviewedCount: orders.filter((order) => !order.isReviewed).length,
+    referenceDateLabel: formatReferenceDateLabel(referenceDate),
+    hasOrders: orders.length > 0,
+  };
+}
+
+export function getDashboardSummary(orders: Order[]) {
+  const summary = getOrdersMetricsSummary(orders);
+
+  return {
+    todayOrdersCount: summary.referenceDayOrders.length,
+    todayRevenue: summary.referenceDayRevenue,
+    pendingPaymentsCount: summary.pendingPaymentsCount,
+    featuredProduct: summary.featuredProduct,
+    recentOrders: summary.recentOrders,
+    referenceDateLabel: summary.referenceDateLabel,
   };
 }
 
 export function getBusinessInsights(orders: Order[]) {
   const insights: string[] = [];
-  const todayOrders = getOrdersForReferenceDay(orders);
+  const metricsSummary = getOrdersMetricsSummary(orders);
   const summary = getDashboardSummary(orders);
   const revenueSeries = getRevenueSeries(orders, 8);
   const previousDays = revenueSeries.slice(0, -1);
@@ -508,7 +572,7 @@ export function getBusinessInsights(orders: Order[]) {
 
   if (summary.featuredProduct) {
     insights.push(
-      `El producto ${summary.featuredProduct.name} fue el mas pedido del dia con ${summary.featuredProduct.quantity} unidades.`,
+      `El producto ${summary.featuredProduct.name} fue el mas pedido del corte actual con ${summary.featuredProduct.quantity} unidades.`,
     );
   }
 
@@ -518,9 +582,9 @@ export function getBusinessInsights(orders: Order[]) {
     );
   }
 
-  if (insights.length === 0 && todayOrders.length > 0) {
+  if (insights.length === 0 && metricsSummary.referenceDayOrders.length > 0) {
     insights.push(
-      `Hoy llevas ${todayOrders.length} pedido${todayOrders.length > 1 ? "s" : ""} en el flujo actual.`,
+      `En el corte actual llevas ${metricsSummary.referenceDayOrders.length} pedido${metricsSummary.referenceDayOrders.length > 1 ? "s" : ""} en el flujo operativo.`,
     );
   }
 
@@ -528,45 +592,33 @@ export function getBusinessInsights(orders: Order[]) {
 }
 
 export function getDashboardMetrics(orders: Order[]): MetricCard[] {
-  const pendingActions = orders.filter((order) =>
-    actionableStatuses.includes(order.status),
-  ).length;
-
-  const inProgress = orders.filter((order) =>
-    productionStatuses.includes(order.status),
-  ).length;
-
-  const deliveredRevenue = orders
-    .filter((order) => order.status === "entregado")
-    .reduce((total, order) => total + order.total, 0);
-
-  const cancelledCount = orders.filter((order) => order.status === "cancelado").length;
+  const summary = getOrdersMetricsSummary(orders);
 
   return [
     {
       title: "Pedidos registrados",
-      value: `${orders.length}`,
+      value: `${summary.totalOrders}`,
       description: "Vista general del flujo operativo reciente.",
       tone: "neutral",
     },
     {
       title: "Acciones pendientes",
-      value: `${pendingActions}`,
+      value: `${summary.pendingActionsCount}`,
       description: "Pedidos por cobrar o pagos por verificar.",
       tone: "warning",
     },
     {
       title: "En operación",
-      value: `${inProgress}`,
+      value: `${summary.inProgressCount}`,
       description: "Pedidos confirmados, en preparación o listos.",
       tone: "info",
     },
     {
       title: "Ingresos entregados",
-      value: formatCurrency(deliveredRevenue),
+      value: formatCurrency(summary.deliveredRevenue),
       description:
-        cancelledCount > 0
-          ? `${cancelledCount} pedido${cancelledCount > 1 ? "s" : ""} cancelado${cancelledCount > 1 ? "s" : ""}.`
+        summary.cancelledCount > 0
+          ? `${summary.cancelledCount} pedido${summary.cancelledCount > 1 ? "s" : ""} cancelado${summary.cancelledCount > 1 ? "s" : ""}.`
           : "Sin pedidos cancelados.",
       tone: "success",
     },
@@ -574,39 +626,27 @@ export function getDashboardMetrics(orders: Order[]): MetricCard[] {
 }
 
 export function getOperationalMetrics(orders: Order[]): MetricCard[] {
-  const pendingActions = orders.filter((order) =>
-    actionableStatuses.includes(order.status),
-  ).length;
-
-  const inProgress = orders.filter((order) =>
-    productionStatuses.includes(order.status),
-  ).length;
-
-  const deliveredRevenue = orders
-    .filter((order) => order.status === "entregado")
-    .reduce((total, order) => total + order.total, 0);
-
-  const cancelledCount = orders.filter((order) => order.status === "cancelado").length;
+  const summary = getOrdersMetricsSummary(orders);
 
   return [
     {
       title: "Pendientes",
-      value: `${pendingActions}`,
+      value: `${summary.pendingActionsCount}`,
       description: "Pedidos por cobrar o pagos por verificar.",
       tone: "warning",
     },
     {
       title: "En operación",
-      value: `${inProgress}`,
+      value: `${summary.inProgressCount}`,
       description: "Pedidos confirmados, en preparación o listos.",
       tone: "info",
     },
     {
       title: "Ingresos",
-      value: formatCurrency(deliveredRevenue),
+      value: formatCurrency(summary.deliveredRevenue),
       description:
-        cancelledCount > 0
-          ? `${cancelledCount} pedido${cancelledCount > 1 ? "s" : ""} cancelado${cancelledCount > 1 ? "s" : ""}.`
+        summary.cancelledCount > 0
+          ? `${summary.cancelledCount} pedido${summary.cancelledCount > 1 ? "s" : ""} cancelado${summary.cancelledCount > 1 ? "s" : ""}.`
           : "Sin pedidos cancelados.",
       tone: "success",
     },
@@ -614,46 +654,31 @@ export function getOperationalMetrics(orders: Order[]): MetricCard[] {
 }
 
 export function getMetricsOverviewSnapshot(orders: Order[]): MetricsOverviewSnapshot {
-  const todayOrders = getOrdersForReferenceDay(orders);
-  const pendingActions = orders.filter((order) =>
-    actionableStatuses.includes(order.status),
-  ).length;
-  const inProgress = orders.filter((order) =>
-    productionStatuses.includes(order.status),
-  ).length;
-  const deliveredRevenue = orders
-    .filter((order) => order.status === "entregado")
-    .reduce((total, order) => total + order.total, 0);
-  const cancelledCount = orders.filter((order) => order.status === "cancelado").length;
-  const pendingPaymentsCount = orders.filter(isPendingPayment).length;
-  const topProducts = getTopProducts(orders, 3);
-  const todayRevenue = todayOrders
-    .filter(isActiveOrder)
-    .reduce((total, order) => total + order.total, 0);
+  const summary = getOrdersMetricsSummary(orders);
 
   return {
     metrics: [
       {
-        title: "Pedidos del dia",
-        value: `${todayOrders.length}`,
-        description: "Pedidos reales registrados en el corte mas reciente.",
+        title: "Pedidos del corte",
+        value: `${summary.referenceDayOrders.length}`,
+        description: `Pedidos persistidos del ultimo dia con actividad (${summary.referenceDateLabel}).`,
         tone: "neutral",
       },
       {
         title: "Pendientes de atencion",
-        value: `${pendingActions}`,
+        value: `${summary.pendingActionsCount}`,
         description: "Cobros o validaciones de pago que pueden frenar la operacion.",
         tone: "warning",
       },
       {
         title: "En operacion",
-        value: `${inProgress}`,
+        value: `${summary.inProgressCount}`,
         description: "Pedidos confirmados, en preparacion o listos para entregar.",
         tone: "info",
       },
       {
         title: "Ingresos entregados",
-        value: formatCurrency(deliveredRevenue),
+        value: formatCurrency(summary.deliveredRevenue),
         description: "Venta ya cerrada en pedidos entregados del historial actual.",
         tone: "success",
       },
@@ -661,41 +686,43 @@ export function getMetricsOverviewSnapshot(orders: Order[]): MetricsOverviewSnap
     focusItems: [
       {
         label: "Cobros por revisar",
-        value: `${pendingPaymentsCount}`,
+        value: `${summary.pendingPaymentsCount}`,
         description:
-          pendingPaymentsCount > 0
+          summary.pendingPaymentsCount > 0
             ? "Conviene resolver estos pagos primero para destrabar pedidos."
             : "No hay pagos pendientes frenando el flujo en este momento.",
-        tone: pendingPaymentsCount > 0 ? "warning" : "success",
+        tone: summary.pendingPaymentsCount > 0 ? "warning" : "success",
       },
       {
         label: "Carga activa",
-        value: `${inProgress}`,
+        value: `${summary.inProgressCount}`,
         description:
-          inProgress > 0
+          summary.inProgressCount > 0
             ? "Pedidos actualmente en produccion o listos para entregar."
             : "No hay pedidos en produccion abiertos ahora mismo.",
-        tone: inProgress > 0 ? "info" : "neutral",
+        tone: summary.inProgressCount > 0 ? "info" : "neutral",
       },
       {
-        label: "Venta del dia",
-        value: formatCurrency(todayRevenue),
+        label: "Venta del corte",
+        value: formatCurrency(summary.referenceDayRevenue),
         description:
-          todayOrders.length > 0
-            ? `Basado en ${todayOrders.length} pedido${todayOrders.length === 1 ? "" : "s"} del corte actual.`
+          summary.referenceDayOrders.length > 0
+            ? `Basado en ${summary.referenceDayOrders.length} pedido${summary.referenceDayOrders.length === 1 ? "" : "s"} de ${summary.referenceDateLabel}.`
             : "Aun no hay pedidos en el dia de referencia actual.",
-        tone: todayRevenue > 0 ? "success" : "neutral",
+        tone: summary.referenceDayRevenue > 0 ? "success" : "neutral",
       },
       {
         label: "Cancelaciones",
-        value: `${cancelledCount}`,
+        value: `${summary.cancelledCount}`,
         description:
-          cancelledCount > 0
+          summary.cancelledCount > 0
             ? "Sirve para revisar friccion comercial o fallas en cierre."
             : "No hay cancelaciones registradas en el historial actual.",
-        tone: cancelledCount > 0 ? "warning" : "neutral",
+        tone: summary.cancelledCount > 0 ? "warning" : "neutral",
       },
     ],
-    topProducts,
+    topProducts: summary.topProducts,
+    referenceDateLabel: summary.referenceDateLabel,
+    hasOrders: summary.hasOrders,
   };
 }

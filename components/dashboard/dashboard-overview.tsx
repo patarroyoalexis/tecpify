@@ -8,6 +8,7 @@ import type { BusinessReadinessSnapshot } from "@/lib/businesses/readiness";
 import {
   formatCurrency,
   getBusinessInsights,
+  getOrdersMetricsSummary,
   getDashboardSummary,
   getOperationalPriority,
 } from "@/data/orders";
@@ -31,6 +32,7 @@ export function DashboardOverview({
     ordersError,
     ordersState,
   } = useBusinessWorkspace();
+  const metricsSummary = getOrdersMetricsSummary(ordersState);
   const summary = getDashboardSummary(ordersState);
   const insights = getBusinessInsights(ordersState).slice(0, 2);
   const unreviewedOrders = ordersState.filter((order) => !order.isReviewed);
@@ -38,10 +40,6 @@ export function DashboardOverview({
     summary.recentOrders.some((recentOrder) => recentOrder.id === order.id),
   );
   const urgentOrders = ordersState.filter((order) => getOperationalPriority(order) === "alta");
-  const pendingAttention = ordersState.filter(
-    (order) =>
-      order.status === "pendiente de pago" || order.status === "pago por verificar",
-  );
   const hasOrders = ordersState.length > 0;
   const nextRecommendedAction = !hasOrders && businessReadiness.totalProducts === 0
     ? {
@@ -80,7 +78,7 @@ export function DashboardOverview({
     },
     {
       title: "Pedidos sin revisar",
-      value: `${unreviewedOrders.length}`,
+      value: `${metricsSummary.unreviewedCount}`,
       description: "Solicitudes pendientes por abrir o revisar manualmente.",
       tone: "warning" as const,
     },
@@ -92,7 +90,7 @@ export function DashboardOverview({
     },
     {
       title: "Pendientes de atencion",
-      value: `${pendingAttention.length}`,
+      value: `${metricsSummary.pendingActionsCount}`,
       description: "Pedidos que requieren cobro, verificacion o una accion inmediata.",
       tone: "neutral" as const,
     },
@@ -122,12 +120,19 @@ export function DashboardOverview({
               {insights[0]}
             </p>
 
-            <Link
-              href={`/metricas/${businessSlug}`}
-              className="inline-flex shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
-            >
-              Ver mas metricas
-            </Link>
+            <div className="flex flex-wrap items-center gap-3">
+              {metricsSummary.hasOrders ? (
+                <span className="rounded-full border border-sky-200 bg-white px-3 py-1 text-xs font-semibold text-sky-700">
+                  Corte actual: {metricsSummary.referenceDateLabel}
+                </span>
+              ) : null}
+              <Link
+                href={`/metricas/${businessSlug}`}
+                className="inline-flex shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+              >
+                Ver mas metricas
+              </Link>
+            </div>
           </div>
         </section>
       ) : null}
