@@ -15,7 +15,7 @@ import { getOrderDisplayCode, ORDER_STATUSES, type Order, type OrderStatus } fro
 import { useBusinessWorkspace } from "./business-workspace-context";
 
 interface OrdersWorkspaceProps {
-  businessId: string;
+  businessSlug: string;
 }
 
 interface PersistedOrdersViewState {
@@ -103,8 +103,8 @@ function matchesSearch(order: Order, searchQuery: string) {
   return searchableValues.some((value) => value.toLowerCase().includes(normalizedQuery));
 }
 
-export function OrdersWorkspace({ businessId }: OrdersWorkspaceProps) {
-  const dashboardStorageKey = getBusinessDashboardStateKey(businessId);
+export function OrdersWorkspace({ businessSlug }: OrdersWorkspaceProps) {
+  const dashboardStorageKey = getBusinessDashboardStateKey(businessSlug);
   const [initialOrdersViewState] = useState(() => getInitialOrdersViewState());
   const [selectedStatus, setSelectedStatus] = useState<OrderStatus | "todos">(
     initialOrdersViewState.selectedStatus,

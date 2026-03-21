@@ -1,3 +1,3 @@
-export function getBusinessDashboardStateKey(businessId: string) {
-  return `tecpify-dashboard-state-${businessId}`;
+export function getBusinessDashboardStateKey(businessSlug: string) {
+  return `tecpify-dashboard-state-${businessSlug}`;
 }

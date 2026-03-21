@@ -11,8 +11,6 @@ import { WorkspacePageHeader } from "@/components/dashboard/workspace-page-heade
 import type { Order } from "@/types/orders";
 
 interface BusinessWorkspaceShellProps {
-  businessId: string;
-  businessDatabaseId: string | null;
   businessName: string;
   businessSlug: string;
   operatorEmail: string | null;
@@ -69,12 +67,10 @@ function BusinessWorkspaceShellContent({
 }
 
 export function BusinessWorkspaceShell(props: BusinessWorkspaceShellProps) {
-  const { businessId, businessSlug, initialOrders, initialOrdersError } = props;
+  const { businessSlug, initialOrders, initialOrdersError } = props;
 
   return (
     <BusinessWorkspaceProvider
-      businessId={businessId}
-      businessDatabaseId={props.businessDatabaseId}
       businessName={props.businessName}
       businessSlug={businessSlug}
       initialOrders={initialOrders}

@@ -22,7 +22,7 @@ import {
 import {
   createProductViaApi,
   deleteProductViaApi,
-  fetchProductsByBusinessId,
+  fetchProductsByBusinessSlug,
   updateProductViaApi,
   type ProductApiCreatePayload,
   type ProductApiUpdatePayload,
@@ -30,7 +30,6 @@ import {
 import type { Product } from "@/types/products";
 
 interface ProductsManagementDrawerProps {
-  businessDatabaseId: string | null;
   businessName: string;
   businessSlug: string;
   isOpen: boolean;
@@ -215,7 +214,6 @@ function DeleteProductDialog({
 }
 
 export function ProductsManagementDrawer({
-  businessDatabaseId,
   businessName,
   businessSlug,
   isOpen,
@@ -278,16 +276,11 @@ export function ProductsManagementDrawer({
   const firstInactiveProduct = inactiveProducts[0] ?? null;
 
   const loadProducts = useCallback(async () => {
-    if (!businessDatabaseId) {
-      setProducts([]);
-      return;
-    }
-
     setIsLoading(true);
     setError("");
 
     try {
-      const nextProducts = await fetchProductsByBusinessId(businessDatabaseId);
+      const nextProducts = await fetchProductsByBusinessSlug(businessSlug);
       setProducts(nextProducts);
     } catch (loadError) {
       setError(
@@ -298,7 +291,7 @@ export function ProductsManagementDrawer({
     } finally {
       setIsLoading(false);
     }
-  }, [businessDatabaseId]);
+  }, [businessSlug]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -405,16 +398,12 @@ export function ProductsManagementDrawer({
       throw new Error("Ingresa un precio valido mayor o igual a 0 para crear el producto.");
     }
 
-    if (!businessDatabaseId) {
-      throw new Error("Este negocio todavia no esta conectado a la base de datos.");
-    }
-
     const normalizedSortOrder = Number(formState.sortOrder);
     const resolvedSortOrder =
       Number.isFinite(normalizedSortOrder) && normalizedSortOrder >= 1 ? normalizedSortOrder : 1;
 
     const sharedPayload = {
-      businessId: businessDatabaseId,
+      businessSlug,
       name: normalizedName,
       description: formState.description.trim(),
       price: normalizedPrice,
@@ -427,12 +416,7 @@ export function ProductsManagementDrawer({
   }
 
   async function reloadProducts() {
-    if (!businessDatabaseId) {
-      setProducts([]);
-      return [];
-    }
-
-    const nextProducts = await fetchProductsByBusinessId(businessDatabaseId);
+    const nextProducts = await fetchProductsByBusinessSlug(businessSlug);
     setProducts(nextProducts);
     router.refresh();
     return nextProducts;
@@ -514,17 +498,13 @@ export function ProductsManagementDrawer({
     field: "isAvailable" | "isFeatured",
     value: boolean,
   ) {
-    if (!businessDatabaseId) {
-      return;
-    }
-
     setError("");
     setFeedback("");
 
     try {
       const previousCatalogStatus = getReadinessFromProducts(products);
       await updateProductViaApi(product.id, {
-        businessId: businessDatabaseId,
+        businessSlug,
         [field]: value,
       });
       const nextProducts = await reloadProducts();
@@ -560,10 +540,6 @@ export function ProductsManagementDrawer({
   }
 
   async function handleMove(product: Product, direction: "up" | "down") {
-    if (!businessDatabaseId) {
-      return;
-    }
-
     const currentIndex = products.findIndex((item) => item.id === product.id);
     const targetIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
 
@@ -576,7 +552,7 @@ export function ProductsManagementDrawer({
 
     try {
       await updateProductViaApi(product.id, {
-        businessId: businessDatabaseId,
+        businessSlug,
         sortOrder: targetIndex + 1,
       });
       await reloadProducts();
@@ -591,7 +567,7 @@ export function ProductsManagementDrawer({
   }
 
   async function handleDeleteProduct() {
-    if (!deleteCandidate || !businessDatabaseId) {
+    if (!deleteCandidate) {
       return;
     }
 
@@ -600,7 +576,7 @@ export function ProductsManagementDrawer({
     setFeedback("");
 
     try {
-      const result = await deleteProductViaApi(deleteCandidate.id, businessDatabaseId);
+      const result = await deleteProductViaApi(deleteCandidate.id, businessSlug);
       const nextProducts = await reloadProducts();
       setDeleteCandidate(null);
       setMode("list");
@@ -685,37 +661,35 @@ export function ProductsManagementDrawer({
             </div>
           </div>
 
-          {businessDatabaseId ? (
-            <div className="mt-4 flex flex-wrap gap-2">
-              <span className="rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
-                {catalogStatus.totalProducts} producto
-                {catalogStatus.totalProducts === 1 ? "" : "s"}
-              </span>
-              <span
-                className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                  catalogStatus.activeProducts > 0
-                    ? "border border-emerald-200 bg-emerald-50 text-emerald-800"
-                    : "border border-amber-200 bg-amber-50 text-amber-800"
-                }`}
-              >
-                {catalogStatus.activeProducts} activo
-                {catalogStatus.activeProducts === 1 ? "" : "s"}
-              </span>
-              <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700">
-                {catalogStatus.inactiveProducts} inactivo
-                {catalogStatus.inactiveProducts === 1 ? "" : "s"}
-              </span>
-              <span
-                className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                  catalogStatus.canSell
-                    ? "border border-emerald-200 bg-emerald-50 text-emerald-800"
-                    : "border border-slate-200 bg-white text-slate-700"
-                }`}
-              >
-                {catalogStatus.canSell ? "Listo para vender" : "Aun no puede vender"}
-              </span>
-            </div>
-          ) : null}
+          <div className="mt-4 flex flex-wrap gap-2">
+            <span className="rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+              {catalogStatus.totalProducts} producto
+              {catalogStatus.totalProducts === 1 ? "" : "s"}
+            </span>
+            <span
+              className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                catalogStatus.activeProducts > 0
+                  ? "border border-emerald-200 bg-emerald-50 text-emerald-800"
+                  : "border border-amber-200 bg-amber-50 text-amber-800"
+              }`}
+            >
+              {catalogStatus.activeProducts} activo
+              {catalogStatus.activeProducts === 1 ? "" : "s"}
+            </span>
+            <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700">
+              {catalogStatus.inactiveProducts} inactivo
+              {catalogStatus.inactiveProducts === 1 ? "" : "s"}
+            </span>
+            <span
+              className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                catalogStatus.canSell
+                  ? "border border-emerald-200 bg-emerald-50 text-emerald-800"
+                  : "border border-slate-200 bg-white text-slate-700"
+              }`}
+            >
+              {catalogStatus.canSell ? "Listo para vender" : "Aun no puede vender"}
+            </span>
+          </div>
         </div>
 
         {feedback ? (
@@ -729,19 +703,7 @@ export function ProductsManagementDrawer({
           </div>
         ) : null}
 
-        {!businessDatabaseId ? (
-          <div className="flex flex-1 items-center justify-center px-4 py-8 sm:px-6">
-            <div className="max-w-md rounded-[24px] border border-slate-200 bg-slate-50 p-6 text-center">
-              <h3 className="text-lg font-semibold text-slate-950">
-                Negocio aun no conectado
-              </h3>
-              <p className="mt-2 text-sm leading-6 text-slate-600">
-                No encontramos un `business_id` de base de datos para este negocio.
-                Cuando la relacion exista, este drawer podra administrar los productos.
-              </p>
-            </div>
-          </div>
-        ) : mode === "ready" ? (
+        {mode === "ready" ? (
           <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
             <div className="mx-auto max-w-3xl space-y-5">
               <section className="rounded-[28px] border border-emerald-200 bg-[linear-gradient(135deg,rgba(236,253,245,0.98),rgba(255,255,255,0.98))] p-6 shadow-[0_18px_45px_rgba(15,23,42,0.05)]">

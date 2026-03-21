@@ -21,8 +21,6 @@ import type { Order, PaymentStatus } from "@/types/orders";
 import type { OrderApiUpdatePayload } from "@/lib/orders/mappers";
 
 interface BusinessWorkspaceProviderProps {
-  businessId: string;
-  businessDatabaseId: string | null;
   businessName: string;
   businessSlug: string;
   initialOrders: Order[];
@@ -79,8 +77,6 @@ interface BusinessWorkspaceContextValue {
 const BusinessWorkspaceContext = createContext<BusinessWorkspaceContextValue | null>(null);
 
 export function BusinessWorkspaceProvider({
-  businessId,
-  businessDatabaseId,
   businessName,
   businessSlug,
   initialOrders,
@@ -118,7 +114,6 @@ export function BusinessWorkspaceProvider({
     handleResetOrders,
     handleUpdatePaymentStatus,
   } = useBusinessOrders({
-    businessId,
     businessSlug,
     orders: initialOrders,
     initialOrdersError,
@@ -202,7 +197,7 @@ export function BusinessWorkspaceProvider({
       {children}
 
       <OrderDetailDrawer
-        businessDatabaseId={businessDatabaseId}
+        businessSlug={businessSlug}
         businessName={businessName}
         order={selectedOrder}
         isOpen={selectedOrder !== null}
@@ -216,7 +211,7 @@ export function BusinessWorkspaceProvider({
       />
 
       <NewOrderDrawer
-        businessDatabaseId={businessDatabaseId}
+        businessSlug={businessSlug}
         isOpen={isNewOrderDrawerOpen}
         onClose={() => setIsNewOrderDrawerOpen(false)}
         onCreateOrder={handleCreateOrder}
@@ -228,7 +223,6 @@ export function BusinessWorkspaceProvider({
       />
 
       <ProductsManagementDrawer
-        businessDatabaseId={businessDatabaseId}
         businessName={businessName}
         businessSlug={businessSlug}
         isOpen={isProductsDrawerOpen}

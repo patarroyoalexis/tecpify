@@ -76,8 +76,6 @@ export default async function OrdersPage({
 
   return (
     <BusinessWorkspaceShell
-      businessId={business.databaseId ?? business.slug}
-      businessDatabaseId={business.databaseId ?? null}
       businessName={business.name}
       businessSlug={business.slug}
       operatorEmail={operator?.email ?? null}
@@ -88,7 +86,7 @@ export default async function OrdersPage({
       headerActions={<OrdersHeaderActions />}
     >
       <OrdersWorkspace
-        businessId={business.databaseId ?? business.slug}
+        businessSlug={business.slug}
       />
     </BusinessWorkspaceShell>
   );

@@ -90,8 +90,6 @@ export default async function BusinessDashboardPage({
 
   return (
     <BusinessWorkspaceShell
-      businessId={business.databaseId ?? business.slug}
-      businessDatabaseId={business.databaseId ?? null}
       businessName={business.name}
       businessSlug={business.slug}
       operatorEmail={operator?.email ?? null}

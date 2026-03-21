@@ -62,10 +62,10 @@ El circuito operativo ya no depende de `localStorage` como fuente de verdad para
 6. Cuando existe al menos un producto activo, el negocio queda listo para compartir su link publico en `/pedido/[negocioId]`.
 7. Desde ese formulario publico se crea un pedido real por `POST /api/orders`.
 8. El pedido aparece en el espacio interno y puede revisarse desde:
-   - `/dashboard/[negocioId]`
-   - `/pedidos/[negocioId]`
+   - `/dashboard/[negocioSlug]`
+   - `/pedidos/[negocioSlug]`
 9. El operador puede editar el pedido, cambiar estado, cambiar estado de pago, marcar revisado y seguir su historial.
-10. `/metricas/[negocioId]` lee esos pedidos reales y calcula metricas basicas sobre el historial cargado.
+10. `/metricas/[negocioSlug]` lee esos pedidos reales y calcula metricas basicas sobre el historial cargado.
 
 ### Flujo de activacion comercial
 
@@ -120,7 +120,7 @@ La gestion de productos persiste realmente en Supabase por negocio.
 
 Ya existe:
 
-- listado administrativo por `businessId`
+ - listado administrativo por `businessSlug` en API operativa
 - creacion
 - edicion
 - activacion y desactivacion
@@ -139,7 +139,7 @@ Campos y comportamiento relevantes:
 
 Validaciones actuales:
 
-- `businessId` obligatorio
+- `businessSlug` obligatorio en la API operativa
 - `name` obligatorio
 - `name` con maximo de 120 caracteres
 - `price` mayor o igual a 0
@@ -209,9 +209,9 @@ Validaciones actuales en actualizacion:
 
 Las rutas privadas cargan pedidos iniciales desde servidor en:
 
-- `/dashboard/[negocioId]`
-- `/pedidos/[negocioId]`
-- `/metricas/[negocioId]`
+- `/dashboard/[negocioSlug]`
+- `/pedidos/[negocioSlug]`
+- `/metricas/[negocioSlug]`
 
 Luego el cliente vuelve a consultar `GET /api/orders`:
 
@@ -266,7 +266,7 @@ Publicas:
 - `/`
 - `/login`
 - `/register`
-- `/pedido/[negocioId]`
+- `/pedido/[negocioSlug]`
 - `POST /api/orders`
 - `POST /api/auth/login`
 - `POST /api/auth/register`
@@ -274,16 +274,17 @@ Publicas:
 
 Protegidas:
 
-- `/dashboard/[negocioId]`
-- `/pedidos/[negocioId]`
-- `/metricas/[negocioId]`
+- `/dashboard/[negocioSlug]`
+- `/pedidos/[negocioSlug]`
+- `/metricas/[negocioSlug]`
 - `POST /api/businesses`
 - `GET /api/orders`
+- `GET /api/orders?businessSlug=...`
 - `PATCH /api/orders/[orderId]`
-- `GET /api/products`
+- `GET /api/products?businessSlug=...`
 - `POST /api/products`
 - `PATCH /api/products/[productId]`
-- `DELETE /api/products/[productId]`
+- `DELETE /api/products/[productId]?businessSlug=...`
 
 ### Supabase y seguridad
 
@@ -299,6 +300,7 @@ La estrategia actual de ownership es:
 - negocios nuevos quedan asociados al usuario autenticado que los crea
 - negocios anteriores sin owner quedan bloqueados por defecto en el espacio operativo
 - solo se habilitan si entran en una allowlist explicita definida en codigo
+- en el workspace privado el identificador canonico del negocio es el `slug`; el `business_id` real queda interno para Supabase
 
 ## 7. Próximos pasos priorizados
 

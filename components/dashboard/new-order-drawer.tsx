@@ -7,7 +7,7 @@ import {
   getPaymentMethodLabel,
 } from "@/components/dashboard/payment-helpers";
 import { OrdersUiIcon } from "@/components/dashboard/orders-ui-icon";
-import { fetchProductsByBusinessId } from "@/lib/products/api";
+import { fetchProductsByBusinessSlug } from "@/lib/products/api";
 import type { Product } from "@/types/products";
 import type {
   DeliveryType,
@@ -17,7 +17,7 @@ import type {
 } from "@/types/orders";
 
 interface NewOrderDrawerProps {
-  businessDatabaseId: string | null;
+  businessSlug: string;
   isOpen: boolean;
   onClose: () => void;
   onCreateOrder: (input: NewOrderFormValue) => Promise<Order>;
@@ -52,7 +52,7 @@ function createEmptyProduct(): ProductField {
 }
 
 export function NewOrderDrawer({
-  businessDatabaseId,
+  businessSlug,
   isOpen,
   onClose,
   onCreateOrder,
@@ -121,15 +121,6 @@ export function NewOrderDrawer({
       return;
     }
 
-    if (!businessDatabaseId) {
-      setCatalogProducts([]);
-      setProducts([]);
-      setProductsError("");
-      setIsLoadingProducts(false);
-      return;
-    }
-
-    const currentBusinessId = businessDatabaseId;
     let isCancelled = false;
 
     async function loadProducts() {
@@ -137,7 +128,7 @@ export function NewOrderDrawer({
       setProductsError("");
 
       try {
-        const fetchedProducts = await fetchProductsByBusinessId(currentBusinessId);
+        const fetchedProducts = await fetchProductsByBusinessSlug(businessSlug);
 
         if (isCancelled) {
           return;
@@ -183,7 +174,7 @@ export function NewOrderDrawer({
     return () => {
       isCancelled = true;
     };
-  }, [businessDatabaseId, isOpen]);
+  }, [businessSlug, isOpen]);
 
   function resetForm() {
     setClient("");
@@ -249,11 +240,6 @@ export function NewOrderDrawer({
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-
-    if (!businessDatabaseId) {
-      setError("No fue posible identificar el negocio actual.");
-      return;
-    }
 
     if (!hasActiveProducts) {
       setError("Activa al menos un producto del catálogo para crear pedidos manuales.");
@@ -531,10 +517,6 @@ export function NewOrderDrawer({
               ) : productsError ? (
                 <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-4 text-sm text-rose-700">
                   {productsError}
-                </div>
-              ) : !businessDatabaseId ? (
-                <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-4 text-sm text-rose-700">
-                  No fue posible identificar el negocio actual para cargar su catálogo.
                 </div>
               ) : !hasActiveProducts ? (
                 <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">

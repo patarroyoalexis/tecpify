@@ -32,7 +32,7 @@ async function parseApiError(response: Response) {
 }
 
 export interface ProductApiCreatePayload {
-  businessId: string;
+  businessSlug: string;
   name: string;
   description?: string;
   price: number;
@@ -42,7 +42,7 @@ export interface ProductApiCreatePayload {
 }
 
 export interface ProductApiUpdatePayload {
-  businessId: string;
+  businessSlug: string;
   name?: string;
   description?: string;
   price?: number;
@@ -51,11 +51,11 @@ export interface ProductApiUpdatePayload {
   sortOrder?: number;
 }
 
-export async function fetchProductsByBusinessId(businessId: string) {
+export async function fetchProductsByBusinessSlug(businessSlug: string) {
   let response: Response;
 
   try {
-    response = await fetch(`/api/products?businessId=${encodeURIComponent(businessId)}`, {
+    response = await fetch(`/api/products?businessSlug=${encodeURIComponent(businessSlug)}`, {
       method: "GET",
       cache: "no-store",
     });
@@ -126,12 +126,12 @@ export async function updateProductViaApi(
   return result.product;
 }
 
-export async function deleteProductViaApi(productId: string, businessId: string) {
+export async function deleteProductViaApi(productId: string, businessSlug: string) {
   let response: Response;
 
   try {
     response = await fetch(
-      `/api/products/${encodeURIComponent(productId)}?businessId=${encodeURIComponent(businessId)}`,
+      `/api/products/${encodeURIComponent(productId)}?businessSlug=${encodeURIComponent(businessSlug)}`,
       {
         method: "DELETE",
       },

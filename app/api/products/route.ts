@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { getBusinessAccessById } from "@/lib/auth/business-access";
+import { getBusinessAccessBySlug } from "@/lib/auth/business-access";
 import { requireOperatorApiSession } from "@/lib/auth/server";
 import {
   createProductInDatabase,
@@ -15,17 +15,17 @@ export async function GET(request: Request) {
   }
 
   const { searchParams } = new URL(request.url);
-  const businessId = searchParams.get("businessId")?.trim();
+  const businessSlug = searchParams.get("businessSlug")?.trim();
 
-  if (!businessId) {
+  if (!businessSlug) {
     return NextResponse.json(
-      { error: "Debes indicar el businessId para consultar productos." },
+      { error: "Debes indicar el businessSlug para consultar productos." },
       { status: 400 },
     );
   }
 
   try {
-    const access = await getBusinessAccessById(businessId, sessionResult.session.userId);
+    const access = await getBusinessAccessBySlug(businessSlug, sessionResult.session.userId);
 
     if (!access) {
       return NextResponse.json(
@@ -34,7 +34,7 @@ export async function GET(request: Request) {
       );
     }
 
-    const products = await getAdminProductsByBusinessId(businessId);
+    const products = await getAdminProductsByBusinessId(access.businessId);
     return NextResponse.json({ products });
   } catch (error) {
     return NextResponse.json(
@@ -75,11 +75,11 @@ export async function POST(request: Request) {
   }
 
   try {
-    const businessId =
-      typeof (payload as { businessId?: unknown }).businessId === "string"
-        ? (payload as { businessId: string }).businessId
+    const businessSlug =
+      typeof (payload as { businessSlug?: unknown }).businessSlug === "string"
+        ? (payload as { businessSlug: string }).businessSlug
         : "";
-    const access = await getBusinessAccessById(businessId, sessionResult.session.userId);
+    const access = await getBusinessAccessBySlug(businessSlug, sessionResult.session.userId);
 
     if (!access) {
       return NextResponse.json(
@@ -89,7 +89,10 @@ export async function POST(request: Request) {
     }
 
     const product = await createProductInDatabase(
-      payload as Parameters<typeof createProductInDatabase>[0],
+      {
+        ...(payload as Omit<Parameters<typeof createProductInDatabase>[0], "businessId">),
+        businessId: access.businessId,
+      },
     );
     return NextResponse.json({ product }, { status: 201 });
   } catch (error) {

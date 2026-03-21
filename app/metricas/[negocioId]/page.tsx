@@ -75,8 +75,6 @@ export default async function MetricsPage({
 
   return (
     <BusinessWorkspaceShell
-      businessId={business.databaseId ?? business.slug}
-      businessDatabaseId={business.databaseId ?? null}
       businessName={business.name}
       businessSlug={business.slug}
       operatorEmail={operator?.email ?? null}

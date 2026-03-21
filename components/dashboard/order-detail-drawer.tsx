@@ -13,7 +13,7 @@ import { OrdersUiIcon } from "@/components/dashboard/orders-ui-icon";
 import { StatusBadgeIcon } from "@/components/dashboard/status-badge-icon";
 import { formatCurrency } from "@/data/orders";
 import type { OrderApiUpdatePayload } from "@/lib/orders/mappers";
-import { fetchProductsByBusinessId } from "@/lib/products/api";
+import { fetchProductsByBusinessSlug } from "@/lib/products/api";
 import {
   canManageOrderStatus,
   getAllowedOrderStatusTransitions,
@@ -42,7 +42,7 @@ import {
 import type { Product } from "@/types/products";
 
 interface OrderDetailDrawerProps {
-  businessDatabaseId: string | null;
+  businessSlug: string;
   businessName: string;
   order: Order | null;
   isOpen: boolean;
@@ -157,7 +157,7 @@ function getDeliveryTypeLabel(deliveryType: DeliveryType) {
 }
 
 export function OrderDetailDrawer({
-  businessDatabaseId,
+  businessSlug,
   businessName,
   order,
   isOpen,
@@ -264,14 +264,6 @@ export function OrderDetailDrawer({
       return;
     }
 
-    if (!businessDatabaseId) {
-      setCatalogProducts([]);
-      setCatalogError("");
-      setIsLoadingCatalog(false);
-      return;
-    }
-
-    const safeBusinessDatabaseId = businessDatabaseId;
     let isCancelled = false;
 
     async function loadCatalogProducts() {
@@ -279,7 +271,7 @@ export function OrderDetailDrawer({
       setCatalogError("");
 
       try {
-        const fetchedProducts = await fetchProductsByBusinessId(safeBusinessDatabaseId);
+        const fetchedProducts = await fetchProductsByBusinessSlug(businessSlug);
 
         if (!isCancelled) {
           setCatalogProducts(fetchedProducts);
@@ -305,7 +297,7 @@ export function OrderDetailDrawer({
     return () => {
       isCancelled = true;
     };
-  }, [businessDatabaseId, isOpen]);
+  }, [businessSlug, isOpen]);
 
   if (!renderedOrder) {
     return null;

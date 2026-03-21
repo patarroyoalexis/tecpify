@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { getBusinessAccessById } from "@/lib/auth/business-access";
+import { getBusinessAccessBySlug } from "@/lib/auth/business-access";
 import { requireOperatorApiSession } from "@/lib/auth/server";
 import { deleteProductInDatabase, updateProductInDatabase } from "@/lib/data/products";
 
@@ -34,11 +34,11 @@ export async function PATCH(
   }
 
   try {
-    const businessId =
-      typeof (payload as { businessId?: unknown }).businessId === "string"
-        ? (payload as { businessId: string }).businessId
+    const businessSlug =
+      typeof (payload as { businessSlug?: unknown }).businessSlug === "string"
+        ? (payload as { businessSlug: string }).businessSlug
         : "";
-    const access = await getBusinessAccessById(businessId, sessionResult.session.userId);
+    const access = await getBusinessAccessBySlug(businessSlug, sessionResult.session.userId);
 
     if (!access) {
       return NextResponse.json(
@@ -49,7 +49,10 @@ export async function PATCH(
 
     const product = await updateProductInDatabase(
       productId,
-      payload as Parameters<typeof updateProductInDatabase>[1],
+      {
+        ...(payload as Omit<Parameters<typeof updateProductInDatabase>[1], "businessId">),
+        businessId: access.businessId,
+      },
     );
     return NextResponse.json({ product }, { status: 200 });
   } catch (error) {
@@ -82,17 +85,17 @@ export async function DELETE(
 
   const { productId } = await context.params;
   const { searchParams } = new URL(request.url);
-  const businessId = searchParams.get("businessId")?.trim();
+  const businessSlug = searchParams.get("businessSlug")?.trim();
 
-  if (!businessId) {
+  if (!businessSlug) {
     return NextResponse.json(
-      { error: "Debes indicar el businessId para borrar productos." },
+      { error: "Debes indicar el businessSlug para borrar productos." },
       { status: 400 },
     );
   }
 
   try {
-    const access = await getBusinessAccessById(businessId, sessionResult.session.userId);
+    const access = await getBusinessAccessBySlug(businessSlug, sessionResult.session.userId);
 
     if (!access) {
       return NextResponse.json(
@@ -101,7 +104,7 @@ export async function DELETE(
       );
     }
 
-    const result = await deleteProductInDatabase(productId, businessId);
+    const result = await deleteProductInDatabase(productId, access.businessId);
     return NextResponse.json(result, { status: 200 });
   } catch (error) {
     const message =

@@ -32,8 +32,7 @@ import { DELIVERY_TYPES } from "@/types/orders";
 import type { NewOrderFormValue } from "./new-order-drawer";
 
 interface UseBusinessOrdersOptions {
-  businessId: string;
-  businessSlug?: string;
+  businessSlug: string;
   orders: Order[];
   initialOrdersError?: string | null;
 }
@@ -220,12 +219,10 @@ function buildOrdersSyncError(error: unknown) {
 }
 
 export function useBusinessOrders({
-  businessId,
   businessSlug,
   orders,
   initialOrdersError = null,
 }: UseBusinessOrdersOptions) {
-  const resolvedBusinessSlug = businessSlug ?? businessId;
   const [ordersState, setOrdersState] = useState<Order[]>(orders);
   const [ordersError, setOrdersError] = useState<string | null>(initialOrdersError);
   const [hasHydrated, setHasHydrated] = useState(false);
@@ -238,7 +235,7 @@ export function useBusinessOrders({
   const refreshOrders = useCallback(
     async (options?: { suppressError?: boolean }) => {
       try {
-        const remoteOrders = await fetchOrdersByBusinessSlug(resolvedBusinessSlug);
+        const remoteOrders = await fetchOrdersByBusinessSlug(businessSlug);
         setOrdersState(remoteOrders);
         setOrdersError(null);
         return remoteOrders;
@@ -249,7 +246,7 @@ export function useBusinessOrders({
         throw error;
       }
     },
-    [resolvedBusinessSlug],
+    [businessSlug],
   );
 
   useEffect(() => {
@@ -257,7 +254,7 @@ export function useBusinessOrders({
 
     async function hydrateOrders() {
       try {
-        const remoteOrders = await fetchOrdersByBusinessSlug(resolvedBusinessSlug);
+        const remoteOrders = await fetchOrdersByBusinessSlug(businessSlug);
 
         if (!isCancelled) {
           setOrdersState(remoteOrders);
@@ -278,7 +275,7 @@ export function useBusinessOrders({
     return () => {
       isCancelled = true;
     };
-  }, [orders, resolvedBusinessSlug]);
+  }, [businessSlug, orders]);
 
   useEffect(() => {
     if (!hasHydrated || typeof window === "undefined") {
@@ -589,7 +586,7 @@ export function useBusinessOrders({
     const initialState = getInitialOrderState(input.paymentMethod as PaymentMethod);
     const history: OrderHistoryEvent[] = [
       {
-        id: `${businessId}-${createdAt}-manual-created`,
+        id: `${businessSlug}-${createdAt}-manual-created`,
         title: "Pedido creado manualmente",
         description: "El pedido fue registrado desde el centro operativo.",
         occurredAt: createdAt,
@@ -600,7 +597,7 @@ export function useBusinessOrders({
 
     try {
       const persistedOrder = await createOrderViaApi({
-        businessSlug: resolvedBusinessSlug,
+        businessSlug,
         customerName: input.client,
         customerWhatsApp: input.customerWhatsApp,
         deliveryType: input.deliveryType,
@@ -619,7 +616,7 @@ export function useBusinessOrders({
       await refreshOrders({ suppressError: true });
       return persistedOrder;
     } catch (error) {
-      debugError("[dashboard] Manual order creation failed", { businessId });
+      debugError("[dashboard] Manual order creation failed", { businessSlug });
       try {
         await refreshOrders({ suppressError: true });
       } catch {

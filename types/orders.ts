@@ -49,7 +49,7 @@ export interface OrderHistoryEvent {
 export interface Order {
   id: string;
   orderCode?: string;
-  businessId: string;
+  businessSlug: string;
   client: string;
   customerPhone?: string;
   products: OrderProduct[];
