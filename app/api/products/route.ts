@@ -1,11 +1,19 @@
 import { NextResponse } from "next/server";
 
+import { getBusinessAccessById } from "@/lib/auth/business-access";
+import { requireOperatorApiSession } from "@/lib/auth/server";
 import {
   createProductInDatabase,
   getAdminProductsByBusinessId,
 } from "@/lib/data/products";
 
 export async function GET(request: Request) {
+  const sessionResult = await requireOperatorApiSession();
+
+  if (!sessionResult.ok) {
+    return sessionResult.response;
+  }
+
   const { searchParams } = new URL(request.url);
   const businessId = searchParams.get("businessId")?.trim();
 
@@ -17,6 +25,15 @@ export async function GET(request: Request) {
   }
 
   try {
+    const access = await getBusinessAccessById(businessId, sessionResult.session.userId);
+
+    if (!access) {
+      return NextResponse.json(
+        { error: "No tienes acceso a este negocio." },
+        { status: 403 },
+      );
+    }
+
     const products = await getAdminProductsByBusinessId(businessId);
     return NextResponse.json({ products });
   } catch (error) {
@@ -33,6 +50,12 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const sessionResult = await requireOperatorApiSession();
+
+  if (!sessionResult.ok) {
+    return sessionResult.response;
+  }
+
   let payload: unknown;
 
   try {
@@ -52,6 +75,19 @@ export async function POST(request: Request) {
   }
 
   try {
+    const businessId =
+      typeof (payload as { businessId?: unknown }).businessId === "string"
+        ? (payload as { businessId: string }).businessId
+        : "";
+    const access = await getBusinessAccessById(businessId, sessionResult.session.userId);
+
+    if (!access) {
+      return NextResponse.json(
+        { error: "No tienes acceso a este negocio." },
+        { status: 403 },
+      );
+    }
+
     const product = await createProductInDatabase(
       payload as Parameters<typeof createProductInDatabase>[0],
     );

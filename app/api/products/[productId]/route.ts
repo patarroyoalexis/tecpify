@@ -1,11 +1,19 @@
 import { NextResponse } from "next/server";
 
+import { getBusinessAccessById } from "@/lib/auth/business-access";
+import { requireOperatorApiSession } from "@/lib/auth/server";
 import { deleteProductInDatabase, updateProductInDatabase } from "@/lib/data/products";
 
 export async function PATCH(
   request: Request,
   context: { params: Promise<{ productId: string }> },
 ) {
+  const sessionResult = await requireOperatorApiSession();
+
+  if (!sessionResult.ok) {
+    return sessionResult.response;
+  }
+
   const { productId } = await context.params;
   let payload: unknown;
 
@@ -26,6 +34,19 @@ export async function PATCH(
   }
 
   try {
+    const businessId =
+      typeof (payload as { businessId?: unknown }).businessId === "string"
+        ? (payload as { businessId: string }).businessId
+        : "";
+    const access = await getBusinessAccessById(businessId, sessionResult.session.userId);
+
+    if (!access) {
+      return NextResponse.json(
+        { error: "No tienes acceso a este negocio." },
+        { status: 403 },
+      );
+    }
+
     const product = await updateProductInDatabase(
       productId,
       payload as Parameters<typeof updateProductInDatabase>[1],
@@ -53,6 +74,12 @@ export async function DELETE(
   request: Request,
   context: { params: Promise<{ productId: string }> },
 ) {
+  const sessionResult = await requireOperatorApiSession();
+
+  if (!sessionResult.ok) {
+    return sessionResult.response;
+  }
+
   const { productId } = await context.params;
   const { searchParams } = new URL(request.url);
   const businessId = searchParams.get("businessId")?.trim();
@@ -65,6 +92,15 @@ export async function DELETE(
   }
 
   try {
+    const access = await getBusinessAccessById(businessId, sessionResult.session.userId);
+
+    if (!access) {
+      return NextResponse.json(
+        { error: "No tienes acceso a este negocio." },
+        { status: 403 },
+      );
+    }
+
     const result = await deleteProductInDatabase(productId, businessId);
     return NextResponse.json(result, { status: 200 });
   } catch (error) {

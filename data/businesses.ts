@@ -77,6 +77,7 @@ type SupabaseBusinessRow = {
   name: string;
   created_at: string;
   updated_at: string;
+  created_by_user_id: string | null;
 };
 
 export interface ResolvedBusiness {
@@ -117,6 +118,7 @@ function mapSupabaseBusinessRow(row: SupabaseBusinessRow): BusinessRecord {
     name: row.name,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    createdByUserId: row.created_by_user_id,
   };
 }
 
@@ -162,7 +164,7 @@ export async function getBusinessBySlugFromDatabase(slug: string) {
   const supabase = createServerSupabaseClient();
   const { data, error } = await supabase
     .from("businesses")
-    .select("id, slug, name, created_at, updated_at")
+    .select("id, slug, name, created_at, updated_at, created_by_user_id")
     .eq("slug", normalizedSlug)
     .maybeSingle<SupabaseBusinessRow>();
 
@@ -183,7 +185,7 @@ async function getBusinessesFromDatabase() {
   const supabase = createServerSupabaseClient();
   const { data, error } = await supabase
     .from("businesses")
-    .select("id, slug, name, created_at, updated_at")
+    .select("id, slug, name, created_at, updated_at, created_by_user_id")
     .order("slug", { ascending: true });
 
   if (error) {
@@ -244,7 +246,9 @@ export async function resolveOperationalBusinessBySlug(
   };
 }
 
-export async function getHomeBusinesses(): Promise<HomeBusinessesSnapshot> {
+export async function getHomeBusinesses(
+  operatorUserId?: string | null,
+): Promise<HomeBusinessesSnapshot> {
   let databaseBusinesses: BusinessRecord[] = [];
 
   try {
@@ -255,7 +259,15 @@ export async function getHomeBusinesses(): Promise<HomeBusinessesSnapshot> {
     });
   }
 
-  const realBusinesses = databaseBusinesses.map((databaseBusiness) => {
+  const accessibleBusinesses = operatorUserId
+    ? databaseBusinesses.filter(
+        (databaseBusiness) =>
+          databaseBusiness.createdByUserId === null ||
+          databaseBusiness.createdByUserId === operatorUserId,
+      )
+    : databaseBusinesses;
+
+  const realBusinesses = accessibleBusinesses.map((databaseBusiness) => {
     const demoBusiness = getDemoBusinessBySlug(databaseBusiness.slug);
 
     return withDatabaseId(

@@ -12,14 +12,17 @@ export function LogoutButton({
   label = "Cerrar sesion",
 }: LogoutButtonProps) {
   const router = useRouter();
+  const fallbackHref = "/login";
 
   async function handleLogout() {
-    await fetch("/api/auth/logout", {
-      method: "POST",
-    });
-
-    router.push("/login");
-    router.refresh();
+    try {
+      await fetch("/api/auth/logout", {
+        method: "POST",
+      });
+    } finally {
+      router.push(fallbackHref);
+      router.refresh();
+    }
   }
 
   return (

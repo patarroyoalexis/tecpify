@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { debugError, debugLog } from "@/lib/debug";
+import { requireOperatorApiSession } from "@/lib/auth/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { normalizeBusinessSlug } from "@/lib/businesses/slug";
 import type { BusinessRecord, CreateBusinessPayload } from "@/types/businesses";
@@ -34,6 +35,12 @@ function validateCreateBusinessPayload(payload: unknown): payload is CreateBusin
 }
 
 export async function POST(request: Request) {
+  const sessionResult = await requireOperatorApiSession();
+
+  if (!sessionResult.ok) {
+    return sessionResult.response;
+  }
+
   let payload: unknown;
 
   try {
@@ -117,6 +124,7 @@ export async function POST(request: Request) {
     id: businessId,
     slug: normalizedSlug,
     name: normalizedName,
+    created_by_user_id: sessionResult.session.userId,
     created_at: now,
     updated_at: now,
   };

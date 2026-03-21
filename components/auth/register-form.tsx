@@ -4,24 +4,33 @@ import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 
-interface LoginFormProps {
+interface RegisterFormProps {
   redirectTo: string;
 }
 
-export function LoginForm({ redirectTo }: LoginFormProps) {
+export function RegisterForm({ redirectTo }: RegisterFormProps) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (password !== confirmPassword) {
+      setError("Las passwords no coinciden.");
+      return;
+    }
+
     setIsSubmitting(true);
     setError("");
+    setSuccessMessage("");
 
     try {
-      const response = await fetch("/api/auth/login", {
+      const response = await fetch("/api/auth/register", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -36,19 +45,29 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
       const payload = (await response.json()) as {
         error?: string;
         redirectTo?: string;
+        requiresEmailConfirmation?: boolean;
+        message?: string;
       };
 
       if (!response.ok) {
-        throw new Error(payload.error ?? "No fue posible iniciar sesion.");
+        throw new Error(payload.error ?? "No fue posible crear la cuenta.");
+      }
+
+      if (payload.requiresEmailConfirmation) {
+        setSuccessMessage(
+          payload.message ??
+            "Tu cuenta fue creada. Revisa tu correo para confirmar e iniciar sesion.",
+        );
+        return;
       }
 
       router.push(payload.redirectTo ?? redirectTo);
       router.refresh();
-    } catch (loginError) {
+    } catch (registerError) {
       setError(
-        loginError instanceof Error
-          ? loginError.message
-          : "No fue posible iniciar sesion.",
+        registerError instanceof Error
+          ? registerError.message
+          : "No fue posible crear la cuenta.",
       );
     } finally {
       setIsSubmitting(false);
@@ -75,8 +94,20 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
           type="password"
           value={password}
           onChange={(event) => setPassword(event.target.value)}
-          autoComplete="current-password"
-          placeholder="Tu password de Supabase Auth"
+          autoComplete="new-password"
+          placeholder="Minimo 8 caracteres"
+          className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-950 outline-none transition focus:border-slate-400"
+        />
+      </label>
+
+      <label className="block space-y-2">
+        <span className="text-sm font-medium text-slate-700">Confirmar password</span>
+        <input
+          type="password"
+          value={confirmPassword}
+          onChange={(event) => setConfirmPassword(event.target.value)}
+          autoComplete="new-password"
+          placeholder="Repite tu password"
           className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-950 outline-none transition focus:border-slate-400"
         />
       </label>
@@ -84,6 +115,12 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
       {error ? (
         <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
           {error}
+        </div>
+      ) : null}
+
+      {successMessage ? (
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+          {successMessage}
         </div>
       ) : null}
 
@@ -96,16 +133,13 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
             : "bg-slate-950 hover:bg-slate-800"
         }`}
       >
-        {isSubmitting ? "Ingresando..." : "Iniciar sesion"}
+        {isSubmitting ? "Creando cuenta..." : "Crear cuenta"}
       </button>
 
       <p className="text-sm text-slate-600">
-        ¿Todavia no tienes cuenta?{" "}
-        <Link
-          href={`/register?redirectTo=${encodeURIComponent(redirectTo)}`}
-          className="font-semibold text-slate-900"
-        >
-          Crear acceso
+        ¿Ya tienes cuenta?{" "}
+        <Link href={`/login?redirectTo=${encodeURIComponent(redirectTo)}`} className="font-semibold text-slate-900">
+          Inicia sesion
         </Link>
       </p>
     </form>

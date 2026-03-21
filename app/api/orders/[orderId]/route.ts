@@ -1,12 +1,20 @@
 import { NextResponse } from "next/server";
 
 import { debugError, debugLog } from "@/lib/debug";
+import { getBusinessAccessByOrderId } from "@/lib/auth/business-access";
+import { requireOperatorApiSession } from "@/lib/auth/server";
 import { updateOrderInDatabase } from "@/lib/data/orders-server";
 
 export async function PATCH(
   request: Request,
   context: { params: Promise<{ orderId: string }> },
 ) {
+  const sessionResult = await requireOperatorApiSession();
+
+  if (!sessionResult.ok) {
+    return sessionResult.response;
+  }
+
   const { orderId } = await context.params;
   let payload: unknown;
 
@@ -24,6 +32,15 @@ export async function PATCH(
       : [];
 
   try {
+    const access = await getBusinessAccessByOrderId(orderId, sessionResult.session.userId);
+
+    if (!access) {
+      return NextResponse.json(
+        { error: "No tienes acceso a este pedido." },
+        { status: 403 },
+      );
+    }
+
     const order = await updateOrderInDatabase(orderId, payload);
     debugLog("[orders-api] Updated order", { orderId, fieldsUpdated });
     return NextResponse.json({ order, persistedRemotely: true }, { status: 200 });

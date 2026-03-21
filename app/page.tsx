@@ -70,8 +70,8 @@ function BusinessCard({
 }
 
 export default async function Home() {
-  const { realBusinesses, demoBusinesses } = await getHomeBusinesses();
   const operator = await getOperatorSession();
+  const { realBusinesses, demoBusinesses } = await getHomeBusinesses(operator?.userId);
 
   return (
     <main className="min-h-screen px-4 py-8 sm:px-6">
@@ -92,12 +92,20 @@ export default async function Home() {
                   />
                 </div>
               ) : (
-                <Link
-                  href="/login"
-                  className="rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
-                >
-                  Iniciar sesion
-                </Link>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Link
+                    href="/login"
+                    className="rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+                  >
+                    Iniciar sesion
+                  </Link>
+                  <Link
+                    href="/register"
+                    className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                  >
+                    Crear cuenta
+                  </Link>
+                </div>
               )}
             </div>
             <h1 className="mt-3 text-4xl font-semibold tracking-tight text-slate-950">
@@ -120,7 +128,39 @@ export default async function Home() {
             </div>
           </div>
 
-          <CreateBusinessPanel />
+          {operator ? (
+            <CreateBusinessPanel />
+          ) : (
+            <section className="rounded-[32px] border border-slate-200/80 bg-white/95 p-6 shadow-[0_24px_80px_rgba(15,23,42,0.08)] sm:p-7">
+              <div className="flex flex-col gap-2">
+                <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-500">
+                  Acceso requerido
+                </p>
+                <h2 className="text-2xl font-semibold text-slate-950">
+                  Inicia sesion para crear negocios
+                </h2>
+                <p className="text-sm leading-6 text-slate-600">
+                  La home sigue publica y el storefront tambien. Pero crear negocios y entrar al
+                  espacio operativo ya requiere autenticacion basica.
+                </p>
+              </div>
+
+              <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+                <Link
+                  href="/login?redirectTo=/"
+                  className="rounded-2xl bg-slate-950 px-5 py-3 text-center text-sm font-semibold text-white transition hover:bg-slate-800"
+                >
+                  Iniciar sesion
+                </Link>
+                <Link
+                  href="/register?redirectTo=/"
+                  className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-center text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                >
+                  Crear cuenta
+                </Link>
+              </div>
+            </section>
+          )}
         </section>
 
         <section className="space-y-4">
@@ -169,21 +209,31 @@ export default async function Home() {
                       href: `/pedido/${business.slug}`,
                       label: "Abrir formulario publico",
                     },
-                    {
-                      href: `/dashboard/${business.slug}`,
-                      label: "Abrir dashboard",
-                      variant: "secondary",
-                    },
-                    {
-                      href: `/pedidos/${business.slug}`,
-                      label: "Ir a pedidos",
-                      variant: "secondary",
-                    },
-                    {
-                      href: `/metricas/${business.slug}`,
-                      label: "Ver metricas",
-                      variant: "secondary",
-                    },
+                    ...(operator
+                      ? [
+                          {
+                            href: `/dashboard/${business.slug}`,
+                            label: "Abrir dashboard",
+                            variant: "secondary" as const,
+                          },
+                          {
+                            href: `/pedidos/${business.slug}`,
+                            label: "Ir a pedidos",
+                            variant: "secondary" as const,
+                          },
+                          {
+                            href: `/metricas/${business.slug}`,
+                            label: "Ver metricas",
+                            variant: "secondary" as const,
+                          },
+                        ]
+                      : [
+                          {
+                            href: `/login?redirectTo=${encodeURIComponent(`/dashboard/${business.slug}`)}`,
+                            label: "Iniciar sesion para operar",
+                            variant: "secondary" as const,
+                          },
+                        ]),
                   ]}
                 />
               ))}
