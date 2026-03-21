@@ -62,12 +62,26 @@ export async function POST(request: Request) {
     );
   }
 
+  if (normalizedName.length > 80) {
+    return NextResponse.json(
+      { error: "El nombre del negocio no puede superar 80 caracteres." },
+      { status: 400 },
+    );
+  }
+
   if (!normalizedSlug) {
     return NextResponse.json(
       {
         error:
           "El slug es obligatorio y debe contener letras o numeros validos despues de normalizarse.",
       },
+      { status: 400 },
+    );
+  }
+
+  if (normalizedSlug.length > 60) {
+    return NextResponse.json(
+      { error: "El slug no puede superar 60 caracteres." },
       { status: 400 },
     );
   }
@@ -118,7 +132,7 @@ export async function POST(request: Request) {
     const message =
       error.code === "23505"
         ? `El slug "${normalizedSlug}" ya existe. Prueba con otro.`
-        : `No fue posible crear el negocio con el schema actual de Supabase: ${error.message}`;
+        : `No fue posible crear el negocio en este momento. Revisa la configuracion de Supabase e intenta de nuevo. ${error.message}`;
 
     debugError("[businesses-api] Failed to create business", {
       slug: normalizedSlug,

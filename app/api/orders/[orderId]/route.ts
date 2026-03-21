@@ -14,7 +14,7 @@ export async function PATCH(
     payload = await request.json();
   } catch {
     return NextResponse.json(
-      { error: "Invalid JSON body for order update." },
+      { error: "El body JSON para actualizar pedido no es valido." },
       { status: 400 },
     );
   }
@@ -35,6 +35,8 @@ export async function PATCH(
         ? 400
         : message.startsWith("Order not found")
           ? 404
+          : message.includes("no existe")
+            ? 409
           : 500;
 
     debugError("[orders-api] Failed to update order", {

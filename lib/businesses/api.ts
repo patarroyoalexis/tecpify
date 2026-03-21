@@ -14,13 +14,21 @@ async function parseApiError(response: Response) {
 }
 
 export async function createBusinessViaApi(payload: CreateBusinessPayload) {
-  const response = await fetch("/api/businesses", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
+  let response: Response;
+
+  try {
+    response = await fetch("/api/businesses", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+  } catch {
+    throw new Error(
+      "No pudimos conectar con el servidor para crear el negocio. Revisa tu conexion e intenta de nuevo.",
+    );
+  }
 
   if (!response.ok) {
     throw new Error(await parseApiError(response));

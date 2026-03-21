@@ -22,10 +22,18 @@ async function parseApiError(response: Response) {
 }
 
 export async function fetchOrdersByBusinessSlug(businessSlug: string) {
-  const response = await fetch(`/api/orders?businessSlug=${encodeURIComponent(businessSlug)}`, {
-    method: "GET",
-    cache: "no-store",
-  });
+  let response: Response;
+
+  try {
+    response = await fetch(`/api/orders?businessSlug=${encodeURIComponent(businessSlug)}`, {
+      method: "GET",
+      cache: "no-store",
+    });
+  } catch {
+    throw new Error(
+      "No pudimos sincronizar los pedidos con el servidor. Revisa tu conexion e intenta de nuevo.",
+    );
+  }
 
   if (!response.ok) {
     throw new Error(await parseApiError(response));
@@ -41,13 +49,21 @@ export async function createOrderViaApi(payload: OrderApiCreatePayload) {
     productsCount: payload.products.length,
   });
 
-  const response = await fetch("/api/orders", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
+  let response: Response;
+
+  try {
+    response = await fetch("/api/orders", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+  } catch {
+    throw new Error(
+      "No pudimos conectar con el servidor para guardar el pedido. Revisa tu conexion e intenta de nuevo.",
+    );
+  }
 
   const responseBody = await response.json().catch(() => null);
   debugLog("[storefront] Orders API response received", {
@@ -81,13 +97,21 @@ export async function updateOrderViaApi(orderId: string, payload: OrderApiUpdate
     fieldsUpdated: Object.keys(payload ?? {}),
   });
 
-  const response = await fetch(`/api/orders/${encodeURIComponent(orderId)}`, {
-    method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
+  let response: Response;
+
+  try {
+    response = await fetch(`/api/orders/${encodeURIComponent(orderId)}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+  } catch {
+    throw new Error(
+      "No pudimos conectar con el servidor para actualizar el pedido. Revisa tu conexion e intenta de nuevo.",
+    );
+  }
 
   const responseBody = await response.json().catch(() => null);
   debugLog("[dashboard] Order PATCH response received", {

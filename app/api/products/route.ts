@@ -11,7 +11,7 @@ export async function GET(request: Request) {
 
   if (!businessId) {
     return NextResponse.json(
-      { error: "Missing required query parameter: businessId." },
+      { error: "Debes indicar el businessId para consultar productos." },
       { status: 400 },
     );
   }
@@ -39,14 +39,14 @@ export async function POST(request: Request) {
     payload = await request.json();
   } catch {
     return NextResponse.json(
-      { error: "Invalid JSON body for product creation." },
+      { error: "El body JSON para crear producto no es valido." },
       { status: 400 },
     );
   }
 
   if (!payload || typeof payload !== "object") {
     return NextResponse.json(
-      { error: "Invalid product payload." },
+      { error: "El payload del producto no es valido." },
       { status: 400 },
     );
   }
@@ -63,6 +63,8 @@ export async function POST(request: Request) {
       ? 400
       : message.startsWith("Ya existe")
         ? 409
+        : message.startsWith("No encontramos el negocio")
+          ? 404
         : 500;
 
     return NextResponse.json({ error: message }, { status: statusCode });

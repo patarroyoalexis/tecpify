@@ -104,8 +104,14 @@ function normalizeDescription(description?: string) {
 }
 
 function assertValidProductName(name: string) {
-  if (!normalizeProductName(name)) {
+  const normalizedName = normalizeProductName(name);
+
+  if (!normalizedName) {
     throw new Error("Invalid product payload. name es obligatorio.");
+  }
+
+  if (normalizedName.length > 120) {
+    throw new Error("Invalid product payload. name no puede superar 120 caracteres.");
   }
 }
 
@@ -118,6 +124,33 @@ function assertValidBusinessId(businessId: string) {
 function assertValidProductPrice(price: number) {
   if (!Number.isFinite(price) || price < 0) {
     throw new Error("Invalid product payload. price debe ser un numero valido mayor o igual a 0.");
+  }
+}
+
+function assertValidSortOrder(sortOrder: number | undefined) {
+  if (sortOrder === undefined) {
+    return;
+  }
+
+  if (!Number.isFinite(sortOrder) || sortOrder < 1) {
+    throw new Error("Invalid product payload. sortOrder debe ser un numero mayor o igual a 1.");
+  }
+}
+
+function assertAtLeastOneProductField(payload: ProductUpdatePayload) {
+  const hasMutableField = [
+    "name",
+    "description",
+    "price",
+    "isAvailable",
+    "isFeatured",
+    "sortOrder",
+  ].some((field) => payload[field as keyof ProductUpdatePayload] !== undefined);
+
+  if (!hasMutableField) {
+    throw new Error(
+      "Invalid product payload. Debes enviar al menos un campo editable para actualizar.",
+    );
   }
 }
 
@@ -177,6 +210,10 @@ async function writeNormalizedSortOrders(businessId: string, orderedIds: string[
 function mapSupabaseProductError(error: { code?: string; message: string }) {
   if (error.code === "23505") {
     return "Ya existe un producto con ese nombre u orden dentro de este negocio.";
+  }
+
+  if (error.code === "23503") {
+    return "No encontramos el negocio asociado a este producto. Recarga la vista e intenta de nuevo.";
   }
 
   return `Supabase products mutation failed: ${error.message}`;
@@ -250,6 +287,7 @@ export async function createProductInDatabase(payload: ProductCreatePayload): Pr
   assertValidBusinessId(payload.businessId);
   assertValidProductName(payload.name);
   assertValidProductPrice(payload.price);
+  assertValidSortOrder(payload.sortOrder);
 
   const currentProducts = await getAdminProductsByBusinessId(payload.businessId);
   const nextSortOrder = resolveDesiredSortOrder(payload.sortOrder, currentProducts.length);
@@ -300,6 +338,7 @@ export async function updateProductInDatabase(
   payload: ProductUpdatePayload,
 ): Promise<Product> {
   assertValidBusinessId(payload.businessId);
+  assertAtLeastOneProductField(payload);
   const currentProducts = await getAdminProductsByBusinessId(payload.businessId);
   const existingProduct = currentProducts.find((product) => product.id === productId);
 
@@ -314,6 +353,8 @@ export async function updateProductInDatabase(
   if (payload.price !== undefined) {
     assertValidProductPrice(payload.price);
   }
+
+  assertValidSortOrder(payload.sortOrder);
 
   const desiredSortOrder =
     payload.sortOrder === undefined

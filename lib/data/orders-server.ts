@@ -98,37 +98,37 @@ function validateCreateOrderPayload(payload: unknown): payload is OrderApiCreate
 
 function describePayloadProblems(payload: unknown) {
   if (!payload || typeof payload !== "object") {
-    return ["Payload must be a JSON object."];
+    return ["El payload debe ser un objeto JSON valido."];
   }
 
   const candidate = payload as Partial<OrderApiCreatePayload>;
   const problems: string[] = [];
 
   if (typeof candidate.businessSlug !== "string" || candidate.businessSlug.trim().length === 0) {
-    problems.push("businessSlug is required.");
+    problems.push("businessSlug es obligatorio.");
   }
 
   if (typeof candidate.customerName !== "string" || candidate.customerName.trim().length === 0) {
-    problems.push("customerName is required.");
+    problems.push("customerName es obligatorio.");
   }
 
   if (
     typeof candidate.customerWhatsApp !== "string" ||
     candidate.customerWhatsApp.trim().length === 0
   ) {
-    problems.push("customerWhatsApp is required.");
+    problems.push("customerWhatsApp es obligatorio.");
   }
 
   if (typeof candidate.paymentMethod !== "string" || candidate.paymentMethod.trim().length === 0) {
-    problems.push("paymentMethod is required.");
+    problems.push("paymentMethod es obligatorio.");
   }
 
   if (!isValidDeliveryType(candidate.deliveryType)) {
-    problems.push("deliveryType must be 'domicilio' or 'recogida en tienda'.");
+    problems.push("deliveryType debe ser 'domicilio' o 'recogida en tienda'.");
   }
 
   if (!isValidOrderProducts(candidate.products)) {
-    problems.push("products must contain at least one valid product.");
+    problems.push("products debe contener al menos un producto valido.");
   }
 
   if (
@@ -136,18 +136,25 @@ function describePayloadProblems(payload: unknown) {
     !Number.isFinite(candidate.total) ||
     candidate.total <= 0
   ) {
-    problems.push("total must be a number greater than 0.");
+    problems.push("total debe ser un numero mayor que 0.");
+  }
+
+  if (
+    candidate.deliveryType === "domicilio" &&
+    (typeof candidate.deliveryAddress !== "string" || candidate.deliveryAddress.trim().length === 0)
+  ) {
+    problems.push("deliveryAddress es obligatoria para pedidos a domicilio.");
   }
 
   if (candidate.status !== undefined && !isValidOrderStatus(candidate.status)) {
-    problems.push("status is invalid for public.orders.");
+    problems.push("status no es valido para public.orders.");
   }
 
   if (
     candidate.paymentStatus !== undefined &&
     !isValidPaymentStatus(candidate.paymentStatus)
   ) {
-    problems.push("payment_status is invalid for public.orders.");
+    problems.push("payment_status no es valido para public.orders.");
   }
 
   return problems;
@@ -273,6 +280,15 @@ export async function createOrderInDatabase(payload: unknown): Promise<Order> {
     throw new Error(`Invalid order payload. ${describePayloadProblems(payload).join(" ")}`);
   }
 
+  if (
+    payload.deliveryType === "domicilio" &&
+    (!payload.deliveryAddress || payload.deliveryAddress.trim().length === 0)
+  ) {
+    throw new Error(
+      "Invalid order payload. deliveryAddress es obligatoria para pedidos a domicilio.",
+    );
+  }
+
   const business = await getBusinessDatabaseRecordBySlug(payload.businessSlug);
 
   if (!business) {
@@ -337,7 +353,9 @@ export async function createOrderInDatabase(payload: unknown): Promise<Order> {
       businessSlug: payload.businessSlug,
       code: error.code ?? null,
     });
-    throw new Error(`Supabase orders insert failed: ${error.message}`);
+    throw new Error(
+      `No fue posible guardar el pedido en Supabase. Intenta de nuevo o recarga antes de reenviar. ${error.message}`,
+    );
   }
 
   return mapSupabaseRowToOrder(data as Record<string, unknown>, {
@@ -399,7 +417,7 @@ function describeUpdatePayloadProblems(payload: unknown) {
   const normalizedPayload = normalizeOrderApiUpdatePayload(payload);
 
   if (!normalizedPayload || typeof normalizedPayload !== "object") {
-    return ["Payload must be a JSON object."];
+    return ["El payload debe ser un objeto JSON valido."];
   }
 
   const candidate = normalizedPayload as Partial<OrderApiUpdatePayload>;
@@ -421,23 +439,23 @@ function describeUpdatePayloadProblems(payload: unknown) {
   const receivedKeys = Object.keys(candidate);
 
   if (receivedKeys.length === 0) {
-    problems.push("At least one mutable field is required.");
+    problems.push("Debes enviar al menos un campo editable.");
   }
 
   if (receivedKeys.some((key) => !allowedKeys.includes(key))) {
-    problems.push("Payload contains unsupported fields.");
+    problems.push("El payload contiene campos no permitidos.");
   }
 
   if (candidate.status !== undefined && !isValidOrderStatus(candidate.status)) {
-    problems.push("status is invalid for public.orders.");
+    problems.push("status no es valido para public.orders.");
   }
 
   if (candidate.paymentStatus !== undefined && !isValidPaymentStatus(candidate.paymentStatus)) {
-    problems.push("payment_status is invalid for public.orders.");
+    problems.push("payment_status no es valido para public.orders.");
   }
 
   if (candidate.customerName !== undefined && candidate.customerName.trim().length === 0) {
-    problems.push("customerName is required when provided.");
+    problems.push("customerName es obligatorio cuando se envia.");
   }
 
   if (
@@ -445,11 +463,11 @@ function describeUpdatePayloadProblems(payload: unknown) {
     candidate.customerWhatsApp !== null &&
     candidate.customerWhatsApp.trim().length === 0
   ) {
-    problems.push("customerWhatsApp is required when provided.");
+    problems.push("customerWhatsApp es obligatorio cuando se envia.");
   }
 
   if (candidate.deliveryType !== undefined && !isValidDeliveryType(candidate.deliveryType)) {
-    problems.push("deliveryType is invalid for public.orders.");
+    problems.push("deliveryType no es valido para public.orders.");
   }
 
   if (
@@ -457,15 +475,15 @@ function describeUpdatePayloadProblems(payload: unknown) {
     candidate.deliveryAddress !== null &&
     candidate.deliveryAddress.trim().length === 0
   ) {
-    problems.push("deliveryAddress cannot be empty when provided.");
+    problems.push("deliveryAddress no puede enviarse vacia.");
   }
 
   if (candidate.paymentMethod !== undefined && !isValidPaymentMethod(candidate.paymentMethod)) {
-    problems.push("paymentMethod is invalid for public.orders.");
+    problems.push("paymentMethod no es valido para public.orders.");
   }
 
   if (candidate.products !== undefined && !isValidOrderProducts(candidate.products)) {
-    problems.push("products must contain at least one valid product.");
+    problems.push("products debe contener al menos un producto valido.");
   }
 
   if (
@@ -474,22 +492,22 @@ function describeUpdatePayloadProblems(payload: unknown) {
     typeof candidate.notes === "string" &&
     candidate.notes.trim().length === 0
   ) {
-    problems.push("notes cannot be empty when provided as text.");
+    problems.push("notes no puede enviarse vacio cuando se incluye.");
   }
 
   if (
     candidate.total !== undefined &&
     (!Number.isFinite(candidate.total) || candidate.total < 0)
   ) {
-    problems.push("total must be a number greater than or equal to 0.");
+    problems.push("total debe ser un numero mayor o igual a 0.");
   }
 
   if (candidate.isReviewed !== undefined && typeof candidate.isReviewed !== "boolean") {
-    problems.push("isReviewed must be boolean.");
+    problems.push("isReviewed debe ser booleano.");
   }
 
   if (candidate.history !== undefined && !Array.isArray(candidate.history)) {
-    problems.push("history must be an array.");
+    problems.push("history debe ser un arreglo.");
   }
 
   return problems;
@@ -623,7 +641,9 @@ export async function updateOrderInDatabase(
       code: error.code ?? null,
       authMode: getSupabaseServerAuthMode(),
     });
-    throw new Error(`Supabase orders update failed: ${error.message}`);
+    throw new Error(
+      `No fue posible actualizar el pedido en Supabase. Recarga la operacion e intenta de nuevo. ${error.message}`,
+    );
   }
 
   const businessSlug = await getBusinessSlugByDatabaseId(existingOrder.business_id);

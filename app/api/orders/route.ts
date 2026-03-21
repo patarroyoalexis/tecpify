@@ -13,7 +13,7 @@ export async function GET(request: Request) {
 
   if (!businessSlug) {
     return NextResponse.json(
-      { error: "Missing required query parameter: businessSlug." },
+      { error: "Debes indicar el businessSlug para consultar pedidos." },
       { status: 400 },
     );
   }
@@ -50,7 +50,7 @@ export async function POST(request: Request) {
     payload = await request.json();
   } catch {
     return NextResponse.json(
-      { error: "Invalid JSON body for order creation." },
+      { error: "El body JSON para crear pedido no es valido." },
       { status: 400 },
     );
   }
@@ -80,6 +80,8 @@ export async function POST(request: Request) {
         ? 400
         : message.startsWith("Business not found")
           ? 404
+          : message.includes("no existe") || message.includes("no esta activo")
+            ? 409
           : 500;
 
     debugError("[orders-api] Failed to create order", {

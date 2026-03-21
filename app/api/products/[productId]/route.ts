@@ -13,14 +13,14 @@ export async function PATCH(
     payload = await request.json();
   } catch {
     return NextResponse.json(
-      { error: "Invalid JSON body for product update." },
+      { error: "El body JSON para actualizar producto no es valido." },
       { status: 400 },
     );
   }
 
   if (!payload || typeof payload !== "object") {
     return NextResponse.json(
-      { error: "Invalid product payload." },
+      { error: "El payload del producto no es valido." },
       { status: 400 },
     );
   }
@@ -41,7 +41,9 @@ export async function PATCH(
           ? 404
           : message.startsWith("Ya existe")
             ? 409
-          : 500;
+            : message.startsWith("No encontramos el negocio")
+              ? 404
+              : 500;
 
     return NextResponse.json({ error: message }, { status: statusCode });
   }
@@ -57,7 +59,7 @@ export async function DELETE(
 
   if (!businessId) {
     return NextResponse.json(
-      { error: "Missing required query parameter: businessId." },
+      { error: "Debes indicar el businessId para borrar productos." },
       { status: 400 },
     );
   }

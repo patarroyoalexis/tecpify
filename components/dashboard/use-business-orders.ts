@@ -620,6 +620,11 @@ export function useBusinessOrders({
       return persistedOrder;
     } catch (error) {
       debugError("[dashboard] Manual order creation failed", { businessId });
+      try {
+        await refreshOrders({ suppressError: true });
+      } catch {
+        // Keep the original mutation error as the main user-facing signal.
+      }
       setOrdersError(buildOrdersSyncError(error));
       throw error;
     }

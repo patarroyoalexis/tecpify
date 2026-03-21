@@ -17,10 +17,14 @@ function validateForm(name: string, slug: string): FormErrors {
 
   if (!name.trim()) {
     errors.name = "Ingresa el nombre del negocio.";
+  } else if (name.trim().replace(/\s+/g, " ").length > 80) {
+    errors.name = "El nombre no puede superar 80 caracteres.";
   }
 
   if (!normalizeBusinessSlug(slug)) {
     errors.slug = "Ingresa un slug valido con letras o numeros.";
+  } else if (normalizeBusinessSlug(slug).length > 60) {
+    errors.slug = "El slug no puede superar 60 caracteres.";
   }
 
   return errors;

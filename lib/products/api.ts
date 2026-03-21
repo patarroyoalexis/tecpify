@@ -52,10 +52,18 @@ export interface ProductApiUpdatePayload {
 }
 
 export async function fetchProductsByBusinessId(businessId: string) {
-  const response = await fetch(`/api/products?businessId=${encodeURIComponent(businessId)}`, {
-    method: "GET",
-    cache: "no-store",
-  });
+  let response: Response;
+
+  try {
+    response = await fetch(`/api/products?businessId=${encodeURIComponent(businessId)}`, {
+      method: "GET",
+      cache: "no-store",
+    });
+  } catch {
+    throw new Error(
+      "No pudimos sincronizar el catalogo con el servidor. Revisa tu conexion e intenta de nuevo.",
+    );
+  }
 
   if (!response.ok) {
     throw new Error(await parseApiError(response));
@@ -66,13 +74,21 @@ export async function fetchProductsByBusinessId(businessId: string) {
 }
 
 export async function createProductViaApi(payload: ProductApiCreatePayload) {
-  const response = await fetch("/api/products", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
+  let response: Response;
+
+  try {
+    response = await fetch("/api/products", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+  } catch {
+    throw new Error(
+      "No pudimos conectar con el servidor para crear el producto. Intenta de nuevo.",
+    );
+  }
 
   if (!response.ok) {
     throw new Error(await parseApiError(response));
@@ -86,13 +102,21 @@ export async function updateProductViaApi(
   productId: string,
   payload: ProductApiUpdatePayload,
 ) {
-  const response = await fetch(`/api/products/${encodeURIComponent(productId)}`, {
-    method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
+  let response: Response;
+
+  try {
+    response = await fetch(`/api/products/${encodeURIComponent(productId)}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+  } catch {
+    throw new Error(
+      "No pudimos conectar con el servidor para actualizar el producto. Intenta de nuevo.",
+    );
+  }
 
   if (!response.ok) {
     throw new Error(await parseApiError(response));
@@ -103,12 +127,20 @@ export async function updateProductViaApi(
 }
 
 export async function deleteProductViaApi(productId: string, businessId: string) {
-  const response = await fetch(
-    `/api/products/${encodeURIComponent(productId)}?businessId=${encodeURIComponent(businessId)}`,
-    {
-      method: "DELETE",
-    },
-  );
+  let response: Response;
+
+  try {
+    response = await fetch(
+      `/api/products/${encodeURIComponent(productId)}?businessId=${encodeURIComponent(businessId)}`,
+      {
+        method: "DELETE",
+      },
+    );
+  } catch {
+    throw new Error(
+      "No pudimos conectar con el servidor para borrar el producto. Intenta de nuevo.",
+    );
+  }
 
   if (!response.ok) {
     throw new Error(await parseApiError(response));

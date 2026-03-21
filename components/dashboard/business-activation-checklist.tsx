@@ -302,6 +302,7 @@ function getPrimaryAction(
   businessReadiness: BusinessReadinessSnapshot,
   hasOrders: boolean,
   publicPath: string,
+  ordersPath: string,
   onOpenCreateProduct: () => void,
   onOpenProductsManager: () => void,
 ): ActivationPrimaryAction {
@@ -337,11 +338,11 @@ function getPrimaryAction(
   }
 
   return {
-    label: "Abrir formulario publico",
+    label: "Ir a pedidos",
     description:
-      "El negocio ya esta operativo. El formulario sigue siendo la puerta de entrada para nuevos pedidos.",
-    helper: "Desde aqui puedes revisarlo, compartirlo o usarlo para nuevas pruebas puntuales.",
-    href: publicPath,
+      "El negocio ya esta operativo. A partir de aqui conviene priorizar seguimiento, estados y atencion diaria.",
+    helper: "Abre pedidos para revisar lo que ya entro y continuar la operacion real.",
+    href: ordersPath,
   };
 }
 
@@ -354,6 +355,8 @@ export function BusinessActivationChecklist({
   onOpenProductsManager,
 }: BusinessActivationChecklistProps) {
   const publicPath = `/pedido/${businessSlug}`;
+  const ordersPath = `/pedidos/${businessSlug}`;
+  const metricsPath = `/metricas/${businessSlug}`;
   const [publicUrl, setPublicUrl] = useState(publicPath);
   const isReadyToSell = businessReadiness.canSell;
   const activationSummary = getActivationSummary(businessReadiness, hasOrders);
@@ -361,6 +364,7 @@ export function BusinessActivationChecklist({
     businessReadiness,
     hasOrders,
     publicPath,
+    ordersPath,
     onOpenCreateProduct,
     onOpenProductsManager,
   );
@@ -539,7 +543,7 @@ export function BusinessActivationChecklist({
               <p className="mt-3 text-sm leading-6 text-slate-600">
                 {hasOrders
                   ? "El link ya esta validado en operacion real y puede seguir compartiendose."
-                  : "Este link ya se puede compartir. Si todavia no hubo pedidos, usalo para crear una prueba real ahora mismo."}
+                  : "Tu negocio ya puede recibir pedidos. Haz una prueba con el formulario publico para validar el flujo."}
               </p>
               <div className="mt-4 flex flex-col gap-3 sm:flex-row">
                 <CopyPublicLinkButton
@@ -576,14 +580,15 @@ export function BusinessActivationChecklist({
           {!hasOrders && isReadyToSell ? (
             <section className={`rounded-[24px] border p-5 ${readinessTone.panel}`}>
               <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">
-                Cierra el ciclo real
+                Validacion del primer pedido
               </p>
               <p className="mt-3 text-lg font-semibold text-slate-950">
-                Haz un pedido de prueba desde el formulario publico
+                Tu negocio ya puede recibir pedidos
               </p>
               <p className="mt-2 text-sm leading-6 text-slate-600">
-                La configuracion minima ya esta resuelta. El siguiente hito no es editar mas el
-                dashboard, sino comprobar que el negocio recibe su primer pedido en el flujo real.
+                Haz una prueba con el formulario publico para validar el flujo. Cuando entre el
+                primer pedido, este dashboard dejara la etapa de activacion inicial y pasara a
+                priorizar operacion.
               </p>
               <div className="mt-4 flex flex-col gap-3 sm:flex-row">
                 <Link
@@ -599,6 +604,35 @@ export function BusinessActivationChecklist({
                   className="inline-flex items-center justify-center rounded-full border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
                 >
                   Despues revisar pedidos
+                </Link>
+              </div>
+            </section>
+          ) : null}
+
+          {hasOrders ? (
+            <section className={`rounded-[24px] border p-5 ${readinessTone.panel}`}>
+              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">
+                Operacion en marcha
+              </p>
+              <p className="mt-3 text-lg font-semibold text-slate-950">
+                El negocio ya salio de onboarding inicial
+              </p>
+              <p className="mt-2 text-sm leading-6 text-slate-600">
+                Ya entro el primer pedido real. Desde aqui conviene priorizar gestion operativa y
+                seguimiento del flujo diario.
+              </p>
+              <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+                <Link
+                  href={ordersPath}
+                  className="inline-flex items-center justify-center rounded-full bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
+                >
+                  Ir a pedidos
+                </Link>
+                <Link
+                  href={metricsPath}
+                  className="inline-flex items-center justify-center rounded-full border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+                >
+                  Ver metricas
                 </Link>
               </div>
             </section>

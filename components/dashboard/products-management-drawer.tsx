@@ -137,6 +137,22 @@ function matchesProductQuery(product: Product, query: string) {
     .includes(normalizedQuery);
 }
 
+function getProductVisibilityCopy(product: Product) {
+  return product.is_available ? "Visible en el formulario publico" : "Oculto para nuevos pedidos";
+}
+
+function getProductOperationalTone(product: Product) {
+  if (product.is_available && product.is_featured) {
+    return "border-emerald-200 bg-[linear-gradient(135deg,rgba(236,253,245,0.92),rgba(255,255,255,1))]";
+  }
+
+  if (product.is_available) {
+    return "border-sky-200 bg-[linear-gradient(135deg,rgba(240,249,255,0.92),rgba(255,255,255,1))]";
+  }
+
+  return "border-slate-200 bg-white";
+}
+
 function DeleteProductDialog({
   product,
   isDeleting,
@@ -258,6 +274,8 @@ export function ProductsManagementDrawer({
     editingProductId === null
       ? null
       : products.find((product) => product.id === editingProductId) ?? null;
+  const isFirstProductFlow = products.length === 0;
+  const firstInactiveProduct = inactiveProducts[0] ?? null;
 
   const loadProducts = useCallback(async () => {
     if (!businessDatabaseId) {
@@ -305,9 +323,9 @@ export function ProductsManagementDrawer({
       setSearchQuery("");
       setListFilter("all");
       setFormState(createDefaultFormState(nextSortOrder));
-      setCreateAnotherAfterSave(true);
+      setCreateAnotherAfterSave(!isFirstProductFlow);
     }
-  }, [initialMode, isOpen, nextSortOrder]);
+  }, [initialMode, isFirstProductFlow, isOpen, nextSortOrder]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -323,12 +341,12 @@ export function ProductsManagementDrawer({
     if (initialMode === "create") {
       setMode("create");
       setFormState(createDefaultFormState(nextSortOrder));
-      setCreateAnotherAfterSave(true);
+      setCreateAnotherAfterSave(!isFirstProductFlow);
       return;
     }
 
     setMode("list");
-  }, [initialMode, isOpen, nextSortOrder]);
+  }, [initialMode, isFirstProductFlow, isOpen, nextSortOrder]);
 
   function updateFormField<Key extends keyof ProductFormState>(
     key: Key,
@@ -348,7 +366,7 @@ export function ProductsManagementDrawer({
     setFeedback("");
     setCopyFeedback("");
     setFormState(createDefaultFormState(nextSortOrder));
-    setCreateAnotherAfterSave(true);
+    setCreateAnotherAfterSave(!isFirstProductFlow);
   }
 
   function openEditForm(product: Product) {
@@ -379,23 +397,21 @@ export function ProductsManagementDrawer({
     | { update: ProductApiUpdatePayload } {
     const normalizedName = formState.name.trim();
     const normalizedPrice = Number(formState.price);
-    const normalizedSortOrder = Number(formState.sortOrder);
-
     if (!normalizedName) {
       throw new Error("El nombre del producto es obligatorio.");
     }
 
     if (!Number.isFinite(normalizedPrice) || normalizedPrice < 0) {
-      throw new Error("Ingresa un precio valido mayor o igual a 0.");
-    }
-
-    if (!Number.isFinite(normalizedSortOrder) || normalizedSortOrder < 1) {
-      throw new Error("El orden debe ser un numero mayor o igual a 1.");
+      throw new Error("Ingresa un precio valido mayor o igual a 0 para crear el producto.");
     }
 
     if (!businessDatabaseId) {
       throw new Error("Este negocio todavia no esta conectado a la base de datos.");
     }
+
+    const normalizedSortOrder = Number(formState.sortOrder);
+    const resolvedSortOrder =
+      Number.isFinite(normalizedSortOrder) && normalizedSortOrder >= 1 ? normalizedSortOrder : 1;
 
     const sharedPayload = {
       businessId: businessDatabaseId,
@@ -404,7 +420,7 @@ export function ProductsManagementDrawer({
       price: normalizedPrice,
       isAvailable: formState.isAvailable,
       isFeatured: formState.isFeatured,
-      sortOrder: normalizedSortOrder,
+      sortOrder: resolvedSortOrder,
     };
 
     return mode === "edit" ? { update: sharedPayload } : { create: sharedPayload };
@@ -422,6 +438,10 @@ export function ProductsManagementDrawer({
     return nextProducts;
   }
 
+  async function handleActivateProduct(product: Product) {
+    await handleQuickToggle(product, "isAvailable", true);
+  }
+
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsSaving(true);
@@ -437,16 +457,23 @@ export function ProductsManagementDrawer({
         const nextProducts = await reloadProducts();
         const nextCatalogStatus = getReadinessFromProducts(nextProducts);
         const justUnlockedSelling = !previousCatalogStatus.canSell && nextCatalogStatus.canSell;
+        const createdProductIsActive = createdProduct.is_available;
 
-        setProducts(nextProducts);
-        setFeedback(
-          getProductCatalogTransitionFeedback({
-            previous: previousCatalogStatus,
-            next: nextCatalogStatus,
-            productName: createdProduct.name,
-            change: "created",
-          }),
-        );
+        if (!createdProductIsActive) {
+          setFeedback(
+            `"${createdProduct.name}" fue creado, pero quedo inactivo. Aun falta activarlo para que el negocio pueda vender.`,
+          );
+        } else {
+          setFeedback(
+            getProductCatalogTransitionFeedback({
+              previous: previousCatalogStatus,
+              next: nextCatalogStatus,
+              productName: createdProduct.name,
+              change: "created",
+            }),
+          );
+        }
+
         if (justUnlockedSelling) {
           setMode("ready");
           setEditingProductId(null);
@@ -473,7 +500,9 @@ export function ProductsManagementDrawer({
       setError(
         saveError instanceof Error
           ? saveError.message
-          : "No fue posible guardar el producto.",
+          : mode === "create"
+            ? "No fue posible crear el producto."
+            : "No fue posible guardar los cambios del producto.",
       );
     } finally {
       setIsSaving(false);
@@ -523,7 +552,9 @@ export function ProductsManagementDrawer({
       setError(
         toggleError instanceof Error
           ? toggleError.message
-          : "No fue posible actualizar el producto.",
+          : field === "isAvailable"
+            ? "No fue posible cambiar la disponibilidad del producto."
+            : "No fue posible actualizar el destacado del producto.",
       );
     }
   }
@@ -608,7 +639,9 @@ export function ProductsManagementDrawer({
                 {mode === "list"
                   ? "Gestionar productos"
                   : mode === "create"
-                    ? "Agregar producto"
+                    ? isFirstProductFlow
+                      ? "Crear primer producto"
+                      : "Agregar producto"
                     : mode === "ready"
                       ? "Listo para vender"
                     : "Editar producto"}
@@ -795,21 +828,29 @@ export function ProductsManagementDrawer({
                 Cargando productos...
               </div>
             ) : products.length === 0 ? (
-              <div className="rounded-[24px] border border-dashed border-slate-300 bg-slate-50/80 p-6 text-center">
-                <h3 className="text-lg font-semibold text-slate-950">
-                  Aun no hay productos cargados
-                </h3>
-                <p className="mt-2 text-sm leading-6 text-slate-600">
-                  Carga entre 1 y 3 productos base para dejar el negocio listo para vender.
+              <section className="rounded-[28px] border border-dashed border-sky-300 bg-[linear-gradient(135deg,rgba(240,249,255,0.98),rgba(255,255,255,0.98))] p-6 text-center shadow-[0_18px_45px_rgba(15,23,42,0.05)]">
+                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-sky-800">
+                  Catalogo inicial
                 </p>
+                <h3 className="mt-2 text-2xl font-semibold text-slate-950">
+                  Este negocio todavia no puede vender
+                </h3>
+                <p className="mt-3 text-sm leading-6 text-slate-600">
+                  Lo unico que falta para destrabar el flujo es crear el primer producto.
+                  Hazlo ahora con nombre, precio y disponibilidad. Si lo dejas activo, el
+                  negocio queda listo para compartir su link.
+                </p>
+                <div className="mt-4 rounded-[20px] border border-sky-200 bg-white/90 p-4 text-left text-sm leading-6 text-slate-700">
+                  Paso minimo para salir del bloqueo: crear 1 producto y dejarlo activo.
+                </div>
                 <button
                   type="button"
                   onClick={openCreateForm}
-                  className="mt-4 rounded-full bg-slate-950 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800"
+                  className="mt-5 rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
                 >
                   Crear primer producto
                 </button>
-              </div>
+              </section>
             ) : (
               <div className="space-y-4">
                 <section className="grid gap-4 lg:grid-cols-4">
@@ -854,6 +895,48 @@ export function ProductsManagementDrawer({
                     ? `Ya tienes ${catalogStatus.activeProducts} producto${catalogStatus.activeProducts === 1 ? "" : "s"} activo${catalogStatus.activeProducts === 1 ? "" : "s"}. El negocio ya puede vender.`
                     : `Tienes ${catalogStatus.totalProducts} producto${catalogStatus.totalProducts === 1 ? "" : "s"} cargado${catalogStatus.totalProducts === 1 ? "" : "s"}, pero aun necesitas activar al menos uno para vender.`}
                 </div>
+
+                <section className="rounded-[24px] border border-slate-200 bg-white p-4">
+                  <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-950">
+                        Centro rapido de catalogo
+                      </p>
+                      <p className="mt-1 text-sm leading-6 text-slate-600">
+                        Edita datos, cambia visibilidad, destaca productos y reordena el catalogo
+                        sin salir de este drawer. Todo se guarda en Supabase y refresca el
+                        dashboard al instante.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={openCreateForm}
+                      className="inline-flex items-center justify-center rounded-full bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
+                    >
+                      Agregar producto
+                    </button>
+                  </div>
+                </section>
+
+                {!catalogStatus.canSell && firstInactiveProduct ? (
+                  <section className="rounded-[22px] border border-amber-200 bg-amber-50/90 p-4">
+                    <p className="text-sm font-semibold text-amber-900">
+                      Falta un ultimo paso para vender
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-amber-950">
+                      Ya existe catalogo, pero el negocio sigue sin productos activos. Puedes
+                      activar ahora mismo &quot;{firstInactiveProduct.name}&quot; y destrabar el link
+                      publico sin salir de este drawer.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => void handleActivateProduct(firstInactiveProduct)}
+                      className="mt-4 inline-flex items-center justify-center rounded-full bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
+                    >
+                      Activar &quot;{firstInactiveProduct.name}&quot;
+                    </button>
+                  </section>
+                ) : null}
 
                 {catalogStatus.canSell ? (
                   <section className="rounded-[22px] border border-sky-200 bg-sky-50/80 p-4">
@@ -933,9 +1016,34 @@ export function ProductsManagementDrawer({
                 </section>
 
                 {visibleProducts.length === 0 ? (
-                  <div className="rounded-[24px] border border-dashed border-slate-300 bg-slate-50/80 p-6 text-center text-sm text-slate-600">
-                    No encontramos productos con ese filtro. Ajusta la busqueda o vuelve a todos.
-                  </div>
+                  <section className="rounded-[24px] border border-dashed border-slate-300 bg-slate-50/80 p-6 text-center">
+                    <h3 className="text-lg font-semibold text-slate-950">
+                      No encontramos productos con ese criterio
+                    </h3>
+                    <p className="mt-2 text-sm leading-6 text-slate-600">
+                      Ajusta la busqueda, cambia el filtro o vuelve a mostrar todo el catalogo
+                      para seguir operando.
+                    </p>
+                    <div className="mt-4 flex flex-col items-center justify-center gap-3 sm:flex-row">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSearchQuery("");
+                          setListFilter("all");
+                        }}
+                        className="rounded-full border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+                      >
+                        Limpiar filtros
+                      </button>
+                      <button
+                        type="button"
+                        onClick={openCreateForm}
+                        className="rounded-full bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
+                      >
+                        Crear producto
+                      </button>
+                    </div>
+                  </section>
                 ) : (
                   <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
                     {visibleProducts.map((product) => {
@@ -944,132 +1052,163 @@ export function ProductsManagementDrawer({
                       return (
                         <article
                           key={product.id}
-                          className="min-w-0 rounded-[24px] border border-slate-200 bg-white p-5 shadow-[0_14px_34px_rgba(15,23,42,0.05)]"
+                          className={`min-w-0 rounded-[24px] border p-5 shadow-[0_14px_34px_rgba(15,23,42,0.05)] ${getProductOperationalTone(product)}`}
                         >
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0 space-y-3">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <h3 className="text-lg font-semibold text-slate-950">
-                                  {product.name}
-                                </h3>
-                                <ProductFlag
-                                  label={product.is_available ? "Activo" : "Inactivo"}
-                                  tone={product.is_available ? "success" : "neutral"}
-                                />
-                                {product.is_featured ? (
-                                  <ProductFlag label="Destacado" tone="warning" />
-                                ) : null}
-                                <ProductFlag
-                                  label={`Orden ${product.sort_order ?? productIndex + 1}`}
-                                  tone="neutral"
-                                />
+                          <div className="flex flex-col gap-4">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0 space-y-3">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <h3 className="text-lg font-semibold text-slate-950">
+                                    {product.name}
+                                  </h3>
+                                  <ProductFlag
+                                    label={product.is_available ? "Activo" : "Inactivo"}
+                                    tone={product.is_available ? "success" : "neutral"}
+                                  />
+                                  {product.is_featured ? (
+                                    <ProductFlag label="Destacado" tone="warning" />
+                                  ) : null}
+                                  <ProductFlag
+                                    label={`Orden ${product.sort_order ?? productIndex + 1}`}
+                                    tone="neutral"
+                                  />
+                                </div>
+                                <div className="flex flex-wrap items-center gap-3">
+                                  <p className="text-base font-semibold text-slate-950">
+                                    {formatCurrency(product.price)}
+                                  </p>
+                                  <p className="text-sm font-medium text-slate-600">
+                                    {getProductVisibilityCopy(product)}
+                                  </p>
+                                </div>
+                                <p className="min-h-12 text-sm leading-6 text-slate-600">
+                                  {product.description?.trim() ||
+                                    "Sin descripcion. Puedes agregarla si ayuda a vender mejor el producto."}
+                                </p>
                               </div>
-                              <p className="text-base font-semibold text-slate-950">
-                                {formatCurrency(product.price)}
-                              </p>
-                              <p className="min-h-12 text-sm leading-6 text-slate-600">
-                                {product.description?.trim() ||
-                                  "Sin descripcion. Puedes agregarla si ayuda a vender mejor el producto."}
-                              </p>
+
+                              <button
+                                type="button"
+                                onClick={() => openEditForm(product)}
+                                className="shrink-0 rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+                              >
+                                Editar
+                              </button>
                             </div>
 
-                            <button
-                              type="button"
-                              onClick={() => openEditForm(product)}
-                              className="shrink-0 rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
-                            >
-                              Editar
-                            </button>
+                            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                              <div className="rounded-[18px] border border-slate-200 bg-white/80 p-3">
+                                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                                  Estado
+                                </p>
+                                <p className="mt-1 text-sm font-medium text-slate-900">
+                                  {product.is_available ? "Activo" : "Inactivo"}
+                                </p>
+                              </div>
+                              <div className="rounded-[18px] border border-slate-200 bg-white/80 p-3">
+                                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                                  Destacado
+                                </p>
+                                <p className="mt-1 text-sm font-medium text-slate-900">
+                                  {product.is_featured ? "Si" : "No"}
+                                </p>
+                              </div>
+                              <div className="rounded-[18px] border border-slate-200 bg-white/80 p-3">
+                                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                                  Precio
+                                </p>
+                                <p className="mt-1 text-sm font-medium text-slate-900">
+                                  {formatCurrency(product.price)}
+                                </p>
+                              </div>
+                              <div className="rounded-[18px] border border-slate-200 bg-white/80 p-3">
+                                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                                  Orden
+                                </p>
+                                <p className="mt-1 text-sm font-medium text-slate-900">
+                                  {product.sort_order ?? productIndex + 1}
+                                </p>
+                              </div>
+                            </div>
                           </div>
 
-                          <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                            <div className="rounded-[18px] border border-slate-200 bg-slate-50/80 p-3">
-                              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                                Storefront
-                              </p>
-                              <p className="mt-1 text-sm font-medium text-slate-900">
-                                {product.is_available ? "Visible" : "Oculto"}
-                              </p>
+                          <div className="rounded-[20px] border border-slate-200 bg-white/90 p-4">
+                            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                              Acciones frecuentes
+                            </p>
+                            <div className="mt-3 flex flex-wrap items-start gap-2">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleQuickToggle(product, "isAvailable", !product.is_available)
+                                }
+                                className={`inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-sm font-medium transition ${
+                                  product.is_available
+                                    ? "border border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100"
+                                    : "bg-slate-950 text-white hover:bg-slate-800"
+                                }`}
+                              >
+                                {product.is_available ? (
+                                  <EyeOff className="h-4 w-4" aria-hidden="true" />
+                                ) : (
+                                  <Eye className="h-4 w-4" aria-hidden="true" />
+                                )}
+                                {product.is_available ? "Desactivar" : "Activar"}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleQuickToggle(product, "isFeatured", !product.is_featured)
+                                }
+                                className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+                              >
+                                {product.is_featured ? (
+                                  <StarOff className="h-4 w-4" aria-hidden="true" />
+                                ) : (
+                                  <Star className="h-4 w-4" aria-hidden="true" />
+                                )}
+                                {product.is_featured ? "Quitar destacado" : "Destacar"}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => openEditForm(product)}
+                                className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+                              >
+                                Editar detalles
+                              </button>
                             </div>
-                            <div className="rounded-[18px] border border-slate-200 bg-slate-50/80 p-3">
-                              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                                Destacado
-                              </p>
-                              <p className="mt-1 text-sm font-medium text-slate-900">
-                                {product.is_featured ? "Si" : "No"}
-                              </p>
-                            </div>
-                            <div className="rounded-[18px] border border-slate-200 bg-slate-50/80 p-3">
-                              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                                Posicion
-                              </p>
-                              <p className="mt-1 text-sm font-medium text-slate-900">
-                                {product.sort_order ?? productIndex + 1}
-                              </p>
-                            </div>
-                          </div>
 
-                          <div className="mt-4 flex flex-wrap items-start gap-2">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                handleQuickToggle(product, "isAvailable", !product.is_available)
-                              }
-                              className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
-                            >
-                              {product.is_available ? (
-                                <EyeOff className="h-4 w-4" aria-hidden="true" />
-                              ) : (
-                                <Eye className="h-4 w-4" aria-hidden="true" />
-                              )}
-                              {product.is_available ? "Desactivar" : "Activar"}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                handleQuickToggle(product, "isFeatured", !product.is_featured)
-                              }
-                              className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
-                            >
-                              {product.is_featured ? (
-                                <StarOff className="h-4 w-4" aria-hidden="true" />
-                              ) : (
-                                <Star className="h-4 w-4" aria-hidden="true" />
-                              )}
-                              {product.is_featured ? "Quitar destacado" : "Destacar"}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleMove(product, "up")}
-                              disabled={productIndex === 0}
-                              className={`rounded-full px-3.5 py-2 text-sm font-medium transition ${
-                                productIndex === 0
-                                  ? "cursor-not-allowed border border-slate-200 bg-slate-100 text-slate-400"
-                                  : "border border-slate-300 bg-white text-slate-700 hover:border-slate-400 hover:bg-slate-50"
-                              }`}
-                            >
-                              Subir
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleMove(product, "down")}
-                              disabled={productIndex === products.length - 1}
-                              className={`rounded-full px-3.5 py-2 text-sm font-medium transition ${
-                                productIndex === products.length - 1
-                                  ? "cursor-not-allowed border border-slate-200 bg-slate-100 text-slate-400"
-                                  : "border border-slate-300 bg-white text-slate-700 hover:border-slate-400 hover:bg-slate-50"
-                              }`}
-                            >
-                              Bajar
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setDeleteCandidate(product)}
-                              className="inline-flex items-center gap-2 rounded-full border border-rose-200 bg-rose-50 px-3.5 py-2 text-sm font-medium text-rose-700 transition hover:bg-rose-100"
-                            >
-                              <Trash2 className="h-4 w-4" aria-hidden="true" />
-                              Borrar
-                            </button>
+                            <div className="mt-3 flex flex-wrap items-start gap-2">
+                              <button
+                                type="button"
+                                onClick={() => handleMove(product, "up")}
+                                disabled={productIndex === 0}
+                                className={`rounded-full px-3.5 py-2 text-sm font-medium transition ${
+                                  productIndex === 0
+                                    ? "cursor-not-allowed border border-slate-200 bg-slate-100 text-slate-400"
+                                    : "border border-slate-300 bg-white text-slate-700 hover:border-slate-400 hover:bg-slate-50"
+                                }`}
+                              >
+                                Mover arriba
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleMove(product, "down")}
+                                disabled={productIndex === products.length - 1}
+                                className={`rounded-full px-3.5 py-2 text-sm font-medium transition ${
+                                  productIndex === products.length - 1
+                                    ? "cursor-not-allowed border border-slate-200 bg-slate-100 text-slate-400"
+                                    : "border border-slate-300 bg-white text-slate-700 hover:border-slate-400 hover:bg-slate-50"
+                                }`}
+                              >
+                                Mover abajo
+                              </button>
+                            </div>
+
+                            <p className="mt-3 text-xs leading-5 text-slate-500">
+                              El borrado sigue disponible dentro de la edicion del producto para
+                              mantener la operacion diaria enfocada en cambios seguros y rapidos.
+                            </p>
                           </div>
                         </article>
                       );
@@ -1086,11 +1225,14 @@ export function ProductsManagementDrawer({
                 {mode === "create" ? (
                   <section className="rounded-[24px] border border-sky-200 bg-sky-50/80 p-5">
                     <p className="text-sm font-semibold text-sky-900">
-                      Alta rapida para activacion
+                      {isFirstProductFlow
+                        ? "Primer producto para destrabar ventas"
+                        : "Alta rapida para activacion"}
                     </p>
                     <p className="mt-1 text-sm leading-6 text-slate-700">
-                      Para empezar a vender solo necesitas nombre, precio y dejar activo el
-                      producto. La descripcion, el orden y destacado pueden esperar.
+                      {isFirstProductFlow
+                        ? "Pide solo lo minimo. Si este producto queda activo, el negocio pasa directo a listo para compartir."
+                        : "Para empezar a vender solo necesitas nombre, precio y dejar activo el producto. La descripcion, el orden y destacado pueden esperar."}
                     </p>
                   </section>
                 ) : editingProduct ? (
@@ -1151,11 +1293,19 @@ export function ProductsManagementDrawer({
                           ? "Activo. Se mostrara en el formulario publico."
                           : "Inactivo. No se mostrara en el link publico."}
                       </p>
-                      <p className="mt-1 text-sm text-slate-600">
-                        {formState.isFeatured
-                          ? "Destacado para seleccion rapida."
-                          : "Sin destacado por ahora."}
-                      </p>
+                      {mode === "create" ? (
+                        <p className="mt-1 text-sm text-slate-600">
+                          {formState.isAvailable
+                            ? "Si guardas asi, el negocio queda mas cerca de compartir el link."
+                            : "Si guardas asi, todavia faltara activarlo para vender."}
+                        </p>
+                      ) : (
+                        <p className="mt-1 text-sm text-slate-600">
+                          {formState.isFeatured
+                            ? "Destacado para seleccion rapida."
+                            : "Sin destacado por ahora."}
+                        </p>
+                      )}
                     </div>
                   </div>
                 </section>
@@ -1181,31 +1331,35 @@ export function ProductsManagementDrawer({
                         />
                       </label>
 
-                      <label className="space-y-2">
-                        <span className="text-sm font-medium text-slate-700">Orden</span>
-                        <input
-                          type="number"
-                          min="1"
-                          value={formState.sortOrder}
-                          onChange={(event) => updateFormField("sortOrder", event.target.value)}
-                          className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-base leading-6 text-slate-900 outline-none transition focus:border-slate-400 sm:text-sm sm:leading-5"
-                        />
-                      </label>
+                      {mode === "edit" ? (
+                        <>
+                          <label className="space-y-2">
+                            <span className="text-sm font-medium text-slate-700">Orden</span>
+                            <input
+                              type="number"
+                              min="1"
+                              value={formState.sortOrder}
+                              onChange={(event) => updateFormField("sortOrder", event.target.value)}
+                              className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-base leading-6 text-slate-900 outline-none transition focus:border-slate-400 sm:text-sm sm:leading-5"
+                            />
+                          </label>
 
-                      <label className="flex items-start justify-between gap-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                        <div>
-                          <p className="text-sm font-medium text-slate-900">Destacado</p>
-                          <p className="text-sm text-slate-600">
-                            Resalta este producto en la seleccion rapida del storefront.
-                          </p>
-                        </div>
-                        <input
-                          type="checkbox"
-                          checked={formState.isFeatured}
-                          onChange={(event) => updateFormField("isFeatured", event.target.checked)}
-                          className="mt-1 h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-300"
-                        />
-                      </label>
+                          <label className="flex items-start justify-between gap-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                            <div>
+                              <p className="text-sm font-medium text-slate-900">Destacado</p>
+                              <p className="text-sm text-slate-600">
+                                Resalta este producto en la seleccion rapida del storefront.
+                              </p>
+                            </div>
+                            <input
+                              type="checkbox"
+                              checked={formState.isFeatured}
+                              onChange={(event) => updateFormField("isFeatured", event.target.checked)}
+                              className="mt-1 h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-300"
+                            />
+                          </label>
+                        </>
+                      ) : null}
                     </div>
                   </div>
                 </section>
@@ -1227,7 +1381,7 @@ export function ProductsManagementDrawer({
                       />
                     </label>
 
-                    {mode === "create" ? (
+                    {mode === "create" && !isFirstProductFlow ? (
                       <label className="flex items-start justify-between gap-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
                         <div>
                           <p className="text-sm font-medium text-slate-900">
@@ -1294,7 +1448,7 @@ export function ProductsManagementDrawer({
                   {isSaving
                     ? "Guardando..."
                     : mode === "create"
-                      ? createAnotherAfterSave
+                      ? !isFirstProductFlow && createAnotherAfterSave
                         ? "Guardar y crear otro"
                         : "Crear producto"
                       : "Guardar cambios"}
