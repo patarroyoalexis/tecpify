@@ -139,7 +139,7 @@ function mapProducts(value: unknown): OrderProduct[] {
   });
 }
 
-function mapHistory(value: unknown): OrderHistoryEvent[] {
+export function normalizeOrderHistoryEvents(value: unknown): OrderHistoryEvent[] {
   if (!Array.isArray(value)) {
     return [];
   }
@@ -180,6 +180,18 @@ function mapHistory(value: unknown): OrderHistoryEvent[] {
 
     return [{ id, title, description, occurredAt, field, previousValue, newValue }];
   });
+}
+
+export function calculateOrderProductsTotal(products: OrderProduct[]) {
+  return products.reduce((sum, product) => {
+    const unitPrice = product.unitPrice ?? 0;
+
+    if (!Number.isFinite(unitPrice) || unitPrice < 0) {
+      return sum;
+    }
+
+    return sum + unitPrice * product.quantity;
+  }, 0);
 }
 
 function buildDateLabel(createdAt: string, fallback: string) {
@@ -268,7 +280,7 @@ export function mapSupabaseRowToOrder(
     dateLabel: buildDateLabel(createdAt, readString(row, "date_label", "dateLabel")),
     createdAt,
     isReviewed: readBoolean(row, "is_reviewed", "isReviewed"),
-    history: mapHistory(row.history),
+    history: normalizeOrderHistoryEvents(row.history),
     observations: readString(row, "notes", "observations") || undefined,
   };
 }

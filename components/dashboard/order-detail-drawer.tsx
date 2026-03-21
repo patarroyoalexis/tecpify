@@ -354,7 +354,8 @@ export function OrderDetailDrawer({
   const paymentRule = getPaymentStatusTransitionRule(currentOrder, currentEditForm.paymentStatus);
   const totalValue = Number(currentEditForm.total);
   const paymentHelpMessage = getPaymentHelpMessage(transitionContext);
-  const isEditingCatalogBackedOrder = selectableCatalogProducts.length > 0;
+  const hasLinkedProducts = editableProducts.some((product) => Boolean(product.productId));
+  const isEditingCatalogBackedOrder = hasLinkedProducts;
   const calculatedEditTotal = normalizedProducts.reduce((sum, product) => {
     const unitPrice = product.unitPrice ?? 0;
 
@@ -364,6 +365,7 @@ export function OrderDetailDrawer({
 
     return sum + unitPrice * product.quantity;
   }, 0);
+  const effectiveEditedTotal = isEditingCatalogBackedOrder ? calculatedEditTotal : totalValue;
   const nextStatusByCurrent: Partial<Record<OrderStatus, OrderStatus>> = {
     confirmado: "en preparación",
     "en preparación": "listo",
@@ -402,7 +404,7 @@ export function OrderDetailDrawer({
       ? "Articulos"
       : "",
     currentEditForm.notes.trim() !== (currentOrder.observations ?? "").trim() ? "Notas" : "",
-    totalValue !== currentOrder.total ? "Total" : "",
+    effectiveEditedTotal !== currentOrder.total ? "Total" : "",
   ].filter(Boolean);
 
   function setField<K extends keyof EditOrderFormState>(
@@ -493,6 +495,11 @@ export function OrderDetailDrawer({
     if (normalizedProducts.length === 0) {
       return "Agrega al menos un articulo valido al pedido.";
     }
+
+    if (isEditingCatalogBackedOrder && (isLoadingCatalog || catalogError)) {
+      return "Recarga el catalogo del negocio antes de editar productos vinculados o guardar cambios.";
+    }
+
     if (isEditingCatalogBackedOrder && editableProducts.some((product) => !product.productId)) {
       return "Selecciona productos reales del catalogo en cada fila del pedido.";
     }
@@ -508,7 +515,7 @@ export function OrderDetailDrawer({
       return "No repitas productos del catalogo dentro del mismo pedido.";
     }
 
-    if (!Number.isFinite(totalValue) || totalValue < 0) {
+    if (!Number.isFinite(effectiveEditedTotal) || effectiveEditedTotal < 0) {
       return "Ingresa un total válido.";
     }
 
@@ -581,7 +588,7 @@ export function OrderDetailDrawer({
         paymentMethod: effectivePaymentMethod,
         products: normalizedProducts,
         notes: currentEditForm.notes.trim() || null,
-        total: isEditingCatalogBackedOrder ? calculatedEditTotal : totalValue,
+        total: effectiveEditedTotal,
       });
       setRenderedOrder(persistedOrder);
       setEditSuccess("Cambios guardados correctamente.");

@@ -1,4 +1,5 @@
 import {
+  calculateOrderProductsTotal,
   createInitialOrderHistory,
   getInitialOrderState,
   isValidOrderStatus,
@@ -7,6 +8,7 @@ import {
   isValidDeliveryType,
   isValidOrderProducts,
   mapSupabaseRowToOrder,
+  normalizeOrderHistoryEvents,
   normalizeOrderApiUpdatePayload,
   type OrderApiCreatePayload,
   type OrderApiUpdatePayload,
@@ -92,7 +94,10 @@ function validateCreateOrderPayload(payload: unknown): payload is OrderApiCreate
     Number.isFinite(candidate.total) &&
     candidate.total > 0 &&
     (candidate.status === undefined || isValidOrderStatus(candidate.status)) &&
-    (candidate.paymentStatus === undefined || isValidPaymentStatus(candidate.paymentStatus))
+    (candidate.paymentStatus === undefined || isValidPaymentStatus(candidate.paymentStatus)) &&
+    (candidate.isReviewed === undefined || typeof candidate.isReviewed === "boolean") &&
+    (candidate.dateLabel === undefined || typeof candidate.dateLabel === "string") &&
+    (candidate.history === undefined || Array.isArray(candidate.history))
   );
 }
 
@@ -157,6 +162,18 @@ function describePayloadProblems(payload: unknown) {
     problems.push("payment_status no es valido para public.orders.");
   }
 
+  if (candidate.isReviewed !== undefined && typeof candidate.isReviewed !== "boolean") {
+    problems.push("isReviewed debe ser booleano.");
+  }
+
+  if (candidate.dateLabel !== undefined && typeof candidate.dateLabel !== "string") {
+    problems.push("dateLabel debe ser texto cuando se envia.");
+  }
+
+  if (candidate.history !== undefined && !Array.isArray(candidate.history)) {
+    problems.push("history debe ser un arreglo.");
+  }
+
   return problems;
 }
 
@@ -212,6 +229,7 @@ function normalizeOrderProductsForPersistence(
   options?: { requireActiveLinkedProducts?: boolean },
 ) {
   const productsById = new Map(availableProducts.map((product) => [product.id, product]));
+  const linkedProductIds = new Set<string>();
 
   return products.map((product) => {
     const normalizedName = product.name.trim();
@@ -230,11 +248,19 @@ function normalizeOrderProductsForPersistence(
       throw new Error(`Invalid order payload. productId "${product.productId}" no existe.`);
     }
 
+    if (linkedProductIds.has(product.productId)) {
+      throw new Error(
+        `Invalid order payload. productId "${product.productId}" esta repetido dentro del mismo pedido.`,
+      );
+    }
+
     if (options?.requireActiveLinkedProducts && !catalogProduct.is_available) {
       throw new Error(
         `Invalid order payload. productId "${product.productId}" no esta activo para nuevos pedidos.`,
       );
     }
+
+    linkedProductIds.add(product.productId);
 
     return {
       productId: catalogProduct.id,
@@ -246,6 +272,60 @@ function normalizeOrderProductsForPersistence(
           : catalogProduct.price,
     };
   });
+}
+
+function normalizeHistoryForPersistence(
+  history: unknown,
+  fallbackHistory?: Order["history"],
+): Order["history"] {
+  if (history === undefined) {
+    return fallbackHistory ?? [];
+  }
+
+  if (!Array.isArray(history)) {
+    throw new Error("Invalid order payload. history debe ser un arreglo de eventos validos.");
+  }
+
+  const normalizedHistory = normalizeOrderHistoryEvents(history);
+
+  if (normalizedHistory.length !== history.length) {
+    throw new Error(
+      "Invalid order payload. history debe contener eventos validos con id, title y occurredAt.",
+    );
+  }
+
+  const uniqueEventIds = new Set<string>();
+
+  for (const historyEvent of normalizedHistory) {
+    if (uniqueEventIds.has(historyEvent.id)) {
+      throw new Error("Invalid order payload. history contiene eventos repetidos.");
+    }
+
+    uniqueEventIds.add(historyEvent.id);
+  }
+
+  return normalizedHistory;
+}
+
+function assertOrderTotalMatchesProducts(
+  total: number,
+  products: Order["products"],
+  options?: { allowZero?: boolean },
+) {
+  const expectedTotal = calculateOrderProductsTotal(products);
+  const minimumAllowedTotal = options?.allowZero ? 0 : 0.01;
+
+  if (expectedTotal < minimumAllowedTotal) {
+    throw new Error("Invalid order payload. products debe producir un total valido.");
+  }
+
+  if (Math.abs(expectedTotal - total) > 0.001) {
+    throw new Error(
+      `Invalid order payload. total no coincide con la suma real de los productos (${expectedTotal}).`,
+    );
+  }
+
+  return expectedTotal;
 }
 
 export async function getOrdersByBusinessSlugFromDatabase(
@@ -306,9 +386,10 @@ export async function createOrderInDatabase(payload: unknown): Promise<Order> {
   const orderCode = await generateUniqueOrderCode();
   const initialState = getInitialOrderState(payload.paymentMethod);
   const history =
-    payload.history && payload.history.length > 0
-      ? payload.history
+    payload.history !== undefined && payload.history.length > 0
+      ? normalizeHistoryForPersistence(payload.history)
       : createInitialOrderHistory(orderId, payload.businessSlug, now);
+  const persistedTotal = assertOrderTotalMatchesProducts(payload.total, normalizedProducts);
 
   const insertPayload = {
     id: orderId,
@@ -321,7 +402,7 @@ export async function createOrderInDatabase(payload: unknown): Promise<Order> {
     delivery_address: payload.deliveryAddress?.trim() || null,
     payment_method: payload.paymentMethod,
     notes: payload.notes?.trim() || null,
-    total: payload.total,
+    total: persistedTotal,
     status: payload.status ?? initialState.status,
     created_at: now,
     updated_at: now,
@@ -590,6 +671,26 @@ export async function updateOrderInDatabase(
           await getBusinessProductsForOrder(existingOrder.business_id),
         )
       : undefined;
+  const normalizedHistory =
+    normalizedPayload.history !== undefined
+      ? normalizeHistoryForPersistence(normalizedPayload.history)
+      : undefined;
+
+  if (normalizedPayload.history !== undefined && normalizedHistory?.length === 0) {
+    throw new Error(
+      "Invalid order update payload. history debe conservar al menos un evento valido.",
+    );
+  }
+
+  const shouldValidatePersistedTotal =
+    normalizedPayload.products !== undefined || normalizedPayload.total !== undefined;
+  const persistedTotal = shouldValidatePersistedTotal
+    ? assertOrderTotalMatchesProducts(
+        nextTotal,
+        normalizedProducts ?? existingOrder.products,
+        { allowZero: true },
+      )
+    : nextTotal;
 
   const updatePayload = {
     ...(normalizedPayload.status !== undefined ? { status: normalizedPayload.status } : {}),
@@ -615,11 +716,13 @@ export async function updateOrderInDatabase(
     ...(normalizedPayload.notes !== undefined
       ? { notes: normalizedPayload.notes?.trim() || null }
       : {}),
-    ...(normalizedPayload.total !== undefined ? { total: nextTotal } : {}),
+    ...(normalizedPayload.total !== undefined || normalizedPayload.products !== undefined
+      ? { total: persistedTotal }
+      : {}),
     ...(normalizedPayload.isReviewed !== undefined
       ? { is_reviewed: normalizedPayload.isReviewed }
       : {}),
-    ...(normalizedPayload.history !== undefined ? { history: normalizedPayload.history } : {}),
+    ...(normalizedHistory !== undefined ? { history: normalizedHistory } : {}),
     updated_at: new Date().toISOString(),
   };
 

@@ -218,6 +218,10 @@ function buildOrdersSyncError(error: unknown) {
   return "No fue posible sincronizar los pedidos en este momento.";
 }
 
+function buildOrdersResyncWarning() {
+  return "El cambio se guardo, pero no pudimos resincronizar la vista. Recarga o espera el siguiente refresco automatico.";
+}
+
 export function useBusinessOrders({
   businessSlug,
   orders,
@@ -341,6 +345,38 @@ export function useBusinessOrders({
     return ordersStateRef.current.find((order) => order.id === orderId) ?? null;
   }
 
+  function hydrateOrdersLocally(nextOrders: Order[]) {
+    if (nextOrders.length === 0) {
+      return;
+    }
+
+    setOrdersState((currentOrders) => {
+      const nextOrdersById = new Map(nextOrders.map((order) => [order.id, order]));
+      const updatedOrders = currentOrders.map(
+        (order) => nextOrdersById.get(order.id) ?? order,
+      );
+      const insertedOrders = nextOrders.filter(
+        (nextOrder) => !currentOrders.some((order) => order.id === nextOrder.id),
+      );
+
+      return [...insertedOrders, ...updatedOrders];
+    });
+  }
+
+  async function resyncAfterMutation(persistedOrders: Order[]) {
+    try {
+      await refreshOrders({ suppressError: true });
+      setOrdersError(null);
+    } catch (error) {
+      hydrateOrdersLocally(persistedOrders);
+      setOrdersError(buildOrdersResyncWarning());
+      debugError("[dashboard] Orders resync failed after persisted mutation", {
+        ordersCount: persistedOrders.length,
+        message: error instanceof Error ? error.message : "unknown",
+      });
+    }
+  }
+
   async function handleEditOrder(orderId: string, payload: EditableOrderPayload) {
     const currentOrder = getCurrentOrderById(orderId);
 
@@ -399,7 +435,7 @@ export function useBusinessOrders({
 
     try {
       const persistedOrder = await updateOrderViaApi(orderId, nextPayload);
-      await refreshOrders({ suppressError: true });
+      await resyncAfterMutation([persistedOrder]);
       return persistedOrder;
     } catch (error) {
       debugError("[dashboard] Order edit failed", {
@@ -431,13 +467,13 @@ export function useBusinessOrders({
     setOrdersError(null);
 
     try {
-      await updateOrderViaApi(orderId, {
+      const persistedOrder = await updateOrderViaApi(orderId, {
         status: nextOrder.status,
         paymentStatus: nextOrder.paymentStatus,
         isReviewed: nextOrder.isReviewed,
         history: nextOrder.history,
       });
-      await refreshOrders({ suppressError: true });
+      await resyncAfterMutation([persistedOrder]);
     } catch (error) {
       debugError("[dashboard] Order mutation failed", { orderId });
       await refreshOrders({ suppressError: true });
@@ -462,7 +498,7 @@ export function useBusinessOrders({
     setOrdersError(null);
 
     try {
-      await Promise.all(
+      const persistedOrders = await Promise.all(
         ordersToUpdate.map((order) =>
           updateOrderViaApi(order.id, {
             status: order.status,
@@ -472,7 +508,7 @@ export function useBusinessOrders({
           }),
         ),
       );
-      await refreshOrders({ suppressError: true });
+      await resyncAfterMutation(persistedOrders);
     } catch (error) {
       debugError("[dashboard] Bulk order mutation failed", {
         ordersCount: orderIds.length,
@@ -533,14 +569,14 @@ export function useBusinessOrders({
     setOrdersError(null);
 
     try {
-      await updateOrderViaApi(orderId, {
+      const persistedOrder = await updateOrderViaApi(orderId, {
         history: appendOrderEvent(
           currentOrder,
           "Mensaje de comprobante preparado para WhatsApp",
           "Se preparo un mensaje manual para solicitar el comprobante de pago al cliente.",
         ),
       });
-      await refreshOrders({ suppressError: true });
+      await resyncAfterMutation([persistedOrder]);
       return true;
     } catch (error) {
       debugError("[dashboard] Payment proof request failed", { orderId });
@@ -613,7 +649,7 @@ export function useBusinessOrders({
         history,
       });
 
-      await refreshOrders({ suppressError: true });
+      await resyncAfterMutation([persistedOrder]);
       return persistedOrder;
     } catch (error) {
       debugError("[dashboard] Manual order creation failed", { businessSlug });
@@ -633,17 +669,7 @@ export function useBusinessOrders({
   }
 
   function handleHydrateOrder(order: Order) {
-    setOrdersState((currentOrders) => {
-      const orderIndex = currentOrders.findIndex((currentOrder) => currentOrder.id === order.id);
-
-      if (orderIndex === -1) {
-        return [order, ...currentOrders];
-      }
-
-      return currentOrders.map((currentOrder) =>
-        currentOrder.id === order.id ? order : currentOrder,
-      );
-    });
+    hydrateOrdersLocally([order]);
   }
 
   return {
