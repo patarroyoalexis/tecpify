@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 
+import {
+  issueOperatorSessionForUser,
+  registerOperatorCredentials,
+} from "@/lib/auth/operator-auth";
 import { sanitizeRedirectPath } from "@/lib/auth/server";
-import { createOperatorSession, writeOperatorSession } from "@/lib/auth/session";
-import { createServerSupabaseAuthClient } from "@/lib/supabase/server";
 
 interface RegisterPayload {
   email: string;
@@ -57,36 +59,30 @@ export async function POST(request: Request) {
     );
   }
 
-  const supabase = createServerSupabaseAuthClient();
-  const { data, error } = await supabase.auth.signUp({
-    email,
-    password,
-  });
+  let identity;
 
-  if (error) {
+  try {
+    identity = await registerOperatorCredentials(email, password);
+  } catch (error) {
     return NextResponse.json(
-      { error: error.message || "No fue posible completar el registro." },
+      {
+        error:
+          error instanceof Error ? error.message : "No fue posible completar el registro.",
+      },
       { status: 400 },
     );
   }
 
-  if (!data.user) {
-    return NextResponse.json(
-      { error: "No fue posible completar el registro." },
-      { status: 500 },
-    );
-  }
-
-  if (data.session && data.user.id) {
-    await writeOperatorSession(createOperatorSession(data.user.email ?? email, data.user.id));
+  if (identity.hasSupabaseSession && identity.user.id) {
+    await issueOperatorSessionForUser(identity.user, email);
 
     return NextResponse.json(
       {
         ok: true,
         redirectTo,
         operator: {
-          id: data.user.id,
-          email: data.user.email ?? email,
+          id: identity.user.id,
+          email: identity.user.email ?? email,
         },
       },
       { status: 201 },

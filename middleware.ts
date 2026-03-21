@@ -4,6 +4,8 @@ import type { NextRequest } from "next/server";
 import { OPERATOR_SESSION_COOKIE_NAME } from "@/lib/auth/constants";
 
 export function middleware(request: NextRequest) {
+  // Middleware only checks for the presence of the operator cookie.
+  // The signed/expired validation still happens inside the protected page or API handler.
   const hasSessionCookie = Boolean(request.cookies.get(OPERATOR_SESSION_COOKIE_NAME)?.value);
 
   if (!hasSessionCookie) {

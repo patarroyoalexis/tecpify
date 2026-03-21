@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 
+import {
+  authenticateOperatorCredentials,
+  issueOperatorSessionForUser,
+} from "@/lib/auth/operator-auth";
 import { sanitizeRedirectPath } from "@/lib/auth/server";
-import { createOperatorSession, writeOperatorSession } from "@/lib/auth/session";
-import { createServerSupabaseAuthClient } from "@/lib/supabase/server";
 
 interface LoginPayload {
   email: string;
@@ -50,30 +52,30 @@ export async function POST(request: Request) {
     );
   }
 
-  const supabase = createServerSupabaseAuthClient();
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  });
+  try {
+    const identity = await authenticateOperatorCredentials(email, password);
+    await issueOperatorSessionForUser(identity.user, email);
 
-  if (error || !data.user) {
     return NextResponse.json(
-      { error: "Credenciales invalidas, cuenta no confirmada o usuario sin acceso." },
+      {
+        ok: true,
+        redirectTo,
+        operator: {
+          id: identity.user.id,
+          email: identity.user.email ?? email,
+        },
+      },
+      { status: 200 },
+    );
+  } catch (error) {
+    return NextResponse.json(
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Credenciales invalidas, cuenta no confirmada o usuario sin acceso.",
+      },
       { status: 401 },
     );
   }
-
-  await writeOperatorSession(createOperatorSession(data.user.email ?? email, data.user.id));
-
-  return NextResponse.json(
-    {
-      ok: true,
-      redirectTo,
-      operator: {
-        id: data.user.id,
-        email: data.user.email ?? email,
-      },
-    },
-    { status: 200 },
-  );
 }

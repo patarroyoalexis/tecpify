@@ -35,7 +35,7 @@ export function createServerSupabaseClient() {
   });
 }
 
-export function createServerSupabaseAuthClient() {
+export function createServerSupabaseIdentityClient() {
   return createClient(safeSupabaseUrl, safeSupabaseAnonKey, {
     auth: {
       autoRefreshToken: false,

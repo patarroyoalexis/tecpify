@@ -13,6 +13,9 @@ export interface OperatorSession {
   expiresAt: string;
 }
 
+// For the current MVP, this signed cookie is the canonical application session.
+// Supabase Auth is only used to verify identity during login/register flows.
+
 const operatorSessionSecret = process.env.AUTH_SESSION_SECRET;
 const resolvedOperatorSessionSecret =
   operatorSessionSecret ??

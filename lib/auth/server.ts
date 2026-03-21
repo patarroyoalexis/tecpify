@@ -22,6 +22,7 @@ export async function getOperatorSession() {
 }
 
 export async function requireOperatorSession(redirectTo: string) {
+  // Route protection is resolved against the signed operator cookie, not a live Supabase session.
   const session = await readOperatorSession();
 
   if (!session) {
@@ -32,6 +33,7 @@ export async function requireOperatorSession(redirectTo: string) {
 }
 
 export async function requireOperatorApiSession() {
+  // API authorization also relies on the operator cookie so routes and APIs share the same authority.
   const session = await readOperatorSession();
 
   if (!session) {
