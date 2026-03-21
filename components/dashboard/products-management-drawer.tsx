@@ -47,6 +47,7 @@ interface ProductFormState {
 }
 
 type ProductListFilter = "all" | "active" | "inactive" | "featured";
+type FeedbackTone = "success" | "warning" | "info";
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("es-CO", {
@@ -140,6 +141,14 @@ function getProductVisibilityCopy(product: Product) {
   return product.is_available ? "Visible en el formulario publico" : "Oculto para nuevos pedidos";
 }
 
+function getProductStorefrontPositionLabel(product: Product, storefrontPosition?: number) {
+  if (!product.is_available || storefrontPosition === undefined) {
+    return "Fuera del storefront";
+  }
+
+  return `Posicion publica ${storefrontPosition}`;
+}
+
 function getProductOperationalTone(product: Product) {
   if (product.is_available && product.is_featured) {
     return "border-emerald-200 bg-[linear-gradient(135deg,rgba(236,253,245,0.92),rgba(255,255,255,1))]";
@@ -227,6 +236,7 @@ export function ProductsManagementDrawer({
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState("");
   const [feedback, setFeedback] = useState("");
+  const [feedbackTone, setFeedbackTone] = useState<FeedbackTone>("success");
   const [mode, setMode] = useState<"list" | "create" | "edit" | "ready">("list");
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [deleteCandidate, setDeleteCandidate] = useState<Product | null>(null);
@@ -238,6 +248,20 @@ export function ProductsManagementDrawer({
   const publicPath = `/pedido/${businessSlug}`;
   const publicTestPath = `${publicPath}?mode=test-order`;
   const [publicUrl, setPublicUrl] = useState(publicPath);
+  const sortedProducts = useMemo(
+    () =>
+      [...products].sort((left, right) => {
+        const leftSortOrder = left.sort_order ?? Number.MAX_SAFE_INTEGER;
+        const rightSortOrder = right.sort_order ?? Number.MAX_SAFE_INTEGER;
+
+        if (leftSortOrder !== rightSortOrder) {
+          return leftSortOrder - rightSortOrder;
+        }
+
+        return new Date(left.created_at).getTime() - new Date(right.created_at).getTime();
+      }),
+    [products],
+  );
 
   const nextSortOrder = useMemo(() => {
     if (products.length === 0) {
@@ -261,12 +285,12 @@ export function ProductsManagementDrawer({
   );
   const visibleProducts = useMemo(
     () =>
-      products.filter(
+      sortedProducts.filter(
         (product) =>
           matchesProductFilter(product, listFilter) &&
           matchesProductQuery(product, searchQuery),
       ),
-    [listFilter, products, searchQuery],
+    [listFilter, searchQuery, sortedProducts],
   );
   const editingProduct =
     editingProductId === null
@@ -274,6 +298,21 @@ export function ProductsManagementDrawer({
       : products.find((product) => product.id === editingProductId) ?? null;
   const isFirstProductFlow = products.length === 0;
   const firstInactiveProduct = inactiveProducts[0] ?? null;
+  const storefrontPositions = useMemo(() => {
+    const positions = new Map<string, number>();
+    let activeIndex = 0;
+
+    for (const product of sortedProducts) {
+      if (!product.is_available) {
+        continue;
+      }
+
+      activeIndex += 1;
+      positions.set(product.id, activeIndex);
+    }
+
+    return positions;
+  }, [sortedProducts]);
 
   const loadProducts = useCallback(async () => {
     setIsLoading(true);
@@ -312,6 +351,7 @@ export function ProductsManagementDrawer({
       setDeleteCandidate(null);
       setError("");
       setFeedback("");
+      setFeedbackTone("success");
       setCopyFeedback("");
       setSearchQuery("");
       setListFilter("all");
@@ -327,6 +367,7 @@ export function ProductsManagementDrawer({
 
     setError("");
     setFeedback("");
+    setFeedbackTone("success");
     setEditingProductId(null);
     setDeleteCandidate(null);
     setCopyFeedback("");
@@ -357,6 +398,7 @@ export function ProductsManagementDrawer({
     setDeleteCandidate(null);
     setError("");
     setFeedback("");
+    setFeedbackTone("success");
     setCopyFeedback("");
     setFormState(createDefaultFormState(nextSortOrder));
     setCreateAnotherAfterSave(!isFirstProductFlow);
@@ -368,6 +410,7 @@ export function ProductsManagementDrawer({
     setDeleteCandidate(null);
     setError("");
     setFeedback("");
+    setFeedbackTone("success");
     setCopyFeedback("");
     setFormState(createFormStateFromProduct(product));
   }
@@ -383,6 +426,11 @@ export function ProductsManagementDrawer({
     window.setTimeout(() => {
       setCopyFeedback("");
     }, 2400);
+  }
+
+  function showFeedback(message: string, tone: FeedbackTone = "success") {
+    setFeedback(message);
+    setFeedbackTone(tone);
   }
 
   function normalizeSavePayload():
@@ -442,20 +490,31 @@ export function ProductsManagementDrawer({
         const nextCatalogStatus = getReadinessFromProducts(nextProducts);
         const justUnlockedSelling = !previousCatalogStatus.canSell && nextCatalogStatus.canSell;
         const createdProductIsActive = createdProduct.is_available;
+        const createdProductStorefrontPosition = nextProducts
+          .filter((product) => product.is_available)
+          .findIndex((product) => product.id === createdProduct.id) + 1;
 
         if (!createdProductIsActive) {
-          setFeedback(
+          showFeedback(
             `"${createdProduct.name}" fue creado, pero quedo inactivo. Aun falta activarlo para que el negocio pueda vender.`,
+            "warning",
           );
         } else {
-          setFeedback(
-            getProductCatalogTransitionFeedback({
-              previous: previousCatalogStatus,
-              next: nextCatalogStatus,
-              productName: createdProduct.name,
-              change: "created",
-            }),
-          );
+          const transitionFeedback = getProductCatalogTransitionFeedback({
+            previous: previousCatalogStatus,
+            next: nextCatalogStatus,
+            productName: createdProduct.name,
+            change: "created",
+          });
+          const positionFeedback =
+            createdProductStorefrontPosition > 0
+              ? ` Quedo visible en la posicion ${createdProductStorefrontPosition} del link publico.`
+              : "";
+          const nextStepFeedback =
+            createAnotherAfterSave && !justUnlockedSelling
+              ? " Ya puedes cargar el siguiente producto sin salir del formulario."
+              : "";
+          showFeedback(`${transitionFeedback}${positionFeedback}${nextStepFeedback}`);
         }
 
         if (justUnlockedSelling) {
@@ -475,7 +534,10 @@ export function ProductsManagementDrawer({
       } else if (editingProductId) {
         const updatedProduct = await updateProductViaApi(editingProductId, payload.update);
         await reloadProducts();
-        setFeedback(`"${updatedProduct.name}" se actualizo correctamente.`);
+        showFeedback(
+          `"${updatedProduct.name}" se actualizo correctamente. ${updatedProduct.is_available ? "Sigue visible" : "Quedo oculto"} en el catalogo publico.`,
+          updatedProduct.is_available ? "success" : "info",
+        );
         setMode("list");
         setEditingProductId(null);
         setFormState(createDefaultFormState(nextSortOrder));
@@ -501,6 +563,11 @@ export function ProductsManagementDrawer({
     setError("");
     setFeedback("");
 
+    if (field === "isFeatured" && value && !product.is_available) {
+      setError(`Activa "${product.name}" primero para destacarlo en el storefront.`);
+      return;
+    }
+
     try {
       const previousCatalogStatus = getReadinessFromProducts(products);
       await updateProductViaApi(product.id, {
@@ -511,7 +578,7 @@ export function ProductsManagementDrawer({
       const nextCatalogStatus = getReadinessFromProducts(nextProducts);
       const justUnlockedSelling =
         field === "isAvailable" && value && !previousCatalogStatus.canSell && nextCatalogStatus.canSell;
-      setFeedback(
+      showFeedback(
         field === "isAvailable"
           ? getProductCatalogTransitionFeedback({
               previous: previousCatalogStatus,
@@ -520,8 +587,9 @@ export function ProductsManagementDrawer({
               change: value ? "activated" : "deactivated",
             })
           : value
-            ? `"${product.name}" fue marcado como destacado.`
+            ? `"${product.name}" fue marcado como destacado y gana visibilidad en la seleccion rapida del storefront.`
             : `"${product.name}" salio de destacados.`,
+        field === "isAvailable" && !value ? "info" : "success",
       );
 
       if (justUnlockedSelling) {
@@ -540,10 +608,10 @@ export function ProductsManagementDrawer({
   }
 
   async function handleMove(product: Product, direction: "up" | "down") {
-    const currentIndex = products.findIndex((item) => item.id === product.id);
+    const currentIndex = sortedProducts.findIndex((item) => item.id === product.id);
     const targetIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
 
-    if (currentIndex === -1 || targetIndex < 0 || targetIndex >= products.length) {
+    if (currentIndex === -1 || targetIndex < 0 || targetIndex >= sortedProducts.length) {
       return;
     }
 
@@ -555,8 +623,10 @@ export function ProductsManagementDrawer({
         businessSlug,
         sortOrder: targetIndex + 1,
       });
-      await reloadProducts();
-      setFeedback(`"${product.name}" cambio de posicion en el catalogo.`);
+      const nextProducts = await reloadProducts();
+      const nextPosition =
+        nextProducts.find((item) => item.id === product.id)?.sort_order ?? targetIndex + 1;
+      showFeedback(`"${product.name}" ahora ocupa la posicion ${nextPosition} del catalogo.`);
     } catch (moveError) {
       setError(
         moveError instanceof Error
@@ -582,7 +652,7 @@ export function ProductsManagementDrawer({
       setMode("list");
       setEditingProductId(null);
       setFormState(createDefaultFormState(nextProducts.length + 1));
-      setFeedback(`"${result.deletedProduct.name}" fue borrado del catalogo.`);
+      showFeedback(`"${result.deletedProduct.name}" fue borrado del catalogo. El orden se renormalizo automaticamente.`);
     } catch (deleteError) {
       setError(
         deleteError instanceof Error
@@ -695,7 +765,15 @@ export function ProductsManagementDrawer({
         </div>
 
         {feedback ? (
-          <div className="border-b border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 sm:px-6">
+          <div
+            className={`border-b px-4 py-3 text-sm sm:px-6 ${
+              feedbackTone === "warning"
+                ? "border-amber-200 bg-amber-50 text-amber-900"
+                : feedbackTone === "info"
+                  ? "border-sky-200 bg-sky-50 text-sky-900"
+                  : "border-emerald-200 bg-emerald-50 text-emerald-800"
+            }`}
+          >
             {feedback}
           </div>
         ) : null}
@@ -977,6 +1055,17 @@ export function ProductsManagementDrawer({
                     {visibleProducts.length} resultado{visibleProducts.length === 1 ? "" : "s"} para
                     operar rapido el catalogo.
                   </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-800">
+                      {activeProducts.length} activo{activeProducts.length === 1 ? "" : "s"}
+                    </span>
+                    <span className="rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+                      {inactiveProducts.length} inactivo{inactiveProducts.length === 1 ? "" : "s"}
+                    </span>
+                    <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800">
+                      {featuredProducts.length} destacado{featuredProducts.length === 1 ? "" : "s"}
+                    </span>
+                  </div>
                 </section>
 
                 {visibleProducts.length === 0 ? (
@@ -1011,7 +1100,8 @@ export function ProductsManagementDrawer({
                 ) : (
                   <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
                     {visibleProducts.map((product) => {
-                      const productIndex = products.findIndex((item) => item.id === product.id);
+                      const productIndex = sortedProducts.findIndex((item) => item.id === product.id);
+                      const storefrontPosition = storefrontPositions.get(product.id);
 
                       return (
                         <article
@@ -1035,6 +1125,10 @@ export function ProductsManagementDrawer({
                                   <ProductFlag
                                     label={`Orden ${product.sort_order ?? productIndex + 1}`}
                                     tone="neutral"
+                                  />
+                                  <ProductFlag
+                                    label={getProductStorefrontPositionLabel(product, storefrontPosition)}
+                                    tone={product.is_available ? "success" : "neutral"}
                                   />
                                 </div>
                                 <div className="flex flex-wrap items-center gap-3">
@@ -1066,7 +1160,7 @@ export function ProductsManagementDrawer({
                                   Estado
                                 </p>
                                 <p className="mt-1 text-sm font-medium text-slate-900">
-                                  {product.is_available ? "Activo" : "Inactivo"}
+                                  {product.is_available ? "Activo y visible" : "Inactivo y oculto"}
                                 </p>
                               </div>
                               <div className="rounded-[18px] border border-slate-200 bg-white/80 p-3">
@@ -1087,10 +1181,12 @@ export function ProductsManagementDrawer({
                               </div>
                               <div className="rounded-[18px] border border-slate-200 bg-white/80 p-3">
                                 <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                                  Orden
+                                  Link publico
                                 </p>
                                 <p className="mt-1 text-sm font-medium text-slate-900">
-                                  {product.sort_order ?? productIndex + 1}
+                                  {product.is_available
+                                    ? `Posicion ${storefrontPosition ?? product.sort_order ?? productIndex + 1}`
+                                    : "No visible"}
                                 </p>
                               </div>
                             </div>
@@ -1124,7 +1220,12 @@ export function ProductsManagementDrawer({
                                 onClick={() =>
                                   handleQuickToggle(product, "isFeatured", !product.is_featured)
                                 }
-                                className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+                                disabled={!product.is_available && !product.is_featured}
+                                className={`inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-sm font-medium transition ${
+                                  !product.is_available && !product.is_featured
+                                    ? "cursor-not-allowed border border-slate-200 bg-slate-100 text-slate-400"
+                                    : "border border-slate-300 bg-white text-slate-700 hover:border-slate-400 hover:bg-slate-50"
+                                }`}
                               >
                                 {product.is_featured ? (
                                   <StarOff className="h-4 w-4" aria-hidden="true" />
@@ -1158,9 +1259,9 @@ export function ProductsManagementDrawer({
                               <button
                                 type="button"
                                 onClick={() => handleMove(product, "down")}
-                                disabled={productIndex === products.length - 1}
+                                disabled={productIndex === sortedProducts.length - 1}
                                 className={`rounded-full px-3.5 py-2 text-sm font-medium transition ${
-                                  productIndex === products.length - 1
+                                  productIndex === sortedProducts.length - 1
                                     ? "cursor-not-allowed border border-slate-200 bg-slate-100 text-slate-400"
                                     : "border border-slate-300 bg-white text-slate-700 hover:border-slate-400 hover:bg-slate-50"
                                 }`}
@@ -1294,6 +1395,11 @@ export function ProductsManagementDrawer({
                           ? "Activo. Se mostrara en el formulario publico."
                           : "Inactivo. No se mostrara en el link publico."}
                       </p>
+                      <p className="mt-1 text-sm text-slate-600">
+                        {formState.isAvailable
+                          ? `Si guardas ahora, quedara en la posicion ${nextSortOrder} del catalogo visible.`
+                          : `Si guardas ahora, quedara fuera del storefront hasta activarlo.`}
+                      </p>
                       {mode === "create" ? (
                         <p className="mt-1 text-sm text-slate-600">
                           {formState.isAvailable
@@ -1345,6 +1451,9 @@ export function ProductsManagementDrawer({
                               onChange={(event) => updateFormField("sortOrder", event.target.value)}
                               className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-base leading-6 text-slate-900 outline-none transition focus:border-slate-400 sm:text-sm sm:leading-5"
                             />
+                            <p className="text-xs leading-5 text-slate-500">
+                              El storefront publica los productos activos siguiendo este orden.
+                            </p>
                           </label>
 
                           <label className="flex items-start justify-between gap-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
@@ -1352,6 +1461,9 @@ export function ProductsManagementDrawer({
                               <p className="text-sm font-medium text-slate-900">Destacado</p>
                               <p className="text-sm text-slate-600">
                                 Resalta este producto en la seleccion rapida del storefront.
+                                {!formState.isAvailable
+                                  ? " Mientras siga inactivo, ese destacado no se mostrara."
+                                  : ""}
                               </p>
                             </div>
                             <input
