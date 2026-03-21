@@ -1,5 +1,6 @@
 import { debugError, debugLog } from "@/lib/debug";
 import { normalizeBusinessSlug } from "@/lib/businesses/slug";
+import { getBusinessAccessLevel } from "@/lib/auth/business-access";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { DELIVERY_TYPES, PAYMENT_METHODS } from "@/types/orders";
 import type { BusinessRecord } from "@/types/businesses";
@@ -262,10 +263,16 @@ export async function getHomeBusinesses(
   const accessibleBusinesses = operatorUserId
     ? databaseBusinesses.filter(
         (databaseBusiness) =>
-          databaseBusiness.createdByUserId === null ||
-          databaseBusiness.createdByUserId === operatorUserId,
+          getBusinessAccessLevel(
+            {
+              businessId: databaseBusiness.id,
+              businessSlug: databaseBusiness.slug,
+              ownerUserId: databaseBusiness.createdByUserId ?? null,
+            },
+            operatorUserId,
+          ) !== null,
       )
-    : databaseBusinesses;
+    : [];
 
   const realBusinesses = accessibleBusinesses.map((databaseBusiness) => {
     const demoBusiness = getDemoBusinessBySlug(databaseBusiness.slug);

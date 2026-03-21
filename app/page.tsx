@@ -188,8 +188,8 @@ export default async function Home() {
             <div>
               <h3 className="text-2xl font-semibold text-slate-950">Negocios reales</h3>
               <p className="mt-1 text-sm text-slate-600">
-                Slugs resueltos desde la tabla `businesses` y listos para operar con datos
-                persistidos.
+                Solo se muestran los negocios reales visibles para la sesion actual segun la
+                politica de ownership.
               </p>
             </div>
             <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-medium text-slate-700">
@@ -240,8 +240,8 @@ export default async function Home() {
             </div>
           ) : (
             <div className="rounded-[24px] border border-dashed border-slate-300 bg-white/80 p-6 text-sm text-slate-600">
-              Aun no hay negocios reales visibles en este entorno. Crea uno nuevo para
-              empezar el flujo real del MVP.
+              Aun no hay negocios reales visibles para esta sesion. Inicia sesion con un owner
+              valido o crea un negocio nuevo para empezar el flujo real del MVP.
             </div>
           )}
         </section>

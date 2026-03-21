@@ -29,8 +29,8 @@ export default async function BusinessDashboardPage({
               Este negocio no esta disponible para tu sesion
             </h1>
             <p className="mt-3 text-sm leading-6 text-slate-600">
-              Solo puedes operar negocios que te pertenezcan o negocios legacy aun sin dueño
-              asignado.
+              Solo puedes operar negocios propios o negocios legacy autorizados
+              explicitamente por la politica actual.
             </p>
           </section>
         </div>

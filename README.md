@@ -250,7 +250,7 @@ Despues de mutaciones criticas:
 
 - no hay sistema de roles
 - no hay multiusuario avanzado
-- los negocios legacy sin `created_by_user_id` siguen tratandose como accesibles para cualquier usuario autenticado
+- la estrategia legacy sigue siendo minima: hoy solo se permite acceso a negocios sin owner si quedaron autorizados explicitamente en codigo
 - el dashboard y la gestion de catalogo siguen viviendo sobre drawers y superficies compactas, no sobre un backoffice mas profundo
 - no existen categorias, variantes, imagenes ni inventario
 - no existe modulo independiente de clientes
@@ -297,14 +297,15 @@ Ya existen migraciones para:
 La estrategia actual de ownership es:
 
 - negocios nuevos quedan asociados al usuario autenticado que los crea
-- negocios anteriores sin owner se consideran `legacy_shared`
+- negocios anteriores sin owner quedan bloqueados por defecto en el espacio operativo
+- solo se habilitan si entran en una allowlist explicita definida en codigo
 
 ## 7. Próximos pasos priorizados
 
 Orden recomendado desde el estado actual del codigo:
 
-1. Cerrar estrategia de negocios legacy sin owner:
-   definir si se reclaman, se migran o se restringen.
+1. Resolver migracion definitiva de negocios legacy sin owner:
+   definir si se reclaman, se migran a owner real o se eliminan de la allowlist temporal.
 2. Consolidar auth operativa:
    unificar mejor la capa de sesion propia con la sesion de Supabase si el producto sigue creciendo.
 3. Profundizar gestion de catalogo:
@@ -362,6 +363,7 @@ Las migraciones relevantes del proyecto son:
 - `supabase/migrations/20260319_enable_basic_business_creation.sql`
 - `supabase/migrations/20260320_add_business_owner_user_id.sql`
 - `supabase/migrations/20260320_enable_basic_auth_ownership_rls.sql`
+- `supabase/migrations/20260320_restrict_legacy_business_access.sql`
 
 ### 4. Ejecutar en desarrollo
 
@@ -384,6 +386,7 @@ npm run lint
 
 - `mockBusinesses` sigue existiendo para demos y fallback visual en home y resolucion de negocio.
 - Los negocios demo no forman parte del flujo persistido.
+- Los negocios legacy sin `created_by_user_id` ya no quedan compartidos por defecto en el espacio operativo; solo se habilitan si se autorizan explicitamente en codigo.
 - El formulario publico puede reutilizar datos de pedidos recientes del mismo negocio para autocompletar nombre y direccion por WhatsApp.
 - El storefront maneja estados distintos para:
   - negocio no encontrado

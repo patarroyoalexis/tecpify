@@ -1,5 +1,6 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { normalizeBusinessSlug } from "@/lib/businesses/slug";
+import { isExplicitlyAllowedLegacyBusiness } from "@/lib/auth/legacy-business-access";
 
 interface BusinessOwnershipRow {
   id: string;
@@ -13,7 +14,7 @@ interface OrderOwnershipRow {
   business_id: string;
 }
 
-export type BusinessAccessLevel = "owned" | "legacy_shared";
+export type BusinessAccessLevel = "owned" | "legacy_allowed";
 
 export interface BusinessAccessResult {
   businessId: string;
@@ -23,8 +24,44 @@ export interface BusinessAccessResult {
   accessLevel: BusinessAccessLevel;
 }
 
+interface BusinessAccessInput {
+  businessId: string;
+  businessSlug: string;
+  ownerUserId: string | null;
+}
+
+export function getBusinessAccessLevel(
+  { businessId, businessSlug, ownerUserId }: BusinessAccessInput,
+  userId: string,
+): BusinessAccessLevel | null {
+  if (ownerUserId === userId) {
+    return "owned";
+  }
+
+  if (
+    isExplicitlyAllowedLegacyBusiness({
+      businessId,
+      businessSlug,
+      ownerUserId,
+    })
+  ) {
+    return "legacy_allowed";
+  }
+
+  return null;
+}
+
 function mapBusinessAccessResult(row: BusinessOwnershipRow, userId: string): BusinessAccessResult | null {
-  if (row.created_by_user_id && row.created_by_user_id !== userId) {
+  const accessLevel = getBusinessAccessLevel(
+    {
+      businessId: row.id,
+      businessSlug: row.slug,
+      ownerUserId: row.created_by_user_id,
+    },
+    userId,
+  );
+
+  if (!accessLevel) {
     return null;
   }
 
@@ -33,7 +70,7 @@ function mapBusinessAccessResult(row: BusinessOwnershipRow, userId: string): Bus
     businessSlug: row.slug,
     businessName: row.name,
     ownerUserId: row.created_by_user_id,
-    accessLevel: row.created_by_user_id === null ? "legacy_shared" : "owned",
+    accessLevel,
   };
 }
 
@@ -109,6 +146,16 @@ export async function getBusinessAccessByOrderId(
   return getBusinessAccessById(data.business_id, userId);
 }
 
-export function canAccessBusiness(userId: string, ownerUserId: string | null) {
-  return ownerUserId === null || ownerUserId === userId;
+export function canAccessBusiness(
+  userId: string,
+  business: {
+    businessId: string;
+    businessSlug: string;
+    ownerUserId: string | null;
+  },
+) {
+  return getBusinessAccessLevel(
+    business,
+    userId,
+  ) !== null;
 }
