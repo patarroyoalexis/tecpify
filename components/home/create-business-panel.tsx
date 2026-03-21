@@ -89,8 +89,39 @@ export function CreateBusinessPanel() {
         </p>
         <h2 className="text-2xl font-semibold text-slate-950">Crear negocio real</h2>
         <p className="text-sm leading-6 text-slate-600">
-          Crea un negocio operativo en Supabase con nombre y slug. El catalogo se agrega despues.
+          Crea el negocio y te llevamos directo al primer producto. La ruta mas corta al primer
+          pedido empieza aqui.
         </p>
+      </div>
+
+      <div className="mt-5 grid gap-3 rounded-[24px] border border-emerald-200 bg-emerald-50/70 p-4 sm:grid-cols-3">
+        <article className="rounded-[18px] border border-white/80 bg-white/90 p-3">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-700">
+            Paso 1
+          </p>
+          <p className="mt-2 text-sm font-semibold text-slate-950">Crear negocio</p>
+          <p className="mt-1 text-xs leading-5 text-slate-600">
+            Nombre y slug para abrir el espacio operativo.
+          </p>
+        </article>
+        <article className="rounded-[18px] border border-white/80 bg-white/90 p-3">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-700">
+            Paso 2
+          </p>
+          <p className="mt-2 text-sm font-semibold text-slate-950">Cargar primer producto</p>
+          <p className="mt-1 text-xs leading-5 text-slate-600">
+            Solo necesitas nombre, precio y dejarlo activo.
+          </p>
+        </article>
+        <article className="rounded-[18px] border border-white/80 bg-white/90 p-3">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-700">
+            Paso 3
+          </p>
+          <p className="mt-2 text-sm font-semibold text-slate-950">Probar el link publico</p>
+          <p className="mt-1 text-xs leading-5 text-slate-600">
+            Haces un pedido corto y ya validas el circuito real.
+          </p>
+        </article>
       </div>
 
       <form onSubmit={handleSubmit} className="mt-5 space-y-4">
@@ -140,7 +171,8 @@ export function CreateBusinessPanel() {
             }`}
           />
           <p className="text-xs leading-5 text-slate-500">
-            Se guarda normalizado en minusculas, con guiones y sin caracteres invalidos.
+            Se normaliza en minusculas, con guiones y sin caracteres invalidos. Si no lo editas,
+            se genera automaticamente desde el nombre.
           </p>
           {errors.slug ? <p className="text-sm text-rose-600">{errors.slug}</p> : null}
         </label>
@@ -160,8 +192,13 @@ export function CreateBusinessPanel() {
               : "bg-slate-950 hover:bg-slate-800"
           }`}
         >
-          {isSubmitting ? "Creando negocio..." : "Crear negocio"}
+          {isSubmitting ? "Creando negocio..." : "Crear negocio y abrir primer producto"}
         </button>
+
+        <p className="text-xs leading-5 text-slate-500">
+          Despues de crear el negocio te llevamos a `/dashboard/[slug]` con el drawer listo para
+          cargar el primer producto.
+        </p>
       </form>
     </section>
   );

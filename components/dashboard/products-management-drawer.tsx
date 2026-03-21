@@ -623,7 +623,9 @@ export function ProductsManagementDrawer({
                     : "Editar producto"}
               </h2>
               <p className="text-sm text-slate-600">
-                Catalogo operativo conectado a Supabase para este negocio.
+                {isFirstProductFlow && mode === "create"
+                  ? "Lo minimo para destrabar ventas: nombre, precio y dejarlo activo."
+                  : "Catalogo operativo conectado a Supabase para este negocio."}
               </p>
             </div>
 
@@ -1196,6 +1198,43 @@ export function ProductsManagementDrawer({
                         ? "Pide solo lo minimo. Si este producto queda activo, el negocio pasa directo a listo para compartir."
                         : "Para empezar a vender solo necesitas nombre, precio y dejar activo el producto. La descripcion, el orden y destacado pueden esperar."}
                     </p>
+                    {isFirstProductFlow ? (
+                      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                        <div className="rounded-[18px] border border-sky-200 bg-white/90 p-3">
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-sky-700">
+                            1
+                          </p>
+                          <p className="mt-2 text-sm font-semibold text-slate-950">
+                            Nombre claro
+                          </p>
+                          <p className="mt-1 text-xs leading-5 text-slate-600">
+                            Lo que el cliente realmente va a pedir.
+                          </p>
+                        </div>
+                        <div className="rounded-[18px] border border-sky-200 bg-white/90 p-3">
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-sky-700">
+                            2
+                          </p>
+                          <p className="mt-2 text-sm font-semibold text-slate-950">
+                            Precio simple
+                          </p>
+                          <p className="mt-1 text-xs leading-5 text-slate-600">
+                            Basta con un valor real para empezar a vender.
+                          </p>
+                        </div>
+                        <div className="rounded-[18px] border border-sky-200 bg-white/90 p-3">
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-sky-700">
+                            3
+                          </p>
+                          <p className="mt-2 text-sm font-semibold text-slate-950">
+                            Dejar activo
+                          </p>
+                          <p className="mt-1 text-xs leading-5 text-slate-600">
+                            Asi el link publico queda listo al guardar.
+                          </p>
+                        </div>
+                      </div>
+                    ) : null}
                   </section>
                 ) : editingProduct ? (
                   <section className="rounded-[24px] border border-slate-200 bg-slate-50/80 p-5">
@@ -1226,7 +1265,7 @@ export function ProductsManagementDrawer({
                         value={formState.name}
                         onChange={(event) => updateFormField("name", event.target.value)}
                         className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-base leading-6 text-slate-900 outline-none transition focus:border-slate-400 sm:text-sm sm:leading-5"
-                        placeholder="Ej. Caja de brownies"
+                        placeholder={isFirstProductFlow ? "Ej. Combo desayuno" : "Ej. Caja de brownies"}
                       />
                     </label>
 
@@ -1258,7 +1297,9 @@ export function ProductsManagementDrawer({
                       {mode === "create" ? (
                         <p className="mt-1 text-sm text-slate-600">
                           {formState.isAvailable
-                            ? "Si guardas asi, el negocio queda mas cerca de compartir el link."
+                            ? isFirstProductFlow
+                              ? "Si guardas asi, el negocio queda listo para abrir el link publico."
+                              : "Si guardas asi, el negocio queda mas cerca de compartir el link."
                             : "Si guardas asi, todavia faltara activarlo para vender."}
                         </p>
                       ) : (
@@ -1412,7 +1453,9 @@ export function ProductsManagementDrawer({
                     : mode === "create"
                       ? !isFirstProductFlow && createAnotherAfterSave
                         ? "Guardar y crear otro"
-                        : "Crear producto"
+                        : isFirstProductFlow
+                          ? "Crear producto y habilitar link"
+                          : "Crear producto"
                       : "Guardar cambios"}
                 </button>
               </div>

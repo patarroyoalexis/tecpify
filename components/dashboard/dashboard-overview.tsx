@@ -43,6 +43,33 @@ export function DashboardOverview({
       order.status === "pendiente de pago" || order.status === "pago por verificar",
   );
   const hasOrders = ordersState.length > 0;
+  const nextRecommendedAction = !hasOrders && businessReadiness.totalProducts === 0
+    ? {
+        title: "Crear primer producto",
+        description: "Es el paso que destraba el link publico y acerca al primer pedido real.",
+        actionLabel: "Abrir creacion de producto",
+        onClick: openNewProduct,
+      }
+    : !hasOrders && businessReadiness.activeProducts === 0
+      ? {
+          title: "Activar catalogo",
+          description: "Ya existe catalogo base. Falta dejar al menos un producto visible para vender.",
+          actionLabel: "Abrir gestion de productos",
+          onClick: openProductsManager,
+        }
+      : !hasOrders
+        ? {
+            title: "Provocar el primer pedido real",
+            description: "El negocio ya puede vender. Ahora conviene abrir el formulario publico y hacer una prueba corta.",
+            actionLabel: "Abrir formulario publico",
+            href: `/pedido/${businessSlug}`,
+          }
+        : {
+            title: "Entrar a operacion diaria",
+            description: "Ya llego el primer pedido. Desde aqui conviene priorizar seguimiento, pagos y estados.",
+            actionLabel: "Ir a pedidos",
+            href: `/pedidos/${businessSlug}`,
+          };
 
   const executiveMetrics = [
     {
@@ -157,8 +184,34 @@ export function DashboardOverview({
                 </div>
               ))
             ) : (
-              <div className="rounded-[22px] border border-dashed border-slate-300 bg-slate-50 p-5 text-sm text-slate-600">
-                Aun no hay pedidos recientes para mostrar en este resumen.
+              <div className="rounded-[22px] border border-dashed border-sky-300 bg-[linear-gradient(135deg,rgba(240,249,255,0.98),rgba(255,255,255,0.98))] p-5">
+                <p className="text-sm font-semibold text-slate-950">
+                  Todavia no hay pedidos en este negocio
+                </p>
+                <p className="mt-2 text-sm leading-6 text-slate-600">
+                  {businessReadiness.canSell
+                    ? "La configuracion minima ya esta lista. El siguiente paso util es abrir el formulario publico y crear un pedido corto para validar el circuito real."
+                    : businessReadiness.nextStep}
+                </p>
+                <div className="mt-4">
+                  {"onClick" in nextRecommendedAction ? (
+                    <button
+                      type="button"
+                      onClick={nextRecommendedAction.onClick}
+                      className="rounded-full bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
+                    >
+                      {nextRecommendedAction.actionLabel}
+                    </button>
+                  ) : (
+                    <Link
+                      href={nextRecommendedAction.href}
+                      target={!hasOrders ? "_blank" : undefined}
+                      className="inline-flex rounded-full bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
+                    >
+                      {nextRecommendedAction.actionLabel}
+                    </Link>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -166,13 +219,47 @@ export function DashboardOverview({
 
         <article className="rounded-[28px] border border-slate-200/80 bg-white p-6 shadow-[0_18px_45px_rgba(15,23,42,0.05)]">
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">
-            Accesos rapidos
+            Prioridad del momento
           </p>
           <h2 className="mt-1 text-2xl font-semibold text-slate-950">
-            Lo importante en dos toques
+            Menos duda, mas siguiente paso
           </h2>
 
           <div className="mt-5 space-y-3">
+            {"onClick" in nextRecommendedAction ? (
+              <button
+                type="button"
+                onClick={nextRecommendedAction.onClick}
+                className="block w-full rounded-[22px] border border-sky-200 bg-sky-50 px-5 py-4 text-left transition hover:border-sky-300 hover:bg-sky-100"
+              >
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-700">
+                  Recomendado ahora
+                </p>
+                <p className="mt-2 text-base font-semibold text-slate-950">
+                  {nextRecommendedAction.title}
+                </p>
+                <p className="mt-1 text-sm text-slate-600">
+                  {nextRecommendedAction.description}
+                </p>
+              </button>
+            ) : (
+              <Link
+                href={nextRecommendedAction.href}
+                target={!hasOrders ? "_blank" : undefined}
+                className="block rounded-[22px] border border-sky-200 bg-sky-50 px-5 py-4 transition hover:border-sky-300 hover:bg-sky-100"
+              >
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-700">
+                  Recomendado ahora
+                </p>
+                <p className="mt-2 text-base font-semibold text-slate-950">
+                  {nextRecommendedAction.title}
+                </p>
+                <p className="mt-1 text-sm text-slate-600">
+                  {nextRecommendedAction.description}
+                </p>
+              </Link>
+            )}
+
             <Link
               href={`/pedidos/${businessSlug}`}
               className="block rounded-[22px] border border-slate-200 bg-slate-50 px-5 py-4 transition hover:border-slate-300 hover:bg-slate-100"
@@ -208,10 +295,7 @@ export function DashboardOverview({
           <div className="mt-5 rounded-[22px] border border-amber-200 bg-amber-50/80 p-4">
             <p className="text-sm font-semibold text-amber-800">Siguiente foco</p>
             <p className="mt-1 text-sm leading-6 text-slate-700">
-              {hasOrders
-                ? insights[1] ??
-                  "Cuando tengas mas historial disponible, este espacio mostrara alertas y recomendaciones automaticas."
-                : businessReadiness.nextStep}
+              {nextRecommendedAction.description}
             </p>
           </div>
         </article>

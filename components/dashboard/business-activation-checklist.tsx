@@ -49,6 +49,12 @@ interface ActivationPrimaryAction {
   href?: string;
 }
 
+interface ActivationRouteStep {
+  title: string;
+  description: string;
+  tone: "current" | "next" | "future";
+}
+
 function getChecklistIcon(status: BusinessReadinessChecklistItem["status"]) {
   if (status === "completed") {
     return <CheckCircle2 className="h-5 w-5 text-emerald-600" aria-hidden="true" />;
@@ -346,6 +352,89 @@ function getPrimaryAction(
   };
 }
 
+function getActivationRouteSteps(
+  businessReadiness: BusinessReadinessSnapshot,
+  hasOrders: boolean,
+): ActivationRouteStep[] {
+  if (hasOrders) {
+    return [
+      {
+        title: "Primer pedido validado",
+        description: "El negocio ya salio de activacion inicial.",
+        tone: "current",
+      },
+      {
+        title: "Revisar pedidos",
+        description: "Confirma estados, pagos y seguimiento.",
+        tone: "next",
+      },
+      {
+        title: "Sostener operacion",
+        description: "Comparte el link y sigue captando pedidos.",
+        tone: "future",
+      },
+    ];
+  }
+
+  if (businessReadiness.totalProducts === 0) {
+    return [
+      {
+        title: "Crear primer producto",
+        description: "Nombre, precio y dejarlo activo.",
+        tone: "current",
+      },
+      {
+        title: "Abrir formulario publico",
+        description: "El link ya queda util para vender.",
+        tone: "next",
+      },
+      {
+        title: "Recibir pedido real",
+        description: "Con eso cierras la activacion minima.",
+        tone: "future",
+      },
+    ];
+  }
+
+  if (businessReadiness.activeProducts === 0) {
+    return [
+      {
+        title: "Activar un producto",
+        description: "Hace visible el catalogo al cliente.",
+        tone: "current",
+      },
+      {
+        title: "Abrir formulario publico",
+        description: "Valida el recorrido como cliente.",
+        tone: "next",
+      },
+      {
+        title: "Recibir pedido real",
+        description: "Con eso el negocio pasa a operativo.",
+        tone: "future",
+      },
+    ];
+  }
+
+  return [
+    {
+      title: "Compartir o probar link",
+      description: "El negocio ya puede vender hoy.",
+      tone: "current",
+    },
+    {
+      title: "Crear pedido corto",
+      description: "Sirve para validar el flujo completo.",
+      tone: "next",
+    },
+    {
+      title: "Revisarlo en pedidos",
+      description: "Con eso el onboarding queda cerrado.",
+      tone: "future",
+    },
+  ];
+}
+
 export function BusinessActivationChecklist({
   businessSlug,
   businessName,
@@ -368,6 +457,7 @@ export function BusinessActivationChecklist({
     onOpenCreateProduct,
     onOpenProductsManager,
   );
+  const activationRouteSteps = getActivationRouteSteps(businessReadiness, hasOrders);
   const stages = getActivationStages(businessReadiness, hasOrders);
   const readinessTone = hasOrders
     ? {
@@ -464,7 +554,7 @@ export function BusinessActivationChecklist({
 
           <div className="rounded-[22px] border border-slate-200 bg-white/90 p-4">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-              Siguiente accion prioritaria
+              Recomendado ahora
             </p>
             <p className="mt-3 text-lg font-semibold text-slate-950">{primaryAction.label}</p>
             <p className="mt-2 text-sm leading-6 text-slate-600">{primaryAction.description}</p>
@@ -501,6 +591,34 @@ export function BusinessActivationChecklist({
           </div>
         </div>
       </section>
+
+      {!hasOrders ? (
+        <section className={`mt-5 rounded-[24px] border p-4 ${readinessTone.panel}`}>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+            Ruta mas corta al primer pedido
+          </p>
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
+            {activationRouteSteps.map((step, index) => (
+              <article
+                key={step.title}
+                className={`rounded-[20px] border p-4 ${
+                  step.tone === "current"
+                    ? "border-sky-200 bg-sky-50/80"
+                    : step.tone === "next"
+                      ? "border-slate-200 bg-white"
+                      : "border-slate-200 bg-slate-50/80"
+                }`}
+              >
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                  Paso {index + 1}
+                </p>
+                <p className="mt-2 text-sm font-semibold text-slate-950">{step.title}</p>
+                <p className="mt-1 text-sm leading-6 text-slate-600">{step.description}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <section className={`mt-5 rounded-[24px] border p-4 ${readinessTone.panel}`}>
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
@@ -559,6 +677,13 @@ export function BusinessActivationChecklist({
                   Abrir formulario publico
                 </Link>
               </div>
+              {!hasOrders ? (
+                <div className="mt-4 rounded-[18px] border border-sky-200 bg-sky-50 p-3 text-sm leading-6 text-sky-900">
+                  Recomendado: abre el formulario, crea un pedido corto y luego vuelve a
+                  <span className="font-semibold"> pedidos </span>
+                  para confirmar que entro al flujo interno.
+                </div>
+              ) : null}
             </section>
           ) : (
             <section className={`rounded-[24px] border p-5 ${readinessTone.panel}`}>
