@@ -62,7 +62,9 @@ export async function POST(request: Request) {
   let identity;
 
   try {
-    identity = await registerOperatorCredentials(email, password);
+    identity = await registerOperatorCredentials(email, password, {
+      redirectTo,
+    });
   } catch (error) {
     return NextResponse.json(
       {

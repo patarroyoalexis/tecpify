@@ -1,6 +1,7 @@
 import type { User } from "@supabase/supabase-js";
 
 import { createOperatorSession, writeOperatorSession } from "@/lib/auth/session";
+import { getAuthCallbackUrl } from "@/lib/site-url";
 import { createServerSupabaseIdentityClient } from "@/lib/supabase/server";
 
 export interface OperatorIdentityResult {
@@ -25,11 +26,18 @@ export async function authenticateOperatorCredentials(email: string, password: s
   } satisfies OperatorIdentityResult;
 }
 
-export async function registerOperatorCredentials(email: string, password: string) {
+export async function registerOperatorCredentials(
+  email: string,
+  password: string,
+  options?: { redirectTo?: string | null | undefined },
+) {
   const supabase = createServerSupabaseIdentityClient();
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
+    options: {
+      emailRedirectTo: getAuthCallbackUrl({ next: options?.redirectTo }),
+    },
   });
 
   if (error) {
