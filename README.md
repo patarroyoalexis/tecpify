@@ -2,30 +2,30 @@
 
 ## 1. Qué es Tecpify
 
-Tecpify es un MVP para pequenos negocios que concentra en una sola app:
+Tecpify es un MVP para pequeños negocios que concentra en una sola app:
 
-- un link publico por negocio para recibir pedidos
+- un link público por negocio para recibir pedidos
 - un espacio operativo privado para revisar y actualizar pedidos
-- un catalogo basico administrado desde la app
-- una capa simple de metricas calculadas sobre pedidos reales
+- un catálogo básico administrado desde la app
+- una capa simple de métricas calculadas sobre pedidos reales
 
-La validacion central del producto sigue siendo este circuito:
+La validación central del producto sigue siendo este circuito:
 
 `negocio -> catalogo -> link publico -> pedido -> operacion interna -> metricas basicas`
 
 ## 2. Objetivo del MVP
 
-Validar si un negocio pequeno puede correr un flujo operativo real sin depender de hojas de calculo, chats sueltos o formularios desconectados.
+Validar si un negocio pequeño puede correr un flujo operativo real sin depender de hojas de cálculo, chats sueltos o formularios desconectados.
 
 El MVP hoy apunta a comprobar que un operador pueda:
 
-- crear una cuenta operativa basica
-- crear o acceder a un negocio real
-- cargar un catalogo minimo
-- compartir un formulario publico propio
+- crear una cuenta operativa básica
+- crear un negocio real desde la app
+- cargar un catálogo mínimo
+- compartir un formulario público propio
 - recibir pedidos reales en Supabase
 - gestionarlos desde una vista interna protegida
-- leer metricas operativas simples sobre esos mismos pedidos
+- leer métricas operativas simples sobre esos mismos pedidos
 
 ## 3. Estado actual del MVP
 
@@ -35,60 +35,69 @@ El MVP ya tiene persistencia real en Supabase para:
 - `products`
 - `orders`
 
-Tambien tiene autenticacion basica con Supabase Auth para el espacio operativo:
+También tiene autenticación básica para el espacio operativo, con dos capas hoy conviviendo de forma explícita:
 
-- registro con email y password
-- login
-- logout
-- proteccion de dashboard, pedidos y metricas
-- ownership inicial de negocios via `created_by_user_id`
+- Supabase Auth se usa para registro, confirmación por email y login
+- `/auth/callback` completa la confirmación del email y el intercambio de sesión
+- una cookie operativa firmada es la sesión canónica del workspace privado
 
-El storefront publico no se rompio con auth:
+El storefront público sigue funcionando sin autenticación:
 
-- `/pedido/[negocioId]` sigue siendo publico
-- `POST /api/orders` sigue aceptando pedidos reales desde el link publico
+- `/pedido/[negocioSlug]` es público
+- `POST /api/orders` acepta pedidos reales desde el link público
 
-El circuito operativo ya no depende de `localStorage` como fuente de verdad para pedidos. La app trabaja server-first y re-sincroniza contra API despues de mutaciones y durante la operacion normal.
+El espacio operativo ya trabaja server-first sobre APIs reales:
+
+- dashboard, pedidos y métricas cargan datos iniciales desde servidor
+- después el cliente resincroniza con la API en hidratación, focus, visibility change y polling
+- la UI no confirma éxito si una mutación real falla
+
+Además, ya existe una política explícita de acceso por negocio:
+
+- los negocios nuevos quedan asociados al usuario que los crea por `created_by_user_id`
+- el workspace privado resuelve negocios por `slug`
+- un usuario solo puede operar negocios propios o negocios legacy permitidos explícitamente en código
+- los negocios legacy sin owner quedan bloqueados por defecto
 
 ## 4. Flujo que hoy sí funciona
 
 ### Flujo operativo principal
 
-1. Un usuario se registra o inicia sesion.
-2. Desde `/`, crea un negocio real con `name` y `slug`.
-3. La API crea el negocio en Supabase y lo asocia al usuario autenticado por `created_by_user_id`.
-4. La app redirige a `/dashboard/[slug]?onboarding=create-product`.
-5. Desde el dashboard, el usuario crea el primer producto o abre la gestion de catalogo.
-6. Cuando existe al menos un producto activo, el negocio queda listo para compartir su link publico en `/pedido/[negocioId]`.
-7. Desde ese formulario publico se crea un pedido real por `POST /api/orders`.
-8. El pedido aparece en el espacio interno y puede revisarse desde:
+1. Un usuario se registra o inicia sesión.
+2. Si el registro requiere confirmación por email, el usuario entra por `/auth/callback` y queda listo para continuar al espacio operativo.
+3. Desde `/`, crea un negocio real con `name` y `slug`.
+4. La API crea el negocio en Supabase y lo asocia al usuario autenticado por `created_by_user_id`.
+5. La app redirige a `/dashboard/[negocioSlug]?onboarding=create-product`.
+6. Desde el dashboard, el usuario crea el primer producto o abre la gestión de catálogo.
+7. Cuando existe al menos un producto activo, el dashboard prioriza compartir el link público en `/pedido/[negocioSlug]`.
+8. Desde ese formulario público se crea un pedido real por `POST /api/orders`.
+9. El pedido aparece en el espacio interno y puede revisarse desde:
    - `/dashboard/[negocioSlug]`
    - `/pedidos/[negocioSlug]`
-9. El operador puede editar el pedido, cambiar estado, cambiar estado de pago, marcar revisado y seguir su historial.
-10. `/metricas/[negocioSlug]` lee esos pedidos reales y calcula metricas basicas sobre el historial cargado.
+10. El operador puede editar el pedido, cambiar estado, cambiar estado de pago, marcar revisado y seguir su historial persistido.
+11. `/metricas/[negocioSlug]` lee pedidos reales del negocio y calcula métricas operativas básicas sobre ese historial persistido.
 
-### Flujo de activacion comercial
+### Flujo de activación comercial
 
-El dashboard ya guia el onboarding operativo del negocio recien creado con estados visibles:
+El dashboard ya guía el onboarding operativo del negocio recién creado con estados visibles:
 
 - negocio creado
-- catalogo incompleto
+- catálogo incompleto
 - sin productos activos
 - listo para compartir link
 - primer pedido recibido
 
-Cuando el negocio ya tiene al menos un producto activo y todavia no tiene pedidos:
+Cuando el negocio todavía no tiene pedidos:
 
-- muestra el link publico de forma visible
-- ofrece CTA para copiar link
-- ofrece CTA para abrir el formulario publico
-- empuja a validar el primer pedido real
+- el dashboard resalta un siguiente paso recomendado
+- el onboarding prioriza crear el primer producto y luego abrir o copiar el link público
+- el catálogo muestra mejor el estado activo o inactivo y la posición real en el storefront
 
 Cuando entra el primer pedido:
 
-- el dashboard deja de insistir en onboarding inicial
+- el dashboard deja de insistir en la activación inicial
 - pasa a marcar el negocio como operativo
-- prioriza operacion y seguimiento
+- prioriza operación y seguimiento
 
 ## 5. Persistencia real implementada
 
@@ -108,25 +117,30 @@ Persisten realmente:
 Validaciones actuales:
 
 - `name` obligatorio
-- `name` con maximo de 80 caracteres
-- `slug` obligatorio despues de normalizar
-- `slug` con maximo de 60 caracteres
-- validacion de unicidad por slug
-- requiere sesion operativa autenticada
+- `name` con máximo de 80 caracteres
+- `slug` obligatorio después de normalizar
+- `slug` con máximo de 60 caracteres
+- validación de unicidad por `slug`
+- requiere sesión operativa autenticada
+
+Resolución operativa actual:
+
+- en el workspace privado el identificador canónico es el `slug`
+- el `business_id` real queda interno para consultas a Supabase
 
 ### Productos
 
-La gestion de productos persiste realmente en Supabase por negocio.
+La gestión de productos persiste realmente en Supabase por negocio.
 
 Ya existe:
 
- - listado administrativo por `businessSlug` en API operativa
-- creacion
-- edicion
-- activacion y desactivacion
+- listado administrativo por negocio
+- creación
+- edición
+- activación y desactivación
 - destacar y quitar destacado
 - reordenamiento
-- borrado con validacion de uso en pedidos
+- borrado con validación de uso en pedidos
 
 Campos y comportamiento relevantes:
 
@@ -139,19 +153,20 @@ Campos y comportamiento relevantes:
 
 Validaciones actuales:
 
-- `businessSlug` obligatorio en la API operativa
+- la API operativa exige `businessSlug`
 - `name` obligatorio
-- `name` con maximo de 120 caracteres
+- `name` con máximo de 120 caracteres
 - `price` mayor o igual a 0
-- `sortOrder` valido cuando se envia
+- `sortOrder` válido cuando se envía
 - `PATCH` exige al menos un campo editable real
 - `DELETE` se bloquea si el producto ya fue usado en pedidos persistidos
 
 Compatibilidad actual:
 
 - el storefront solo publica productos activos
-- el formulario publico liga productos reales por `productId`
-- la API de pedidos valida que el producto exista y que siga activo para nuevos pedidos
+- el formulario público liga productos reales por `productId`
+- la API de pedidos valida que el producto exista dentro del negocio
+- la API de pedidos valida que un producto vinculado siga activo para nuevos pedidos públicos
 
 ### Pedidos
 
@@ -159,13 +174,13 @@ Supabase es la fuente de verdad de pedidos.
 
 Flujos que ya dependen de API real:
 
-- creacion publica desde `/pedido/[negocioId]`
-- creacion manual desde el espacio interno
+- creación pública desde `/pedido/[negocioSlug]`
+- creación manual desde el espacio interno
 - lectura por negocio
-- actualizacion de pedidos existentes
+- actualización de pedidos existentes
 - persistencia de `is_reviewed`
 - persistencia de `history`
-- generacion y persistencia de `order_code`
+- generación y persistencia de `order_code`
 
 Campos que hoy se guardan y actualizan:
 
@@ -183,29 +198,34 @@ Campos que hoy se guardan y actualizan:
 - `history`
 - `order_code`
 
-Validaciones actuales en creacion:
+Validaciones actuales en creación:
 
 - el negocio debe existir
 - `customerName` obligatorio
 - `customerWhatsApp` obligatorio
 - `paymentMethod` obligatorio
-- `deliveryType` valido
-- `products` con al menos un item valido
+- `deliveryType` válido
+- `products` con al menos un item válido
 - `total` mayor que 0
 - `deliveryAddress` obligatoria para `delivery_type = domicilio`
 - los `productId` deben existir dentro del negocio
-- los `productId` deben seguir activos para nuevos pedidos
+- los `productId` deben seguir activos para nuevos pedidos públicos
+- no se permiten `productId` repetidos dentro del mismo pedido
+- el total debe coincidir con la suma real de los productos
+- `history` debe tener eventos válidos cuando se envía
 
-Validaciones actuales en actualizacion:
+Validaciones actuales en actualización:
 
 - el pedido debe existir
 - el payload solo puede incluir campos editables permitidos
 - debe incluir al menos un campo editable
-- la direccion sigue siendo obligatoria para `delivery_type = domicilio`
+- la dirección sigue siendo obligatoria para `delivery_type = domicilio`
 - el total no puede ser negativo
 - los productos siguen siendo validados
+- si cambian productos o total, el total persistido vuelve a validarse contra la suma real
+- `history` no puede vaciarse y sus eventos deben seguir siendo válidos
 
-### Sincronizacion server-first
+### Sincronización server-first
 
 Las rutas privadas cargan pedidos iniciales desde servidor en:
 
@@ -213,59 +233,89 @@ Las rutas privadas cargan pedidos iniciales desde servidor en:
 - `/pedidos/[negocioSlug]`
 - `/metricas/[negocioSlug]`
 
-Luego el cliente vuelve a consultar `GET /api/orders`:
+Luego el cliente vuelve a consultar `GET /api/orders?businessSlug=...`:
 
 - al hidratar
 - al enfocar la ventana
 - al volver la pestaña a visible
 - cada 15 segundos
 
-Despues de mutaciones criticas:
+Después de mutaciones críticas:
 
-- la UI no confirma como exito si la API real falla
+- la UI no confirma como éxito si la API real falla
 - se muestra error visible
 - se intenta resincronizar contra API para mantener Supabase como fuente de verdad
+- si la persistencia sí ocurre pero falla la resincronización, la UI intenta hidratar el pedido guardado y muestra un aviso claro
 
 `localStorage` ya no es fuente de verdad para pedidos. Solo se usa en la vista de pedidos para recordar:
 
 - filtro seleccionado
-- texto de busqueda
+- texto de búsqueda
 - grupos expandidos
+
+### Métricas
+
+`/metricas/[negocioSlug]` ya no depende de cálculos sueltos repartidos en frontend.
+
+Hoy existe una base común de agregados operativos construida sobre pedidos persistidos del negocio, reutilizada entre dashboard y pantalla de métricas.
+
+La capa actual cubre:
+
+- pedidos del corte operativo
+- venta del corte
+- pendientes de atención
+- cobros por revisar
+- carga en operación
+- ingresos entregados
+- cancelaciones
+- ticket promedio
+- top productos
+
+Limitación actual:
+
+- sigue siendo una capa operativa ligera calculada desde pedidos reales
+- no hay tablas agregadas ni reporting persistido
+- el corte mostrado responde al último día con actividad persistida, no a un BI histórico formal
 
 ## 6. Alcance actual y limitaciones
 
 ### Lo que ya cubre
 
-- autenticacion basica con Supabase Auth
-- proteccion de rutas operativas
-- ownership inicial de negocios
-- flujo real de negocio, catalogo, pedido y operacion
-- storefront publico funcional por negocio
-- onboarding operativo de activacion comercial
-- gestion de productos suficiente para uso real basico
-- edicion real de pedidos con persistencia
-- metricas basicas calculadas sobre pedidos reales
+- autenticación básica con Supabase Auth
+- callback de confirmación por email en `/auth/callback`
+- sesión operativa privada firmada para el workspace
+- protección de rutas operativas
+- ownership básico por negocio
+- estrategia explícita para bloquear legacy sin owner por defecto
+- flujo real de negocio, catálogo, pedido y operación
+- storefront público funcional por negocio
+- onboarding operativo de activación comercial
+- gestión de productos suficiente para uso real básico
+- edición real de pedidos con persistencia
+- métricas básicas calculadas sobre pedidos reales
 
-### Lo que sigue siendo basico o parcial
+### Lo que sigue siendo básico o parcial
 
 - no hay sistema de roles
 - no hay multiusuario avanzado
-- la estrategia legacy sigue siendo minima: hoy solo se permite acceso a negocios sin owner si quedaron autorizados explicitamente en codigo
-- el dashboard y la gestion de catalogo siguen viviendo sobre drawers y superficies compactas, no sobre un backoffice mas profundo
-- no existen categorias, variantes, imagenes ni inventario
-- no existe modulo independiente de clientes
-- las metricas siguen siendo calculos de frontend sobre `ordersState`
+- la estrategia legacy sigue siendo mínima: hoy solo se permite acceso a negocios sin owner si quedaron autorizados explícitamente en código
+- la sesión operativa y la identidad de Supabase Auth todavía conviven en dos capas distintas
+- el dashboard y la gestión de catálogo siguen viviendo sobre drawers y superficies compactas, no sobre un backoffice más profundo
+- no existen categorías, variantes, imágenes ni inventario
+- no existe módulo independiente de clientes
+- las métricas siguen siendo operativas y acotadas, no BI formal
 - no hay tablas agregadas ni reporting persistido
 - no hay automatizaciones, notificaciones, webhooks ni integraciones externas
 - no hay modo offline ni cola de reintentos
 
-### Rutas publicas y protegidas
+### Rutas públicas y protegidas
 
-Publicas:
+Públicas:
 
 - `/`
 - `/login`
 - `/register`
+- `/auth/callback`
 - `/pedido/[negocioSlug]`
 - `POST /api/orders`
 - `POST /api/auth/login`
@@ -278,7 +328,6 @@ Protegidas:
 - `/pedidos/[negocioSlug]`
 - `/metricas/[negocioSlug]`
 - `POST /api/businesses`
-- `GET /api/orders`
 - `GET /api/orders?businessSlug=...`
 - `PATCH /api/orders/[orderId]`
 - `GET /api/products?businessSlug=...`
@@ -291,31 +340,37 @@ Protegidas:
 Ya existen migraciones para:
 
 - `order_code` en `orders`
-- alta basica de `businesses`
+- alta básica de `businesses`
 - ownership de negocios por `created_by_user_id`
-- RLS minima sobre `businesses`, `products` y `orders`
+- RLS mínima sobre `businesses`, `products` y `orders`
+- restricción adicional para legacy sin owner
 
-La estrategia actual de ownership es:
+La estrategia actual de acceso es:
 
 - negocios nuevos quedan asociados al usuario autenticado que los crea
 - negocios anteriores sin owner quedan bloqueados por defecto en el espacio operativo
-- solo se habilitan si entran en una allowlist explicita definida en codigo
-- en el workspace privado el identificador canonico del negocio es el `slug`; el `business_id` real queda interno para Supabase
+- solo se habilitan si entran en una allowlist explícita definida en código
+
+Importante:
+
+- el storefront público sigue siendo público
+- la operación privada depende de chequeos de acceso en la app y de la política actual de Supabase
+- hoy la cookie operativa firmada sigue siendo la sesión canónica del workspace
 
 ## 7. Próximos pasos priorizados
 
-Orden recomendado desde el estado actual del codigo:
+Orden recomendado desde el estado actual del código:
 
-1. Resolver migracion definitiva de negocios legacy sin owner:
-   definir si se reclaman, se migran a owner real o se eliminan de la allowlist temporal.
-2. Consolidar auth operativa:
-   unificar mejor la capa de sesion propia con la sesion de Supabase si el producto sigue creciendo.
-3. Profundizar gestion de catalogo:
-   mejorar todavia mas la operacion diaria sin abrir aun inventario complejo.
-4. Endurecer la operacion multi-negocio:
+1. Resolver salida definitiva para negocios legacy sin owner:
+   reclamar, migrar a owner real o eliminar la allowlist temporal.
+2. Simplificar mejor la convivencia entre Supabase Auth y la sesión operativa propia:
+   reducir duplicidad de responsabilidades si el producto sigue creciendo.
+3. Profundizar la gestión de catálogo:
+   seguir mejorando la carga y mantenimiento diario sin abrir aún inventario complejo.
+4. Endurecer la operación multi-negocio:
    revisar mejor ownership, accesos y flujos administrativos por usuario.
-5. Evolucionar metricas:
-   pasar de calculos de frontend a una capa mas estable si la validacion de uso lo justifica.
+5. Evolucionar métricas:
+   mantener la capa operativa simple, pero con más estabilidad si la validación de uso lo justifica.
 
 ## 8. Stack
 
@@ -340,13 +395,14 @@ npm install
 
 ### 2. Configurar variables de entorno
 
-Crea `.env.local` en la raiz con:
+Crea `.env.local` en la raíz con:
 
 ```env
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
 AUTH_SESSION_SECRET=
+NEXT_PUBLIC_SITE_URL=http://localhost:3000
 ```
 
 Notas:
@@ -355,9 +411,19 @@ Notas:
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` es obligatoria.
 - `SUPABASE_SERVICE_ROLE_KEY` se usa en servidor para operaciones privilegiadas.
 - `AUTH_SESSION_SECRET` es recomendable para firmar la cookie operativa propia.
-- si `AUTH_SESSION_SECRET` no existe, la sesion operativa cae en una clave derivada de otras variables; para desarrollo puede funcionar, pero no es lo ideal para produccion.
+- si `AUTH_SESSION_SECRET` no existe, la sesión operativa cae en una clave derivada de otras variables; para desarrollo puede funcionar, pero no es lo ideal para producción.
+- `NEXT_PUBLIC_SITE_URL` se usa para construir el redirect de confirmación por email y el callback de auth.
+- en producción `NEXT_PUBLIC_SITE_URL` debe existir y apuntar al dominio público real.
 
-### 3. Aplicar migraciones en Supabase
+### 3. Configurar Supabase Auth
+
+En Supabase Auth, el proyecto necesita permitir:
+
+- `Site URL` del entorno correspondiente
+- `Redirect URL` para `http://localhost:3000/auth/callback`
+- `Redirect URL` para el dominio público real, por ejemplo `https://tecpify.vercel.app/auth/callback`
+
+### 4. Aplicar migraciones en Supabase
 
 Las migraciones relevantes del proyecto son:
 
@@ -367,7 +433,7 @@ Las migraciones relevantes del proyecto son:
 - `supabase/migrations/20260320_enable_basic_auth_ownership_rls.sql`
 - `supabase/migrations/20260320_restrict_legacy_business_access.sql`
 
-### 4. Ejecutar en desarrollo
+### 5. Ejecutar en desarrollo
 
 ```bash
 npm run dev
@@ -384,16 +450,16 @@ npm run start
 npm run lint
 ```
 
-## Notas utiles
+## Notas útiles
 
-- `mockBusinesses` sigue existiendo para demos y fallback visual en home y resolucion de negocio.
+- `mockBusinesses` sigue existiendo para demos y fallback visual en home y resolución de negocio.
 - Los negocios demo no forman parte del flujo persistido.
-- Los negocios legacy sin `created_by_user_id` ya no quedan compartidos por defecto en el espacio operativo; solo se habilitan si se autorizan explicitamente en codigo.
-- El formulario publico puede reutilizar datos de pedidos recientes del mismo negocio para autocompletar nombre y direccion por WhatsApp.
+- Los negocios legacy sin `created_by_user_id` ya no quedan compartidos por defecto en el espacio operativo; solo se habilitan si se autorizan explícitamente en código.
+- El formulario público puede reutilizar datos de pedidos recientes del mismo negocio para autocompletar nombre y dirección por WhatsApp.
 - El storefront maneja estados distintos para:
   - negocio no encontrado
-  - negocio demo sin catalogo real
-  - catalogo vacio
-  - catalogo sin productos activos
-- La gestion de productos requiere `business_id` real.
-- Las metricas siguen siendo deliberadamente acotadas: sirven para lectura operativa basica, no como BI formal.
+  - negocio demo sin catálogo real
+  - catálogo vacío
+  - catálogo sin productos activos
+- La gestión de productos y pedidos en el workspace privado se resuelve por `businessSlug`, aunque la persistencia en Supabase siga usando `business_id`.
+- Las métricas siguen siendo deliberadamente acotadas: sirven para lectura operativa básica, no como BI formal.
