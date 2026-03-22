@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Tecpify",
-  description: "Dashboard operativo para la gestión de pedidos de pequeños negocios.",
+  description: "Landing y espacio operativo para gestionar pedidos de pequenos negocios.",
 };
 
 export const viewport: Viewport = {
