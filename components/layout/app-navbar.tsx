@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import type { ReactNode } from "react";
@@ -6,6 +6,13 @@ import { LogoutButton } from "@/components/auth/logout-button";
 
 type NavbarVariant = "marketing" | "workspace";
 type WorkspaceTab = "dashboard" | "pedidos" | "metricas";
+type AppNavLinkKey = "dashboard" | "pedidos" | "metricas";
+
+interface AppNavLink {
+  key: AppNavLinkKey;
+  label: string;
+  href: string;
+}
 
 interface AppNavbarProps {
   variant: NavbarVariant;
@@ -22,10 +29,10 @@ const marketingLinks = [
   { label: "Beneficios", href: "/#beneficios" },
 ];
 
-function getWorkspaceLinks(businessSlug?: string) {
-  const links = [
+function getWorkspaceLinks(businessSlug?: string): AppNavLink[] {
+  const links: AppNavLink[] = [
     {
-      key: "dashboard" as const,
+      key: "dashboard",
       label: "Dashboard",
       href: businessSlug ? `/dashboard/${businessSlug}` : "/dashboard",
     },
@@ -34,12 +41,12 @@ function getWorkspaceLinks(businessSlug?: string) {
   if (businessSlug) {
     links.push(
       {
-        key: "pedidos" as const,
+        key: "pedidos",
         label: "Pedidos",
         href: `/pedidos/${businessSlug}`,
       },
       {
-        key: "metricas" as const,
+        key: "metricas",
         label: "Metricas",
         href: `/metricas/${businessSlug}`,
       },
