@@ -6,7 +6,7 @@ import { LogoutButton } from "@/components/auth/logout-button";
 
 type NavbarVariant = "marketing" | "workspace";
 type WorkspaceTab = "dashboard" | "pedidos" | "metricas";
-type AppNavLinkKey = "dashboard" | "pedidos" | "metricas";
+type AppNavLinkKey = "home" | "dashboard" | "pedidos" | "metricas";
 
 interface AppNavLink {
   key: AppNavLinkKey;
@@ -23,10 +23,10 @@ interface AppNavbarProps {
   workspaceControls?: ReactNode;
 }
 
-const marketingLinks = [
-  { label: "Inicio", href: "/" },
-  { label: "Como funciona", href: "/#como-funciona" },
-  { label: "Beneficios", href: "/#beneficios" },
+const marketingLinks: AppNavLink[] = [
+  { key: "home", label: "Inicio", href: "/" },
+  { key: "home", label: "Como funciona", href: "/#como-funciona" },
+  { key: "home", label: "Beneficios", href: "/#beneficios" },
 ];
 
 function getWorkspaceLinks(businessSlug?: string): AppNavLink[] {
@@ -73,7 +73,7 @@ export function AppNavbar({
   workspaceControls,
 }: AppNavbarProps) {
   const isWorkspace = variant === "workspace";
-  const navLinks = isWorkspace ? getWorkspaceLinks(businessSlug) : marketingLinks;
+  const navLinks: AppNavLink[] = isWorkspace ? getWorkspaceLinks(businessSlug) : marketingLinks;
   const brandHref = isWorkspace ? "/dashboard" : "/";
   const brandSubtitle = isWorkspace
     ? businessName ?? "Centro operativo"
@@ -141,7 +141,7 @@ export function AppNavbar({
 
               return (
                 <Link
-                  key={link.href}
+                  key={`${link.key}-${link.href}`}
                   href={link.href}
                   className={`${navLinkClassName(isActive)} whitespace-nowrap`}
                 >
