@@ -56,20 +56,22 @@ export function LandingPage({ isAuthenticated }: LandingPageProps) {
   const primaryLabel = isAuthenticated ? "Ir a mi panel" : "Crear mi negocio gratis";
 
   return (
-    <main className="overflow-x-hidden">
-      <section className="px-4 pb-12 pt-6 sm:px-6 sm:pb-16 lg:px-8 lg:pb-20 lg:pt-10">
+    <main className="overflow-x-clip">
+      <section className="px-3 pb-12 pt-6 sm:px-6 sm:pb-16 lg:px-8 lg:pb-20 lg:pt-10">
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-10">
-          <div className="relative overflow-hidden rounded-[36px] border border-[#D9E6FF] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(238,245,255,0.92))] px-6 py-8 shadow-[0_24px_80px_rgba(18,50,107,0.12)] sm:px-8 sm:py-10 lg:px-12 lg:py-14">
+          <div className="relative overflow-hidden rounded-[32px] border border-[#D9E6FF] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(238,245,255,0.92))] px-4 py-7 shadow-[0_24px_80px_rgba(18,50,107,0.12)] sm:rounded-[36px] sm:px-8 sm:py-10 lg:px-12 lg:py-14">
             <div className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-[radial-gradient(circle_at_top_left,rgba(24,181,106,0.14),transparent_42%),radial-gradient(circle_at_top_right,rgba(18,50,107,0.12),transparent_36%)]" />
             <div className="relative grid items-center gap-10 lg:grid-cols-[minmax(0,1.04fr)_minmax(320px,0.96fr)] lg:gap-14">
-              <div className="max-w-[39rem]">
+              <div className="min-w-0 max-w-[39rem]">
                 <span className="inline-flex items-center rounded-full border border-[#CFE2FF] bg-white/88 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-[#294B8F] shadow-[0_8px_30px_rgba(18,50,107,0.08)]">
                   Para negocios que reciben pedidos
                 </span>
-                <h1 className="mt-5 text-[2.7rem] font-semibold leading-[0.96] tracking-[-0.05em] text-[#12326B] sm:text-[3.5rem] lg:text-[3.85rem] xl:text-[4.15rem]">
-                  <span className="block whitespace-nowrap">Organiza tus pedidos.</span>
-                  <span className="mt-2 block whitespace-nowrap">Comparte tu link.</span>
-                  <span className="mt-2 block whitespace-nowrap text-[#18B56A]">Opera sin desorden.</span>
+                <h1 className="mt-5 text-[clamp(2.3rem,10vw,3.5rem)] font-semibold leading-[0.98] tracking-[-0.05em] text-[#12326B] lg:text-[3.85rem] xl:text-[4.15rem]">
+                  <span className="block text-balance lg:whitespace-nowrap">Organiza tus pedidos.</span>
+                  <span className="mt-2 block text-balance lg:whitespace-nowrap">Comparte tu link.</span>
+                  <span className="mt-2 block text-balance text-[#18B56A] lg:whitespace-nowrap">
+                    Opera sin desorden.
+                  </span>
                 </h1>
                 <p className="mt-5 max-w-xl text-base leading-8 text-[#294B8F] sm:text-lg">
                   Recibe pedidos en linea, centraliza tu catalogo y lleva el control de todo en un
@@ -79,13 +81,13 @@ export function LandingPage({ isAuthenticated }: LandingPageProps) {
                 <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
                   <Link
                     href={primaryHref}
-                    className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-[#18B56A] px-6 py-3 text-sm font-semibold text-white shadow-[0_16px_34px_rgba(24,181,106,0.28)] transition hover:bg-[#129457]"
+                    className="inline-flex min-h-12 w-full items-center justify-center rounded-2xl bg-[#18B56A] px-6 py-3 text-sm font-semibold text-white shadow-[0_16px_34px_rgba(24,181,106,0.28)] transition hover:bg-[#129457] sm:w-auto"
                   >
                     {primaryLabel}
                   </Link>
                   <Link
                     href={secondaryHref}
-                    className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-[#D9E6FF] bg-white/90 px-6 py-3 text-sm font-semibold text-[#12326B] transition hover:border-[#BFD3FF] hover:bg-white"
+                    className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-[#D9E6FF] bg-white/90 px-6 py-3 text-sm font-semibold text-[#12326B] transition hover:border-[#BFD3FF] hover:bg-white sm:w-auto"
                   >
                     {secondaryLabel}
                     <ArrowRight className="h-4 w-4" aria-hidden="true" />
@@ -102,16 +104,16 @@ export function LandingPage({ isAuthenticated }: LandingPageProps) {
                 </div>
               </div>
 
-              <div className="relative mx-auto w-full max-w-[35rem] lg:max-w-none">
+              <div className="relative mx-auto min-w-0 w-full max-w-[35rem] lg:max-w-none">
                 <div className="absolute left-1/2 top-1/2 h-48 w-48 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#18B56A]/12 blur-3xl sm:h-64 sm:w-64" />
-                <div className="relative rounded-[30px] bg-[linear-gradient(180deg,rgba(255,255,255,0.7),rgba(238,245,255,0.38))] p-2 shadow-[0_26px_70px_rgba(18,50,107,0.14)] ring-1 ring-[#D9E6FF]/75 sm:p-3">
+                <div className="relative w-full max-w-full rounded-[26px] bg-[linear-gradient(180deg,rgba(255,255,255,0.7),rgba(238,245,255,0.38))] p-2 shadow-[0_26px_70px_rgba(18,50,107,0.14)] ring-1 ring-[#D9E6FF]/75 sm:rounded-[30px] sm:p-3">
                   <Image
                     src="/images/landing/hero-tecpify-square.png"
                     alt="Vista principal de Tecpify mostrando el flujo del producto para recibir y ordenar pedidos."
                     width={1200}
                     height={1200}
                     priority
-                    className="h-auto w-full rounded-[24px] object-cover"
+                    className="block h-auto max-w-full rounded-[20px] object-cover sm:rounded-[24px]"
                   />
                 </div>
               </div>
