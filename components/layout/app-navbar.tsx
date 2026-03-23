@@ -1,5 +1,6 @@
 ﻿"use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { Menu, X } from "lucide-react";
 import type { ReactNode } from "react";
@@ -156,82 +157,84 @@ export function AppNavbar({
   }
 
   return (
-    <header className="sticky top-0 z-40 border-b border-[#D9E6FF]/80 bg-[#F5F9FF]/88 backdrop-blur-xl">
-      <div className="mx-auto w-full max-w-7xl px-4 py-3 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between gap-4 rounded-[24px] border border-white/60 bg-white/72 px-4 py-3 shadow-[0_12px_40px_rgba(18,50,107,0.08)]">
-          <Link href={brandHref} className="flex min-w-0 items-center gap-3">
-            <span className="inline-flex shrink-0 rounded-xl bg-[#12326B] px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.24em] text-white">
-              Tecpify
-            </span>
-            <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-[#12326B]">Tecpify</p>
-              <p className="truncate text-xs text-[#294B8F]">{brandSubtitle}</p>
-            </div>
-          </Link>
+    <header className="sticky top-0 z-40 w-full border-b border-[#D9E6FF]/80 bg-white/84 backdrop-blur-md">
+      <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8 lg:py-3.5">
+        <Link href={brandHref} className="flex min-w-0 items-center gap-3 lg:flex-1">
+          <Image
+            src="/images/landing/Tecpify-logo.png"
+            alt="Tecpify"
+            width={160}
+            height={42}
+            priority
+            className="h-9 w-auto sm:h-10"
+          />
+          <p className="hidden max-w-sm text-sm leading-5 text-[#294B8F] xl:block">
+            Tecnifica pedidos, pagos y el control de tu negocio en un solo lugar.
+          </p>
+        </Link>
 
-          <nav aria-label="Navegacion principal" className="hidden items-center gap-1 lg:flex">
-            {navLinks.map((link) => (
+        <nav aria-label="Navegacion principal" className="hidden items-center gap-1 lg:flex">
+          {navLinks.map((link) => (
+            <Link
+              key={`${link.key}-${link.href}`}
+              href={link.href}
+              className="rounded-full px-4 py-2 text-sm font-medium text-[#294B8F] transition hover:bg-[#EEF5FF] hover:text-[#12326B]"
+            >
+              {link.label}
+            </Link>
+          ))}
+        </nav>
+
+        <div className="hidden items-center gap-2 lg:flex lg:flex-1 lg:justify-end">
+          {operatorEmail ? (
+            <>
+              <div className="flex items-center gap-2 rounded-full border border-[#D9E6FF] bg-[#F8FBFF] px-3 py-2">
+                <span className="text-xs font-medium text-[#294B8F]">Sesion</span>
+                <span className="max-w-44 truncate text-sm font-semibold text-[#12326B]">
+                  {operatorEmail}
+                </span>
+              </div>
+              <LogoutButton className="inline-flex h-11 items-center justify-center rounded-2xl border border-[#D9E6FF] bg-white px-4 text-sm font-medium text-[#12326B] transition hover:border-[#BFD3FF] hover:bg-[#F8FBFF]" />
+            </>
+          ) : (
+            <>
               <Link
-                key={`${link.key}-${link.href}`}
-                href={link.href}
-                className="rounded-full px-4 py-2 text-sm font-medium text-[#294B8F] transition hover:bg-[#EEF5FF] hover:text-[#12326B]"
+                href={loginHref}
+                className="inline-flex h-11 items-center justify-center rounded-2xl border border-[#D9E6FF] bg-white px-4 text-sm font-semibold text-[#12326B] transition hover:border-[#BFD3FF] hover:bg-[#F8FBFF]"
               >
-                {link.label}
+                Iniciar sesion
               </Link>
-            ))}
-          </nav>
-
-          <div className="hidden items-center gap-2 lg:flex">
-            {operatorEmail ? (
-              <>
-                <div className="flex items-center gap-2 rounded-full border border-[#D9E6FF] bg-[#F8FBFF] px-3 py-2">
-                  <span className="text-xs font-medium text-[#294B8F]">Sesion</span>
-                  <span className="max-w-44 truncate text-sm font-semibold text-[#12326B]">
-                    {operatorEmail}
-                  </span>
-                </div>
-                <LogoutButton
-                  className="inline-flex h-11 items-center justify-center rounded-2xl border border-[#D9E6FF] bg-white px-4 text-sm font-medium text-[#12326B] transition hover:border-[#BFD3FF] hover:bg-[#F8FBFF]"
-                />
-              </>
-            ) : (
-              <>
-                <Link
-                  href={loginHref}
-                  className="inline-flex h-11 items-center justify-center rounded-2xl border border-[#D9E6FF] bg-white px-4 text-sm font-semibold text-[#12326B] transition hover:border-[#BFD3FF] hover:bg-[#F8FBFF]"
-                >
-                  Iniciar sesion
-                </Link>
-                <Link
-                  href={registerHref}
-                  className="inline-flex h-11 items-center justify-center rounded-2xl bg-[#18B56A] px-5 text-sm font-semibold text-white shadow-[0_14px_30px_rgba(24,181,106,0.22)] transition hover:bg-[#129457]"
-                >
-                  Crear mi negocio
-                </Link>
-              </>
-            )}
-          </div>
-
-          <button
-            type="button"
-            aria-expanded={isMobileMenuOpen}
-            aria-controls="marketing-mobile-menu"
-            aria-label={isMobileMenuOpen ? "Cerrar menu" : "Abrir menu"}
-            onClick={() => setIsMobileMenuOpen((current) => !current)}
-            className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-[#D9E6FF] bg-white text-[#12326B] transition hover:bg-[#F8FBFF] lg:hidden"
-          >
-            {isMobileMenuOpen ? (
-              <X className="h-5 w-5" aria-hidden="true" />
-            ) : (
-              <Menu className="h-5 w-5" aria-hidden="true" />
-            )}
-          </button>
+              <Link
+                href={registerHref}
+                className="inline-flex h-11 items-center justify-center rounded-2xl bg-[#18B56A] px-5 text-sm font-semibold text-white shadow-[0_14px_30px_rgba(24,181,106,0.22)] transition hover:bg-[#129457]"
+              >
+                Crear mi negocio
+              </Link>
+            </>
+          )}
         </div>
 
-        <div
-          id="marketing-mobile-menu"
-          className={`${isMobileMenuOpen ? "mt-3 grid" : "hidden"} gap-3 rounded-[24px] border border-[#D9E6FF] bg-white/92 p-4 shadow-[0_18px_50px_rgba(18,50,107,0.08)] lg:hidden`}
+        <button
+          type="button"
+          aria-expanded={isMobileMenuOpen}
+          aria-controls="marketing-mobile-menu"
+          aria-label={isMobileMenuOpen ? "Cerrar menu" : "Abrir menu"}
+          onClick={() => setIsMobileMenuOpen((current) => !current)}
+          className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-[#D9E6FF] bg-white text-[#12326B] transition hover:bg-[#F8FBFF] lg:hidden"
         >
+          {isMobileMenuOpen ? (
+            <X className="h-5 w-5" aria-hidden="true" />
+          ) : (
+            <Menu className="h-5 w-5" aria-hidden="true" />
+          )}
+        </button>
+      </div>
+
+      <div
+        id="marketing-mobile-menu"
+        className={`${isMobileMenuOpen ? "grid" : "hidden"} border-t border-[#D9E6FF] bg-white/96 lg:hidden`}
+      >
+        <div className="mx-auto grid w-full max-w-7xl gap-3 px-4 py-4 sm:px-6">
           <nav aria-label="Navegacion principal movil" className="grid gap-1">
             {navLinks.map((link) => (
               <Link
