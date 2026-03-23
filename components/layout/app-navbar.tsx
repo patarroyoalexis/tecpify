@@ -1,7 +1,9 @@
 ﻿"use client";
 
 import Link from "next/link";
+import { Menu, X } from "lucide-react";
 import type { ReactNode } from "react";
+import { useState } from "react";
 import { LogoutButton } from "@/components/auth/logout-button";
 
 type NavbarVariant = "marketing" | "workspace";
@@ -72,98 +74,207 @@ export function AppNavbar({
   activeTab = "dashboard",
   workspaceControls,
 }: AppNavbarProps) {
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const isWorkspace = variant === "workspace";
   const navLinks: AppNavLink[] = isWorkspace ? getWorkspaceLinks(businessSlug) : marketingLinks;
   const brandHref = isWorkspace ? "/dashboard" : "/";
   const brandSubtitle = isWorkspace
     ? businessName ?? "Centro operativo"
-    : "Pedidos, catalogo y operacion ligera para pequenos negocios";
+    : "Pedidos y operacion clara para pequenos negocios";
   const loginHref = "/login?redirectTo=/dashboard";
   const registerHref = "/register?redirectTo=/dashboard";
 
+  if (isWorkspace) {
+    return (
+      <header className="sticky top-0 z-40 border-b border-slate-200/70 bg-white/92 backdrop-blur-xl">
+        <div className="mx-auto flex w-full max-w-7xl flex-col px-3 py-3 sm:px-4 lg:px-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <Link href={brandHref} className="flex min-w-0 items-center gap-3">
+              <span className="inline-flex shrink-0 rounded-xl bg-slate-950 px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.24em] text-white">
+                Tecpify
+              </span>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-slate-900">Workspace</p>
+                <p className="truncate text-xs text-slate-500">{brandSubtitle}</p>
+              </div>
+            </Link>
+
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              {workspaceControls}
+
+              {operatorEmail ? (
+                <>
+                  <div className="hidden items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 lg:flex">
+                    <span className="text-xs font-medium text-slate-500">Sesion</span>
+                    <span className="max-w-44 truncate text-sm font-semibold text-slate-800">
+                      {operatorEmail}
+                    </span>
+                  </div>
+                  <LogoutButton
+                    className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                  />
+                </>
+              ) : (
+                <>
+                  <Link
+                    href={loginHref}
+                    className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                  >
+                    Iniciar sesion
+                  </Link>
+                  <Link
+                    href={registerHref}
+                    className="inline-flex h-10 items-center justify-center rounded-xl bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-slate-800"
+                  >
+                    Crear cuenta
+                  </Link>
+                </>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-3 flex items-center gap-2 overflow-x-auto pb-1">
+            <nav aria-label="Navegacion privada" className="flex min-w-full items-center gap-1">
+              {navLinks.map((link) => {
+                const isActive = link.key === activeTab;
+
+                return (
+                  <Link
+                    key={`${link.key}-${link.href}`}
+                    href={link.href}
+                    className={`${navLinkClassName(isActive)} whitespace-nowrap`}
+                  >
+                    {link.label}
+                  </Link>
+                );
+              })}
+            </nav>
+          </div>
+        </div>
+      </header>
+    );
+  }
+
   return (
-    <header className="sticky top-0 z-40 border-b border-slate-200/70 bg-white/92 backdrop-blur-xl">
-      <div className="mx-auto flex w-full max-w-7xl flex-col px-3 py-3 sm:px-4 lg:px-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+    <header className="sticky top-0 z-40 border-b border-[#D9E6FF]/80 bg-[#F5F9FF]/88 backdrop-blur-xl">
+      <div className="mx-auto w-full max-w-7xl px-4 py-3 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between gap-4 rounded-[24px] border border-white/60 bg-white/72 px-4 py-3 shadow-[0_12px_40px_rgba(18,50,107,0.08)]">
           <Link href={brandHref} className="flex min-w-0 items-center gap-3">
-            <span className="inline-flex shrink-0 rounded-xl bg-slate-950 px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.24em] text-white">
+            <span className="inline-flex shrink-0 rounded-xl bg-[#12326B] px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.24em] text-white">
               Tecpify
             </span>
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-slate-900">
-                {isWorkspace ? "Workspace" : "Tecpify"}
-              </p>
-              <p className="truncate text-xs text-slate-500">{brandSubtitle}</p>
+              <p className="truncate text-sm font-semibold text-[#12326B]">Tecpify</p>
+              <p className="truncate text-xs text-[#294B8F]">{brandSubtitle}</p>
             </div>
           </Link>
 
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            {workspaceControls}
+          <nav aria-label="Navegacion principal" className="hidden items-center gap-1 lg:flex">
+            {navLinks.map((link) => (
+              <Link
+                key={`${link.key}-${link.href}`}
+                href={link.href}
+                className="rounded-full px-4 py-2 text-sm font-medium text-[#294B8F] transition hover:bg-[#EEF5FF] hover:text-[#12326B]"
+              >
+                {link.label}
+              </Link>
+            ))}
+          </nav>
 
+          <div className="hidden items-center gap-2 lg:flex">
             {operatorEmail ? (
               <>
-                <div className="hidden items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 lg:flex">
-                  <span className="text-xs font-medium text-slate-500">Sesion</span>
-                  <span className="max-w-44 truncate text-sm font-semibold text-slate-800">
+                <div className="flex items-center gap-2 rounded-full border border-[#D9E6FF] bg-[#F8FBFF] px-3 py-2">
+                  <span className="text-xs font-medium text-[#294B8F]">Sesion</span>
+                  <span className="max-w-44 truncate text-sm font-semibold text-[#12326B]">
                     {operatorEmail}
                   </span>
                 </div>
                 <LogoutButton
-                  className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                  className="inline-flex h-11 items-center justify-center rounded-2xl border border-[#D9E6FF] bg-white px-4 text-sm font-medium text-[#12326B] transition hover:border-[#BFD3FF] hover:bg-[#F8FBFF]"
                 />
               </>
             ) : (
               <>
                 <Link
                   href={loginHref}
-                  className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                  className="inline-flex h-11 items-center justify-center rounded-2xl border border-[#D9E6FF] bg-white px-4 text-sm font-semibold text-[#12326B] transition hover:border-[#BFD3FF] hover:bg-[#F8FBFF]"
                 >
                   Iniciar sesion
                 </Link>
                 <Link
                   href={registerHref}
-                  className="inline-flex h-10 items-center justify-center rounded-xl bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-slate-800"
+                  className="inline-flex h-11 items-center justify-center rounded-2xl bg-[#18B56A] px-5 text-sm font-semibold text-white shadow-[0_14px_30px_rgba(24,181,106,0.22)] transition hover:bg-[#129457]"
                 >
-                  Crear cuenta
+                  Crear mi negocio
                 </Link>
               </>
             )}
           </div>
+
+          <button
+            type="button"
+            aria-expanded={isMobileMenuOpen}
+            aria-controls="marketing-mobile-menu"
+            aria-label={isMobileMenuOpen ? "Cerrar menu" : "Abrir menu"}
+            onClick={() => setIsMobileMenuOpen((current) => !current)}
+            className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-[#D9E6FF] bg-white text-[#12326B] transition hover:bg-[#F8FBFF] lg:hidden"
+          >
+            {isMobileMenuOpen ? (
+              <X className="h-5 w-5" aria-hidden="true" />
+            ) : (
+              <Menu className="h-5 w-5" aria-hidden="true" />
+            )}
+          </button>
         </div>
 
-        <div className="mt-3 flex items-center gap-2 overflow-x-auto pb-1">
-          <nav
-            aria-label={isWorkspace ? "Navegacion privada" : "Navegacion principal"}
-            className="flex min-w-full items-center gap-1"
-          >
-            {navLinks.map((link) => {
-              const isActive = isWorkspace ? link.key === activeTab : link.href === "/";
+        <div
+          id="marketing-mobile-menu"
+          className={`${isMobileMenuOpen ? "mt-3 grid" : "hidden"} gap-3 rounded-[24px] border border-[#D9E6FF] bg-white/92 p-4 shadow-[0_18px_50px_rgba(18,50,107,0.08)] lg:hidden`}
+        >
+          <nav aria-label="Navegacion principal movil" className="grid gap-1">
+            {navLinks.map((link) => (
+              <Link
+                key={`mobile-${link.key}-${link.href}`}
+                href={link.href}
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="rounded-2xl px-4 py-3 text-sm font-medium text-[#12326B] transition hover:bg-[#EEF5FF]"
+              >
+                {link.label}
+              </Link>
+            ))}
+          </nav>
 
-              return (
-                <Link
-                  key={`${link.key}-${link.href}`}
-                  href={link.href}
-                  className={`${navLinkClassName(isActive)} whitespace-nowrap`}
-                >
-                  {link.label}
-                </Link>
-              );
-            })}
-
-            {!isWorkspace ? (
+          <div className="grid gap-2 pt-2">
+            {operatorEmail ? (
               <>
-                <Link href={loginHref} className={`${navLinkClassName(false)} whitespace-nowrap`}>
-                  Acceso
+                <div className="rounded-2xl border border-[#D9E6FF] bg-[#F8FBFF] px-4 py-3">
+                  <p className="text-xs font-medium text-[#294B8F]">Sesion activa</p>
+                  <p className="mt-1 truncate text-sm font-semibold text-[#12326B]">
+                    {operatorEmail}
+                  </p>
+                </div>
+                <LogoutButton className="inline-flex h-11 items-center justify-center rounded-2xl border border-[#D9E6FF] bg-white px-4 text-sm font-medium text-[#12326B] transition hover:border-[#BFD3FF] hover:bg-[#F8FBFF]" />
+              </>
+            ) : (
+              <>
+                <Link
+                  href={loginHref}
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="inline-flex h-11 items-center justify-center rounded-2xl border border-[#D9E6FF] bg-white px-4 text-sm font-semibold text-[#12326B] transition hover:border-[#BFD3FF] hover:bg-[#F8FBFF]"
+                >
+                  Iniciar sesion
                 </Link>
                 <Link
                   href={registerHref}
-                  className="ml-auto whitespace-nowrap rounded-xl bg-slate-100 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-200"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="inline-flex h-11 items-center justify-center rounded-2xl bg-[#18B56A] px-4 text-sm font-semibold text-white transition hover:bg-[#129457]"
                 >
-                  Empieza hoy
+                  Crear mi negocio
                 </Link>
               </>
-            ) : null}
-          </nav>
+            )}
+          </div>
         </div>
       </div>
     </header>

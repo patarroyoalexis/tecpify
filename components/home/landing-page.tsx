@@ -1,190 +1,237 @@
+import Image from "next/image";
 import Link from "next/link";
+import { ArrowRight, CheckCircle2 } from "lucide-react";
 
 interface LandingPageProps {
   isAuthenticated: boolean;
 }
 
-const benefits = [
-  {
-    title: "Link publico por negocio",
-    description: "Cada negocio comparte su propio enlace para empezar a recibir pedidos sin friccion.",
-  },
-  {
-    title: "Pedidos centralizados",
-    description: "La operacion diaria queda ordenada en un solo espacio para revisar y avanzar estados.",
-  },
-  {
-    title: "Operacion mas clara",
-    description: "Catalogo, pedidos y seguimiento basico conviven con el mismo lenguaje visual del MVP.",
-  },
-  {
-    title: "Metricas para empezar",
-    description: "Visualiza senales basicas del negocio sin depender de una capa analitica compleja.",
-  },
+const operationalSignals = [
+  "Menos desorden en WhatsApp",
+  "Catalogo centralizado",
+  "Seguimiento claro del pedido",
+  "Control operativo desde un solo lugar",
 ];
 
 const steps = [
-  "Crea tu negocio y activa tu espacio operativo.",
-  "Carga un catalogo basico con productos disponibles.",
-  "Comparte tu link publico con clientes.",
-  "Recibe y gestiona pedidos desde el dashboard.",
+  {
+    number: "01",
+    title: "Crea tu negocio",
+    description: "Activa tu espacio en minutos y deja lista una base clara para operar.",
+  },
+  {
+    number: "02",
+    title: "Comparte tu link",
+    description: "Muestra tu catalogo con un enlace publico facil de enviar por WhatsApp o redes.",
+  },
+  {
+    number: "03",
+    title: "Recibe y organiza pedidos",
+    description: "Consulta entradas, seguimiento y estado operativo sin perder conversaciones.",
+  },
+];
+
+const benefits = [
+  {
+    title: "La entrada del negocio deja de depender del chat",
+    description:
+      "Tus clientes siguen llegando por canales familiares, pero los pedidos entran a un flujo mucho mas ordenado.",
+  },
+  {
+    title: "Tu catalogo vive en un solo punto",
+    description:
+      "Productos, disponibilidad y presentacion dejan de dispersarse en mensajes, fotos sueltas y respuestas repetidas.",
+  },
+  {
+    title: "Cada pedido tiene trazabilidad basica",
+    description:
+      "Sabes que entro, en que estado va y que necesita atencion, sin improvisar seguimiento manual.",
+  },
 ];
 
 export function LandingPage({ isAuthenticated }: LandingPageProps) {
   const primaryHref = isAuthenticated ? "/dashboard" : "/register?redirectTo=/dashboard";
-  const secondaryHref = isAuthenticated ? "/dashboard" : "/login?redirectTo=/dashboard";
+  const secondaryHref = "#como-funciona";
+  const secondaryLabel = "Ver como funciona";
+  const primaryLabel = isAuthenticated ? "Ir a mi panel" : "Crear mi negocio gratis";
 
   return (
-    <main>
-      <section className="px-4 pb-10 pt-8 sm:px-6 lg:px-5">
-        <div className="mx-auto grid w-full max-w-7xl gap-6 lg:grid-cols-[1.15fr_0.85fr]">
-          <div className="rounded-[32px] border border-white/70 bg-white/92 p-8 shadow-[0_24px_80px_rgba(15,23,42,0.1)] sm:p-10">
-            <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-500">
-              Tecpify para pequenos negocios
-            </p>
-            <h1 className="mt-4 max-w-3xl text-4xl font-semibold tracking-tight text-slate-950 sm:text-5xl">
-              Recibe y gestiona pedidos de tu negocio en un solo lugar.
-            </h1>
-            <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600 sm:text-lg">
-              Publica un catalogo simple, comparte tu link y organiza la operacion diaria con una
-              capa privada enfocada en pedidos, seguimiento y visibilidad inicial.
-            </p>
+    <main className="overflow-x-hidden">
+      <section className="px-4 pb-12 pt-6 sm:px-6 sm:pb-16 lg:px-8 lg:pb-20 lg:pt-10">
+        <div className="mx-auto flex w-full max-w-7xl flex-col gap-10">
+          <div className="relative overflow-hidden rounded-[36px] border border-[#D9E6FF] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(238,245,255,0.92))] px-6 py-8 shadow-[0_24px_80px_rgba(18,50,107,0.12)] sm:px-8 sm:py-10 lg:px-12 lg:py-14">
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-[radial-gradient(circle_at_top_left,rgba(24,181,106,0.14),transparent_42%),radial-gradient(circle_at_top_right,rgba(18,50,107,0.12),transparent_36%)]" />
+            <div className="relative grid items-center gap-10 lg:grid-cols-[1.02fr_0.98fr] lg:gap-14">
+              <div className="max-w-2xl">
+                <span className="inline-flex items-center rounded-full border border-[#CFE2FF] bg-white/88 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-[#294B8F] shadow-[0_8px_30px_rgba(18,50,107,0.08)]">
+                  Para negocios que reciben pedidos
+                </span>
+                <h1 className="mt-5 max-w-3xl text-4xl font-semibold leading-tight tracking-[-0.04em] text-[#12326B] sm:text-5xl lg:text-6xl">
+                  Organiza tus pedidos. Comparte tu link.{" "}
+                  <span className="text-[#18B56A]">Opera sin desorden.</span>
+                </h1>
+                <p className="mt-5 max-w-xl text-base leading-8 text-[#294B8F] sm:text-lg">
+                  Recibe pedidos en linea, centraliza tu catalogo y lleva el control de todo en un
+                  solo lugar.
+                </p>
 
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+                <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+                  <Link
+                    href={primaryHref}
+                    className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-[#18B56A] px-6 py-3 text-sm font-semibold text-white shadow-[0_16px_34px_rgba(24,181,106,0.28)] transition hover:bg-[#129457]"
+                  >
+                    {primaryLabel}
+                  </Link>
+                  <Link
+                    href={secondaryHref}
+                    className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-[#D9E6FF] bg-white/90 px-6 py-3 text-sm font-semibold text-[#12326B] transition hover:border-[#BFD3FF] hover:bg-white"
+                  >
+                    {secondaryLabel}
+                    <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                  </Link>
+                </div>
+
+                <div className="mt-8 grid gap-3 border-t border-[#D9E6FF] pt-6 sm:grid-cols-2 xl:grid-cols-4">
+                  {operationalSignals.map((signal) => (
+                    <div key={signal} className="flex items-center gap-2 text-sm text-[#14213D]">
+                      <CheckCircle2 className="h-4 w-4 text-[#18B56A]" aria-hidden="true" />
+                      <span>{signal}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="relative mx-auto w-full max-w-[34rem] lg:max-w-none">
+                <div className="absolute left-1/2 top-1/2 h-48 w-48 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#18B56A]/12 blur-3xl sm:h-64 sm:w-64" />
+                <div className="relative overflow-hidden rounded-[32px] border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.95),rgba(231,240,255,0.96))] p-4 shadow-[0_30px_80px_rgba(18,50,107,0.18)] sm:p-5">
+                  <div className="rounded-[26px] border border-[#D9E6FF] bg-[#F8FBFF] p-3 shadow-inner shadow-white/70 sm:p-4">
+                    <Image
+                      src="/images/landing/hero-tecpify-square.png"
+                      alt="Vista principal de Tecpify mostrando el flujo del producto para recibir y ordenar pedidos."
+                      width={1200}
+                      height={1200}
+                      priority
+                      className="h-auto w-full rounded-[20px] object-cover"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="como-funciona" className="px-4 py-12 sm:px-6 sm:py-16 lg:px-8">
+        <div className="mx-auto grid w-full max-w-7xl gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:gap-14">
+          <div className="max-w-xl">
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#294B8F]">
+              Como funciona
+            </p>
+            <h2 className="mt-4 text-3xl font-semibold tracking-[-0.03em] text-[#12326B] sm:text-4xl">
+              Un flujo simple para empezar a operar con mas claridad.
+            </h2>
+            <p className="mt-4 text-base leading-8 text-[#294B8F]">
+              Tecpify reduce el caos operativo a tres pasos concretos para que un negocio publique
+              rapido, comparta mejor y atienda pedidos con orden desde el primer dia.
+            </p>
+          </div>
+
+          <div className="relative">
+            <div className="absolute bottom-4 left-[1.05rem] top-4 hidden w-px bg-[linear-gradient(180deg,#BFD3FF,#D9E6FF)] md:block" />
+            <div className="grid gap-5">
+              {steps.map((step) => (
+                <article
+                  key={step.number}
+                  className="relative grid gap-4 rounded-[28px] border border-[#D9E6FF] bg-white/80 p-6 shadow-[0_18px_50px_rgba(18,50,107,0.08)] md:grid-cols-[auto_1fr]"
+                >
+                  <div className="relative z-10 inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#12326B] text-sm font-semibold text-white shadow-[0_10px_24px_rgba(18,50,107,0.22)]">
+                    {step.number}
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-semibold text-[#14213D]">{step.title}</h3>
+                    <p className="mt-2 text-sm leading-7 text-[#294B8F] sm:text-base">
+                      {step.description}
+                    </p>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="beneficios" className="px-4 py-12 sm:px-6 sm:py-16 lg:px-8">
+        <div className="mx-auto grid w-full max-w-7xl gap-8 lg:grid-cols-[0.92fr_1.08fr] lg:gap-14">
+          <div className="max-w-xl">
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#294B8F]">
+              Beneficios reales
+            </p>
+            <h2 className="mt-4 text-3xl font-semibold tracking-[-0.03em] text-[#12326B] sm:text-4xl">
+              Mas control para operar, menos friccion para vender.
+            </h2>
+            <p className="mt-4 text-base leading-8 text-[#294B8F]">
+              No es un dashboard recargado ni una promesa vacia: es una forma mas clara de
+              recibir pedidos y sostener la operacion cotidiana.
+            </p>
+          </div>
+
+          <div className="grid gap-4">
+            {benefits.map((benefit, index) => (
+              <article
+                key={benefit.title}
+                className={`rounded-[30px] border border-[#D9E6FF] px-6 py-6 shadow-[0_16px_44px_rgba(18,50,107,0.08)] ${
+                  index === 1
+                    ? "bg-[linear-gradient(135deg,rgba(255,255,255,0.98),rgba(238,245,255,0.92))]"
+                    : "bg-white/82"
+                }`}
+              >
+                <div className="flex items-start gap-4">
+                  <span className="mt-1 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#EEF5FF] text-sm font-semibold text-[#12326B]">
+                    0{index + 1}
+                  </span>
+                  <div>
+                    <h3 className="text-xl font-semibold text-[#14213D]">{benefit.title}</h3>
+                    <p className="mt-3 max-w-2xl text-sm leading-7 text-[#294B8F] sm:text-base">
+                      {benefit.description}
+                    </p>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="px-4 pb-14 pt-8 sm:px-6 sm:pb-16 lg:px-8 lg:pb-20">
+        <div className="mx-auto w-full max-w-7xl overflow-hidden rounded-[34px] border border-[#D9E6FF] bg-[linear-gradient(135deg,#12326B_0%,#163D83_62%,#1A4A9B_100%)] px-6 py-8 text-white shadow-[0_28px_90px_rgba(18,50,107,0.22)] sm:px-8 sm:py-10 lg:px-12 lg:py-12">
+          <div className="flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
+            <div className="max-w-2xl">
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#B9D7FF]">
+                Empieza hoy
+              </p>
+              <h2 className="mt-4 text-3xl font-semibold tracking-[-0.03em] sm:text-4xl">
+                Dale a tu negocio una entrada mas clara para vender y operar.
+              </h2>
+              <p className="mt-4 text-base leading-8 text-[#DCE8FF]">
+                Crea tu negocio gratis y empieza a recibir pedidos con una experiencia mas
+                ordenada, simple y profesional.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-3 sm:flex-row">
               <Link
                 href={primaryHref}
-                className="inline-flex items-center justify-center rounded-2xl bg-slate-950 px-6 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+                className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-[#18B56A] px-6 py-3 text-sm font-semibold text-white shadow-[0_18px_36px_rgba(24,181,106,0.24)] transition hover:bg-[#129457]"
               >
-                {isAuthenticated ? "Ir al dashboard" : "Crear cuenta"}
+                {primaryLabel}
               </Link>
               <Link
                 href={secondaryHref}
-                className="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-white/18 bg-white/10 px-6 py-3 text-sm font-semibold text-white transition hover:bg-white/16"
               >
-                {isAuthenticated ? "Abrir espacio operativo" : "Iniciar sesion"}
+                {secondaryLabel}
               </Link>
             </div>
-
-            <p className="mt-4 text-sm leading-6 text-slate-500">
-              Pensado para negocios que necesitan validar rapido su flujo de pedidos antes de
-              crecer a una operacion mas compleja.
-            </p>
-          </div>
-
-          <aside className="rounded-[32px] border border-slate-200/80 bg-white/88 p-6 shadow-[0_24px_80px_rgba(15,23,42,0.08)] sm:p-8">
-            <p className="text-sm font-semibold uppercase tracking-[0.24em] text-emerald-600">
-              Pensado para empezar simple
-            </p>
-            <div className="mt-5 grid gap-4">
-              <article className="rounded-[24px] border border-emerald-200 bg-emerald-50/70 p-5">
-                <p className="text-sm font-semibold text-slate-950">Catalogo y link publico</p>
-                <p className="mt-2 text-sm leading-6 text-slate-600">
-                  Cada negocio puede compartir un formulario propio para recibir pedidos desde su
-                  canal mas cercano.
-                </p>
-              </article>
-              <article className="rounded-[24px] border border-slate-200 bg-slate-50/80 p-5">
-                <p className="text-sm font-semibold text-slate-950">Operacion privada</p>
-                <p className="mt-2 text-sm leading-6 text-slate-600">
-                  El equipo entra a una capa autenticada para revisar pedidos, productos y senales
-                  basicas del negocio.
-                </p>
-              </article>
-              <article className="rounded-[24px] border border-sky-200 bg-sky-50/70 p-5">
-                <p className="text-sm font-semibold text-slate-950">Base lista para crecer</p>
-                <p className="mt-2 text-sm leading-6 text-slate-600">
-                  La estructura separa captacion y operacion para que el siguiente refactor sea mas
-                  ordenado y mantenible.
-                </p>
-              </article>
-            </div>
-          </aside>
-        </div>
-      </section>
-
-      <section id="como-funciona" className="px-4 py-8 sm:px-6 lg:px-5">
-        <div className="mx-auto w-full max-w-7xl rounded-[32px] border border-white/70 bg-white/88 p-6 shadow-[0_18px_60px_rgba(15,23,42,0.08)] sm:p-8">
-          <div className="max-w-2xl">
-            <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-500">
-              Como funciona
-            </p>
-            <h2 className="mt-3 text-3xl font-semibold text-slate-950">
-              Un flujo corto para salir a operar rapido
-            </h2>
-            <p className="mt-3 text-sm leading-6 text-slate-600 sm:text-base">
-              Tecpify organiza lo esencial del MVP para que un negocio pueda publicar, recibir y
-              atender pedidos sin perder tiempo en configuraciones innecesarias.
-            </p>
-          </div>
-
-          <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            {steps.map((step, index) => (
-              <article
-                key={step}
-                className="rounded-[24px] border border-slate-200 bg-slate-50/80 p-5"
-              >
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  Paso {index + 1}
-                </p>
-                <p className="mt-3 text-base font-semibold text-slate-950">{step}</p>
-              </article>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section id="beneficios" className="px-4 py-8 sm:px-6 lg:px-5">
-        <div className="mx-auto w-full max-w-7xl">
-          <div className="max-w-2xl">
-            <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-500">
-              Beneficios
-            </p>
-            <h2 className="mt-3 text-3xl font-semibold text-slate-950">
-              Lo que necesita un negocio pequeno para arrancar
-            </h2>
-          </div>
-
-          <div className="mt-6 grid gap-4 md:grid-cols-2">
-            {benefits.map((benefit) => (
-              <article
-                key={benefit.title}
-                className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_18px_60px_rgba(15,23,42,0.08)]"
-              >
-                <h3 className="text-xl font-semibold text-slate-950">{benefit.title}</h3>
-                <p className="mt-3 text-sm leading-6 text-slate-600">{benefit.description}</p>
-              </article>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="px-4 pb-12 pt-8 sm:px-6 lg:px-5">
-        <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 rounded-[32px] border border-slate-200/80 bg-[linear-gradient(135deg,rgba(15,23,42,0.98),rgba(30,41,59,0.96))] p-8 text-white shadow-[0_24px_80px_rgba(15,23,42,0.18)] sm:flex-row sm:items-center sm:justify-between">
-          <div className="max-w-2xl">
-            <p className="text-sm font-semibold uppercase tracking-[0.24em] text-sky-200">
-              Empieza hoy
-            </p>
-            <h2 className="mt-3 text-3xl font-semibold tracking-tight">
-              Deja clara la entrada al producto y centraliza la operacion.
-            </h2>
-            <p className="mt-3 text-sm leading-6 text-slate-200">
-              Crea tu cuenta para abrir el espacio operativo o entra si ya tienes acceso.
-            </p>
-          </div>
-
-          <div className="flex flex-col gap-3 sm:min-w-[240px]">
-            <Link
-              href={primaryHref}
-              className="inline-flex items-center justify-center rounded-2xl bg-white px-6 py-3 text-sm font-semibold text-slate-950 transition hover:bg-slate-100"
-            >
-              {isAuthenticated ? "Ir al dashboard" : "Crear cuenta"}
-            </Link>
-            <Link
-              href={secondaryHref}
-              className="inline-flex items-center justify-center rounded-2xl border border-white/20 bg-white/10 px-6 py-3 text-sm font-semibold text-white transition hover:bg-white/15"
-            >
-              {isAuthenticated ? "Ver negocios" : "Iniciar sesion"}
-            </Link>
           </div>
         </div>
       </section>
