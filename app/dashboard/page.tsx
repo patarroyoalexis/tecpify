@@ -1,10 +1,10 @@
 import { OperationalHome } from "@/components/home/operational-home";
 import { WorkspaceLayoutShell } from "@/components/layout/workspace-layout-shell";
 import { getHomeBusinesses } from "@/data/businesses";
-import { requireOperatorSession } from "@/lib/auth/server";
+import { requireAuthenticatedUser } from "@/lib/auth/server";
 
 export default async function DashboardHomePage() {
-  const operator = await requireOperatorSession("/dashboard");
+  const operator = await requireAuthenticatedUser("/dashboard");
   const businesses = await getHomeBusinesses(operator.userId);
 
   return (

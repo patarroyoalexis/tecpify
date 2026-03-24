@@ -1,8 +1,7 @@
 import type { User } from "@supabase/supabase-js";
 
-import { createOperatorSession, writeOperatorSession } from "@/lib/auth/session";
 import { getAuthCallbackUrl } from "@/lib/site-url";
-import { createServerSupabaseIdentityClient } from "@/lib/supabase/server";
+import { createServerSupabaseAuthClient } from "@/lib/supabase/server";
 
 export interface OperatorIdentityResult {
   user: User;
@@ -10,7 +9,7 @@ export interface OperatorIdentityResult {
 }
 
 export async function authenticateOperatorCredentials(email: string, password: string) {
-  const supabase = createServerSupabaseIdentityClient();
+  const supabase = await createServerSupabaseAuthClient();
   const { data, error } = await supabase.auth.signInWithPassword({
     email,
     password,
@@ -31,7 +30,7 @@ export async function registerOperatorCredentials(
   password: string,
   options?: { redirectTo?: string | null | undefined },
 ) {
-  const supabase = createServerSupabaseIdentityClient();
+  const supabase = await createServerSupabaseAuthClient();
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
@@ -54,6 +53,11 @@ export async function registerOperatorCredentials(
   } satisfies OperatorIdentityResult;
 }
 
-export async function issueOperatorSessionForUser(user: User, fallbackEmail: string) {
-  await writeOperatorSession(createOperatorSession(user.email ?? fallbackEmail, user.id));
+export async function signOutAuthenticatedOperator() {
+  const supabase = await createServerSupabaseAuthClient();
+  const { error } = await supabase.auth.signOut();
+
+  if (error) {
+    throw new Error(error.message || "No fue posible cerrar la sesion.");
+  }
 }

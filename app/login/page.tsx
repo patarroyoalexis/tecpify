@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 
 import { LoginForm } from "@/components/auth/login-form";
 import { PublicLayoutShell } from "@/components/layout/public-layout-shell";
-import { getOperatorSession, sanitizeRedirectPath } from "@/lib/auth/server";
+import { getCurrentUser, sanitizeRedirectPath } from "@/lib/auth/server";
 
 export default async function LoginPage({
   searchParams,
@@ -11,7 +11,7 @@ export default async function LoginPage({
 }) {
   const resolvedSearchParams = await searchParams;
   const redirectTo = sanitizeRedirectPath(resolvedSearchParams.redirectTo);
-  const operator = await getOperatorSession();
+  const operator = await getCurrentUser();
 
   if (operator) {
     redirect(redirectTo);

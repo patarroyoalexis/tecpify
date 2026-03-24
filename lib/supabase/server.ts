@@ -1,54 +1,66 @@
+import { cookies } from "next/headers";
+import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-const supabaseServerKey =
-  process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-const isUsingServiceRole = Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY);
+import { getServerEnv } from "@/lib/env";
 
-if (!supabaseUrl) {
-  throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL environment variable.");
+const serverEnv = getServerEnv();
+
+function createStatelessSupabaseClient(accessToken: string) {
+  return createClient(serverEnv.nextPublicSupabaseUrl, accessToken, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  });
 }
 
-if (!supabaseServerKey) {
-  throw new Error(
-    "Missing SUPABASE_SERVICE_ROLE_KEY or NEXT_PUBLIC_SUPABASE_ANON_KEY environment variable.",
+export async function createServerSupabaseAuthClient() {
+  const cookieStore = await cookies();
+
+  return createServerClient(
+    serverEnv.nextPublicSupabaseUrl,
+    serverEnv.nextPublicSupabaseAnonKey,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll();
+        },
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) => {
+              cookieStore.set(name, value, options);
+            });
+          } catch {
+            // Server Components can read cookies but may not always be allowed to mutate them.
+          }
+        },
+      },
+    },
   );
 }
 
-if (!supabaseAnonKey) {
-  throw new Error("Missing NEXT_PUBLIC_SUPABASE_ANON_KEY environment variable.");
+export function createServerSupabasePublicClient() {
+  return createStatelessSupabaseClient(serverEnv.nextPublicSupabaseAnonKey);
 }
 
-const safeSupabaseUrl = supabaseUrl;
-const safeSupabaseAnonKey = supabaseAnonKey;
+export function createServerSupabaseAdminClient() {
+  if (!serverEnv.supabaseServiceRoleKey) {
+    throw new Error(
+      "SUPABASE_SERVICE_ROLE_KEY es obligatoria para este flujo administrativo.",
+    );
+  }
 
-export function createServerSupabaseClient() {
-  const resolvedUrl = safeSupabaseUrl;
-  const resolvedKey = supabaseServerKey!;
-
-  return createClient(resolvedUrl, resolvedKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  });
+  return createStatelessSupabaseClient(serverEnv.supabaseServiceRoleKey);
 }
 
-export function createServerSupabaseIdentityClient() {
-  return createClient(safeSupabaseUrl, safeSupabaseAnonKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  });
-}
-
-export function getSupabaseServerAuthMode() {
+export function getSupabaseServerAuthMode(mode: "auth" | "public" | "admin" = "auth") {
   return {
-    isUsingServiceRole,
-    keySource: isUsingServiceRole
-      ? "SUPABASE_SERVICE_ROLE_KEY"
-      : "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+    mode,
+    keySource:
+      mode === "admin"
+        ? "SUPABASE_SERVICE_ROLE_KEY"
+        : "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+    isUsingServiceRole: mode === "admin",
   };
 }

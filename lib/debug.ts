@@ -1,6 +1,8 @@
+import { isDevelopmentEnvironment } from "@/lib/env";
+
 type DebugMeta = Record<string, unknown>;
 
-const isDevelopment = process.env.NODE_ENV !== "production";
+const isDevelopment = isDevelopmentEnvironment();
 
 function safePrint(method: "info" | "warn" | "error", message: string, meta?: DebugMeta) {
   if (!isDevelopment) {

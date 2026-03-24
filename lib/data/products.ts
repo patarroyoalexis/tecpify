@@ -1,4 +1,7 @@
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import {
+  createServerSupabaseAuthClient,
+  createServerSupabasePublicClient,
+} from "@/lib/supabase/server";
 import type { Product } from "@/types/products";
 import type { BusinessProduct } from "@/types/storefront";
 import { getOrderDisplayCode, type OrderProduct } from "@/types/orders";
@@ -50,7 +53,7 @@ function isValidStorefrontProduct(product: Product) {
 }
 
 export async function getProductsByBusinessId(businessId: string): Promise<Product[]> {
-  const supabase = createServerSupabaseClient();
+  const supabase = createServerSupabasePublicClient();
   const { data, error } = await supabase
     .from("products")
     .select("*")
@@ -67,7 +70,7 @@ export async function getProductsByBusinessId(businessId: string): Promise<Produ
 }
 
 export async function getAdminProductsByBusinessId(businessId: string): Promise<Product[]> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseAuthClient();
   const { data, error } = await supabase
     .from("products")
     .select("*")
@@ -170,7 +173,7 @@ function moveProductId(ids: string[], productId: string, desiredSortOrder: numbe
 }
 
 async function writeNormalizedSortOrders(businessId: string, orderedIds: string[]) {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseAuthClient();
 
   for (let index = 0; index < orderedIds.length; index += 1) {
     const id = orderedIds[index];
@@ -256,7 +259,7 @@ async function getProductUsageValidation(
   businessId: string,
   productId: string,
 ): Promise<ProductDeleteValidation> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseAuthClient();
   const { data, error } = await supabase
     .from("orders")
     .select("id, order_code, products")
@@ -293,7 +296,7 @@ export async function createProductInDatabase(payload: ProductCreatePayload): Pr
   const nextSortOrder = resolveDesiredSortOrder(payload.sortOrder, currentProducts.length);
   const now = new Date().toISOString();
   const productId = crypto.randomUUID();
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseAuthClient();
   const { data, error } = await supabase
     .from("products")
     .insert({
@@ -369,7 +372,7 @@ export async function updateProductInDatabase(
     await writeNormalizedSortOrders(payload.businessId, reorderedIds);
   }
 
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseAuthClient();
   const { data, error } = await supabase
     .from("products")
     .update({
@@ -416,7 +419,7 @@ export async function deleteProductInDatabase(
     );
   }
 
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseAuthClient();
   const { error } = await supabase
     .from("products")
     .delete()

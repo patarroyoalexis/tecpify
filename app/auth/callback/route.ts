@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
 
-import { issueOperatorSessionForUser } from "@/lib/auth/operator-auth";
 import { sanitizeRedirectPath } from "@/lib/auth/server";
 import { getSiteUrl } from "@/lib/site-url";
-import { createServerSupabaseIdentityClient } from "@/lib/supabase/server";
+import { createServerSupabaseAuthClient } from "@/lib/supabase/server";
 
 function buildRedirectUrl(path: string, searchParams?: Record<string, string>) {
   const redirectUrl = new URL(path, getSiteUrl());
@@ -21,7 +20,7 @@ export async function GET(request: Request) {
   const tokenHash = requestUrl.searchParams.get("token_hash");
   const type = requestUrl.searchParams.get("type");
   const next = sanitizeRedirectPath(requestUrl.searchParams.get("next"));
-  const supabase = createServerSupabaseIdentityClient();
+  const supabase = await createServerSupabaseAuthClient();
 
   try {
     if (code) {
@@ -31,7 +30,6 @@ export async function GET(request: Request) {
         throw new Error(error?.message || "No fue posible confirmar la sesion.");
       }
 
-      await issueOperatorSessionForUser(data.user, data.user.email ?? "");
       return NextResponse.redirect(buildRedirectUrl(next));
     }
 
@@ -45,7 +43,6 @@ export async function GET(request: Request) {
         throw new Error(error?.message || "No fue posible confirmar el correo.");
       }
 
-      await issueOperatorSessionForUser(data.user, data.user.email ?? "");
       return NextResponse.redirect(buildRedirectUrl(next));
     }
   } catch {

@@ -14,7 +14,12 @@ import {
   type OrderApiUpdatePayload,
 } from "@/lib/orders/mappers";
 import { debugError, debugLog } from "@/lib/debug";
-import { createServerSupabaseClient, getSupabaseServerAuthMode } from "@/lib/supabase/server";
+import {
+  createServerSupabaseAdminClient,
+  createServerSupabaseAuthClient,
+  createServerSupabasePublicClient,
+  getSupabaseServerAuthMode,
+} from "@/lib/supabase/server";
 import type { Order } from "@/types/orders";
 
 interface BusinessLookupRow {
@@ -51,7 +56,7 @@ function generateCandidateOrderCode() {
 }
 
 async function generateUniqueOrderCode() {
-  const supabase = createServerSupabaseClient();
+  const supabase = createServerSupabaseAdminClient();
 
   for (let attempt = 0; attempt < 8; attempt += 1) {
     const candidate = generateCandidateOrderCode();
@@ -159,7 +164,7 @@ function describePayloadProblems(payload: unknown) {
     candidate.paymentStatus !== undefined &&
     !isValidPaymentStatus(candidate.paymentStatus)
   ) {
-    problems.push("payment_status no es valido para public.orders.");
+    problems.push("paymentStatus no es valido para public.orders.");
   }
 
   if (candidate.isReviewed !== undefined && typeof candidate.isReviewed !== "boolean") {
@@ -178,7 +183,22 @@ function describePayloadProblems(payload: unknown) {
 }
 
 export async function getBusinessDatabaseRecordBySlug(slug: string) {
-  const supabase = createServerSupabaseClient();
+  const supabase = createServerSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from("businesses")
+    .select("id, slug")
+    .eq("slug", slug)
+    .maybeSingle<BusinessLookupRow>();
+
+  if (error) {
+    throw new Error(`Supabase businesses query failed: ${error.message}`);
+  }
+
+  return data;
+}
+
+async function getAuthenticatedBusinessDatabaseRecordBySlug(slug: string) {
+  const supabase = await createServerSupabaseAuthClient();
   const { data, error } = await supabase
     .from("businesses")
     .select("id, slug")
@@ -193,7 +213,7 @@ export async function getBusinessDatabaseRecordBySlug(slug: string) {
 }
 
 async function getBusinessSlugByDatabaseId(businessDatabaseId: string) {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseAuthClient();
   const { data, error } = await supabase
     .from("businesses")
     .select("slug")
@@ -209,12 +229,22 @@ async function getBusinessSlugByDatabaseId(businessDatabaseId: string) {
 
 async function getBusinessProductsForOrder(
   businessDatabaseId: string,
+  options?: { mode?: "public" | "auth" },
 ): Promise<OrderProductLookupRow[]> {
-  const supabase = createServerSupabaseClient();
-  const { data, error } = await supabase
+  const supabase =
+    options?.mode === "auth"
+      ? await createServerSupabaseAuthClient()
+      : createServerSupabasePublicClient();
+  let query = supabase
     .from("products")
     .select("id, name, price, is_available")
     .eq("business_id", businessDatabaseId);
+
+  if (options?.mode !== "auth") {
+    query = query.eq("is_available", true);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     throw new Error(`Supabase products lookup failed: ${error.message}`);
@@ -331,17 +361,28 @@ function assertOrderTotalMatchesProducts(
 export async function getOrdersByBusinessSlugFromDatabase(
   businessSlug: string,
 ): Promise<Order[]> {
-  const business = await getBusinessDatabaseRecordBySlug(businessSlug);
+  const business = await getAuthenticatedBusinessDatabaseRecordBySlug(businessSlug);
 
   if (!business) {
     throw new Error(`Business not found for slug "${businessSlug}".`);
   }
 
-  const supabase = createServerSupabaseClient();
+  return getOrdersByBusinessIdFromDatabase(business.id, { businessSlug });
+}
+
+export async function getOrdersByBusinessIdFromDatabase(
+  businessId: string,
+  options?: { businessSlug?: string },
+): Promise<Order[]> {
+  if (typeof businessId !== "string" || businessId.trim().length === 0) {
+    throw new Error("Business id is required to load orders.");
+  }
+
+  const supabase = await createServerSupabaseAuthClient();
   const { data, error } = await supabase
     .from("orders")
     .select("*")
-    .eq("business_id", business.id)
+    .eq("business_id", businessId)
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -350,7 +391,7 @@ export async function getOrdersByBusinessSlugFromDatabase(
 
   return (data ?? []).map((row) =>
     mapSupabaseRowToOrder(row as Record<string, unknown>, {
-      businessSlug,
+      ...(options?.businessSlug ? { businessSlug: options.businessSlug } : {}),
     }),
   );
 }
@@ -377,7 +418,7 @@ export async function createOrderInDatabase(payload: unknown): Promise<Order> {
 
   const normalizedProducts = normalizeOrderProductsForPersistence(
     payload.products,
-    await getBusinessProductsForOrder(business.id),
+    await getBusinessProductsForOrder(business.id, { mode: "public" }),
     { requireActiveLinkedProducts: true },
   );
 
@@ -415,22 +456,18 @@ export async function createOrderInDatabase(payload: unknown): Promise<Order> {
   };
 
   debugLog("[orders-api] Preparing order insert", {
-    authMode: getSupabaseServerAuthMode(),
+    authMode: getSupabaseServerAuthMode("public"),
     businessSlug: payload.businessSlug,
     orderCode,
     productsCount: normalizedProducts.length,
   });
 
-  const supabase = createServerSupabaseClient();
-  const { data, error } = await supabase
-    .from("orders")
-    .insert(insertPayload)
-    .select("*")
-    .single();
+  const publicSupabase = createServerSupabasePublicClient();
+  const { error } = await publicSupabase.from("orders").insert(insertPayload);
 
   if (error) {
     debugError("[orders-api] Supabase insert failed", {
-      authMode: getSupabaseServerAuthMode(),
+      authMode: getSupabaseServerAuthMode("public"),
       businessSlug: payload.businessSlug,
       code: error.code ?? null,
     });
@@ -439,7 +476,20 @@ export async function createOrderInDatabase(payload: unknown): Promise<Order> {
     );
   }
 
-  return mapSupabaseRowToOrder(data as Record<string, unknown>, {
+  const adminSupabase = createServerSupabaseAdminClient();
+  const { data: insertedOrder, error: insertedOrderError } = await adminSupabase
+    .from("orders")
+    .select("*")
+    .eq("id", orderId)
+    .single();
+
+  if (insertedOrderError) {
+    throw new Error(
+      `El pedido se guardo, pero no pudimos recuperarlo desde la base principal. ${insertedOrderError.message}`,
+    );
+  }
+
+  return mapSupabaseRowToOrder(insertedOrder as Record<string, unknown>, {
     businessSlug: payload.businessSlug,
   });
 }
@@ -532,7 +582,7 @@ function describeUpdatePayloadProblems(payload: unknown) {
   }
 
   if (candidate.paymentStatus !== undefined && !isValidPaymentStatus(candidate.paymentStatus)) {
-    problems.push("payment_status no es valido para public.orders.");
+    problems.push("paymentStatus no es valido para public.orders.");
   }
 
   if (candidate.customerName !== undefined && candidate.customerName.trim().length === 0) {
@@ -606,7 +656,7 @@ export async function updateOrderInDatabase(
     );
   }
 
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseAuthClient();
   const { data: existingOrder, error: lookupError } = await supabase
     .from("orders")
     .select(
@@ -668,7 +718,7 @@ export async function updateOrderInDatabase(
     normalizedPayload.products !== undefined
       ? normalizeOrderProductsForPersistence(
           normalizedPayload.products,
-          await getBusinessProductsForOrder(existingOrder.business_id),
+          await getBusinessProductsForOrder(existingOrder.business_id, { mode: "auth" }),
         )
       : undefined;
   const normalizedHistory =
@@ -742,7 +792,7 @@ export async function updateOrderInDatabase(
     debugError("[orders-api] Supabase patch failed", {
       orderId,
       code: error.code ?? null,
-      authMode: getSupabaseServerAuthMode(),
+      authMode: getSupabaseServerAuthMode("auth"),
     });
     throw new Error(
       `No fue posible actualizar el pedido en Supabase. Recarga la operacion e intenta de nuevo. ${error.message}`,

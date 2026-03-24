@@ -1,19 +1,12 @@
 import { NextResponse } from "next/server";
 
-import { getBusinessAccessBySlug } from "@/lib/auth/business-access";
-import { requireOperatorApiSession } from "@/lib/auth/server";
+import { requireBusinessApiContext } from "@/lib/auth/server";
 import { deleteProductInDatabase, updateProductInDatabase } from "@/lib/data/products";
 
 export async function PATCH(
   request: Request,
   context: { params: Promise<{ productId: string }> },
 ) {
-  const sessionResult = await requireOperatorApiSession();
-
-  if (!sessionResult.ok) {
-    return sessionResult.response;
-  }
-
   const { productId } = await context.params;
   let payload: unknown;
 
@@ -38,22 +31,16 @@ export async function PATCH(
       typeof (payload as { businessSlug?: unknown }).businessSlug === "string"
         ? (payload as { businessSlug: string }).businessSlug
         : "";
-    const access = await getBusinessAccessBySlug(businessSlug, sessionResult.session.userId);
+    const businessContextResult = await requireBusinessApiContext(businessSlug);
 
-    if (!access) {
-      return NextResponse.json(
-        { error: "No tienes acceso a este negocio." },
-        { status: 403 },
-      );
+    if (!businessContextResult.ok) {
+      return businessContextResult.response;
     }
 
-    const product = await updateProductInDatabase(
-      productId,
-      {
-        ...(payload as Omit<Parameters<typeof updateProductInDatabase>[1], "businessId">),
-        businessId: access.businessId,
-      },
-    );
+    const product = await updateProductInDatabase(productId, {
+      ...(payload as Omit<Parameters<typeof updateProductInDatabase>[1], "businessId">),
+      businessId: businessContextResult.context.businessId,
+    });
     return NextResponse.json({ product }, { status: 200 });
   } catch (error) {
     const message =
@@ -77,12 +64,6 @@ export async function DELETE(
   request: Request,
   context: { params: Promise<{ productId: string }> },
 ) {
-  const sessionResult = await requireOperatorApiSession();
-
-  if (!sessionResult.ok) {
-    return sessionResult.response;
-  }
-
   const { productId } = await context.params;
   const { searchParams } = new URL(request.url);
   const businessSlug = searchParams.get("businessSlug")?.trim();
@@ -94,17 +75,17 @@ export async function DELETE(
     );
   }
 
+  const businessContextResult = await requireBusinessApiContext(businessSlug);
+
+  if (!businessContextResult.ok) {
+    return businessContextResult.response;
+  }
+
   try {
-    const access = await getBusinessAccessBySlug(businessSlug, sessionResult.session.userId);
-
-    if (!access) {
-      return NextResponse.json(
-        { error: "No tienes acceso a este negocio." },
-        { status: 403 },
-      );
-    }
-
-    const result = await deleteProductInDatabase(productId, access.businessId);
+    const result = await deleteProductInDatabase(
+      productId,
+      businessContextResult.context.businessId,
+    );
     return NextResponse.json(result, { status: 200 });
   } catch (error) {
     const message =

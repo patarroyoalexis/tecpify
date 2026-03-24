@@ -1,6 +1,12 @@
-import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { normalizeBusinessSlug } from "@/lib/businesses/slug";
-import { isExplicitlyAllowedLegacyBusiness } from "@/lib/auth/legacy-business-access";
+import {
+  hasExplicitLegacyBusinessAccessConfigured,
+  isExplicitlyAllowedLegacyBusiness,
+} from "@/lib/auth/legacy-business-access";
+import {
+  createServerSupabaseAdminClient,
+  createServerSupabaseAuthClient,
+} from "@/lib/supabase/server";
 
 interface BusinessOwnershipRow {
   id: string;
@@ -74,39 +80,23 @@ function mapBusinessAccessResult(row: BusinessOwnershipRow, userId: string): Bus
   };
 }
 
-export async function getBusinessAccessBySlug(
-  slug: string,
-  userId: string,
-): Promise<BusinessAccessResult | null> {
-  const normalizedSlug = normalizeBusinessSlug(slug);
-
-  if (!normalizedSlug) {
-    return null;
-  }
-
-  const supabase = createServerSupabaseClient();
+async function getOwnedBusinessRowBySlug(slug: string) {
+  const supabase = await createServerSupabaseAuthClient();
   const { data, error } = await supabase
     .from("businesses")
     .select("id, slug, name, created_by_user_id")
-    .eq("slug", normalizedSlug)
+    .eq("slug", slug)
     .maybeSingle<BusinessOwnershipRow>();
 
   if (error) {
     throw new Error(`No fue posible validar acceso al negocio: ${error.message}`);
   }
 
-  if (!data) {
-    return null;
-  }
-
-  return mapBusinessAccessResult(data, userId);
+  return data;
 }
 
-export async function getBusinessAccessById(
-  businessId: string,
-  userId: string,
-): Promise<BusinessAccessResult | null> {
-  const supabase = createServerSupabaseClient();
+async function getOwnedBusinessRowById(businessId: string) {
+  const supabase = await createServerSupabaseAuthClient();
   const { data, error } = await supabase
     .from("businesses")
     .select("id, slug, name, created_by_user_id")
@@ -117,18 +107,11 @@ export async function getBusinessAccessById(
     throw new Error(`No fue posible validar acceso al negocio: ${error.message}`);
   }
 
-  if (!data) {
-    return null;
-  }
-
-  return mapBusinessAccessResult(data, userId);
+  return data;
 }
 
-export async function getBusinessAccessByOrderId(
-  orderId: string,
-  userId: string,
-): Promise<BusinessAccessResult | null> {
-  const supabase = createServerSupabaseClient();
+async function getOwnedOrderRowById(orderId: string) {
+  const supabase = await createServerSupabaseAuthClient();
   const { data, error } = await supabase
     .from("orders")
     .select("id, business_id")
@@ -139,11 +122,127 @@ export async function getBusinessAccessByOrderId(
     throw new Error(`No fue posible validar acceso al pedido: ${error.message}`);
   }
 
-  if (!data?.business_id) {
+  return data;
+}
+
+async function getLegacyBusinessRowBySlug(slug: string) {
+  if (!hasExplicitLegacyBusinessAccessConfigured()) {
     return null;
   }
 
-  return getBusinessAccessById(data.business_id, userId);
+  const supabase = createServerSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from("businesses")
+    .select("id, slug, name, created_by_user_id")
+    .eq("slug", slug)
+    .maybeSingle<BusinessOwnershipRow>();
+
+  if (error) {
+    throw new Error(`No fue posible validar acceso al negocio: ${error.message}`);
+  }
+
+  return data;
+}
+
+async function getLegacyBusinessRowById(businessId: string) {
+  if (!hasExplicitLegacyBusinessAccessConfigured()) {
+    return null;
+  }
+
+  const supabase = createServerSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from("businesses")
+    .select("id, slug, name, created_by_user_id")
+    .eq("id", businessId)
+    .maybeSingle<BusinessOwnershipRow>();
+
+  if (error) {
+    throw new Error(`No fue posible validar acceso al negocio: ${error.message}`);
+  }
+
+  return data;
+}
+
+async function getLegacyOrderRowById(orderId: string) {
+  if (!hasExplicitLegacyBusinessAccessConfigured()) {
+    return null;
+  }
+
+  const supabase = createServerSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from("orders")
+    .select("id, business_id")
+    .eq("id", orderId)
+    .maybeSingle<OrderOwnershipRow>();
+
+  if (error) {
+    throw new Error(`No fue posible validar acceso al pedido: ${error.message}`);
+  }
+
+  return data;
+}
+
+export async function getBusinessAccessBySlug(
+  slug: string,
+  userId: string,
+): Promise<BusinessAccessResult | null> {
+  const normalizedSlug = normalizeBusinessSlug(slug);
+
+  if (!normalizedSlug) {
+    return null;
+  }
+
+  const ownedBusiness = await getOwnedBusinessRowBySlug(normalizedSlug);
+
+  if (ownedBusiness) {
+    return mapBusinessAccessResult(ownedBusiness, userId);
+  }
+
+  const legacyBusiness = await getLegacyBusinessRowBySlug(normalizedSlug);
+
+  if (!legacyBusiness) {
+    return null;
+  }
+
+  return mapBusinessAccessResult(legacyBusiness, userId);
+}
+
+export async function getBusinessAccessById(
+  businessId: string,
+  userId: string,
+): Promise<BusinessAccessResult | null> {
+  const ownedBusiness = await getOwnedBusinessRowById(businessId);
+
+  if (ownedBusiness) {
+    return mapBusinessAccessResult(ownedBusiness, userId);
+  }
+
+  const legacyBusiness = await getLegacyBusinessRowById(businessId);
+
+  if (!legacyBusiness) {
+    return null;
+  }
+
+  return mapBusinessAccessResult(legacyBusiness, userId);
+}
+
+export async function getBusinessAccessByOrderId(
+  orderId: string,
+  userId: string,
+): Promise<BusinessAccessResult | null> {
+  const ownedOrder = await getOwnedOrderRowById(orderId);
+
+  if (ownedOrder?.business_id) {
+    return getBusinessAccessById(ownedOrder.business_id, userId);
+  }
+
+  const legacyOrder = await getLegacyOrderRowById(orderId);
+
+  if (!legacyOrder?.business_id) {
+    return null;
+  }
+
+  return getBusinessAccessById(legacyOrder.business_id, userId);
 }
 
 export function canAccessBusiness(
@@ -154,8 +253,5 @@ export function canAccessBusiness(
     ownerUserId: string | null;
   },
 ) {
-  return getBusinessAccessLevel(
-    business,
-    userId,
-  ) !== null;
+  return getBusinessAccessLevel(business, userId) !== null;
 }

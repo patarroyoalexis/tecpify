@@ -1,21 +1,13 @@
 import { NextResponse } from "next/server";
 
 import { debugError, debugLog } from "@/lib/debug";
-import { getBusinessAccessBySlug } from "@/lib/auth/business-access";
-import { requireOperatorApiSession } from "@/lib/auth/server";
+import { requireBusinessApiContext } from "@/lib/auth/server";
 import {
   createOrderInDatabase,
-  getBusinessDatabaseRecordBySlug,
-  getOrdersByBusinessSlugFromDatabase,
+  getOrdersByBusinessIdFromDatabase,
 } from "@/lib/data/orders-server";
 
 export async function GET(request: Request) {
-  const sessionResult = await requireOperatorApiSession();
-
-  if (!sessionResult.ok) {
-    return sessionResult.response;
-  }
-
   const { searchParams } = new URL(request.url);
   const businessSlug = searchParams.get("businessSlug")?.trim();
 
@@ -26,26 +18,19 @@ export async function GET(request: Request) {
     );
   }
 
+  const businessContextResult = await requireBusinessApiContext(businessSlug);
+
+  if (!businessContextResult.ok) {
+    return businessContextResult.response;
+  }
+
   try {
-    const access = await getBusinessAccessBySlug(businessSlug, sessionResult.session.userId);
-
-    if (!access) {
-      return NextResponse.json(
-        { error: "No tienes acceso a este negocio." },
-        { status: 403 },
-      );
-    }
-
-    const business = await getBusinessDatabaseRecordBySlug(businessSlug);
-
-    if (!business) {
-      return NextResponse.json(
-        { error: `No existe un negocio activo para el slug "${businessSlug}".` },
-        { status: 404 },
-      );
-    }
-
-    const orders = await getOrdersByBusinessSlugFromDatabase(businessSlug);
+    const orders = await getOrdersByBusinessIdFromDatabase(
+      businessContextResult.context.businessId,
+      {
+        businessSlug: businessContextResult.context.businessSlug,
+      },
+    );
     return NextResponse.json({ orders });
   } catch (error) {
     return NextResponse.json(

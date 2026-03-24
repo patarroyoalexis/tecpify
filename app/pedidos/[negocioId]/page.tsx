@@ -1,10 +1,8 @@
 import { BusinessWorkspaceShell } from "@/components/dashboard/business-workspace-shell";
 import { OrdersHeaderActions } from "@/components/dashboard/orders-header-actions";
 import { OrdersWorkspace } from "@/components/dashboard/orders-workspace";
-import { resolveOperationalBusinessBySlug } from "@/data/businesses";
-import { getBusinessAccessBySlug } from "@/lib/auth/business-access";
-import { requireOperatorSession } from "@/lib/auth/server";
-import { getOrdersByBusinessSlugFromDatabase } from "@/lib/data/orders-server";
+import { requireBusinessContext } from "@/lib/auth/server";
+import { getOrdersByBusinessIdFromDatabase } from "@/lib/data/orders-server";
 import type { Order } from "@/types/orders";
 
 export default async function OrdersPage({
@@ -13,10 +11,12 @@ export default async function OrdersPage({
   params: Promise<{ negocioId: string }>;
 }) {
   const { negocioId } = await params;
-  const operator = await requireOperatorSession(`/pedidos/${negocioId}`);
-  const access = await getBusinessAccessBySlug(negocioId, operator.userId);
+  const businessContext = await requireBusinessContext(
+    negocioId,
+    `/pedidos/${negocioId}`,
+  );
 
-  if (!access) {
+  if (!businessContext) {
     return (
       <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(244,114,182,0.16),transparent_26%),linear-gradient(180deg,#f8fafc_0%,#eff6ff_100%)] px-4 py-8 sm:px-6">
         <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-xl items-center">
@@ -37,57 +37,36 @@ export default async function OrdersPage({
     );
   }
 
-  const resolvedBusiness = await resolveOperationalBusinessBySlug(negocioId).catch(() => null);
-  const business = resolvedBusiness?.business ?? null;
+  const business = {
+    slug: businessContext.businessSlug,
+    name: businessContext.businessName,
+  };
   let initialOrders: Order[] = [];
   let initialOrdersError: string | null = null;
 
-  if (business && resolvedBusiness?.hasDatabaseRecord) {
-    try {
-      initialOrders = await getOrdersByBusinessSlugFromDatabase(negocioId);
-    } catch (error) {
-      initialOrdersError =
-        error instanceof Error
-          ? error.message
-          : "No fue posible cargar los pedidos reales de este negocio.";
-    }
-  }
-
-  if (!business) {
-    return (
-      <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(244,114,182,0.16),transparent_26%),linear-gradient(180deg,#f8fafc_0%,#eff6ff_100%)] px-4 py-8 sm:px-6">
-        <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-xl items-center">
-          <section className="w-full rounded-[32px] border border-white/70 bg-white/95 p-8 text-center shadow-[0_24px_80px_rgba(15,23,42,0.12)]">
-            <p className="text-sm font-semibold uppercase tracking-[0.24em] text-rose-500">
-              Pedidos no disponibles
-            </p>
-            <h1 className="mt-3 text-3xl font-semibold text-slate-950">
-              Pedidos solo disponibles para negocios reales
-            </h1>
-            <p className="mt-3 text-sm leading-6 text-slate-600">
-              Este espacio operativo solo funciona con negocios persistidos en Supabase.
-              Verifica el enlace del negocio real o crea uno nuevo desde la home.
-            </p>
-          </section>
-        </div>
-      </main>
-    );
+  try {
+    initialOrders = await getOrdersByBusinessIdFromDatabase(businessContext.businessId, {
+      businessSlug: business.slug,
+    });
+  } catch (error) {
+    initialOrdersError =
+      error instanceof Error
+        ? error.message
+        : "No fue posible cargar los pedidos reales de este negocio.";
   }
 
   return (
     <BusinessWorkspaceShell
       businessName={business.name}
       businessSlug={business.slug}
-      operatorEmail={operator?.email ?? null}
+      operatorEmail={businessContext.user.email || null}
       initialOrders={initialOrders}
       initialOrdersError={initialOrdersError}
       title="Pedidos"
       description="Operacion diaria para revisar, cobrar, preparar y entregar."
       headerActions={<OrdersHeaderActions />}
     >
-      <OrdersWorkspace
-        businessSlug={business.slug}
-      />
+      <OrdersWorkspace businessSlug={business.slug} />
     </BusinessWorkspaceShell>
   );
 }

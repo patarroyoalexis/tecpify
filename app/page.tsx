@@ -1,9 +1,9 @@
 import { LandingPage } from "@/components/home/landing-page";
 import { PublicLayoutShell } from "@/components/layout/public-layout-shell";
-import { getOperatorSession } from "@/lib/auth/server";
+import { getCurrentUser } from "@/lib/auth/server";
 
 export default async function Home() {
-  const operator = await getOperatorSession();
+  const operator = await getCurrentUser();
 
   return (
     <PublicLayoutShell operatorEmail={operator?.email ?? null}>

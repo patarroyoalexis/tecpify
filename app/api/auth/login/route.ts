@@ -1,9 +1,6 @@
 import { NextResponse } from "next/server";
 
-import {
-  authenticateOperatorCredentials,
-  issueOperatorSessionForUser,
-} from "@/lib/auth/operator-auth";
+import { authenticateOperatorCredentials } from "@/lib/auth/operator-auth";
 import { sanitizeRedirectPath } from "@/lib/auth/server";
 
 interface LoginPayload {
@@ -54,7 +51,6 @@ export async function POST(request: Request) {
 
   try {
     const identity = await authenticateOperatorCredentials(email, password);
-    await issueOperatorSessionForUser(identity.user, email);
 
     return NextResponse.json(
       {

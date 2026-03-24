@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 
-import { debugError, debugLog } from "@/lib/debug";
-import { requireOperatorApiSession } from "@/lib/auth/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { normalizeBusinessSlug } from "@/lib/businesses/slug";
+import { requireAuthenticatedApiUser } from "@/lib/auth/server";
+import { createServerSupabaseAuthClient } from "@/lib/supabase/server";
+import { debugError, debugLog } from "@/lib/debug";
 import type { BusinessRecord, CreateBusinessPayload } from "@/types/businesses";
 
 interface SupabaseBusinessRow {
@@ -35,10 +35,10 @@ function validateCreateBusinessPayload(payload: unknown): payload is CreateBusin
 }
 
 export async function POST(request: Request) {
-  const sessionResult = await requireOperatorApiSession();
+  const authResult = await requireAuthenticatedApiUser();
 
-  if (!sessionResult.ok) {
-    return sessionResult.response;
+  if (!authResult.ok) {
+    return authResult.response;
   }
 
   let payload: unknown;
@@ -93,45 +93,19 @@ export async function POST(request: Request) {
     );
   }
 
-  const supabase = createServerSupabaseClient();
-  const { data: existingBusiness, error: lookupError } = await supabase
-    .from("businesses")
-    .select("id")
-    .eq("slug", normalizedSlug)
-    .maybeSingle();
-
-  if (lookupError) {
-    debugError("[businesses-api] Failed to verify slug uniqueness", {
-      slug: normalizedSlug,
-      code: lookupError.code ?? null,
-    });
-    return NextResponse.json(
-      { error: `No fue posible validar el slug: ${lookupError.message}` },
-      { status: 500 },
-    );
-  }
-
-  if (existingBusiness) {
-    return NextResponse.json(
-      { error: `El slug "${normalizedSlug}" ya existe. Prueba con otro.` },
-      { status: 409 },
-    );
-  }
-
   const now = new Date().toISOString();
   const businessId = crypto.randomUUID();
-  const insertPayload = {
-    id: businessId,
-    slug: normalizedSlug,
-    name: normalizedName,
-    created_by_user_id: sessionResult.session.userId,
-    created_at: now,
-    updated_at: now,
-  };
-
+  const supabase = await createServerSupabaseAuthClient();
   const { data, error } = await supabase
     .from("businesses")
-    .insert(insertPayload)
+    .insert({
+      id: businessId,
+      slug: normalizedSlug,
+      name: normalizedName,
+      created_by_user_id: authResult.user.userId,
+      created_at: now,
+      updated_at: now,
+    })
     .select("id, slug, name, created_at, updated_at")
     .single<SupabaseBusinessRow>();
 

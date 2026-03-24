@@ -1,19 +1,12 @@
 import { NextResponse } from "next/server";
 
-import { getBusinessAccessBySlug } from "@/lib/auth/business-access";
-import { requireOperatorApiSession } from "@/lib/auth/server";
+import { requireBusinessApiContext } from "@/lib/auth/server";
 import {
   createProductInDatabase,
   getAdminProductsByBusinessId,
 } from "@/lib/data/products";
 
 export async function GET(request: Request) {
-  const sessionResult = await requireOperatorApiSession();
-
-  if (!sessionResult.ok) {
-    return sessionResult.response;
-  }
-
   const { searchParams } = new URL(request.url);
   const businessSlug = searchParams.get("businessSlug")?.trim();
 
@@ -24,17 +17,16 @@ export async function GET(request: Request) {
     );
   }
 
+  const businessContextResult = await requireBusinessApiContext(businessSlug);
+
+  if (!businessContextResult.ok) {
+    return businessContextResult.response;
+  }
+
   try {
-    const access = await getBusinessAccessBySlug(businessSlug, sessionResult.session.userId);
-
-    if (!access) {
-      return NextResponse.json(
-        { error: "No tienes acceso a este negocio." },
-        { status: 403 },
-      );
-    }
-
-    const products = await getAdminProductsByBusinessId(access.businessId);
+    const products = await getAdminProductsByBusinessId(
+      businessContextResult.context.businessId,
+    );
     return NextResponse.json({ products });
   } catch (error) {
     return NextResponse.json(
@@ -50,12 +42,6 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const sessionResult = await requireOperatorApiSession();
-
-  if (!sessionResult.ok) {
-    return sessionResult.response;
-  }
-
   let payload: unknown;
 
   try {
@@ -79,21 +65,16 @@ export async function POST(request: Request) {
       typeof (payload as { businessSlug?: unknown }).businessSlug === "string"
         ? (payload as { businessSlug: string }).businessSlug
         : "";
-    const access = await getBusinessAccessBySlug(businessSlug, sessionResult.session.userId);
+    const businessContextResult = await requireBusinessApiContext(businessSlug);
 
-    if (!access) {
-      return NextResponse.json(
-        { error: "No tienes acceso a este negocio." },
-        { status: 403 },
-      );
+    if (!businessContextResult.ok) {
+      return businessContextResult.response;
     }
 
-    const product = await createProductInDatabase(
-      {
-        ...(payload as Omit<Parameters<typeof createProductInDatabase>[0], "businessId">),
-        businessId: access.businessId,
-      },
-    );
+    const product = await createProductInDatabase({
+      ...(payload as Omit<Parameters<typeof createProductInDatabase>[0], "businessId">),
+      businessId: businessContextResult.context.businessId,
+    });
     return NextResponse.json({ product }, { status: 201 });
   } catch (error) {
     const message =
@@ -104,7 +85,7 @@ export async function POST(request: Request) {
         ? 409
         : message.startsWith("No encontramos el negocio")
           ? 404
-        : 500;
+          : 500;
 
     return NextResponse.json({ error: message }, { status: statusCode });
   }

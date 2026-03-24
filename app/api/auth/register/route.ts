@@ -1,9 +1,6 @@
 import { NextResponse } from "next/server";
 
-import {
-  issueOperatorSessionForUser,
-  registerOperatorCredentials,
-} from "@/lib/auth/operator-auth";
+import { registerOperatorCredentials } from "@/lib/auth/operator-auth";
 import { sanitizeRedirectPath } from "@/lib/auth/server";
 
 interface RegisterPayload {
@@ -76,8 +73,6 @@ export async function POST(request: Request) {
   }
 
   if (identity.hasSupabaseSession && identity.user.id) {
-    await issueOperatorSessionForUser(identity.user, email);
-
     return NextResponse.json(
       {
         ok: true,

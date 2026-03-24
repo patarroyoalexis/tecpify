@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 
-import { clearOperatorSession } from "@/lib/auth/session";
+import { signOutAuthenticatedOperator } from "@/lib/auth/operator-auth";
 
 export async function POST() {
-  await clearOperatorSession();
+  await signOutAuthenticatedOperator();
   return NextResponse.json({ ok: true }, { status: 200 });
 }

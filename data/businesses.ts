@@ -1,7 +1,9 @@
 import { debugError, debugLog } from "@/lib/debug";
 import { normalizeBusinessSlug } from "@/lib/businesses/slug";
-import { getBusinessAccessLevel } from "@/lib/auth/business-access";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import {
+  createServerSupabaseAdminClient,
+  createServerSupabaseAuthClient,
+} from "@/lib/supabase/server";
 import { DELIVERY_TYPES, PAYMENT_METHODS } from "@/types/orders";
 import type { BusinessRecord } from "@/types/businesses";
 import type { BusinessConfig } from "@/types/storefront";
@@ -162,7 +164,7 @@ export async function getBusinessBySlugFromDatabase(slug: string) {
   const normalizedSlug = normalizeBusinessSlug(slug);
   debugLog("[businesses] Resolving business by slug", { slug });
 
-  const supabase = createServerSupabaseClient();
+  const supabase = createServerSupabaseAdminClient();
   const { data, error } = await supabase
     .from("businesses")
     .select("id, slug, name, created_at, updated_at, created_by_user_id")
@@ -183,7 +185,7 @@ export async function getBusinessBySlugFromDatabase(slug: string) {
 }
 
 async function getBusinessesFromDatabase() {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseAuthClient();
   const { data, error } = await supabase
     .from("businesses")
     .select("id, slug, name, created_at, updated_at, created_by_user_id")
@@ -260,19 +262,7 @@ export async function getHomeBusinesses(
     });
   }
 
-  const accessibleBusinesses = operatorUserId
-    ? databaseBusinesses.filter(
-        (databaseBusiness) =>
-          getBusinessAccessLevel(
-            {
-              businessId: databaseBusiness.id,
-              businessSlug: databaseBusiness.slug,
-              ownerUserId: databaseBusiness.createdByUserId ?? null,
-            },
-            operatorUserId,
-          ) !== null,
-      )
-    : [];
+  const accessibleBusinesses = operatorUserId ? databaseBusinesses : [];
 
   const realBusinesses = accessibleBusinesses.map((databaseBusiness) => {
     const demoBusiness = getDemoBusinessBySlug(databaseBusiness.slug);

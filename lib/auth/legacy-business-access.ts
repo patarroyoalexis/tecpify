@@ -8,6 +8,13 @@ export const LEGACY_BUSINESS_ACCESS_STRATEGY: {
   allowedBusinessSlugs: [],
 };
 
+export function hasExplicitLegacyBusinessAccessConfigured() {
+  return (
+    LEGACY_BUSINESS_ACCESS_STRATEGY.allowedBusinessIds.length > 0 ||
+    LEGACY_BUSINESS_ACCESS_STRATEGY.allowedBusinessSlugs.length > 0
+  );
+}
+
 interface LegacyBusinessPermissionInput {
   businessId: string;
   businessSlug: string;
