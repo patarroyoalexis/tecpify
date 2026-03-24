@@ -279,9 +279,7 @@ La capa actual cubre:
 - No hay multiusuario avanzado por negocio.
 - La estrategia legacy es mínima: los negocios sin owner quedan bloqueados por defecto y solo podrían habilitarse por allowlist en código.
 - La allowlist de legacy hoy está vacía, así que no existe un flujo completo de reclamación o migración de negocios antiguos.
-- El home sigue mezclando negocios reales con negocios demo para soporte visual y showcase.
-- `mockBusinesses` sigue existiendo para demos y fallback visual.
-- `mockOrders` sigue existiendo en `data/orders.ts`, aunque los flujos privados ya operan con pedidos reales.
+- El showcase principal vive en la landing publica. El workspace privado ya se concentra en negocios reales.
 - El storefront no tiene categorías, variantes, imágenes ni inventario.
 - No existe módulo independiente de clientes.
 - No existe sistema de pagos automáticos.
@@ -297,7 +295,7 @@ La capa actual cubre:
 - `SUPABASE_SERVICE_ROLE_KEY` sigue siendo necesaria en flujos concretos: storefront público, creación pública de pedidos y compatibilidad temporal con negocios legacy. En esos puntos la seguridad depende tanto de validaciones de app como de la configuración actual de RLS.
 - La política temporal para negocios legacy todavía no resuelve migración, reclamación ni limpieza definitiva.
 - Las métricas son operativas, no históricas ni contables. Sirven para seguimiento corto, no para BI formal.
-- La prioridad operativa en `data/orders.ts` usa un `now` fijo (`2026-03-14T13:00:00.000Z`), así que esa lectura temporal todavía no está completamente desacoplada de una fecha estática.
+- Las métricas siguen siendo operativas y simples. No intentan resolver BI formal ni series históricas complejas.
 - El storefront reutiliza datos de pedidos previos por WhatsApp para autocompletar nombre y dirección, pero no existe un modelo formal de clientes ni consentimiento más profundo que el checkbox operativo actual.
 - El dashboard y la gestión de catálogo dependen de drawers y superficies compactas; todavía no existe un backoffice más profundo para operación compleja.
 

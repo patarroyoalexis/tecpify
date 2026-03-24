@@ -11,7 +11,7 @@ export function OperationalHome({
   businesses,
   operatorEmail,
 }: OperationalHomeProps) {
-  const { realBusinesses, demoBusinesses } = businesses;
+  const { realBusinesses } = businesses;
 
   return (
     <div className="space-y-6">
@@ -24,8 +24,8 @@ export function OperationalHome({
             Administra tus negocios y valida el flujo real del MVP
           </h2>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-            Desde aqui puedes crear nuevos negocios, abrir dashboards existentes y revisar los
-            escenarios demo sin mezclar la landing publica con la operacion autenticada.
+            Desde aqui puedes crear nuevos negocios y abrir workspaces reales sin mezclar
+            la operacion autenticada con escenarios de showcase.
           </p>
 
           <div className="mt-6 flex flex-wrap gap-3">
@@ -38,9 +38,6 @@ export function OperationalHome({
                 Sesion activa: {operatorEmail}
               </span>
             ) : null}
-            <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-sm font-medium text-amber-800">
-              {demoBusinesses.length} demo{demoBusinesses.length === 1 ? "" : "s"}
-            </span>
           </div>
         </div>
 
@@ -99,44 +96,6 @@ export function OperationalHome({
         )}
       </section>
 
-      {demoBusinesses.length > 0 ? (
-        <section className="space-y-4 rounded-[28px] border border-amber-200/80 bg-white/80 p-5 shadow-[0_16px_40px_rgba(15,23,42,0.05)]">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-700">
-                Soporte demo
-              </p>
-              <h3 className="mt-1 text-2xl font-semibold text-slate-950">
-                Escenarios de muestra
-              </h3>
-              <p className="mt-1 text-sm text-slate-600">
-                Siguen disponibles para pruebas locales y showcase, pero ya no ocupan la ruta
-                principal del producto.
-              </p>
-            </div>
-            <span className="rounded-full bg-amber-100 px-3 py-1 text-sm font-medium text-amber-800">
-              {demoBusinesses.length}
-            </span>
-          </div>
-
-          <div className="grid gap-4 lg:grid-cols-2">
-            {demoBusinesses.map((business) => (
-              <BusinessCard
-                key={business.slug}
-                business={business}
-                badge="Demo"
-                tone="demo"
-                actions={[
-                  {
-                    href: `/pedido/${business.slug}`,
-                    label: "Ver storefront demo",
-                  },
-                ]}
-              />
-            ))}
-          </div>
-        </section>
-      ) : null}
     </div>
   );
 }

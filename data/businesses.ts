@@ -8,72 +8,6 @@ import { DELIVERY_TYPES, PAYMENT_METHODS } from "@/types/orders";
 import type { BusinessRecord } from "@/types/businesses";
 import type { BusinessConfig } from "@/types/storefront";
 
-export const mockBusinesses: BusinessConfig[] = [
-  {
-    slug: "panaderia-estacion",
-    databaseId: null,
-    name: "Panaderia La Estacion",
-    tagline: "Pedidos rapidos para clientes frecuentes y ventas por WhatsApp.",
-    accent: "from-amber-300 via-orange-200 to-rose-100",
-    availablePaymentMethods: [
-      "Transferencia",
-      "Tarjeta",
-      "Nequi",
-      "Contra entrega",
-    ],
-    availableDeliveryTypes: ["domicilio", "recogida en tienda"],
-    products: [
-      {
-        id: "brownies",
-        name: "Caja de brownies",
-        description: "Caja surtida de brownies artesanales.",
-        price: 18500,
-      },
-      {
-        id: "cafe-500",
-        name: "Cafe molido 500 g",
-        description: "Tueste medio para casa u oficina.",
-        price: 31500,
-      },
-      {
-        id: "croissant-pack",
-        name: "Pack de croissants",
-        description: "Seis croissants de mantequilla recien horneados.",
-        price: 22000,
-      },
-    ],
-  },
-  {
-    slug: "cafe-aura",
-    databaseId: null,
-    name: "Cafe Aura",
-    tagline: "Accesorios y consumibles listos para recoger o enviar.",
-    accent: "from-sky-200 via-cyan-100 to-white",
-    availablePaymentMethods: ["Transferencia", "Tarjeta", "Nequi", "Efectivo"],
-    availableDeliveryTypes: ["domicilio", "recogida en tienda"],
-    products: [
-      {
-        id: "vasos-12oz",
-        name: "Vasos biodegradables 12 oz",
-        description: "Pack de 50 unidades para bebidas frias o calientes.",
-        price: 9600,
-      },
-      {
-        id: "pitillos-bambu",
-        name: "Pitillos de bambu",
-        description: "Juego reutilizable con cepillo limpiador.",
-        price: 14500,
-      },
-      {
-        id: "servilletas",
-        name: "Servilletas premium",
-        description: "Paquete absorbente para barra o takeaway.",
-        price: 12800,
-      },
-    ],
-  },
-];
-
 type SupabaseBusinessRow = {
   id: string;
   slug: string;
@@ -83,26 +17,12 @@ type SupabaseBusinessRow = {
   created_by_user_id: string | null;
 };
 
-export interface ResolvedBusiness {
-  business: BusinessConfig;
-  source: "database" | "demo";
-  hasDatabaseRecord: boolean;
-}
-
-export interface OperationalBusinessResolution {
-  business: BusinessConfig;
-  source: "database";
-  hasDatabaseRecord: true;
-}
-
 export interface HomeBusinessesSnapshot {
   realBusinesses: BusinessConfig[];
-  demoBusinesses: BusinessConfig[];
 }
 
 export type BusinessProductsLookupResult =
   | { status: "not_found" }
-  | { status: "unmapped"; business: BusinessConfig }
   | { status: "no_products"; business: BusinessConfig }
   | { status: "ok"; business: BusinessConfig };
 
@@ -153,12 +73,14 @@ function withDatabaseId(
   };
 }
 
-export function getDemoBusinessBySlug(slug: string) {
-  return mockBusinesses.find((business) => business.slug === slug) ?? null;
+function mapDatabaseBusinessToConfig(databaseBusiness: BusinessRecord): BusinessConfig {
+  return withDatabaseId(
+    createBaseBusinessConfig(databaseBusiness.slug, {
+      name: databaseBusiness.name,
+    }),
+    databaseBusiness.id,
+  );
 }
-
-export const getBusinessBySlug = getDemoBusinessBySlug;
-export const getBusinessById = getDemoBusinessBySlug;
 
 export async function getBusinessBySlugFromDatabase(slug: string) {
   const normalizedSlug = normalizeBusinessSlug(slug);
@@ -198,57 +120,6 @@ async function getBusinessesFromDatabase() {
   return ((data ?? []) as SupabaseBusinessRow[]).map(mapSupabaseBusinessRow);
 }
 
-export async function resolveBusinessBySlug(slug: string): Promise<ResolvedBusiness | null> {
-  const normalizedSlug = normalizeBusinessSlug(slug);
-  const demoBusiness = getDemoBusinessBySlug(normalizedSlug);
-  const databaseBusiness = await getBusinessBySlugFromDatabase(slug);
-
-  if (!databaseBusiness && !demoBusiness) {
-    return null;
-  }
-
-  if (databaseBusiness) {
-    return {
-      business: withDatabaseId(
-        demoBusiness
-          ? demoBusiness
-          : createBaseBusinessConfig(databaseBusiness.slug, {
-              name: databaseBusiness.name,
-            }),
-        databaseBusiness.id,
-      ),
-      source: "database",
-      hasDatabaseRecord: true,
-    };
-  }
-
-  return {
-    business: withDatabaseId(demoBusiness!, null),
-    source: "demo",
-    hasDatabaseRecord: false,
-  };
-}
-
-export async function resolveOperationalBusinessBySlug(
-  slug: string,
-): Promise<OperationalBusinessResolution | null> {
-  const resolvedBusiness = await resolveBusinessBySlug(slug);
-
-  if (!resolvedBusiness) {
-    return null;
-  }
-
-  if (resolvedBusiness.source !== "database") {
-    return null;
-  }
-
-  return {
-    business: resolvedBusiness.business,
-    source: resolvedBusiness.source,
-    hasDatabaseRecord: true,
-  };
-}
-
 export async function getHomeBusinesses(
   operatorUserId?: string | null,
 ): Promise<HomeBusinessesSnapshot> {
@@ -264,54 +135,30 @@ export async function getHomeBusinesses(
 
   const accessibleBusinesses = operatorUserId ? databaseBusinesses : [];
 
-  const realBusinesses = accessibleBusinesses.map((databaseBusiness) => {
-    const demoBusiness = getDemoBusinessBySlug(databaseBusiness.slug);
-
-    return withDatabaseId(
-      demoBusiness
-        ? demoBusiness
-        : createBaseBusinessConfig(databaseBusiness.slug, {
-            name: databaseBusiness.name,
-          }),
-      databaseBusiness.id,
-    );
-  });
-
-  const databaseSlugs = new Set(realBusinesses.map((business) => business.slug));
-  const demoBusinesses = mockBusinesses.filter((business) => !databaseSlugs.has(business.slug));
-
   return {
-    realBusinesses,
-    demoBusinesses,
+    realBusinesses: accessibleBusinesses.map(mapDatabaseBusinessToConfig),
   };
 }
 
 export async function getBusinessBySlugWithProducts(
   slug: string,
 ): Promise<BusinessProductsLookupResult> {
-  const resolvedBusiness = await resolveBusinessBySlug(slug);
+  const databaseBusiness = await getBusinessBySlugFromDatabase(slug);
 
   debugLog("[businesses] Received storefront slug", {
     slug,
-    resolved: Boolean(resolvedBusiness),
-    source: resolvedBusiness?.source ?? null,
+    resolved: Boolean(databaseBusiness),
   });
 
-  if (!resolvedBusiness) {
+  if (!databaseBusiness) {
     return { status: "not_found" };
   }
 
-  if (!resolvedBusiness.hasDatabaseRecord || !resolvedBusiness.business.databaseId) {
-    return {
-      status: "unmapped",
-      business: resolvedBusiness.business,
-    };
-  }
-
+  const business = mapDatabaseBusinessToConfig(databaseBusiness);
   const { getProductsByBusinessId, mapProductToBusinessProduct } = await import(
     "@/lib/data/products"
   );
-  const products = await getProductsByBusinessId(resolvedBusiness.business.databaseId);
+  const products = await getProductsByBusinessId(databaseBusiness.id);
 
   debugLog("[businesses] Products query completed", {
     slug,
@@ -322,7 +169,7 @@ export async function getBusinessBySlugWithProducts(
     return {
       status: "no_products",
       business: {
-        ...resolvedBusiness.business,
+        ...business,
         products: [],
       },
     };
@@ -331,7 +178,7 @@ export async function getBusinessBySlugWithProducts(
   return {
     status: "ok",
     business: {
-      ...resolvedBusiness.business,
+      ...business,
       products: products.map(mapProductToBusinessProduct),
     },
   };

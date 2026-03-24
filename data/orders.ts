@@ -1,285 +1,19 @@
+import {
+  getCurrentDate,
+  getCurrentTimestamp,
+  getStartOfUtcMonth,
+  getStartOfUtcWeek,
+  isSameUtcCalendarDay,
+} from "@/lib/operational-time";
 import type {
   MetricCard,
   MetricTone,
   OperationalPriority,
   Order,
-  OrderHistoryEvent,
-  OrderStatus,
 } from "@/types/orders";
 
-function createHistoryEvent(
-  id: string,
-  title: string,
-  description: string,
-  occurredAt: string,
-): OrderHistoryEvent {
-  return {
-    id,
-    title,
-    description,
-    occurredAt,
-  };
-}
-
-function buildOrderHistory(order: {
-  id: string;
-  status: OrderStatus;
-  isReviewed: boolean;
-  paymentStatus: Order["paymentStatus"];
-  createdAt: string;
-}): OrderHistoryEvent[] {
-  const history: OrderHistoryEvent[] = [
-    createHistoryEvent(
-      `${order.id}-created`,
-      "Pedido creado",
-      `El pedido fue registrado con estado ${order.status} y pago ${order.paymentStatus}.`,
-      order.createdAt,
-    ),
-  ];
-
-  if (order.isReviewed) {
-    history.unshift(
-      createHistoryEvent(
-        `${order.id}-reviewed`,
-        "Pedido revisado",
-        "El negocio revisó manualmente la solicitud y la dejó visible para operación.",
-        new Date(new Date(order.createdAt).getTime() + 60 * 60 * 1000).toISOString(),
-      ),
-    );
-  }
-
-  return history;
-}
-
-export const mockOrders: Order[] = [
-  {
-    id: "TEC-1001",
-    businessSlug: "panaderia-estacion",
-    client: "Panadería La Estación",
-    products: [
-      { name: "Caja de brownies", quantity: 2 },
-      { name: "Café molido 500 g", quantity: 1 },
-    ],
-    total: 68500,
-    paymentMethod: "Transferencia",
-    paymentStatus: "pendiente",
-    deliveryType: "domicilio",
-    status: "pago por verificar",
-    dateLabel: "Hoy, 8:15 a. m.",
-    createdAt: "2026-03-14T08:15:00.000Z",
-    isReviewed: false,
-    history: buildOrderHistory({
-      id: "TEC-1001",
-      status: "pago por verificar",
-      isReviewed: false,
-      paymentStatus: "pendiente",
-      createdAt: "2026-03-14T08:15:00.000Z",
-    }),
-    observations: "Enviar soporte contable por WhatsApp.",
-  },
-  {
-    id: "TEC-1002",
-    businessSlug: "cafe-aura",
-    client: "Boutique María Elena",
-    products: [
-      { name: "Bolsa kraft personalizada", quantity: 30 },
-      { name: "Tarjetas de agradecimiento", quantity: 30 },
-    ],
-    total: 124000,
-    paymentMethod: "Nequi",
-    paymentStatus: "verificado",
-    deliveryType: "recogida en tienda",
-    status: "confirmado",
-    dateLabel: "Hoy, 9:40 a. m.",
-    createdAt: "2026-03-14T09:40:00.000Z",
-    isReviewed: true,
-    history: buildOrderHistory({
-      id: "TEC-1002",
-      status: "confirmado",
-      isReviewed: true,
-      paymentStatus: "verificado",
-      createdAt: "2026-03-14T09:40:00.000Z",
-    }),
-  },
-  {
-    id: "TEC-1003",
-    businessSlug: "panaderia-estacion",
-    client: "Tienda Don Julio",
-    products: [
-      { name: "Pack de etiquetas premium", quantity: 4 },
-      { name: "Rollos térmicos", quantity: 2 },
-    ],
-    total: 89200,
-    paymentMethod: "Efectivo",
-    paymentStatus: "verificado",
-    deliveryType: "domicilio",
-    status: "en preparación",
-    dateLabel: "Hoy, 10:05 a. m.",
-    createdAt: "2026-03-14T10:05:00.000Z",
-    isReviewed: true,
-    history: buildOrderHistory({
-      id: "TEC-1003",
-      status: "en preparación",
-      isReviewed: true,
-      paymentStatus: "verificado",
-      createdAt: "2026-03-14T10:05:00.000Z",
-    }),
-    observations: "Separar una factura simplificada.",
-  },
-  {
-    id: "TEC-1004",
-    businessSlug: "cafe-aura",
-    client: "Café Aura",
-    products: [{ name: "Vasos biodegradables 12 oz", quantity: 6 }],
-    total: 57600,
-    paymentMethod: "Tarjeta",
-    paymentStatus: "verificado",
-    deliveryType: "recogida en tienda",
-    status: "listo",
-    dateLabel: "Hoy, 11:30 a. m.",
-    createdAt: "2026-03-14T11:30:00.000Z",
-    isReviewed: false,
-    history: buildOrderHistory({
-      id: "TEC-1004",
-      status: "listo",
-      isReviewed: false,
-      paymentStatus: "verificado",
-      createdAt: "2026-03-14T11:30:00.000Z",
-    }),
-  },
-  {
-    id: "TEC-1005",
-    businessSlug: "panaderia-estacion",
-    client: "Florería Primavera",
-    products: [
-      { name: "Listón decorativo", quantity: 8 },
-      { name: "Papel coreano", quantity: 5 },
-    ],
-    total: 74300,
-    paymentMethod: "Transferencia",
-    paymentStatus: "no verificado",
-    deliveryType: "domicilio",
-    status: "pendiente de pago",
-    dateLabel: "Hoy, 12:10 p. m.",
-    createdAt: "2026-03-14T12:10:00.000Z",
-    isReviewed: false,
-    history: buildOrderHistory({
-      id: "TEC-1005",
-      status: "pendiente de pago",
-      isReviewed: false,
-      paymentStatus: "no verificado",
-      createdAt: "2026-03-14T12:10:00.000Z",
-    }),
-  },
-  {
-    id: "TEC-1006",
-    businessSlug: "panaderia-estacion",
-    client: "Pet Shop Huellitas",
-    products: [
-      { name: "Stickers promocionales", quantity: 120 },
-      { name: "Tarjeta de fidelidad", quantity: 60 },
-    ],
-    total: 96500,
-    paymentMethod: "Contra entrega",
-    paymentStatus: "verificado",
-    deliveryType: "domicilio",
-    status: "entregado",
-    dateLabel: "Ayer, 4:45 p. m.",
-    createdAt: "2026-03-13T16:45:00.000Z",
-    isReviewed: true,
-    history: buildOrderHistory({
-      id: "TEC-1006",
-      status: "entregado",
-      isReviewed: true,
-      paymentStatus: "verificado",
-      createdAt: "2026-03-13T16:45:00.000Z",
-    }),
-  },
-  {
-    id: "TEC-1007",
-    businessSlug: "cafe-aura",
-    client: "Deli Express",
-    products: [{ name: "Caja lunch mediana", quantity: 50 }],
-    total: 110000,
-    paymentMethod: "Nequi",
-    paymentStatus: "con novedad",
-    deliveryType: "domicilio",
-    status: "cancelado",
-    dateLabel: "Ayer, 2:20 p. m.",
-    createdAt: "2026-03-13T14:20:00.000Z",
-    isReviewed: true,
-    history: buildOrderHistory({
-      id: "TEC-1007",
-      status: "cancelado",
-      isReviewed: true,
-      paymentStatus: "con novedad",
-      createdAt: "2026-03-13T14:20:00.000Z",
-    }),
-    observations: "Cliente reportó cambio de proveedor.",
-  },
-  {
-    id: "TEC-1008",
-    businessSlug: "cafe-aura",
-    client: "Mercado San Pedro",
-    products: [
-      { name: "Etiquetas de precio", quantity: 10 },
-      { name: "Marcadores punta fina", quantity: 3 },
-    ],
-    total: 53300,
-    paymentMethod: "Efectivo",
-    paymentStatus: "verificado",
-    deliveryType: "recogida en tienda",
-    status: "confirmado",
-    dateLabel: "Ayer, 9:10 a. m.",
-    createdAt: "2026-03-13T09:10:00.000Z",
-    isReviewed: true,
-    history: buildOrderHistory({
-      id: "TEC-1008",
-      status: "confirmado",
-      isReviewed: true,
-      paymentStatus: "verificado",
-      createdAt: "2026-03-13T09:10:00.000Z",
-    }),
-  },
-];
-
-export function getMockOrdersByBusinessSlug(businessSlug: string) {
-  return mockOrders.filter((order) => order.businessSlug === businessSlug);
-}
-
-function getReferenceDate(orders: Order[]) {
-  const latestTimestamp = orders.reduce((highestValue, order) => {
-    const currentTimestamp = new Date(order.createdAt).getTime();
-    return Number.isFinite(currentTimestamp)
-      ? Math.max(highestValue, currentTimestamp)
-      : highestValue;
-  }, 0);
-
-  return latestTimestamp > 0 ? new Date(latestTimestamp) : new Date();
-}
-
-function isSameCalendarDay(left: Date, right: Date) {
-  return (
-    left.getUTCFullYear() === right.getUTCFullYear() &&
-    left.getUTCMonth() === right.getUTCMonth() &&
-    left.getUTCDate() === right.getUTCDate()
-  );
-}
-
-function getStartOfUtcWeek(date: Date) {
-  const weekStart = new Date(date);
-  const day = weekStart.getUTCDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  weekStart.setUTCDate(weekStart.getUTCDate() + diff);
-  weekStart.setUTCHours(0, 0, 0, 0);
-  return weekStart;
-}
-
-function getStartOfUtcMonth(date: Date) {
-  const monthStart = new Date(date);
-  monthStart.setUTCDate(1);
-  monthStart.setUTCHours(0, 0, 0, 0);
-  return monthStart;
+function getOperationalReferenceDate() {
+  return getCurrentDate();
 }
 
 function isActiveOrder(order: Order) {
@@ -305,7 +39,7 @@ export const formatCurrency = (value: number) => currencyFormatter.format(value)
 
 export function getElapsedMinutes(order: Order): number {
   const createdAt = new Date(order.createdAt).getTime();
-  const now = new Date("2026-03-14T13:00:00.000Z").getTime();
+  const now = getCurrentTimestamp();
   return Math.max(0, Math.floor((now - createdAt) / (1000 * 60)));
 }
 
@@ -353,8 +87,16 @@ export function getOperationalPriorityScore(order: Order): number {
   return priorityWeight * 100000 + getElapsedMinutes(order);
 }
 
-const actionableStatuses: OrderStatus[] = ["pendiente de pago", "pago por verificar"];
-const productionStatuses: OrderStatus[] = ["confirmado", "en preparación", "listo"];
+const actionableStatuses = ["pendiente de pago", "pago por verificar"] as const;
+const productionStatuses = ["confirmado", "en preparación", "listo"] as const;
+
+function isActionableOrderStatus(status: Order["status"]) {
+  return actionableStatuses.some((candidate) => candidate === status);
+}
+
+function isProductionOrderStatus(status: Order["status"]) {
+  return productionStatuses.some((candidate) => candidate === status);
+}
 
 export interface ProductPerformance {
   name: string;
@@ -413,17 +155,17 @@ function formatReferenceDateLabel(date: Date) {
 }
 
 export function getOrdersForReferenceDay(orders: Order[]) {
-  const referenceDate = getReferenceDate(orders);
+  const referenceDate = getOperationalReferenceDate();
 
   return orders.filter((order) =>
-    isSameCalendarDay(new Date(order.createdAt), referenceDate),
+    isSameUtcCalendarDay(new Date(order.createdAt), referenceDate),
   );
 }
 
 export function getOrdersRegisteredThisWeek(orders: Order[]) {
-  const referenceDate = getReferenceDate(orders);
+  const referenceDate = getOperationalReferenceDate();
   const weekStart = getStartOfUtcWeek(referenceDate).getTime();
-  const weekEnd = new Date(referenceDate).getTime();
+  const weekEnd = referenceDate.getTime();
 
   return orders.filter((order) => {
     const createdAt = new Date(order.createdAt).getTime();
@@ -432,9 +174,9 @@ export function getOrdersRegisteredThisWeek(orders: Order[]) {
 }
 
 export function getOrdersRegisteredThisMonth(orders: Order[]) {
-  const referenceDate = getReferenceDate(orders);
+  const referenceDate = getOperationalReferenceDate();
   const monthStart = getStartOfUtcMonth(referenceDate).getTime();
-  const monthEnd = new Date(referenceDate).getTime();
+  const monthEnd = referenceDate.getTime();
 
   return orders.filter((order) => {
     const createdAt = new Date(order.createdAt).getTime();
@@ -496,7 +238,7 @@ export function getAverageTicket(orders: Order[]) {
 }
 
 export function getOrdersMetricsSummary(orders: Order[]): OrdersMetricsSummary {
-  const referenceDate = getReferenceDate(orders);
+  const referenceDate = getOperationalReferenceDate();
   const referenceDayOrders = getOrdersForReferenceDay(orders);
   const activeOrders = orders.filter(isActiveOrder);
   const topProducts = getTopProducts(orders, 3);
@@ -522,12 +264,13 @@ export function getOrdersMetricsSummary(orders: Order[]): OrdersMetricsSummary {
     referenceDayRevenue: referenceDayOrders
       .filter(isActiveOrder)
       .reduce((total, order) => total + order.total, 0),
-    averageTicket: activeOrders.length > 0
-      ? activeOrders.reduce((total, order) => total + order.total, 0) / activeOrders.length
-      : 0,
-    pendingActionsCount: orders.filter((order) => actionableStatuses.includes(order.status)).length,
+    averageTicket:
+      activeOrders.length > 0
+        ? activeOrders.reduce((total, order) => total + order.total, 0) / activeOrders.length
+        : 0,
+    pendingActionsCount: orders.filter((order) => isActionableOrderStatus(order.status)).length,
     pendingPaymentsCount: orders.filter(isPendingPayment).length,
-    inProgressCount: orders.filter((order) => productionStatuses.includes(order.status)).length,
+    inProgressCount: orders.filter((order) => isProductionOrderStatus(order.status)).length,
     deliveredCount: orders.filter((order) => order.status === "entregado").length,
     cancelledCount: orders.filter((order) => order.status === "cancelado").length,
     unreviewedCount: orders.filter((order) => !order.isReviewed).length,
@@ -661,19 +404,19 @@ export function getMetricsOverviewSnapshot(orders: Order[]): MetricsOverviewSnap
       {
         title: "Pedidos del corte",
         value: `${summary.referenceDayOrders.length}`,
-        description: `Pedidos persistidos del ultimo dia con actividad (${summary.referenceDateLabel}).`,
+        description: `Pedidos persistidos del dia operativo actual (${summary.referenceDateLabel}).`,
         tone: "neutral",
       },
       {
-        title: "Pendientes de atencion",
+        title: "Pendientes de atención",
         value: `${summary.pendingActionsCount}`,
-        description: "Cobros o validaciones de pago que pueden frenar la operacion.",
+        description: "Cobros o validaciones de pago que pueden frenar la operación.",
         tone: "warning",
       },
       {
-        title: "En operacion",
+        title: "En operación",
         value: `${summary.inProgressCount}`,
-        description: "Pedidos confirmados, en preparacion o listos para entregar.",
+        description: "Pedidos confirmados, en preparación o listos para entregar.",
         tone: "info",
       },
       {
@@ -698,8 +441,8 @@ export function getMetricsOverviewSnapshot(orders: Order[]): MetricsOverviewSnap
         value: `${summary.inProgressCount}`,
         description:
           summary.inProgressCount > 0
-            ? "Pedidos actualmente en produccion o listos para entregar."
-            : "No hay pedidos en produccion abiertos ahora mismo.",
+            ? "Pedidos actualmente en producción o listos para entregar."
+            : "No hay pedidos en producción abiertos ahora mismo.",
         tone: summary.inProgressCount > 0 ? "info" : "neutral",
       },
       {
@@ -707,8 +450,8 @@ export function getMetricsOverviewSnapshot(orders: Order[]): MetricsOverviewSnap
         value: formatCurrency(summary.referenceDayRevenue),
         description:
           summary.referenceDayOrders.length > 0
-            ? `Basado en ${summary.referenceDayOrders.length} pedido${summary.referenceDayOrders.length === 1 ? "" : "s"} de ${summary.referenceDateLabel}.`
-            : "Aun no hay pedidos en el dia de referencia actual.",
+            ? `Basado en ${summary.referenceDayOrders.length} pedido${summary.referenceDayOrders.length === 1 ? "" : "s"} del dia operativo ${summary.referenceDateLabel}.`
+            : "Aun no hay pedidos en el día operativo actual.",
         tone: summary.referenceDayRevenue > 0 ? "success" : "neutral",
       },
       {
@@ -716,7 +459,7 @@ export function getMetricsOverviewSnapshot(orders: Order[]): MetricsOverviewSnap
         value: `${summary.cancelledCount}`,
         description:
           summary.cancelledCount > 0
-            ? "Sirve para revisar friccion comercial o fallas en cierre."
+            ? "Sirve para revisar fricción comercial o fallas en cierre."
             : "No hay cancelaciones registradas en el historial actual.",
         tone: summary.cancelledCount > 0 ? "warning" : "neutral",
       },

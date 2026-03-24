@@ -1,8 +1,5 @@
 import { normalizeBusinessSlug } from "@/lib/businesses/slug";
-import {
-  hasExplicitLegacyBusinessAccessConfigured,
-  isExplicitlyAllowedLegacyBusiness,
-} from "@/lib/auth/legacy-business-access";
+import { isLegacyBusinessBlocked } from "@/lib/auth/legacy-business-access";
 import {
   createServerSupabaseAdminClient,
   createServerSupabaseAuthClient,
@@ -20,7 +17,7 @@ interface OrderOwnershipRow {
   business_id: string;
 }
 
-export type BusinessAccessLevel = "owned" | "legacy_allowed";
+export type BusinessAccessLevel = "owned";
 
 export interface BusinessAccessResult {
   businessId: string;
@@ -40,18 +37,11 @@ export function getBusinessAccessLevel(
   { businessId, businessSlug, ownerUserId }: BusinessAccessInput,
   userId: string,
 ): BusinessAccessLevel | null {
+  void businessId;
+  void businessSlug;
+
   if (ownerUserId === userId) {
     return "owned";
-  }
-
-  if (
-    isExplicitlyAllowedLegacyBusiness({
-      businessId,
-      businessSlug,
-      ownerUserId,
-    })
-  ) {
-    return "legacy_allowed";
   }
 
   return null;
@@ -125,11 +115,7 @@ async function getOwnedOrderRowById(orderId: string) {
   return data;
 }
 
-async function getLegacyBusinessRowBySlug(slug: string) {
-  if (!hasExplicitLegacyBusinessAccessConfigured()) {
-    return null;
-  }
-
+async function getBusinessRowBySlugForAuthorization(slug: string) {
   const supabase = createServerSupabaseAdminClient();
   const { data, error } = await supabase
     .from("businesses")
@@ -144,11 +130,7 @@ async function getLegacyBusinessRowBySlug(slug: string) {
   return data;
 }
 
-async function getLegacyBusinessRowById(businessId: string) {
-  if (!hasExplicitLegacyBusinessAccessConfigured()) {
-    return null;
-  }
-
+async function getBusinessRowByIdForAuthorization(businessId: string) {
   const supabase = createServerSupabaseAdminClient();
   const { data, error } = await supabase
     .from("businesses")
@@ -163,11 +145,7 @@ async function getLegacyBusinessRowById(businessId: string) {
   return data;
 }
 
-async function getLegacyOrderRowById(orderId: string) {
-  if (!hasExplicitLegacyBusinessAccessConfigured()) {
-    return null;
-  }
-
+async function getOrderRowByIdForAuthorization(orderId: string) {
   const supabase = createServerSupabaseAdminClient();
   const { data, error } = await supabase
     .from("orders")
@@ -180,6 +158,13 @@ async function getLegacyOrderRowById(orderId: string) {
   }
 
   return data;
+}
+
+function isOwnedBusiness(
+  row: Pick<BusinessOwnershipRow, "created_by_user_id">,
+  userId: string,
+) {
+  return row.created_by_user_id === userId;
 }
 
 export async function getBusinessAccessBySlug(
@@ -198,13 +183,22 @@ export async function getBusinessAccessBySlug(
     return mapBusinessAccessResult(ownedBusiness, userId);
   }
 
-  const legacyBusiness = await getLegacyBusinessRowBySlug(normalizedSlug);
+  const existingBusiness = await getBusinessRowBySlugForAuthorization(normalizedSlug);
 
-  if (!legacyBusiness) {
+  if (!existingBusiness) {
     return null;
   }
 
-  return mapBusinessAccessResult(legacyBusiness, userId);
+  // Legacy businesses without owner stay blocked until there is a real ownership migration.
+  if (isLegacyBusinessBlocked(existingBusiness.created_by_user_id)) {
+    return null;
+  }
+
+  if (!isOwnedBusiness(existingBusiness, userId)) {
+    return null;
+  }
+
+  return mapBusinessAccessResult(existingBusiness, userId);
 }
 
 export async function getBusinessAccessById(
@@ -217,13 +211,22 @@ export async function getBusinessAccessById(
     return mapBusinessAccessResult(ownedBusiness, userId);
   }
 
-  const legacyBusiness = await getLegacyBusinessRowById(businessId);
+  const existingBusiness = await getBusinessRowByIdForAuthorization(businessId);
 
-  if (!legacyBusiness) {
+  if (!existingBusiness) {
     return null;
   }
 
-  return mapBusinessAccessResult(legacyBusiness, userId);
+  // Legacy businesses without owner stay blocked until there is a real ownership migration.
+  if (isLegacyBusinessBlocked(existingBusiness.created_by_user_id)) {
+    return null;
+  }
+
+  if (!isOwnedBusiness(existingBusiness, userId)) {
+    return null;
+  }
+
+  return mapBusinessAccessResult(existingBusiness, userId);
 }
 
 export async function getBusinessAccessByOrderId(
@@ -236,13 +239,13 @@ export async function getBusinessAccessByOrderId(
     return getBusinessAccessById(ownedOrder.business_id, userId);
   }
 
-  const legacyOrder = await getLegacyOrderRowById(orderId);
+  const existingOrder = await getOrderRowByIdForAuthorization(orderId);
 
-  if (!legacyOrder?.business_id) {
+  if (!existingOrder?.business_id) {
     return null;
   }
 
-  return getBusinessAccessById(legacyOrder.business_id, userId);
+  return getBusinessAccessById(existingOrder.business_id, userId);
 }
 
 export function canAccessBusiness(

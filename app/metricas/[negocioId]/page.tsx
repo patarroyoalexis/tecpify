@@ -27,8 +27,8 @@ export default async function MetricsPage({
               Este negocio no esta disponible para tu sesion
             </h1>
             <p className="mt-3 text-sm leading-6 text-slate-600">
-              Solo puedes operar negocios propios o negocios legacy autorizados
-              explicitamente por la politica actual.
+              Solo el owner autenticado puede operar este workspace. Si el negocio
+              sigue legacy y no tiene owner real, el acceso privado queda bloqueado.
             </p>
           </section>
         </div>
