@@ -14,6 +14,7 @@ import {
   type OrderApiUpdatePayload,
 } from "@/lib/orders/mappers";
 import { debugError, debugLog } from "@/lib/debug";
+import { assertOrderUpdateTransitionAllowed } from "@/lib/orders/update-guards";
 import {
   createServerSupabaseAuthClient,
   createServerSupabasePublicClient,
@@ -48,6 +49,8 @@ interface OrderLookupRow {
   products: Order["products"];
   total: number;
   notes: string | null;
+  status: Order["status"];
+  payment_status: Order["paymentStatus"];
 }
 
 function buildPersistedInsertedOrder(
@@ -658,7 +661,7 @@ export async function updateOrderInDatabase(
   const { data: existingOrder, error: lookupError } = await supabase
     .from("orders")
     .select(
-      "id, business_id, customer_name, customer_whatsapp, delivery_type, delivery_address, payment_method, products, total, notes",
+      "id, business_id, customer_name, customer_whatsapp, delivery_type, delivery_address, payment_method, products, total, notes, status, payment_status",
     )
     .eq("id", orderId)
     .maybeSingle<OrderLookupRow>();
@@ -691,6 +694,14 @@ export async function updateOrderInDatabase(
     normalizedPayload.total !== undefined ? normalizedPayload.total : existingOrder.total;
   const nextProducts =
     normalizedPayload.products !== undefined ? normalizedPayload.products : existingOrder.products;
+
+  assertOrderUpdateTransitionAllowed(
+    {
+      status: existingOrder.status,
+      paymentStatus: existingOrder.payment_status,
+    },
+    normalizedPayload,
+  );
 
   if (nextCustomerName.length === 0) {
     throw new Error("Invalid order update payload. customerName is required.");

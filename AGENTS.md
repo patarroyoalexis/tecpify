@@ -1,129 +1,100 @@
-# AGENTS.md
+## Agente automatico de consistencia post-tarea
 
-## Proposito
+Cada vez que se termine cualquier tarea solicitada, antes de darla por finalizada, ejecutar una revision obligatoria de consistencia del MVP.
 
-Este archivo existe para vigilar consistencia funcional y contractual del MVP.
+### Objetivo del agente
 
-La prioridad no es crear abstracciones nuevas. La prioridad es evitar que Tecpify vuelva a mezclar nombres, payloads, reglas de acceso y fuentes de verdad entre cliente, servidor y Supabase.
+Verificar que el cambio recien hecho no rompa contratos, naming, acceso, persistencia ni separacion client/server.
 
-## Principios
+No cerrar una tarea solo porque compila o porque el cambio visual funciona. Antes de cerrar, revisar consistencia funcional y contractual segun este archivo.
 
-- Una idea debe tener un nombre canonico por capa.
-- Supabase es la fuente de verdad para negocios, productos y pedidos.
-- `localStorage` solo puede guardar estado de UI no critico.
-- No mezclar `snake_case` y `camelCase` dentro del mismo contrato publico.
-- No agregar nuevas variables de entorno fuera del modulo central.
-- No leer `process.env` directamente fuera de `lib/env.ts`.
-- Un modulo client no debe importar un modulo que tambien contenga lecturas server de entorno o helpers server-only.
+### Cuando se ejecuta
 
-## Variables de entorno vigentes
+Ejecutar siempre al final de cada tarea que modifique:
+- contratos
+- rutas API
+- componentes client
+- acceso a Supabase
+- auth
+- mappers
+- variables de entorno
+- persistencia
+- flujos del storefront
+- dashboard, pedidos, catalogo o metricas
 
-### Publicas permitidas
+Si una tarea toca solo copy o estilos muy aislados, igual hacer una revision minima de imports, contratos y efectos colaterales.
 
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `NEXT_PUBLIC_SITE_URL`
+### Protocolo obligatorio de cierre
 
-### Servidor permitidas
+Antes de responder "terminado", hacer estas verificaciones:
 
-- `SUPABASE_SERVICE_ROLE_KEY`
+1. Revisar archivos modificados y detectar si el cambio toco:
+   - naming canonico
+   - payloads publicos
+   - mappers
+   - uso de Supabase
+   - reglas client/server
+   - variables de entorno
+   - uso de mocks o localStorage
+   - flujos criticos del MVP
 
-### Reglas
+2. Revisar si el cambio introdujo alguna de estas regresiones:
+   - exito visual sin persistencia real
+   - lectura o escritura que vuelve a depender de localStorage como fuente de verdad
+   - mezcla de snake_case y camelCase en una misma frontera publica
+   - import de helpers server-only dentro de componentes client
+   - lectura directa de process.env fuera de lib/env.ts
+   - uso nuevo o encubierto de variables de entorno no documentadas
+   - dependencia nueva de service role sin documentacion
+   - perdida silenciosa de datos o fallback silencioso
+   - flujo publico roto por cambios en ownership, auth o lectura de negocio
 
-- Toda lectura de entorno vive en [lib/env.ts](C:/Users/Alexis/Documents/tecpify/lib/env.ts).
-- Si un componente client necesita una comprobacion minima de runtime, usar [lib/runtime.ts](C:/Users/Alexis/Documents/tecpify/lib/runtime.ts) o un helper similar separado.
-- No reintroducir `AUTH_SESSION_SECRET`. Hoy no existe como variable real del proyecto.
-- Si aparece una variable nueva:
-  1. declararla en `lib/env.ts`
-  2. validarla alli
-  3. documentarla en `README.md`
-  4. agregarla a `.env.example`
+3. Ejecutar validacion tecnica minima:
+   - lint
+   - typecheck
+   - build
+   - y cualquier test existente relacionado con el area tocada
 
-## Nombres canonicos actuales
+4. Si la tarea toca circuito critico, revisar tambien:
+   - negocio
+   - catalogo
+   - link publico
+   - creacion de pedido
+   - lectura en workspace
+   - actualizacion de estado o pago
+   - metricas basicas si dependen de ese cambio
 
-### Negocio
+5. Entregar siempre un informe de cierre con este formato:
+   - Archivos modificados
+   - Verificaciones ejecutadas
+   - Hallazgos
+   - Riesgos detectados
+   - Inconsistencias corregidas
+   - Pendientes no bloqueantes
+   - Veredicto final
 
-- En dominio, hooks, props y payloads internos usar `businessSlug`.
-- En params de App Router se permite `negocioId` por compatibilidad con la estructura actual de carpetas.
-- No introducir `negocioSlug` como nombre nuevo.
-- `businessId` se reserva para el id persistido de base de datos.
+### Regla de severidad
 
-### Pedidos
+Clasificar hallazgos asi:
+- Critico: rompe persistencia, seguridad, ownership o contratos base
+- Alto: rompe un flujo funcional real o deja una regresion probable
+- Medio: inconsistencia de naming, mapper, warning funcional o deuda cercana
+- Bajo: deuda documental, copy, limpieza, detalles menores
 
-- En dominio y frontend usar `status`, `paymentStatus`, `deliveryType`.
-- En base de datos y payloads crudos de Supabase usar `payment_status`, `delivery_type`, `is_reviewed`.
-- La traduccion entre ambas formas debe vivir en mappers o adaptadores.
-- En frontend y dominio usar `productId`.
-- En entidades de pedido usar `client`, `customerPhone`, `address`, `observations`.
-- En payloads API de pedidos usar `customerName`, `customerWhatsApp`, `deliveryAddress`, `notes`.
+### Regla de honestidad
 
-### Productos
+Nunca afirmar que un cambio esta listo solo porque compilo.
+Nunca afirmar que un flujo esta estable si no fue revisado contra contratos y persistencia.
+Si algo no pudo verificarse, decirlo explicitamente.
 
-- Usar `productId` en dominio, formularios y payloads API.
-- Reservar `id` para el registro persistido completo.
+### Veredicto final permitido
 
-## Reglas de mappers y payloads
+Solo se puede cerrar con una de estas frases:
+- APTO PARA REVISAR
+- APTO CON ALERTAS
+- NO APTO TODAVIA
 
-- Los componentes no deben conocer columnas de Supabase como `payment_status` o `delivery_type`.
-- Si una API expone `camelCase`, mantener `camelCase` en todo el contrato publico.
-- Si una API necesita compatibilidad temporal con `snake_case`, normalizar de inmediato en el mapper y no expandir esa compatibilidad a mas capas.
-- El punto actual de normalizacion principal para pedidos es [lib/orders/mappers.ts](C:/Users/Alexis/Documents/tecpify/lib/orders/mappers.ts).
+### Regla de correccion inmediata
 
-## Reglas client / server
-
-- Los componentes client no deben importar:
-  - `lib/env.ts`
-  - `lib/supabase/server.ts`
-  - helpers server-only de auth
-- Los componentes client pueden importar:
-  - `lib/runtime.ts`
-  - clientes API del browser
-  - tipos y helpers puros sin lecturas de entorno
-- Las rutas API deben validar acceso y normalizar payloads antes de tocar Supabase.
-- Las pages privadas pueden usar middleware para UX, pero la validacion real debe seguir ocurriendo en servidor.
-
-## Reglas funcionales vigentes
-
-- Negocios, productos y pedidos deben persistirse en Supabase.
-- El dashboard debe leer pedidos desde servidor o API real, no desde mocks ni `localStorage`.
-- Si una mutacion persiste pero falla la resincronizacion, la UI debe comunicarlo como warning y no como perdida silenciosa.
-- Si un flujo publico depende de `SUPABASE_SERVICE_ROLE_KEY`, esa dependencia debe quedar explicita en `README.md` y `lib/env.ts`.
-
-## Criterios para detectar regresiones funcionales
-
-Considera regresion cualquier cambio que haga una de estas cosas:
-
-- Confirmar exito visual cuando la mutacion real fallo.
-- Hacer que pedidos o productos vuelvan a depender de estado local como fuente de verdad.
-- Exponer secretos o helpers server-only al cliente.
-- Mezclar nombres de contrato dentro de la misma capa.
-- Hacer que el workspace privado dependa solo de middleware y no de validacion server.
-- Volver a introducir variables de entorno no documentadas o no centralizadas.
-
-## Obsoletos o cosas que ya no se deben usar
-
-- `AUTH_SESSION_SECRET`
-- lectura directa de `process.env` fuera de `lib/env.ts`
-- usar `localStorage` para guardar pedidos como fuente de verdad
-- introducir `negocioSlug` como nombre nuevo
-- importar `lib/env.ts` desde componentes client
-- tratar `id` como sinonimo universal de `productId` en payloads
-
-## Que revisar antes de tocar contratos o persistencia
-
-- Revisar si ya existe un mapper para esa frontera.
-- Revisar si la capa actual ya tiene un nombre canonico definido.
-- Revisar si el cambio toca una ruta API, un mapper y una vista que deban evolucionar juntas.
-- Preferir normalizacion local y explicita antes que refactor masivo.
-- Si hace falta una migracion de naming amplia, separarla de los cambios funcionales.
-
-## Checklist minimo antes de aceptar cambios
-
-- La prop o variable usa el nombre canonico de esta capa.
-- El payload usa una sola convencion de nombres.
-- La conversion a nombres de base de datos ocurre en un punto claro.
-- La funcionalidad critica sigue persistiendo en Supabase.
-- `localStorage` no se usa como verdad principal.
-- Ningun modulo client importa helpers server-only o entorno central.
-- Las variables de entorno nuevas salen de `lib/env.ts` y estan documentadas.
-- El cambio no agrega una inconsistencia nueva aunque arregle otra.
+Si durante la revision aparece una inconsistencia clara introducida por el mismo cambio recien hecho, corregirla antes de cerrar, siempre que el alcance sea pequeno y directo.
+Si la correccion requiere una refactorizacion mayor, no improvisarla: reportarla como riesgo o pendiente bloqueante.

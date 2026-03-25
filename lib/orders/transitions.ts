@@ -116,7 +116,7 @@ export function canAdvanceOrderStatus(
 }
 
 export function getOrderStatusTransitionRule(
-  order: Order,
+  order: Pick<Order, "status">,
   nextStatus: OrderStatus,
 ): TransitionRuleResult {
   if (nextStatus === order.status) {
@@ -149,7 +149,7 @@ export function getOrderStatusTransitionRule(
 }
 
 export function getPaymentStatusTransitionRule(
-  order: Order,
+  order: Pick<Order, "paymentStatus">,
   nextStatus: PaymentStatus,
 ): TransitionRuleResult {
   if (nextStatus === order.paymentStatus) {

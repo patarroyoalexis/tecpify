@@ -127,7 +127,6 @@ Fuera del alcance real actual:
   - valida productos activos y total real antes de insertar
   - persiste pedidos reales en Supabase desde storefront y tambien desde el workspace
 - Limitaciones:
-  - el autocompletado de cliente por pedidos previos existe en UI, pero hoy no recibe `recentOrders` reales desde la page publica
   - el historial inicial depende parcialmente de lo que envie el cliente
 - Archivos dominantes:
   - [components/storefront/order-wizard.tsx](C:/Users/Alexis/Documents/tecpify/components/storefront/order-wizard.tsx)
@@ -262,11 +261,6 @@ Estos flujos estan implementados y conectados a persistencia real:
 
 ## 6. Flujos parciales o con riesgo
 
-- Reutilizacion de perfil de cliente por WhatsApp en storefront:
-  - la UI existe
-  - hoy no llega `recentOrders` reales a la page publica
-  - estado: parcial
-
 - Negocios legacy sin owner:
   - el workspace privado y el storefront publico los bloquean por completo
   - la salida operativa sigue siendo asignar owner mediante migracion controlada
@@ -296,14 +290,13 @@ Estos flujos estan implementados y conectados a persistencia real:
 - Riesgo de seguridad operativa si se relajan politicas RLS de `businesses`, `products` u `orders` sin revisar storefront y workspace juntos.
 - Riesgo de UX por densidad visual en pedidos y detalle de pedido.
 - Riesgo de inconsistencia si se cambian transiciones de estado o pago en una sola capa.
-- Riesgo de confusion en storefront por la UI de perfil reutilizable que hoy no esta completamente conectada.
 - Riesgo de regresion en auth privada si se migra middleware sin cubrir pages y APIs server-first.
 
 ## 9. Prioridades recomendadas
 
 1. Agregar pruebas automatizadas del circuito critico de pedidos y ownership.
 2. Definir el procedimiento operativo para migrar ownership de negocios legacy ya bloqueados.
-3. Completar o retirar la reutilizacion de perfil en storefront para no mostrar una capacidad parcial.
+3. Mantener el storefront publico simple y sin promesas parciales de perfil reutilizable.
 4. Simplificar la operacion diaria del workspace antes de abrir mas modulos.
 5. Mantener el inventario de `service role` vacio salvo que aparezca un caso realmente indispensable y documentado.
 
@@ -363,6 +356,7 @@ npm run build
 npm run start
 npm run lint
 npm run typecheck
+npm test
 ```
 
 ## 11. Variables de entorno realmente requeridas
@@ -447,7 +441,7 @@ Tecpify es operable si cumple todo esto en un entorno real:
 
 ### UX
 
-- Eliminar o completar la UI de reutilizacion de perfil en storefront mientras `recentOrders` no llegue realmente al formulario publico.
+- Evitar reintroducir reutilizacion de perfil en storefront mientras no exista una fuente publica segura y minima para ese dato.
 - Hacer mas explicita la diferencia entre error de persistencia y error de resincronizacion posterior.
 - Mostrar mejor el siguiente paso recomendado cuando el negocio ya tiene catalogo pero aun no tiene primer pedido.
 

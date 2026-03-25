@@ -27,6 +27,14 @@ export function normalizePhoneForWhatsApp(
   return digits;
 }
 
+export function isValidWhatsAppPhone(
+  phone: string,
+  defaultCountryCode = "57",
+) {
+  const normalizedPhone = normalizePhoneForWhatsApp(phone, defaultCountryCode);
+  return normalizedPhone.length >= 12;
+}
+
 export function buildWhatsAppUrl(
   phone: string,
   message: string,

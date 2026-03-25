@@ -12,11 +12,9 @@ import {
   getPaymentMethodLabel,
   isDigitalPayment,
 } from "@/components/dashboard/payment-helpers";
-import {
-  isValidWhatsAppPhone,
-} from "@/data/customer-profiles";
 import { debugError } from "@/lib/debug";
 import { createOrderViaApi } from "@/lib/orders/api";
+import { isValidWhatsAppPhone } from "@/lib/whatsapp";
 import {
   getOrderDisplayCode,
   type DeliveryType,

@@ -29,122 +29,150 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
-export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const rawBusinessSlug = searchParams.get("businessSlug");
-  const businessSlug = rawBusinessSlug ? normalizeBusinessSlug(rawBusinessSlug) : "";
-
-  if (!businessSlug) {
-    return NextResponse.json(
-      { error: "Debes indicar el businessSlug para consultar pedidos." },
-      { status: 400 },
-    );
-  }
-
-  const businessContextResult = await requireBusinessApiContext(businessSlug);
-
-  if (!businessContextResult.ok) {
-    return businessContextResult.response;
-  }
-
-  try {
-    const orders = await getOrdersByBusinessIdFromDatabase(
-      businessContextResult.context.businessId,
-      {
-        businessSlug: businessContextResult.context.businessSlug,
-      },
-    );
-    return NextResponse.json({ orders });
-  } catch (error) {
-    return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "No fue posible consultar los pedidos.",
-      },
-      { status: 500 },
-    );
-  }
+interface OrdersRouteDependencies {
+  normalizeBusinessSlug: typeof normalizeBusinessSlug;
+  requireBusinessApiContext: typeof requireBusinessApiContext;
+  getOrdersByBusinessIdFromDatabase: typeof getOrdersByBusinessIdFromDatabase;
+  createOrderInDatabase: typeof createOrderInDatabase;
 }
 
-export async function POST(request: Request) {
-  let payload: unknown;
+export function createOrdersRouteHandlers(
+  dependencies: OrdersRouteDependencies = {
+    normalizeBusinessSlug,
+    requireBusinessApiContext,
+    getOrdersByBusinessIdFromDatabase,
+    createOrderInDatabase,
+  },
+) {
+  return {
+    async GET(request: Request) {
+      const { searchParams } = new URL(request.url);
+      const rawBusinessSlug = searchParams.get("businessSlug");
+      const businessSlug = rawBusinessSlug
+        ? dependencies.normalizeBusinessSlug(rawBusinessSlug)
+        : "";
 
-  try {
-    payload = await request.json();
-  } catch {
-    return NextResponse.json(
-      { error: "El body JSON para crear pedido no es valido." },
-      { status: 400 },
-    );
-  }
+      if (!businessSlug) {
+        return NextResponse.json(
+          { error: "Debes indicar el businessSlug para consultar pedidos." },
+          { status: 400 },
+        );
+      }
 
-  if (!isPlainObject(payload)) {
-    return NextResponse.json(
-      { error: "El payload para crear pedido debe ser un objeto JSON." },
-      { status: 400 },
-    );
-  }
+      const businessContextResult = await dependencies.requireBusinessApiContext(businessSlug);
 
-  const payloadFields = Object.keys(payload);
-  const invalidFields = payloadFields.filter((field) => !CREATE_ORDER_ALLOWED_FIELDS.has(field));
+      if (!businessContextResult.ok) {
+        return businessContextResult.response;
+      }
 
-  if (invalidFields.length > 0) {
-    return NextResponse.json(
-      {
-        error: `El payload para crear pedido contiene campos no permitidos: ${invalidFields.join(", ")}.`,
-      },
-      { status: 400 },
-    );
-  }
+      try {
+        const orders = await dependencies.getOrdersByBusinessIdFromDatabase(
+          businessContextResult.context.businessId,
+          {
+            businessSlug: businessContextResult.context.businessSlug,
+          },
+        );
+        return NextResponse.json({ orders });
+      } catch (error) {
+        return NextResponse.json(
+          {
+            error:
+              error instanceof Error
+                ? error.message
+                : "No fue posible consultar los pedidos.",
+          },
+          { status: 500 },
+        );
+      }
+    },
+    async POST(request: Request) {
+      let payload: unknown;
 
-  const normalizedBusinessSlug =
-    typeof payload.businessSlug === "string" ? normalizeBusinessSlug(payload.businessSlug) : "";
+      try {
+        payload = await request.json();
+      } catch {
+        return NextResponse.json(
+          { error: "El body JSON para crear pedido no es valido." },
+          { status: 400 },
+        );
+      }
 
-  if (!normalizedBusinessSlug) {
-    return NextResponse.json(
-      { error: "businessSlug es obligatorio y debe ser valido." },
-      { status: 400 },
-    );
-  }
+      if (!isPlainObject(payload)) {
+        return NextResponse.json(
+          { error: "El payload para crear pedido debe ser un objeto JSON." },
+          { status: 400 },
+        );
+      }
 
-  try {
-    const order = await createOrderInDatabase({
-      ...payload,
-      businessSlug: normalizedBusinessSlug,
-    });
-    const responsePayload = {
-      order,
-      orderCode: order.orderCode ?? null,
-      persistedRemotely: true,
-    };
-    debugLog("[orders-api] Created order", {
-      orderId: order.id,
-      hasOrderCode: Boolean(order.orderCode),
-      persistedRemotely: true,
-    });
-    return NextResponse.json(responsePayload, { status: 201 });
-  } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "No fue posible guardar el pedido.";
-    const statusCode =
-      message.startsWith("Invalid order payload.")
-        ? 400
-        : message.startsWith("Business not found")
-          ? 404
-          : message.includes("is blocked until it has a real owner")
-            ? 403
-          : message.includes("no existe") || message.includes("no esta activo")
-            ? 409
-          : 500;
+      const payloadFields = Object.keys(payload);
+      const invalidFields = payloadFields.filter(
+        (field) => !CREATE_ORDER_ALLOWED_FIELDS.has(field),
+      );
 
-    debugError("[orders-api] Failed to create order", {
-      statusCode,
-      message,
-      payloadFields,
-    });
+      if (invalidFields.length > 0) {
+        return NextResponse.json(
+          {
+            error: `El payload para crear pedido contiene campos no permitidos: ${invalidFields.join(", ")}.`,
+          },
+          { status: 400 },
+        );
+      }
 
-    return NextResponse.json({ error: message }, { status: statusCode });
-  }
+      const normalizedBusinessSlug =
+        typeof payload.businessSlug === "string"
+          ? dependencies.normalizeBusinessSlug(payload.businessSlug)
+          : "";
+
+      if (!normalizedBusinessSlug) {
+        return NextResponse.json(
+          { error: "businessSlug es obligatorio y debe ser valido." },
+          { status: 400 },
+        );
+      }
+
+      try {
+        const order = await dependencies.createOrderInDatabase({
+          ...payload,
+          businessSlug: normalizedBusinessSlug,
+        });
+        const responsePayload = {
+          order,
+          orderCode: order.orderCode ?? null,
+          persistedRemotely: true,
+        };
+        debugLog("[orders-api] Created order", {
+          orderId: order.id,
+          hasOrderCode: Boolean(order.orderCode),
+          persistedRemotely: true,
+        });
+        return NextResponse.json(responsePayload, { status: 201 });
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "No fue posible guardar el pedido.";
+        const statusCode =
+          message.startsWith("Invalid order payload.")
+            ? 400
+            : message.startsWith("Business not found")
+              ? 404
+              : message.includes("is blocked until it has a real owner")
+                ? 403
+              : message.includes("no existe") || message.includes("no esta activo")
+                ? 409
+                : 500;
+
+        debugError("[orders-api] Failed to create order", {
+          statusCode,
+          message,
+          payloadFields,
+        });
+
+        return NextResponse.json({ error: message }, { status: statusCode });
+      }
+    },
+  };
 }
+
+const ordersRouteHandlers = createOrdersRouteHandlers();
+
+export const GET = ordersRouteHandlers.GET;
+export const POST = ordersRouteHandlers.POST;
