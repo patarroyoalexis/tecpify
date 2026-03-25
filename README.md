@@ -146,8 +146,8 @@ Fuera del alcance real actual:
   - pedidos usan columnas reales como `payment_status`, `delivery_type`, `history`, `is_reviewed` y `order_code`
   - Supabase es la fuente de verdad de la operacion
 - Limitaciones:
-  - algunos flujos publicos y de autorizacion administrativa siguen dependiendo de `SUPABASE_SERVICE_ROLE_KEY`
-  - la seguridad de esos puntos depende de validaciones de app y de la configuracion actual de RLS
+  - storefront y creacion publica de pedidos dependen ahora de una RPC publica acotada y de RLS en `orders` y `products`
+  - no quedan usos operativos activos de `SUPABASE_SERVICE_ROLE_KEY` en los flujos normales del MVP
 - Archivos dominantes:
   - [lib/supabase/server.ts](C:/Users/Alexis/Documents/tecpify/lib/supabase/server.ts)
   - [lib/data/orders-server.ts](C:/Users/Alexis/Documents/tecpify/lib/data/orders-server.ts)
@@ -235,10 +235,10 @@ Fuera del alcance real actual:
 - Que hace hoy realmente:
   - centraliza `process.env` en `lib/env.ts`
   - separa runtime client minimo en `lib/runtime.ts`
-  - exige `SUPABASE_SERVICE_ROLE_KEY` en produccion
+  - deja `SUPABASE_SERVICE_ROLE_KEY` como capacidad opcional y hoy desactivada para runtime normal
 - Limitaciones:
   - `middleware.ts` sigue vigente aunque Next ya recomienda `proxy`
-  - el proyecto depende de `SUPABASE_SERVICE_ROLE_KEY` para varios flujos reales
+  - cualquier reintroduccion de service role debe pasar por el inventario central y una justificacion explicita
 - Archivos dominantes:
   - [lib/env.ts](C:/Users/Alexis/Documents/tecpify/lib/env.ts)
   - [lib/runtime.ts](C:/Users/Alexis/Documents/tecpify/lib/runtime.ts)
@@ -273,9 +273,9 @@ Estos flujos estan implementados y conectados a persistencia real:
   - estado: bloqueado de forma segura
 
 - Seguridad de flujos con service role:
-  - funciona hoy
-  - depende de `SUPABASE_SERVICE_ROLE_KEY`, validaciones de app y configuracion RLS
-  - estado: implementado con riesgo
+  - el inventario historico vive en [lib/supabase/service-role.ts](C:/Users/Cedhu IT/Documents/tecpify/lib/supabase/service-role.ts)
+  - no hay usos activos permitidos en runtime del MVP
+  - estado: endurecido y desactivado por defecto
 
 - Metricas:
   - son utiles para operacion diaria
@@ -293,7 +293,7 @@ Estos flujos estan implementados y conectados a persistencia real:
 
 ## 8. Riesgos funcionales actuales
 
-- Riesgo de seguridad operativa si cambian las reglas de RLS o ownership sin ajustar los flujos que usan service role.
+- Riesgo de seguridad operativa si se relajan politicas RLS de `businesses`, `products` u `orders` sin revisar storefront y workspace juntos.
 - Riesgo de UX por densidad visual en pedidos y detalle de pedido.
 - Riesgo de inconsistencia si se cambian transiciones de estado o pago en una sola capa.
 - Riesgo de confusion en storefront por la UI de perfil reutilizable que hoy no esta completamente conectada.
@@ -301,11 +301,11 @@ Estos flujos estan implementados y conectados a persistencia real:
 
 ## 9. Prioridades recomendadas
 
-1. Endurecer la seguridad y trazabilidad de los flujos que usan `SUPABASE_SERVICE_ROLE_KEY`.
+1. Agregar pruebas automatizadas del circuito critico de pedidos y ownership.
 2. Definir el procedimiento operativo para migrar ownership de negocios legacy ya bloqueados.
 3. Completar o retirar la reutilizacion de perfil en storefront para no mostrar una capacidad parcial.
-4. Agregar pruebas automatizadas del circuito critico de pedidos.
-5. Simplificar la operacion diaria del workspace antes de abrir mas modulos.
+4. Simplificar la operacion diaria del workspace antes de abrir mas modulos.
+5. Mantener el inventario de `service role` vacio salvo que aparezca un caso realmente indispensable y documentado.
 
 ## 10. Como ejecutar el proyecto localmente
 
@@ -322,6 +322,7 @@ Crea `.env.local` en la raiz con:
 ```env
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
+# opcional: hoy no se usa en los flujos normales del MVP
 SUPABASE_SERVICE_ROLE_KEY=
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
 ```
@@ -346,6 +347,7 @@ Migraciones relevantes del proyecto:
 - `supabase/migrations/20260320_enable_basic_auth_ownership_rls.sql`
 - `supabase/migrations/20260320_restrict_legacy_business_access.sql`
 - `supabase/migrations/20260325_block_ownerless_legacy_businesses_public_access.sql`
+- `supabase/migrations/20260325_enable_public_owned_business_lookup.sql`
 
 ### 5. Ejecutar en desarrollo
 
@@ -380,15 +382,46 @@ npm run typecheck
 ### Servidor
 
 - `SUPABASE_SERVICE_ROLE_KEY`
-  - opcional en desarrollo si no ejecutas ciertos flujos
-  - obligatoria en produccion para este repo
-  - hoy sostiene storefront publico, creacion publica de pedidos y autorizacion administrativa auxiliar
+  - opcional
+  - hoy no es necesaria para los flujos normales del MVP
+  - cualquier reintroduccion debe quedar registrada en [lib/supabase/service-role.ts](C:/Users/Cedhu IT/Documents/tecpify/lib/supabase/service-role.ts)
 
 Resolucion canonica:
 
 - toda lectura de entorno vive en [lib/env.ts](C:/Users/Alexis/Documents/tecpify/lib/env.ts)
 - las utilidades client no deben importar `lib/env.ts` si ese modulo contiene lecturas server
 - para checks client minimos usar [lib/runtime.ts](C:/Users/Alexis/Documents/tecpify/lib/runtime.ts)
+
+## 11.1 Auditoria actual de service role
+
+Inventario central en [lib/supabase/service-role.ts](C:/Users/Cedhu IT/Documents/tecpify/lib/supabase/service-role.ts).
+
+- `public_business_lookup`
+  - clasificacion: reemplazable
+  - estado: deshabilitado
+  - reemplazo: RPC `get_storefront_business_by_slug` que solo expone columnas publicas del negocio
+- `public_order_business_lookup`
+  - clasificacion: reemplazable
+  - estado: deshabilitado
+  - reemplazo: lookup publico de `businessSlug -> business_id` mediante la misma RPC acotada
+- `public_order_code_precheck`
+  - clasificacion: reemplazable
+  - estado: deshabilitado
+  - reemplazo: retry de insercion sobre constraint unica de `order_code`
+- `public_order_read_after_write`
+  - clasificacion: reemplazable
+  - estado: deshabilitado
+  - reemplazo: respuesta server-side basada en payload persistido y validado
+- `authorization_fallback_reads`
+  - clasificacion: mal justificado
+  - estado: deshabilitado
+  - reemplazo: ownership resuelto solo con cliente autenticado y RLS
+
+Estado final:
+
+- no hay usos operativos activos de `SUPABASE_SERVICE_ROLE_KEY`
+- el helper privilegiado queda blindado y rechazara usos no inventariados
+- storefront y pedidos publicos dependen ahora de RLS explicita en Supabase, no de bypass administrativo
 
 ## 12. Criterios minimos para considerar el MVP operable
 
@@ -429,4 +462,4 @@ Tecpify es operable si cumple todo esto en un entorno real:
 
 - Migrar `middleware.ts` a `proxy` cuando se planifique la siguiente ronda de mantenimiento de runtime.
 - Agregar tests de integracion para `POST /api/orders` y `PATCH /api/orders/[orderId]`.
-- Mantener `SUPABASE_SERVICE_ROLE_KEY` contenida solo en flujos server justificados y documentar cualquier nuevo uso en el modulo de entorno y en este README.
+- Mantener `SUPABASE_SERVICE_ROLE_KEY` desactivada por defecto y documentar en [lib/supabase/service-role.ts](C:/Users/Cedhu IT/Documents/tecpify/lib/supabase/service-role.ts) y en este README cualquier uso nuevo realmente indispensable.

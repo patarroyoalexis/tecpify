@@ -1,15 +1,38 @@
 import { NextResponse } from "next/server";
 
 import { debugError, debugLog } from "@/lib/debug";
+import { normalizeBusinessSlug } from "@/lib/businesses/slug";
 import { requireBusinessApiContext } from "@/lib/auth/server";
 import {
   createOrderInDatabase,
   getOrdersByBusinessIdFromDatabase,
 } from "@/lib/data/orders-server";
 
+const CREATE_ORDER_ALLOWED_FIELDS = new Set([
+  "businessSlug",
+  "customerName",
+  "customerWhatsApp",
+  "deliveryType",
+  "deliveryAddress",
+  "paymentMethod",
+  "products",
+  "total",
+  "status",
+  "paymentStatus",
+  "dateLabel",
+  "notes",
+  "isReviewed",
+  "history",
+]);
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const businessSlug = searchParams.get("businessSlug")?.trim();
+  const rawBusinessSlug = searchParams.get("businessSlug");
+  const businessSlug = rawBusinessSlug ? normalizeBusinessSlug(rawBusinessSlug) : "";
 
   if (!businessSlug) {
     return NextResponse.json(
@@ -56,13 +79,41 @@ export async function POST(request: Request) {
       { status: 400 },
     );
   }
-  const payloadFields =
-    payload && typeof payload === "object" && !Array.isArray(payload)
-      ? Object.keys(payload as Record<string, unknown>)
-      : [];
+
+  if (!isPlainObject(payload)) {
+    return NextResponse.json(
+      { error: "El payload para crear pedido debe ser un objeto JSON." },
+      { status: 400 },
+    );
+  }
+
+  const payloadFields = Object.keys(payload);
+  const invalidFields = payloadFields.filter((field) => !CREATE_ORDER_ALLOWED_FIELDS.has(field));
+
+  if (invalidFields.length > 0) {
+    return NextResponse.json(
+      {
+        error: `El payload para crear pedido contiene campos no permitidos: ${invalidFields.join(", ")}.`,
+      },
+      { status: 400 },
+    );
+  }
+
+  const normalizedBusinessSlug =
+    typeof payload.businessSlug === "string" ? normalizeBusinessSlug(payload.businessSlug) : "";
+
+  if (!normalizedBusinessSlug) {
+    return NextResponse.json(
+      { error: "businessSlug es obligatorio y debe ser valido." },
+      { status: 400 },
+    );
+  }
 
   try {
-    const order = await createOrderInDatabase(payload);
+    const order = await createOrderInDatabase({
+      ...payload,
+      businessSlug: normalizedBusinessSlug,
+    });
     const responsePayload = {
       order,
       orderCode: order.orderCode ?? null,

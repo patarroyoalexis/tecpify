@@ -14,9 +14,7 @@ import {
   type OrderApiUpdatePayload,
 } from "@/lib/orders/mappers";
 import { debugError, debugLog } from "@/lib/debug";
-import { isLegacyBusinessBlocked } from "@/lib/auth/legacy-business-access";
 import {
-  createServerSupabaseAdminClient,
   createServerSupabaseAuthClient,
   createServerSupabasePublicClient,
   getSupabaseServerAuthMode,
@@ -26,7 +24,6 @@ import type { Order } from "@/types/orders";
 interface BusinessLookupRow {
   id: string;
   slug: string;
-  created_by_user_id: string | null;
 }
 
 interface BusinessSlugRow {
@@ -84,27 +81,8 @@ function generateCandidateOrderCode() {
   return `WEB-${Math.floor(100000 + Math.random() * 900000)}`;
 }
 
-async function generateUniqueOrderCode() {
-  const supabase = createServerSupabaseAdminClient();
-
-  for (let attempt = 0; attempt < 8; attempt += 1) {
-    const candidate = generateCandidateOrderCode();
-    const { data, error } = await supabase
-      .from("orders")
-      .select("id")
-      .eq("order_code", candidate)
-      .maybeSingle();
-
-    if (error) {
-      throw new Error(`Supabase order_code lookup failed: ${error.message}`);
-    }
-
-    if (!data) {
-      return candidate;
-    }
-  }
-
-  throw new Error("Could not generate a unique order_code after multiple attempts.");
+function generateUniqueOrderCode() {
+  return generateCandidateOrderCode();
 }
 
 function validateCreateOrderPayload(payload: unknown): payload is OrderApiCreatePayload {
@@ -212,18 +190,16 @@ function describePayloadProblems(payload: unknown) {
 }
 
 export async function getBusinessDatabaseRecordBySlug(slug: string) {
-  const supabase = createServerSupabaseAdminClient();
-  const { data, error } = await supabase
-    .from("businesses")
-    .select("id, slug, created_by_user_id")
-    .eq("slug", slug)
-    .maybeSingle<BusinessLookupRow>();
+  const supabase = createServerSupabasePublicClient();
+  const { data, error } = await supabase.rpc("get_storefront_business_by_slug", {
+    requested_slug: slug,
+  });
 
   if (error) {
     throw new Error(`Supabase businesses query failed: ${error.message}`);
   }
 
-  return data;
+  return Array.isArray(data) ? ((data[0] as BusinessLookupRow | undefined) ?? null) : null;
 }
 
 async function getAuthenticatedBusinessDatabaseRecordBySlug(slug: string) {
@@ -445,12 +421,6 @@ export async function createOrderInDatabase(payload: unknown): Promise<Order> {
     throw new Error(`Business not found for slug "${payload.businessSlug}".`);
   }
 
-  if (isLegacyBusinessBlocked(business.created_by_user_id)) {
-    throw new Error(
-      `Business "${payload.businessSlug}" is blocked until it has a real owner.`,
-    );
-  }
-
   const normalizedProducts = normalizeOrderProductsForPersistence(
     payload.products,
     await getBusinessProductsForOrder(business.id, { mode: "public" }),
@@ -459,7 +429,6 @@ export async function createOrderInDatabase(payload: unknown): Promise<Order> {
 
   const now = new Date().toISOString();
   const orderId = crypto.randomUUID();
-  const orderCode = await generateUniqueOrderCode();
   const initialState = getInitialOrderState(payload.paymentMethod);
   const history =
     payload.history !== undefined && payload.history.length > 0
@@ -467,40 +436,47 @@ export async function createOrderInDatabase(payload: unknown): Promise<Order> {
       : createInitialOrderHistory(orderId, payload.businessSlug, now);
   const persistedTotal = assertOrderTotalMatchesProducts(payload.total, normalizedProducts);
 
-  const insertPayload = {
-    id: orderId,
-    order_code: orderCode,
-    business_id: business.id,
-    customer_id: null,
-    customer_name: payload.customerName.trim(),
-    customer_whatsapp: payload.customerWhatsApp.trim(),
-    delivery_type: payload.deliveryType,
-    delivery_address: payload.deliveryAddress?.trim() || null,
-    payment_method: payload.paymentMethod,
-    notes: payload.notes?.trim() || null,
-    total: persistedTotal,
-    status: payload.status ?? initialState.status,
-    created_at: now,
-    updated_at: now,
-    products: normalizedProducts,
-    payment_status: payload.paymentStatus ?? initialState.paymentStatus,
-    date_label: payload.dateLabel ?? null,
-    is_reviewed: payload.isReviewed ?? false,
-    history,
-    inserted_at: now,
-  };
-
   debugLog("[orders-api] Preparing order insert", {
     authMode: getSupabaseServerAuthMode("public"),
     businessSlug: payload.businessSlug,
-    orderCode,
     productsCount: normalizedProducts.length,
   });
 
   const publicSupabase = createServerSupabasePublicClient();
-  const { error } = await publicSupabase.from("orders").insert(insertPayload);
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const orderCode = generateUniqueOrderCode();
+    const insertPayload = {
+      id: orderId,
+      order_code: orderCode,
+      business_id: business.id,
+      customer_id: null,
+      customer_name: payload.customerName.trim(),
+      customer_whatsapp: payload.customerWhatsApp.trim(),
+      delivery_type: payload.deliveryType,
+      delivery_address: payload.deliveryAddress?.trim() || null,
+      payment_method: payload.paymentMethod,
+      notes: payload.notes?.trim() || null,
+      total: persistedTotal,
+      status: payload.status ?? initialState.status,
+      created_at: now,
+      updated_at: now,
+      products: normalizedProducts,
+      payment_status: payload.paymentStatus ?? initialState.paymentStatus,
+      date_label: payload.dateLabel ?? null,
+      is_reviewed: payload.isReviewed ?? false,
+      history,
+      inserted_at: now,
+    };
+    const { error } = await publicSupabase.from("orders").insert(insertPayload);
 
-  if (error) {
+    if (!error) {
+      return buildPersistedInsertedOrder(insertPayload, payload.businessSlug);
+    }
+
+    if (error.code === "23505" && error.message.includes("order_code")) {
+      continue;
+    }
+
     debugError("[orders-api] Supabase insert failed", {
       authMode: getSupabaseServerAuthMode("public"),
       businessSlug: payload.businessSlug,
@@ -511,26 +487,9 @@ export async function createOrderInDatabase(payload: unknown): Promise<Order> {
     );
   }
 
-  const adminSupabase = createServerSupabaseAdminClient();
-  const { data: insertedOrder, error: insertedOrderError } = await adminSupabase
-    .from("orders")
-    .select("*")
-    .eq("id", orderId)
-    .single();
-
-  if (insertedOrderError) {
-    debugError("[orders-api] Supabase read-after-write failed after persisted insert", {
-      orderId,
-      businessSlug: payload.businessSlug,
-      code: insertedOrderError.code ?? null,
-    });
-
-    return buildPersistedInsertedOrder(insertPayload, payload.businessSlug);
-  }
-
-  return mapSupabaseRowToOrder(insertedOrder as Record<string, unknown>, {
-    businessSlug: payload.businessSlug,
-  });
+  throw new Error(
+    "No fue posible generar un codigo de pedido unico tras varios intentos. Intenta de nuevo.",
+  );
 }
 
 function validateUpdateOrderPayload(payload: unknown): payload is OrderApiUpdatePayload {

@@ -1,15 +1,22 @@
 import { debugError, debugLog } from "@/lib/debug";
-import { isLegacyBusinessUsable } from "@/lib/auth/legacy-business-access";
 import { normalizeBusinessSlug } from "@/lib/businesses/slug";
 import {
-  createServerSupabaseAdminClient,
   createServerSupabaseAuthClient,
+  createServerSupabasePublicClient,
 } from "@/lib/supabase/server";
 import { DELIVERY_TYPES, PAYMENT_METHODS } from "@/types/orders";
 import type { BusinessRecord } from "@/types/businesses";
 import type { BusinessConfig } from "@/types/storefront";
 
-type SupabaseBusinessRow = {
+type PublicSupabaseBusinessRow = {
+  id: string;
+  slug: string;
+  name: string;
+  created_at: string;
+  updated_at: string;
+};
+
+type AuthenticatedSupabaseBusinessRow = {
   id: string;
   slug: string;
   name: string;
@@ -24,7 +31,6 @@ export interface HomeBusinessesSnapshot {
 
 export type BusinessProductsLookupResult =
   | { status: "not_found" }
-  | { status: "blocked_without_owner" }
   | { status: "no_products"; business: BusinessConfig }
   | { status: "ok"; business: BusinessConfig };
 
@@ -36,14 +42,16 @@ function humanizeSlug(slug: string) {
     .join(" ");
 }
 
-function mapSupabaseBusinessRow(row: SupabaseBusinessRow): BusinessRecord {
+function mapSupabaseBusinessRow(
+  row: PublicSupabaseBusinessRow | AuthenticatedSupabaseBusinessRow,
+): BusinessRecord {
   return {
     id: row.id,
     slug: row.slug,
     name: row.name,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
-    createdByUserId: row.created_by_user_id,
+    ...("created_by_user_id" in row ? { createdByUserId: row.created_by_user_id } : {}),
   };
 }
 
@@ -88,24 +96,26 @@ export async function getBusinessBySlugFromDatabase(slug: string) {
   const normalizedSlug = normalizeBusinessSlug(slug);
   debugLog("[businesses] Resolving business by slug", { slug });
 
-  const supabase = createServerSupabaseAdminClient();
-  const { data, error } = await supabase
-    .from("businesses")
-    .select("id, slug, name, created_at, updated_at, created_by_user_id")
-    .eq("slug", normalizedSlug)
-    .maybeSingle<SupabaseBusinessRow>();
+  const supabase = createServerSupabasePublicClient();
+  const { data, error } = await supabase.rpc("get_storefront_business_by_slug", {
+    requested_slug: normalizedSlug,
+  });
 
   if (error) {
     debugError("[businesses] Failed to resolve business", { slug });
     throw new Error(`Supabase businesses query failed: ${error.message}`);
   }
 
+  const storefrontBusiness = Array.isArray(data)
+    ? ((data[0] as PublicSupabaseBusinessRow | undefined) ?? null)
+    : null;
+
   debugLog("[businesses] Business resolved", {
     slug: normalizedSlug,
-    found: Boolean(data),
+    found: Boolean(storefrontBusiness),
   });
 
-  return data ? mapSupabaseBusinessRow(data) : null;
+  return storefrontBusiness ? mapSupabaseBusinessRow(storefrontBusiness) : null;
 }
 
 async function getBusinessesFromDatabase() {
@@ -119,7 +129,7 @@ async function getBusinessesFromDatabase() {
     throw new Error(`Supabase businesses query failed: ${error.message}`);
   }
 
-  return ((data ?? []) as SupabaseBusinessRow[]).map(mapSupabaseBusinessRow);
+  return ((data ?? []) as AuthenticatedSupabaseBusinessRow[]).map(mapSupabaseBusinessRow);
 }
 
 export async function getHomeBusinesses(
@@ -154,13 +164,6 @@ export async function getBusinessBySlugWithProducts(
 
   if (!databaseBusiness) {
     return { status: "not_found" };
-  }
-
-  if (!isLegacyBusinessUsable(databaseBusiness.createdByUserId ?? null)) {
-    debugLog("[businesses] Blocking legacy business without owner in storefront", {
-      slug,
-    });
-    return { status: "blocked_without_owner" };
   }
 
   const business = mapDatabaseBusinessToConfig(databaseBusiness);

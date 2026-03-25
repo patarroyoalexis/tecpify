@@ -1,9 +1,5 @@
 import { normalizeBusinessSlug } from "@/lib/businesses/slug";
-import { isLegacyBusinessBlocked } from "@/lib/auth/legacy-business-access";
-import {
-  createServerSupabaseAdminClient,
-  createServerSupabaseAuthClient,
-} from "@/lib/supabase/server";
+import { createServerSupabaseAuthClient } from "@/lib/supabase/server";
 
 interface BusinessOwnershipRow {
   id: string;
@@ -115,58 +111,6 @@ async function getOwnedOrderRowById(orderId: string) {
   return data;
 }
 
-async function getBusinessRowBySlugForAuthorization(slug: string) {
-  const supabase = createServerSupabaseAdminClient();
-  const { data, error } = await supabase
-    .from("businesses")
-    .select("id, slug, name, created_by_user_id")
-    .eq("slug", slug)
-    .maybeSingle<BusinessOwnershipRow>();
-
-  if (error) {
-    throw new Error(`No fue posible validar acceso al negocio: ${error.message}`);
-  }
-
-  return data;
-}
-
-async function getBusinessRowByIdForAuthorization(businessId: string) {
-  const supabase = createServerSupabaseAdminClient();
-  const { data, error } = await supabase
-    .from("businesses")
-    .select("id, slug, name, created_by_user_id")
-    .eq("id", businessId)
-    .maybeSingle<BusinessOwnershipRow>();
-
-  if (error) {
-    throw new Error(`No fue posible validar acceso al negocio: ${error.message}`);
-  }
-
-  return data;
-}
-
-async function getOrderRowByIdForAuthorization(orderId: string) {
-  const supabase = createServerSupabaseAdminClient();
-  const { data, error } = await supabase
-    .from("orders")
-    .select("id, business_id")
-    .eq("id", orderId)
-    .maybeSingle<OrderOwnershipRow>();
-
-  if (error) {
-    throw new Error(`No fue posible validar acceso al pedido: ${error.message}`);
-  }
-
-  return data;
-}
-
-function isOwnedBusiness(
-  row: Pick<BusinessOwnershipRow, "created_by_user_id">,
-  userId: string,
-) {
-  return row.created_by_user_id === userId;
-}
-
 export async function getBusinessAccessBySlug(
   slug: string,
   userId: string,
@@ -179,26 +123,11 @@ export async function getBusinessAccessBySlug(
 
   const ownedBusiness = await getOwnedBusinessRowBySlug(normalizedSlug);
 
-  if (ownedBusiness) {
-    return mapBusinessAccessResult(ownedBusiness, userId);
-  }
-
-  const existingBusiness = await getBusinessRowBySlugForAuthorization(normalizedSlug);
-
-  if (!existingBusiness) {
+  if (!ownedBusiness) {
     return null;
   }
 
-  // Legacy businesses without owner stay blocked until there is a real ownership migration.
-  if (isLegacyBusinessBlocked(existingBusiness.created_by_user_id)) {
-    return null;
-  }
-
-  if (!isOwnedBusiness(existingBusiness, userId)) {
-    return null;
-  }
-
-  return mapBusinessAccessResult(existingBusiness, userId);
+  return mapBusinessAccessResult(ownedBusiness, userId);
 }
 
 export async function getBusinessAccessById(
@@ -207,26 +136,11 @@ export async function getBusinessAccessById(
 ): Promise<BusinessAccessResult | null> {
   const ownedBusiness = await getOwnedBusinessRowById(businessId);
 
-  if (ownedBusiness) {
-    return mapBusinessAccessResult(ownedBusiness, userId);
-  }
-
-  const existingBusiness = await getBusinessRowByIdForAuthorization(businessId);
-
-  if (!existingBusiness) {
+  if (!ownedBusiness) {
     return null;
   }
 
-  // Legacy businesses without owner stay blocked until there is a real ownership migration.
-  if (isLegacyBusinessBlocked(existingBusiness.created_by_user_id)) {
-    return null;
-  }
-
-  if (!isOwnedBusiness(existingBusiness, userId)) {
-    return null;
-  }
-
-  return mapBusinessAccessResult(existingBusiness, userId);
+  return mapBusinessAccessResult(ownedBusiness, userId);
 }
 
 export async function getBusinessAccessByOrderId(
@@ -239,13 +153,7 @@ export async function getBusinessAccessByOrderId(
     return getBusinessAccessById(ownedOrder.business_id, userId);
   }
 
-  const existingOrder = await getOrderRowByIdForAuthorization(orderId);
-
-  if (!existingOrder?.business_id) {
-    return null;
-  }
-
-  return getBusinessAccessById(existingOrder.business_id, userId);
+  return null;
 }
 
 export function canAccessBusiness(
