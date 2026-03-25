@@ -11,7 +11,7 @@ import {
 import { OrdersFilters } from "@/components/dashboard/orders-filters";
 import { getBusinessDashboardStateKey } from "@/data/order-storage";
 import { getOperationalMetrics } from "@/data/orders";
-import { isProductionEnvironment } from "@/lib/env";
+import { isProductionRuntime } from "@/lib/runtime";
 import { getOrderDisplayCode, ORDER_STATUSES, type Order, type OrderStatus } from "@/types/orders";
 import { useBusinessWorkspace } from "./business-workspace-context";
 
@@ -166,7 +166,7 @@ export function OrdersWorkspace({ businessSlug }: OrdersWorkspaceProps) {
   }
 
   useEffect(() => {
-    if (isProductionEnvironment() || typeof window === "undefined") {
+    if (isProductionRuntime() || typeof window === "undefined") {
       return;
     }
 
