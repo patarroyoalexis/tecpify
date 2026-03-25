@@ -1,4 +1,5 @@
 import { debugError, debugLog } from "@/lib/debug";
+import { isLegacyBusinessUsable } from "@/lib/auth/legacy-business-access";
 import { normalizeBusinessSlug } from "@/lib/businesses/slug";
 import {
   createServerSupabaseAdminClient,
@@ -23,6 +24,7 @@ export interface HomeBusinessesSnapshot {
 
 export type BusinessProductsLookupResult =
   | { status: "not_found" }
+  | { status: "blocked_without_owner" }
   | { status: "no_products"; business: BusinessConfig }
   | { status: "ok"; business: BusinessConfig };
 
@@ -152,6 +154,13 @@ export async function getBusinessBySlugWithProducts(
 
   if (!databaseBusiness) {
     return { status: "not_found" };
+  }
+
+  if (!isLegacyBusinessUsable(databaseBusiness.createdByUserId ?? null)) {
+    debugLog("[businesses] Blocking legacy business without owner in storefront", {
+      slug,
+    });
+    return { status: "blocked_without_owner" };
   }
 
   const business = mapDatabaseBusinessToConfig(databaseBusiness);

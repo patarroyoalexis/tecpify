@@ -82,6 +82,8 @@ export async function POST(request: Request) {
         ? 400
         : message.startsWith("Business not found")
           ? 404
+          : message.includes("is blocked until it has a real owner")
+            ? 403
           : message.includes("no existe") || message.includes("no esta activo")
             ? 409
           : 500;

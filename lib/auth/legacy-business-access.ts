@@ -5,3 +5,7 @@ export const LEGACY_BUSINESS_OWNERSHIP_STRATEGY = {
 export function isLegacyBusinessBlocked(ownerUserId: string | null) {
   return ownerUserId === null;
 }
+
+export function isLegacyBusinessUsable(ownerUserId: string | null) {
+  return !isLegacyBusinessBlocked(ownerUserId);
+}

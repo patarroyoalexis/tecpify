@@ -71,7 +71,7 @@ Fuera del alcance real actual:
   - resuelve acceso del workspace por owner autenticado
   - usa `businessSlug` como nombre canonico en dominio y frontend
 - Limitaciones:
-  - los negocios legacy sin owner siguen siendo un caso temporal
+  - los negocios legacy sin owner quedan bloqueados por completo hasta migrarlos
   - no existe flujo completo de reclamo o migracion de ownership
 - Archivos dominantes:
   - [app/api/businesses/route.ts](C:/Users/Alexis/Documents/tecpify/app/api/businesses/route.ts)
@@ -268,9 +268,9 @@ Estos flujos estan implementados y conectados a persistencia real:
   - estado: parcial
 
 - Negocios legacy sin owner:
-  - hay bloqueo y logica temporal
-  - no existe salida operativa completa
-  - estado: parcial con riesgo
+  - el workspace privado y el storefront publico los bloquean por completo
+  - la salida operativa sigue siendo asignar owner mediante migracion controlada
+  - estado: bloqueado de forma segura
 
 - Seguridad de flujos con service role:
   - funciona hoy
@@ -285,7 +285,7 @@ Estos flujos estan implementados y conectados a persistencia real:
 ## 7. Deuda tecnica actual
 
 - `middleware.ts` sigue activo aunque Next 16 ya recomienda `proxy`.
-- La estrategia de legacy businesses sigue abierta.
+- La estrategia elegida para legacy businesses es bloqueo total hasta migracion de owner.
 - No hay tests automatizados del circuito critico.
 - El historial de pedido depende parcialmente del payload cliente cuando el frontend envia `history`.
 - Hay funciones con naming heredado que pueden inducir confusion, como `getBusinessByIdWithProducts` resolviendo por slug.
@@ -301,8 +301,8 @@ Estos flujos estan implementados y conectados a persistencia real:
 
 ## 9. Prioridades recomendadas
 
-1. Cerrar la estrategia de negocios legacy sin owner.
-2. Endurecer la seguridad y trazabilidad de los flujos que usan `SUPABASE_SERVICE_ROLE_KEY`.
+1. Endurecer la seguridad y trazabilidad de los flujos que usan `SUPABASE_SERVICE_ROLE_KEY`.
+2. Definir el procedimiento operativo para migrar ownership de negocios legacy ya bloqueados.
 3. Completar o retirar la reutilizacion de perfil en storefront para no mostrar una capacidad parcial.
 4. Agregar pruebas automatizadas del circuito critico de pedidos.
 5. Simplificar la operacion diaria del workspace antes de abrir mas modulos.
@@ -345,6 +345,7 @@ Migraciones relevantes del proyecto:
 - `supabase/migrations/20260320_add_business_owner_user_id.sql`
 - `supabase/migrations/20260320_enable_basic_auth_ownership_rls.sql`
 - `supabase/migrations/20260320_restrict_legacy_business_access.sql`
+- `supabase/migrations/20260325_block_ownerless_legacy_businesses_public_access.sql`
 
 ### 5. Ejecutar en desarrollo
 
@@ -420,6 +421,7 @@ Tecpify es operable si cumple todo esto en un entorno real:
 ### Funcional
 
 - Cerrar el caso de negocios legacy sin owner antes de abrir colaboracion multiusuario.
+- Mantener bloqueado cualquier negocio sin owner tanto en workspace como en storefront hasta migrarlo.
 - Agregar una verificacion automatizada del circuito `storefront -> pedido -> dashboard -> actualizacion`.
 - Revisar si el historial inicial del pedido debe completarse siempre en servidor en lugar de depender del payload cliente.
 

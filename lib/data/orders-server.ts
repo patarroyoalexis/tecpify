@@ -14,6 +14,7 @@ import {
   type OrderApiUpdatePayload,
 } from "@/lib/orders/mappers";
 import { debugError, debugLog } from "@/lib/debug";
+import { isLegacyBusinessBlocked } from "@/lib/auth/legacy-business-access";
 import {
   createServerSupabaseAdminClient,
   createServerSupabaseAuthClient,
@@ -25,6 +26,7 @@ import type { Order } from "@/types/orders";
 interface BusinessLookupRow {
   id: string;
   slug: string;
+  created_by_user_id: string | null;
 }
 
 interface BusinessSlugRow {
@@ -213,7 +215,7 @@ export async function getBusinessDatabaseRecordBySlug(slug: string) {
   const supabase = createServerSupabaseAdminClient();
   const { data, error } = await supabase
     .from("businesses")
-    .select("id, slug")
+    .select("id, slug, created_by_user_id")
     .eq("slug", slug)
     .maybeSingle<BusinessLookupRow>();
 
@@ -441,6 +443,12 @@ export async function createOrderInDatabase(payload: unknown): Promise<Order> {
 
   if (!business) {
     throw new Error(`Business not found for slug "${payload.businessSlug}".`);
+  }
+
+  if (isLegacyBusinessBlocked(business.created_by_user_id)) {
+    throw new Error(
+      `Business "${payload.businessSlug}" is blocked until it has a real owner.`,
+    );
   }
 
   const normalizedProducts = normalizeOrderProductsForPersistence(

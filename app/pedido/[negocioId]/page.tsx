@@ -40,17 +40,36 @@ export default async function StorefrontOrderPage({
 }) {
   const { negocioId } = await params;
   let business = null;
+  let blockedWithoutOwner = false;
 
   try {
     const result = await getBusinessBySlugWithProducts(negocioId);
 
     if (result.status === "ok" || result.status === "no_products") {
       business = result.business;
+    } else if (result.status === "blocked_without_owner") {
+      blockedWithoutOwner = true;
     } else {
       business = null;
     }
   } catch {
     business = null;
+  }
+
+  if (blockedWithoutOwner) {
+    return (
+      <StorefrontMessage
+        tone="rose"
+        eyebrow="Link no disponible"
+        title="Este negocio no esta operativo"
+        description={
+          <>
+            Este negocio requiere un owner valido antes de volver a recibir pedidos
+            desde el link publico.
+          </>
+        }
+      />
+    );
   }
 
   if (!business) {
