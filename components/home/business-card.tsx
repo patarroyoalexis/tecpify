@@ -8,7 +8,6 @@ interface BusinessCardProps {
     accent: string;
   };
   badge: string;
-  tone?: "default" | "demo";
   actions: Array<{
     href: string;
     label: string;
@@ -19,17 +18,10 @@ interface BusinessCardProps {
 export function BusinessCard({
   business,
   badge,
-  tone = "default",
   actions,
 }: BusinessCardProps) {
   return (
-    <article
-      className={`rounded-[28px] border p-6 shadow-[0_18px_60px_rgba(15,23,42,0.08)] ${
-        tone === "demo"
-          ? "border-amber-200 bg-amber-50/70"
-          : "border-white/70 bg-white/90"
-      }`}
-    >
+    <article className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_18px_60px_rgba(15,23,42,0.08)]">
       <div className={`rounded-[24px] bg-gradient-to-r ${business.accent} p-5`}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm font-semibold uppercase tracking-[0.22em] text-slate-600">

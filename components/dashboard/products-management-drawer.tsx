@@ -246,7 +246,6 @@ export function ProductsManagementDrawer({
   const [searchQuery, setSearchQuery] = useState("");
   const [listFilter, setListFilter] = useState<ProductListFilter>("all");
   const publicPath = `/pedido/${businessSlug}`;
-  const publicTestPath = `${publicPath}?mode=test-order`;
   const [publicUrl, setPublicUrl] = useState(publicPath);
   const sortedProducts = useMemo(
     () =>
@@ -418,7 +417,7 @@ export function ProductsManagementDrawer({
   async function handleCopyPublicLink() {
     try {
       await navigator.clipboard.writeText(publicUrl);
-      setCopyFeedback("Link publico copiado. Ya puedes probarlo o compartirlo.");
+      setCopyFeedback("Link publico copiado. Ya puedes compartirlo.");
     } catch {
       setCopyFeedback("No pudimos copiar el link. Intenta de nuevo.");
     }
@@ -795,9 +794,9 @@ export function ProductsManagementDrawer({
                 </h3>
                 <p className="mt-3 text-sm leading-6 text-slate-700">
                   Acabas de dejar al menos un producto activo. No hace falta volver al
-                  dashboard para seguir: desde aqui ya puedes probar el storefront o copiar
-                  el link correcto para compartirlo. El mejor siguiente paso es validar un
-                  pedido de prueba.
+                  dashboard para seguir: desde aqui ya puedes abrir el storefront o copiar
+                  el link correcto para compartirlo. El mejor siguiente paso es validar el
+                  recorrido real del negocio.
                 </p>
               </section>
 
@@ -807,8 +806,8 @@ export function ProductsManagementDrawer({
                 </p>
                 <p className="mt-2 break-all text-sm font-medium text-slate-950">{publicUrl}</p>
                 <p className="mt-2 text-sm leading-6 text-slate-600">
-                  Usa este link para hacer una prueba del flujo o para compartirlo con el
-                  negocio una vez validado.
+                  Usa este link para abrir el formulario publico real o para compartirlo con
+                  el negocio una vez validado.
                 </p>
 
                 <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
@@ -822,12 +821,12 @@ export function ProductsManagementDrawer({
                   </button>
 
                   <Link
-                    href={publicTestPath}
+                    href={publicPath}
                     target="_blank"
                     className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
                   >
                     <ExternalLink className="h-4 w-4" aria-hidden="true" />
-                    Probar pedido de prueba
+                    Abrir formulario publico
                   </Link>
                 </div>
 
@@ -839,7 +838,7 @@ export function ProductsManagementDrawer({
               <section className="rounded-[24px] border border-slate-200 bg-slate-50/80 p-5">
                 <p className="text-sm font-semibold text-slate-950">Siguiente paso recomendado</p>
                 <p className="mt-2 text-sm leading-6 text-slate-600">
-                  1. Abre el formulario publico en modo prueba. 2. Crea un pedido corto para
+                  1. Abre el formulario publico real. 2. Crea un pedido corto para
                   verificar que entre bien al flujo. 3. Luego comparte el link o vuelve al
                   catalogo para seguir ajustandolo.
                 </p>
@@ -983,14 +982,14 @@ export function ProductsManagementDrawer({
                 {catalogStatus.canSell ? (
                   <section className="rounded-[22px] border border-sky-200 bg-sky-50/80 p-4">
                     <p className="text-sm font-semibold text-sky-900">
-                      Link listo para validar el primer pedido
+                      Link publico listo para operar
                     </p>
                     <p className="mt-1 break-all text-sm font-medium text-slate-900">
                       {publicUrl}
                     </p>
                     <p className="mt-2 text-sm leading-6 text-slate-700">
                       El catalogo ya esta activo. Desde aqui puedes copiar el link o abrir
-                      una prueba del formulario real.
+                      el formulario publico real.
                     </p>
                     <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
                       <button
@@ -1002,12 +1001,12 @@ export function ProductsManagementDrawer({
                         Copiar link publico
                       </button>
                       <Link
-                        href={publicTestPath}
+                        href={publicPath}
                         target="_blank"
                         className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
                       >
                         <ExternalLink className="h-4 w-4" aria-hidden="true" />
-                        Probar pedido
+                        Abrir formulario
                       </Link>
                     </div>
                     {copyFeedback ? (

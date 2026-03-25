@@ -1,77 +1,129 @@
 # AGENTS.md
 
-## Propósito
+## Proposito
 
-Este repo usa este archivo como base de vigilancia de consistencia. La prioridad no es inventar abstracciones nuevas, sino evitar que el MVP siga acumulando nombres, payloads y validaciones incompatibles entre capas.
+Este archivo existe para vigilar consistencia funcional y contractual del MVP.
+
+La prioridad no es crear abstracciones nuevas. La prioridad es evitar que Tecpify vuelva a mezclar nombres, payloads, reglas de acceso y fuentes de verdad entre cliente, servidor y Supabase.
 
 ## Principios
 
-- Una idea debe tener un nombre canónico por capa.
-- El nombre de la UI puede diferir del nombre de base de datos, pero la conversión debe ser explícita y localizada.
-- No mezclar `snake_case` y `camelCase` dentro del mismo contrato público.
-- No agregar nuevas variables de entorno fuera del módulo central de entorno.
-- No leer `process.env` directamente fuera del módulo central de entorno.
+- Una idea debe tener un nombre canonico por capa.
+- Supabase es la fuente de verdad para negocios, productos y pedidos.
+- `localStorage` solo puede guardar estado de UI no critico.
+- No mezclar `snake_case` y `camelCase` dentro del mismo contrato publico.
+- No agregar nuevas variables de entorno fuera del modulo central.
+- No leer `process.env` directamente fuera de `lib/env.ts`.
+- Un modulo client no debe importar un modulo que tambien contenga lecturas server de entorno o helpers server-only.
 
-## Nombres canónicos actuales
+## Variables de entorno vigentes
+
+### Publicas permitidas
+
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `NEXT_PUBLIC_SITE_URL`
+
+### Servidor permitidas
+
+- `SUPABASE_SERVICE_ROLE_KEY`
+
+### Reglas
+
+- Toda lectura de entorno vive en [lib/env.ts](C:/Users/Alexis/Documents/tecpify/lib/env.ts).
+- Si un componente client necesita una comprobacion minima de runtime, usar [lib/runtime.ts](C:/Users/Alexis/Documents/tecpify/lib/runtime.ts) o un helper similar separado.
+- No reintroducir `AUTH_SESSION_SECRET`. Hoy no existe como variable real del proyecto.
+- Si aparece una variable nueva:
+  1. declararla en `lib/env.ts`
+  2. validarla alli
+  3. documentarla en `README.md`
+  4. agregarla a `.env.example`
+
+## Nombres canonicos actuales
 
 ### Negocio
 
-- En dominio, props, hooks, payloads internos y tipos de frontend usar `businessSlug`.
-- En parámetros de ruta de App Router se permite `negocioId` por compatibilidad con la estructura actual de carpetas.
-- No introducir `negocioSlug` como nuevo nombre de variable. Si aparece, renombrar a `businessSlug` al tocar esa zona.
+- En dominio, hooks, props y payloads internos usar `businessSlug`.
+- En params de App Router se permite `negocioId` por compatibilidad con la estructura actual de carpetas.
+- No introducir `negocioSlug` como nombre nuevo.
+- `businessId` se reserva para el id persistido de base de datos.
 
 ### Pedidos
 
 - En dominio y frontend usar `status`, `paymentStatus`, `deliveryType`.
-- En base de datos o payloads crudos de Supabase usar `payment_status`, `delivery_type`.
-- La traducción entre ambas formas debe vivir en mappers o adaptadores, no repartida por componentes.
+- En base de datos y payloads crudos de Supabase usar `payment_status`, `delivery_type`, `is_reviewed`.
+- La traduccion entre ambas formas debe vivir en mappers o adaptadores.
+- En frontend y dominio usar `productId`.
+- En entidades de pedido usar `client`, `customerPhone`, `address`, `observations`.
+- En payloads API de pedidos usar `customerName`, `customerWhatsApp`, `deliveryAddress`, `notes`.
 
 ### Productos
 
-- Usar `productId` en dominio, formularios, payloads API y tipos TypeScript.
-- Reservar `id` para el identificador persistido del registro cuando ya se está trabajando con una entidad completa.
+- Usar `productId` en dominio, formularios y payloads API.
+- Reservar `id` para el registro persistido completo.
 
-## Reglas para payloads y mappers
+## Reglas de mappers y payloads
 
 - Los componentes no deben conocer columnas de Supabase como `payment_status` o `delivery_type`.
-- Las rutas API pueden aceptar payloads de compatibilidad solo si un mapper los normaliza de inmediato.
-- Si una API expone `camelCase`, mantener `camelCase` en todo el contrato.
-- Si se necesita compatibilidad temporal con `snake_case`, documentarla en el mapper y no expandirla a nuevas capas.
+- Si una API expone `camelCase`, mantener `camelCase` en todo el contrato publico.
+- Si una API necesita compatibilidad temporal con `snake_case`, normalizar de inmediato en el mapper y no expandir esa compatibilidad a mas capas.
+- El punto actual de normalizacion principal para pedidos es [lib/orders/mappers.ts](C:/Users/Alexis/Documents/tecpify/lib/orders/mappers.ts).
 
-## Reglas para tipos y props
+## Reglas client / server
 
-- Si un tipo representa estado de UI o dominio, usar `camelCase`.
-- Si un tipo representa una fila cruda de base de datos, puede usar nombres reales de la tabla.
-- Si una prop recibe un slug de negocio, el nombre preferido es `businessSlug`.
-- Si una prop recibe una fila o entidad completa, usar un nombre semántico como `business`, `order` o `product`.
+- Los componentes client no deben importar:
+  - `lib/env.ts`
+  - `lib/supabase/server.ts`
+  - helpers server-only de auth
+- Los componentes client pueden importar:
+  - `lib/runtime.ts`
+  - clientes API del browser
+  - tipos y helpers puros sin lecturas de entorno
+- Las rutas API deben validar acceso y normalizar payloads antes de tocar Supabase.
+- Las pages privadas pueden usar middleware para UX, pero la validacion real debe seguir ocurriendo en servidor.
 
-## Variables de entorno
+## Reglas funcionales vigentes
 
-- Toda lectura de entorno debe pasar por `lib/env.ts`.
-- Variables públicas permitidas:
-  - `NEXT_PUBLIC_SUPABASE_URL`
-  - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-  - `NEXT_PUBLIC_SITE_URL`
-- Variables de servidor permitidas:
-  - `SUPABASE_SERVICE_ROLE_KEY`
-- Si una nueva variable es necesaria:
-  1. declararla en `lib/env.ts`
-  2. validarla allí
-  3. documentarla en `README.md`
-  4. usarla desde el módulo central, no con `process.env` directo
+- Negocios, productos y pedidos deben persistirse en Supabase.
+- El dashboard debe leer pedidos desde servidor o API real, no desde mocks ni `localStorage`.
+- Si una mutacion persiste pero falla la resincronizacion, la UI debe comunicarlo como warning y no como perdida silenciosa.
+- Si un flujo publico depende de `SUPABASE_SERVICE_ROLE_KEY`, esa dependencia debe quedar explicita en `README.md` y `lib/env.ts`.
 
-## Qué hacer antes de tocar contratos
+## Criterios para detectar regresiones funcionales
+
+Considera regresion cualquier cambio que haga una de estas cosas:
+
+- Confirmar exito visual cuando la mutacion real fallo.
+- Hacer que pedidos o productos vuelvan a depender de estado local como fuente de verdad.
+- Exponer secretos o helpers server-only al cliente.
+- Mezclar nombres de contrato dentro de la misma capa.
+- Hacer que el workspace privado dependa solo de middleware y no de validacion server.
+- Volver a introducir variables de entorno no documentadas o no centralizadas.
+
+## Obsoletos o cosas que ya no se deben usar
+
+- `AUTH_SESSION_SECRET`
+- lectura directa de `process.env` fuera de `lib/env.ts`
+- usar `localStorage` para guardar pedidos como fuente de verdad
+- introducir `negocioSlug` como nombre nuevo
+- importar `lib/env.ts` desde componentes client
+- tratar `id` como sinonimo universal de `productId` en payloads
+
+## Que revisar antes de tocar contratos o persistencia
 
 - Revisar si ya existe un mapper para esa frontera.
-- Revisar si el nombre nuevo choca con una convención ya fijada aquí.
-- Preferir protección y normalización local antes que refactor masivo.
-- Si hace falta una migración de nombres amplia, dejarla como tarea separada y no mezclarla con cambios funcionales.
+- Revisar si la capa actual ya tiene un nombre canonico definido.
+- Revisar si el cambio toca una ruta API, un mapper y una vista que deban evolucionar juntas.
+- Preferir normalizacion local y explicita antes que refactor masivo.
+- Si hace falta una migracion de naming amplia, separarla de los cambios funcionales.
 
-## Checklist rápido al abrir un cambio
+## Checklist minimo antes de aceptar cambios
 
-- ¿La prop usa el nombre canónico de esta capa?
-- ¿El payload usa una sola convención de nombres?
-- ¿La conversión a nombres de base de datos ocurre en un punto claro?
-- ¿El tipo refleja dominio o fila cruda?
-- ¿La variable de entorno sale de `lib/env.ts`?
-- ¿El cambio agrega una inconsistencia nueva aunque arregle otra?
+- La prop o variable usa el nombre canonico de esta capa.
+- El payload usa una sola convencion de nombres.
+- La conversion a nombres de base de datos ocurre en un punto claro.
+- La funcionalidad critica sigue persistiendo en Supabase.
+- `localStorage` no se usa como verdad principal.
+- Ningun modulo client importa helpers server-only o entorno central.
+- Las variables de entorno nuevas salen de `lib/env.ts` y estan documentadas.
+- El cambio no agrega una inconsistencia nueva aunque arregle otra.

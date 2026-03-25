@@ -51,6 +51,33 @@ interface OrderLookupRow {
   notes: string | null;
 }
 
+function buildPersistedInsertedOrder(
+  insertPayload: {
+    id: string;
+    order_code: string;
+    customer_name: string;
+    customer_whatsapp: string | null;
+    delivery_type: Order["deliveryType"];
+    delivery_address: string | null;
+    payment_method: Order["paymentMethod"];
+    products: Order["products"];
+    total: number;
+    notes: string | null;
+    status: Order["status"];
+    created_at: string;
+    updated_at: string;
+    payment_status: Order["paymentStatus"];
+    date_label: string | null;
+    is_reviewed: boolean;
+    history: Order["history"];
+  },
+  businessSlug: string,
+) {
+  return mapSupabaseRowToOrder(insertPayload as Record<string, unknown>, {
+    businessSlug,
+  });
+}
+
 function generateCandidateOrderCode() {
   return `WEB-${Math.floor(100000 + Math.random() * 900000)}`;
 }
@@ -484,9 +511,13 @@ export async function createOrderInDatabase(payload: unknown): Promise<Order> {
     .single();
 
   if (insertedOrderError) {
-    throw new Error(
-      `El pedido se guardo, pero no pudimos recuperarlo desde la base principal. ${insertedOrderError.message}`,
-    );
+    debugError("[orders-api] Supabase read-after-write failed after persisted insert", {
+      orderId,
+      businessSlug: payload.businessSlug,
+      code: insertedOrderError.code ?? null,
+    });
+
+    return buildPersistedInsertedOrder(insertPayload, payload.businessSlug);
   }
 
   return mapSupabaseRowToOrder(insertedOrder as Record<string, unknown>, {

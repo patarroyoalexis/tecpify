@@ -72,7 +72,7 @@ export function OrdersList({
         <p className="mt-2 text-sm text-slate-600">
           {hasActiveFilters
             ? "Prueba con otro filtro para revisar el resto de la operacion."
-            : "Cuando llegue el primer pedido, aparecera aqui sin necesidad de datos demo."}
+            : "Cuando llegue el primer pedido, aparecera aqui."}
         </p>
       </section>
     );

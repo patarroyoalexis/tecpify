@@ -3,7 +3,6 @@
 import {
   useDeferredValue,
   useMemo,
-  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -14,9 +13,7 @@ import {
   isDigitalPayment,
 } from "@/components/dashboard/payment-helpers";
 import {
-  findCustomerProfileByWhatsApp,
   isValidWhatsAppPhone,
-  normalizeWhatsAppPhone,
 } from "@/data/customer-profiles";
 import { debugError } from "@/lib/debug";
 import { createOrderViaApi } from "@/lib/orders/api";
@@ -309,12 +306,8 @@ function ProductRow({
 
 export function StorefrontOrderWizard({
   business,
-  recentOrders = [],
-  isTestMode = false,
 }: {
   business: BusinessConfig;
-  recentOrders?: Order[];
-  isTestMode?: boolean;
 }) {
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
@@ -330,15 +323,9 @@ export function StorefrontOrderWizard({
   const [submitError, setSubmitError] = useState("");
   const [productQuery, setProductQuery] = useState("");
   const [isCatalogOpen, setIsCatalogOpen] = useState(false);
-  const [hasKnownProfile, setHasKnownProfile] = useState(false);
-  const [customerLookupMessage, setCustomerLookupMessage] = useState("");
-  const [revealedNamePhone, setRevealedNamePhone] = useState("");
-  const lastHydratedPhoneRef = useRef("");
 
   const deferredProductQuery = useDeferredValue(productQuery);
   const hasValidWhatsApp = isValidWhatsAppPhone(customerPhone);
-  const showNameField =
-    hasValidWhatsApp || Boolean(customerName.trim()) || Boolean(errors.customerName);
   const showAddressField = deliveryType === "domicilio";
 
   const availablePaymentMethods = useMemo(() => {
@@ -375,53 +362,6 @@ export function StorefrontOrderWizard({
   );
   const inlineProducts =
     deferredProductQuery.trim().length > 0 ? filteredProducts : featuredProducts;
-
-  function syncCustomerProfile(nextPhone: string, nextDeliveryType: DeliveryType | "" = deliveryType) {
-    const nextNormalizedPhone = normalizeWhatsAppPhone(nextPhone);
-
-    if (!isValidWhatsAppPhone(nextPhone)) {
-      setHasKnownProfile(false);
-      setCustomerLookupMessage("");
-      setRevealedNamePhone("");
-      lastHydratedPhoneRef.current = "";
-      return;
-    }
-
-    setRevealedNamePhone(nextNormalizedPhone);
-
-    const profile = findCustomerProfileByWhatsApp(recentOrders, nextPhone);
-
-    if (!profile) {
-      setHasKnownProfile(false);
-      setCustomerLookupMessage("Es tu primera compra con este numero. Solo falta tu nombre.");
-
-      if (lastHydratedPhoneRef.current !== nextNormalizedPhone) {
-        setCustomerName("");
-        if (nextDeliveryType === "domicilio") {
-          setAddress("");
-        }
-      }
-
-      lastHydratedPhoneRef.current = nextNormalizedPhone;
-      return;
-    }
-
-    setHasKnownProfile(true);
-    setCustomerLookupMessage("Encontramos tus datos y los dejamos listos para editar.");
-
-    if (lastHydratedPhoneRef.current !== nextNormalizedPhone) {
-      setCustomerName(profile.customerName);
-      if (profile.address && nextDeliveryType === "domicilio") {
-        setAddress(profile.address);
-      }
-      lastHydratedPhoneRef.current = nextNormalizedPhone;
-      return;
-    }
-
-    if (profile.address && nextDeliveryType === "domicilio" && !address.trim()) {
-      setAddress(profile.address);
-    }
-  }
 
   function clearFieldError(field: string) {
     setErrors((current) => {
@@ -547,12 +487,6 @@ export function StorefrontOrderWizard({
                 Tu solicitud fue registrada para <strong>{business.name}</strong>.
                 Comparte este numero si necesitas soporte o seguimiento.
               </p>
-              {isTestMode ? (
-                <p className="mt-3 rounded-[20px] border border-sky-200 bg-sky-50 px-4 py-3 text-sm leading-6 text-sky-900">
-                  Si estabas validando la activacion, este pedido ya deberia aparecer en el
-                  panel interno del negocio.
-                </p>
-              ) : null}
             </div>
 
             <div className="mt-6 rounded-[24px] border border-slate-200 bg-slate-50 p-5">
@@ -621,24 +555,9 @@ export function StorefrontOrderWizard({
       <div className="mx-auto w-full max-w-5xl px-4 pb-10 pt-24 sm:px-6 sm:pt-28">
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
           <div className="space-y-4">
-            {isTestMode ? (
-              <section className="rounded-[24px] border border-sky-200 bg-sky-50/85 p-4 shadow-[0_16px_40px_rgba(15,23,42,0.05)]">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">
-                  Prueba de activacion
-                </p>
-                <h1 className="mt-2 text-xl font-semibold text-slate-950">
-                  Este es el link publico real del negocio
-                </h1>
-                <p className="mt-2 text-sm leading-6 text-slate-700">
-                  Haz un pedido corto como cliente para validar el recorrido completo. Cuando
-                  lo envies, deberia verse en la operacion interna sin pasos manuales extra.
-                </p>
-              </section>
-            ) : null}
-
             <CompactSection
               title="Tus datos"
-              description="Empieza con tu WhatsApp y te ayudamos a llenar lo repetido."
+              description="Comparte tus datos de contacto para confirmar el pedido y, si hace falta, ubicarte por WhatsApp."
               icon={<UserIcon className="h-4 w-4" />}
             >
               <div className="space-y-3">
@@ -650,9 +569,7 @@ export function StorefrontOrderWizard({
                       id="customerPhone"
                       value={customerPhone}
                       onChange={(event) => {
-                        const nextPhone = event.target.value;
-                        setCustomerPhone(nextPhone);
-                        syncCustomerProfile(nextPhone);
+                        setCustomerPhone(event.target.value);
                         clearFieldError("customerPhone");
                       }}
                       placeholder="300 123 4567"
@@ -668,48 +585,28 @@ export function StorefrontOrderWizard({
                   <FieldError message={errors.customerPhone} />
                 </label>
 
-                <div
-                  className={`grid transition-all duration-300 ${
-                    showNameField ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
-                  }`}
-                >
-                  <div className="min-h-0 overflow-hidden">
-                    <label className="space-y-2 pt-1">
-                      <span className="text-sm font-medium text-slate-700">Nombre</span>
-                      <div className="relative">
-                        <UserIcon className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                        <input
-                          id="customerName"
-                          value={customerName}
-                          onChange={(event) => {
-                            setCustomerName(event.target.value);
-                            clearFieldError("customerName");
-                          }}
-                          placeholder="Tu nombre o el de tu negocio"
-                          autoComplete="name"
-                          className={`w-full rounded-2xl border bg-slate-50 py-3 pl-11 pr-4 text-base leading-6 text-slate-900 outline-none transition focus:bg-white sm:text-sm sm:leading-5 ${
-                            errors.customerName
-                              ? "border-rose-300 focus:border-rose-400"
-                              : "border-slate-200 focus:border-slate-400"
-                          }`}
-                        />
-                      </div>
-                      <FieldError message={errors.customerName} />
-                    </label>
+                <label className="space-y-2 pt-1">
+                  <span className="text-sm font-medium text-slate-700">Nombre</span>
+                  <div className="relative">
+                    <UserIcon className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                    <input
+                      id="customerName"
+                      value={customerName}
+                      onChange={(event) => {
+                        setCustomerName(event.target.value);
+                        clearFieldError("customerName");
+                      }}
+                      placeholder="Tu nombre o el de tu negocio"
+                      autoComplete="name"
+                      className={`w-full rounded-2xl border bg-slate-50 py-3 pl-11 pr-4 text-base leading-6 text-slate-900 outline-none transition focus:bg-white sm:text-sm sm:leading-5 ${
+                        errors.customerName
+                          ? "border-rose-300 focus:border-rose-400"
+                          : "border-slate-200 focus:border-slate-400"
+                      }`}
+                    />
                   </div>
-                </div>
-
-                {revealedNamePhone && customerLookupMessage ? (
-                  <p
-                    className={`rounded-2xl px-3 py-2 text-sm ${
-                      hasKnownProfile
-                        ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
-                        : "border border-slate-200 bg-slate-50 text-slate-600"
-                    }`}
-                  >
-                    {customerLookupMessage}
-                  </p>
-                ) : null}
+                  <FieldError message={errors.customerName} />
+                </label>
               </div>
             </CompactSection>
 
@@ -790,8 +687,6 @@ export function StorefrontOrderWizard({
                         setDeliveryType(nextDeliveryType);
                         if (nextDeliveryType !== "domicilio") {
                           setAddress("");
-                        } else {
-                          syncCustomerProfile(customerPhone, nextDeliveryType);
                         }
                         if (
                           paymentMethod &&
