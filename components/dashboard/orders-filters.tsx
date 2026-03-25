@@ -62,6 +62,12 @@ export function OrdersFilters({
         </div>
       ) : null}
 
+      <div className="mt-2 flex items-center justify-between gap-3">
+        <p className="text-xs font-medium text-slate-500">
+          Filtra por estado operativo sin mezclarlo con el estado del pago.
+        </p>
+      </div>
+
       <div className="mt-2.5 flex flex-wrap gap-1.5">
         {primaryStatuses.map((status) => {
           const isActive = selectedStatus === status;

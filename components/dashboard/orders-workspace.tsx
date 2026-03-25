@@ -157,6 +157,14 @@ export function OrdersWorkspace({ businessSlug }: OrdersWorkspaceProps) {
       : searchedOrders.filter((order) => order.status === selectedStatus);
   const metrics = getOperationalMetrics(ordersState);
   const hasActiveFilters = selectedStatus !== "todos" || searchQuery.trim().length > 0;
+  const ordersPendingPayment = ordersState.filter(
+    (order) => order.paymentStatus !== "verificado" && order.status !== "cancelado",
+  ).length;
+  const ordersReadyToAdvance = ordersState.filter(
+    (order) =>
+      order.paymentStatus === "verificado" &&
+      !["entregado", "cancelado"].includes(order.status),
+  ).length;
 
   function handleToggleGroup(groupKey: GroupKey) {
     setExpandedGroups((currentState) => ({
@@ -197,6 +205,28 @@ export function OrdersWorkspace({ businessSlug }: OrdersWorkspaceProps) {
       ) : null}
 
       <MetricsCards metrics={metrics} compactOnMobile layout="orders" />
+
+      <section className="rounded-[24px] border border-slate-200 bg-white px-4 py-4 shadow-[0_16px_40px_rgba(15,23,42,0.05)] sm:px-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+              Lectura operativa
+            </p>
+            <p className="mt-1 text-sm text-slate-700">
+              Pedido y pago ahora se leen por separado para detectar mas rapido si falta
+              validar cobro o si el pedido ya puede avanzar.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800">
+              {ordersPendingPayment} con pago pendiente
+            </span>
+            <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-semibold text-sky-800">
+              {ordersReadyToAdvance} listos para avanzar
+            </span>
+          </div>
+        </div>
+      </section>
 
       <OrdersFilters
         selectedStatus={selectedStatus}

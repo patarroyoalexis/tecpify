@@ -91,6 +91,17 @@ interface EditableProductField {
   unitPrice?: number;
 }
 
+interface RecommendedDrawerAction {
+  title: string;
+  description: string;
+  tone: string;
+  buttonLabel?: string;
+  action?:
+    | { kind: "request-payment-proof" }
+    | { kind: "payment"; value: PaymentStatus }
+    | { kind: "order"; value: OrderStatus };
+}
+
 const historyFormatter = new Intl.DateTimeFormat("es-CO", {
   dateStyle: "medium",
   timeStyle: "short",
@@ -156,6 +167,76 @@ function getDeliveryTypeLabel(deliveryType: DeliveryType) {
   return deliveryType === "domicilio" ? "Domicilio" : "Recogida en tienda";
 }
 
+function getRecommendedDrawerAction(
+  order: Order,
+  options: {
+    nextQuickStatus?: OrderStatus;
+    canQuickConfirm: boolean;
+    hasValidWhatsApp: boolean;
+  },
+): RecommendedDrawerAction {
+  if (isFinalOrderStatus(order.status)) {
+    return {
+      title: "Flujo cerrado",
+      description: "Solo conviene revisar datos o historial. No hay un siguiente paso operativo.",
+      tone: "border-slate-200 bg-slate-50 text-slate-700",
+    };
+  }
+
+  if (shouldShowPaymentVerificationActions(order) && order.paymentStatus === "pendiente") {
+    return options.hasValidWhatsApp
+      ? {
+          title: "Siguiente paso recomendado",
+          description: "Solicita el comprobante antes de confirmar el pedido.",
+          tone: "border-amber-200 bg-amber-50 text-amber-900",
+          buttonLabel: "Solicitar comprobante",
+          action: { kind: "request-payment-proof" },
+        }
+      : {
+          title: "Pago pendiente",
+          description:
+            "Falta comprobante y este pedido no tiene WhatsApp valido para solicitarlo rapido.",
+          tone: "border-amber-200 bg-amber-50 text-amber-900",
+        };
+  }
+
+  if (order.paymentStatus === "con novedad" || order.paymentStatus === "no verificado") {
+    return {
+      title: "Resolver pago primero",
+      description: "Aclara el estado del pago antes de continuar con el flujo del pedido.",
+      tone: "border-rose-200 bg-rose-50 text-rose-900",
+      buttonLabel: "Marcar pago verificado",
+      action: { kind: "payment", value: "verificado" },
+    };
+  }
+
+  if (options.canQuickConfirm) {
+    return {
+      title: "Siguiente paso recomendado",
+      description: "El pago ya esta listo. Confirma el pedido para pasarlo a operacion.",
+      tone: "border-sky-200 bg-sky-50 text-sky-900",
+      buttonLabel: "Confirmar pedido",
+      action: { kind: "order", value: "confirmado" },
+    };
+  }
+
+  if (options.nextQuickStatus) {
+    return {
+      title: "Siguiente paso recomendado",
+      description: `Avanza el pedido a ${ORDER_STATUS_LABELS[options.nextQuickStatus].toLowerCase()}.`,
+      tone: "border-sky-200 bg-sky-50 text-sky-900",
+      buttonLabel: `Avanzar a ${ORDER_STATUS_LABELS[options.nextQuickStatus]}`,
+      action: { kind: "order", value: options.nextQuickStatus },
+    };
+  }
+
+  return {
+    title: "Revisar detalle",
+    description: "Valida datos del cliente, direccion y productos antes de mover el pedido.",
+    tone: "border-slate-200 bg-slate-50 text-slate-700",
+  };
+}
+
 export function OrderDetailDrawer({
   businessSlug,
   businessName,
@@ -180,6 +261,8 @@ export function OrderDetailDrawer({
   const [isLoadingCatalog, setIsLoadingCatalog] = useState(false);
   const [editForm, setEditForm] = useState<EditOrderFormState | null>(null);
   const [editableProducts, setEditableProducts] = useState<EditableProductField[]>([]);
+  const [showSecondaryPaymentActions, setShowSecondaryPaymentActions] = useState(false);
+  const [showSecondaryOrderActions, setShowSecondaryOrderActions] = useState(false);
   const [renderedOrder, setRenderedOrder] = useState<Order | null>(order);
   const [isVisible, setIsVisible] = useState(false);
   const previousRenderedOrderIdRef = useRef<string | null>(null);
@@ -243,6 +326,8 @@ export function OrderDetailDrawer({
       setEditError("");
       setEditSuccess("");
       setActionError("");
+      setShowSecondaryPaymentActions(false);
+      setShowSecondaryOrderActions(false);
       setWhatsAppFeedback("");
     }
 
@@ -381,6 +466,11 @@ export function OrderDetailDrawer({
   const whatsappMessage = `Hola, te escribimos de ${businessName}. Te compartimos este mensaje por tu pedido ${getOrderDisplayCode(currentOrder)}. ¿Nos puedes enviar por favor el comprobante de pago?`;
   const whatsappUrl = buildWhatsAppUrl(currentOrder.customerPhone ?? "", whatsappMessage);
   const hasValidWhatsApp = Boolean(whatsappUrl);
+  const recommendedAction = getRecommendedDrawerAction(currentOrder, {
+    nextQuickStatus,
+    canQuickConfirm,
+    hasValidWhatsApp,
+  });
 
   const changedFields = [
     currentEditForm.status !== currentOrder.status
@@ -623,6 +713,24 @@ export function OrderDetailDrawer({
     }
   }
 
+  function runRecommendedAction() {
+    if (!recommendedAction.action) {
+      return;
+    }
+
+    if (recommendedAction.action.kind === "request-payment-proof") {
+      void handleRequestPaymentByWhatsApp();
+      return;
+    }
+
+    if (recommendedAction.action.kind === "payment") {
+      runQuickPaymentChange(recommendedAction.action.value);
+      return;
+    }
+
+    runQuickStatusChange(recommendedAction.action.value);
+  }
+
   function runQuickStatusChange(nextStatus: OrderStatus) {
     const rule = getOrderStatusTransitionRule(currentOrder, nextStatus);
 
@@ -734,22 +842,61 @@ export function OrderDetailDrawer({
 
         <div className="flex-1 space-y-5 overflow-y-auto px-6 py-6">
           <section className="rounded-[24px] border border-slate-200 bg-white p-5">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="space-y-3 px-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <div className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${orderToneStyles[currentOrder.status]}`}>
-                    <span className="inline-flex items-center gap-2">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0 flex-1 space-y-4 px-1">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className={`rounded-2xl border px-4 py-3 ${orderToneStyles[currentOrder.status]}`}>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-70">
+                      Estado del pedido
+                    </p>
+                    <div className="mt-2 flex items-center gap-2">
                       <StatusBadgeIcon iconKey={getOrderStatusIconKey(currentOrder.status)} />
-                      Pedido: {ORDER_STATUS_LABELS[currentOrder.status]}
-                    </span>
+                      <span className="text-sm font-semibold">
+                        {ORDER_STATUS_LABELS[currentOrder.status]}
+                      </span>
+                    </div>
                   </div>
-                  <div className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${paymentToneStyles[currentOrder.paymentStatus]}`}>
-                    <span className="inline-flex items-center gap-2">
+                  <div className={`rounded-2xl border px-4 py-3 ${paymentToneStyles[currentOrder.paymentStatus]}`}>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-70">
+                      Estado del pago
+                    </p>
+                    <div className="mt-2 flex items-center gap-2">
                       <StatusBadgeIcon
                         iconKey={getPaymentStatusIconKey(currentOrder.paymentStatus)}
                       />
-                      Pago: {PAYMENT_STATUS_LABELS[currentOrder.paymentStatus]}
-                    </span>
+                      <span className="text-sm font-semibold">
+                        {PAYMENT_STATUS_LABELS[currentOrder.paymentStatus]}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div className={`rounded-2xl border px-4 py-3 ${recommendedAction.tone}`}>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-70">
+                        {recommendedAction.title}
+                      </p>
+                      <p className="mt-1 text-sm font-medium">{recommendedAction.description}</p>
+                    </div>
+                    {recommendedAction.action && recommendedAction.buttonLabel ? (
+                      <button
+                        type="button"
+                        onClick={runRecommendedAction}
+                        className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-full border border-current/15 bg-white/85 px-4 py-2.5 text-sm font-semibold text-inherit transition hover:bg-white"
+                      >
+                        <OrdersUiIcon
+                          icon={
+                            recommendedAction.action.kind === "request-payment-proof"
+                              ? "clipboard"
+                              : recommendedAction.action.kind === "payment"
+                                ? "save"
+                                : "clipboard-check"
+                          }
+                          className="h-4 w-4"
+                        />
+                        {recommendedAction.buttonLabel}
+                      </button>
+                    ) : null}
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
@@ -1254,20 +1401,39 @@ export function OrderDetailDrawer({
                       </button>
                       <button
                         type="button"
-                        onClick={() => runQuickPaymentChange("con novedad")}
-                        className="inline-flex items-center justify-center gap-1.5 rounded-full border border-orange-200 bg-orange-50 px-4 py-3 text-sm font-medium text-orange-700"
+                        onClick={() =>
+                          setShowSecondaryPaymentActions((currentValue) => !currentValue)
+                        }
+                        className="inline-flex items-center justify-center gap-1.5 rounded-full border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700"
                       >
-                        <OrdersUiIcon icon="edit" className="h-4 w-4" />
-                        Marcar pago con novedad
+                        <OrdersUiIcon
+                          icon={showSecondaryPaymentActions ? "chevron-up" : "chevron-down"}
+                          className="h-4 w-4"
+                        />
+                        {showSecondaryPaymentActions
+                          ? "Ocultar acciones secundarias"
+                          : "Mas acciones de pago"}
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => runQuickPaymentChange("no verificado")}
-                        className="inline-flex items-center justify-center gap-1.5 rounded-full border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700"
-                      >
-                        <OrdersUiIcon icon="x" className="h-4 w-4" />
-                        Marcar pago como no verificado
-                      </button>
+                      {showSecondaryPaymentActions ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => runQuickPaymentChange("con novedad")}
+                            className="inline-flex items-center justify-center gap-1.5 rounded-full border border-orange-200 bg-orange-50 px-4 py-3 text-sm font-medium text-orange-700"
+                          >
+                            <OrdersUiIcon icon="edit" className="h-4 w-4" />
+                            Marcar pago con novedad
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => runQuickPaymentChange("no verificado")}
+                            className="inline-flex items-center justify-center gap-1.5 rounded-full border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700"
+                          >
+                            <OrdersUiIcon icon="x" className="h-4 w-4" />
+                            Marcar pago como no verificado
+                          </button>
+                        </>
+                      ) : null}
                     </>
                   ) : (
                     <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
@@ -1310,12 +1476,29 @@ export function OrderDetailDrawer({
                       ) : null}
                       <button
                         type="button"
-                        onClick={() => runQuickStatusChange("cancelado")}
-                        className="inline-flex items-center justify-center gap-1.5 rounded-full border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700"
+                        onClick={() =>
+                          setShowSecondaryOrderActions((currentValue) => !currentValue)
+                        }
+                        className="inline-flex items-center justify-center gap-1.5 rounded-full border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700"
                       >
-                        <OrdersUiIcon icon="x" className="h-4 w-4" />
-                        Cancelar pedido
+                        <OrdersUiIcon
+                          icon={showSecondaryOrderActions ? "chevron-up" : "chevron-down"}
+                          className="h-4 w-4"
+                        />
+                        {showSecondaryOrderActions
+                          ? "Ocultar acciones secundarias"
+                          : "Mas acciones del pedido"}
                       </button>
+                      {showSecondaryOrderActions ? (
+                        <button
+                          type="button"
+                          onClick={() => runQuickStatusChange("cancelado")}
+                          className="inline-flex items-center justify-center gap-1.5 rounded-full border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700"
+                        >
+                          <OrdersUiIcon icon="x" className="h-4 w-4" />
+                          Cancelar pedido
+                        </button>
+                      ) : null}
                     </div>
                   </>
                 ) : (

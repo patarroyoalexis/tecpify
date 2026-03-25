@@ -2,43 +2,59 @@
 
 ## 1. Que es Tecpify hoy
 
-Tecpify es un MVP para pequenos negocios que concentra cuatro piezas conectadas:
+Tecpify es un MVP operativo para pequenos negocios con un circuito central ya implementado:
 
-- un link publico por negocio para recibir pedidos
-- un workspace privado para operar pedidos y catalogo
-- persistencia real en Supabase para negocios, productos y pedidos
-- metricas operativas simples calculadas sobre pedidos persistidos
+`auth -> negocio -> catalogo -> link publico -> pedido -> workspace -> metricas`
 
-Hoy no es un ERP ni un backoffice completo. El producto esta evaluando si un negocio pequeno puede crear su negocio, publicar productos, recibir pedidos reales y operarlos desde una sola app sin depender de hojas de calculo o chat manual como fuente de verdad.
+Hoy el producto no es un ERP ni un backoffice completo. El estado real del repo muestra una app enfocada en:
+
+- crear y operar negocios propios autenticados
+- publicar un catalogo minimo
+- recibir pedidos reales desde un link publico
+- operar esos pedidos desde un workspace privado
+- persistir negocios, productos y pedidos en Supabase
+- calcular metricas operativas simples sobre pedidos persistidos
+
+No hay multiusuario por negocio, pagos automaticos, integraciones externas, inventario formal ni BI historico.
 
 ## 2. Objetivo actual del MVP
 
-El objetivo actual del MVP es cerrar este circuito real:
+El objetivo actual del MVP es validar que un negocio pequeno pueda:
 
-`negocio -> catalogo -> link publico -> pedido -> operacion interna -> metricas basicas`
+1. crear su negocio
+2. cargar al menos un producto activo
+3. compartir un link publico real
+4. recibir un pedido persistido en Supabase
+5. leerlo y operarlo desde el workspace privado
+6. actualizar estado y pago con reglas de negocio minimas
+7. ver metricas operativas basicas salidas de datos reales
 
-El MVP se considera valioso solo si ese circuito funciona con datos persistidos y sin depender de mocks o estado local para la operacion critica.
+El MVP solo se considera util si ese circuito funciona sin depender de mocks ni de `localStorage` como fuente de verdad.
 
 ## 3. Alcance real implementado
 
-- Registro, login y confirmacion por email con Supabase Auth SSR.
-- Creacion de negocios reales por usuario autenticado.
-- Catalogo real por negocio con activacion, destacado, reordenamiento y borrado validado.
-- Link publico por negocio para crear pedidos reales.
-- Persistencia real de pedidos en Supabase.
-- Lectura server-first de pedidos en dashboard, pedidos y metricas.
-- Actualizacion real de estado de pedido, estado de pago, historial e indicador de revision.
-- Metricas operativas basicas calculadas desde pedidos persistidos.
+Implementado hoy:
 
-Fuera del alcance real actual:
+- registro, login y callback de auth con Supabase Auth SSR
+- creacion de negocios reales por usuario autenticado
+- ownership por `created_by_user_id`
+- catalogo real por negocio con creacion, edicion, activacion, destacado y reordenamiento
+- bloqueo de borrado si el producto ya fue usado en pedidos persistidos
+- storefront publico por slug de negocio con productos activos
+- creacion publica de pedidos con validacion de total y productos
+- lectura privada de pedidos por owner autenticado
+- actualizacion real de pedido, pago, historial e `isReviewed`
+- dashboard, pedidos y metricas alimentados por pedidos persistidos
 
-- roles y multiusuario por negocio
-- sistema formal de clientes
-- pagos automaticos
-- webhooks e integraciones externas
-- inventario, variantes, imagenes y categorias
-- reporting historico o BI formal
-- modo offline o cola de reintentos
+Fuera de alcance hoy:
+
+- roles o colaboracion multiusuario
+- conciliacion o pasarela de pagos
+- clientes persistidos como modulo propio
+- inventario, variantes, categorias o imagenes
+- webhooks, integraciones o automatizaciones externas
+- soporte offline o cola de reintentos
+- auditoria formal o reporting historico persistido
 
 ## 4. Estado funcional por modulos
 
@@ -46,293 +62,353 @@ Fuera del alcance real actual:
 
 - Estado: verde
 - Que hace hoy realmente:
-  - registro y login con Supabase Auth
-  - confirmacion por email por `/auth/callback`
-  - sesion SSR con cookies de Supabase
-  - proteccion de pages y APIs privadas
+  - `POST /api/auth/register` crea cuenta y puede requerir confirmacion por email
+  - `POST /api/auth/login` inicia sesion contra Supabase
+  - `/auth/callback` confirma signup o intercambio de codigo y deja sesion SSR
+  - `requireAuthenticatedUser`, `requireBusinessContext` y `requireBusinessApiContext` protegen pages y APIs privadas
+  - `middleware.ts` redirige a login para rutas privadas
 - Limitaciones:
-  - no hay roles
-  - no hay colaboracion multiusuario por negocio
-  - el middleware es una ayuda de UX, no la validacion final
+  - no hay roles ni colaboracion
+  - el middleware es un guard de UX; la autorizacion real sigue en server
+  - Next 16 ya marca `middleware.ts` como convencion deprecada frente a `proxy`
 - Archivos dominantes:
-  - [lib/auth/server.ts](C:/Users/Alexis/Documents/tecpify/lib/auth/server.ts)
-  - [lib/auth/operator-auth.ts](C:/Users/Alexis/Documents/tecpify/lib/auth/operator-auth.ts)
-  - [app/auth/callback/route.ts](C:/Users/Alexis/Documents/tecpify/app/auth/callback/route.ts)
-  - [middleware.ts](C:/Users/Alexis/Documents/tecpify/middleware.ts)
-- Dependencias:
+  - `lib/auth/server.ts`
+  - `lib/auth/operator-auth.ts`
+  - `app/api/auth/register/route.ts`
+  - `app/api/auth/login/route.ts`
+  - `app/auth/callback/route.ts`
+  - `middleware.ts`
+- Dependencia principal:
   - Supabase Auth SSR
-  - rutas server
+  - server routes
 
 ### Negocios
 
 - Estado: amarillo
 - Que hace hoy realmente:
-  - crea negocios reales con `name`, `slug` y `created_by_user_id`
-  - resuelve acceso del workspace por owner autenticado
-  - usa `businessSlug` como nombre canonico en dominio y frontend
+  - crea negocios con `name`, `slug` y `created_by_user_id`
+  - lista negocios visibles del operador autenticado en `/dashboard`
+  - resuelve ownership por slug o por order id antes de abrir workspace o mutar pedidos
+  - el dominio canonico usa `businessSlug`
 - Limitaciones:
-  - los negocios legacy sin owner quedan bloqueados por completo hasta migrarlos
-  - no existe flujo completo de reclamo o migracion de ownership
+  - negocios legacy sin owner quedan bloqueados en privado y tambien en publico
+  - no existe flujo de migracion o reclamo de ownership dentro de la UI
+  - `getHomeBusinesses` degrada a lista vacia si falla la consulta, asi que el home no siempre distingue entre "sin negocios" y "error al cargar"
 - Archivos dominantes:
-  - [app/api/businesses/route.ts](C:/Users/Alexis/Documents/tecpify/app/api/businesses/route.ts)
-  - [data/businesses.ts](C:/Users/Alexis/Documents/tecpify/data/businesses.ts)
-  - [lib/auth/business-access.ts](C:/Users/Alexis/Documents/tecpify/lib/auth/business-access.ts)
-- Dependencias:
+  - `app/api/businesses/route.ts`
+  - `data/businesses.ts`
+  - `lib/auth/business-access.ts`
+  - `lib/auth/legacy-business-access.ts`
+- Dependencia principal:
   - Supabase
-  - rutas server
+  - RLS / ownership por owner
 
 ### Catalogo / productos
 
 - Estado: verde
 - Que hace hoy realmente:
   - lista productos por negocio
-  - crea, edita, activa, destaca y reordena
-  - bloquea borrado si el producto ya fue usado en pedidos reales
-  - el storefront solo publica productos activos
+  - crea, edita, activa, destaca y reordena productos
+  - el storefront solo publica productos `is_available = true`
+  - bloquea borrado si el producto aparece referenciado en pedidos persistidos
+  - da feedback de readiness del negocio segun productos totales y activos
 - Limitaciones:
-  - no hay categorias, variantes ni inventario
-  - la gestion vive en drawers; no hay backoffice mas profundo
+  - no hay categorias, variantes, inventario ni imagenes
+  - la experiencia de gestion esta concentrada en un drawer
+  - la logica de reorder hace varias escrituras consecutivas
 - Archivos dominantes:
-  - [lib/data/products.ts](C:/Users/Alexis/Documents/tecpify/lib/data/products.ts)
-  - [app/api/products/route.ts](C:/Users/Alexis/Documents/tecpify/app/api/products/route.ts)
-  - [app/api/products/[productId]/route.ts](C:/Users/Alexis/Documents/tecpify/app/api/products/[productId]/route.ts)
-  - [components/dashboard/products-management-drawer.tsx](C:/Users/Alexis/Documents/tecpify/components/dashboard/products-management-drawer.tsx)
-- Dependencias:
+  - `lib/data/products.ts`
+  - `app/api/products/route.ts`
+  - `app/api/products/[productId]/route.ts`
+  - `components/dashboard/products-management-drawer.tsx`
+  - `lib/businesses/readiness.ts`
+- Dependencia principal:
   - Supabase
-  - rutas server
+  - server routes
 
 ### Link publico de pedidos
 
 - Estado: verde
 - Que hace hoy realmente:
   - expone `/pedido/[negocioId]`
-  - resuelve negocio por slug real
-  - muestra mensaje si el negocio no existe o no tiene productos activos
+  - el parametro `negocioId` contiene realmente un slug, no un UUID
+  - resuelve negocio por RPC publica `get_storefront_business_by_slug`
+  - solo muestra negocios con owner real
+  - solo publica productos activos
+  - muestra estados claros de "negocio no encontrado" o "sin catalogo activo"
 - Limitaciones:
-  - el parametro de ruta sigue llamandose `negocioId` por compatibilidad, aunque en dominio es slug
-  - no hay experiencia de catalogo avanzada
+  - el nombre del segmento de ruta sigue heredado y puede inducir errores si alguien lo trata como id de base de datos
 - Archivos dominantes:
-  - [app/pedido/[negocioId]/page.tsx](C:/Users/Alexis/Documents/tecpify/app/pedido/[negocioId]/page.tsx)
-  - [data/businesses.ts](C:/Users/Alexis/Documents/tecpify/data/businesses.ts)
-  - [components/storefront/order-wizard.tsx](C:/Users/Alexis/Documents/tecpify/components/storefront/order-wizard.tsx)
-- Dependencias:
+  - `app/pedido/[negocioId]/page.tsx`
+  - `data/businesses.ts`
+  - `components/storefront/order-wizard.tsx`
+  - `supabase/migrations/20260325_enable_public_owned_business_lookup.sql`
+  - `supabase/migrations/20260325_block_ownerless_legacy_businesses_public_access.sql`
+- Dependencia principal:
   - Supabase
+  - RPC publica acotada
+  - RLS publica sobre `products` y `orders`
 
 ### Creacion de pedidos
 
 - Estado: verde
 - Que hace hoy realmente:
-  - valida nombre, WhatsApp, productos, total, entrega y pago
-  - traduce `businessSlug` a `business_id`
-  - valida productos activos y total real antes de insertar
-  - persiste pedidos reales en Supabase desde storefront y tambien desde el workspace
+  - valida nombre, WhatsApp, entrega, pago, productos y total
+  - normaliza `businessSlug`
+  - traduce `businessSlug -> business_id`
+  - valida productos activos y recalcula el total real antes de insertar
+  - genera `order_code`
+  - persiste el pedido publico en Supabase sin service role
+  - tambien permite crear pedidos manuales desde el workspace
 - Limitaciones:
-  - el historial inicial depende parcialmente de lo que envie el cliente
+  - el historial inicial puede venir desde cliente y hoy el servidor solo lo valida y normaliza; no lo reconstruye siempre desde cero
+  - no hay reintento diferido ni idempotencia formal
 - Archivos dominantes:
-  - [components/storefront/order-wizard.tsx](C:/Users/Alexis/Documents/tecpify/components/storefront/order-wizard.tsx)
-  - [app/api/orders/route.ts](C:/Users/Alexis/Documents/tecpify/app/api/orders/route.ts)
-  - [lib/data/orders-server.ts](C:/Users/Alexis/Documents/tecpify/lib/data/orders-server.ts)
-  - [lib/orders/mappers.ts](C:/Users/Alexis/Documents/tecpify/lib/orders/mappers.ts)
-- Dependencias:
+  - `components/storefront/order-wizard.tsx`
+  - `app/api/orders/route.ts`
+  - `lib/data/orders-server.ts`
+  - `lib/orders/mappers.ts`
+- Dependencia principal:
   - Supabase
-  - rutas server
+  - route handler server
 
 ### Persistencia en Supabase
 
 - Estado: verde
 - Que hace hoy realmente:
   - negocios, productos y pedidos persisten en Supabase
-  - pedidos usan columnas reales como `payment_status`, `delivery_type`, `history`, `is_reviewed` y `order_code`
-  - Supabase es la fuente de verdad de la operacion
+  - las rutas publicas usan `anon key` y politicas publicas restringidas
+  - las rutas privadas usan cliente autenticado SSR
+  - `SUPABASE_SERVICE_ROLE_KEY` queda deshabilitada para el MVP normal
+  - el helper admin existe, pero esta blindado por inventario vacio de usos activos
 - Limitaciones:
-  - storefront y creacion publica de pedidos dependen ahora de una RPC publica acotada y de RLS en `orders` y `products`
-  - no quedan usos operativos activos de `SUPABASE_SERVICE_ROLE_KEY` en los flujos normales del MVP
+  - depende de migraciones y RLS correctas; si se relajan, se rompen seguridad y ownership
 - Archivos dominantes:
-  - [lib/supabase/server.ts](C:/Users/Alexis/Documents/tecpify/lib/supabase/server.ts)
-  - [lib/data/orders-server.ts](C:/Users/Alexis/Documents/tecpify/lib/data/orders-server.ts)
-  - [lib/data/products.ts](C:/Users/Alexis/Documents/tecpify/lib/data/products.ts)
-  - [data/businesses.ts](C:/Users/Alexis/Documents/tecpify/data/businesses.ts)
-- Dependencias:
+  - `lib/supabase/server.ts`
+  - `lib/supabase/service-role.ts`
+  - `lib/data/orders-server.ts`
+  - `lib/data/products.ts`
+  - `data/businesses.ts`
+- Dependencia principal:
   - Supabase
+  - RLS
 
 ### Dashboard operativo
 
 - Estado: verde
 - Que hace hoy realmente:
   - carga pedidos iniciales desde servidor
-  - vuelve a consultar al hidratar, al enfocar, al volver visible la pestana y cada 15 segundos
-  - puede abrir detalle, crear pedidos manuales y ejecutar mutaciones reales
+  - rehidrata, refresca en focus, visibility change y cada 15 segundos
+  - permite abrir detalle, crear pedido manual y mutar pedidos reales
+  - muestra onboarding de activacion del negocio si aun no hay primer pedido
+  - separa mejor `estado del pedido` y `estado del pago` en cards y drawer
+  - hace mas visible el siguiente paso operativo
 - Limitaciones:
-  - la experiencia visual es densa
-  - no existe una cola de reintentos separada
+  - sigue siendo una UI densa en varias vistas del workspace
+  - la resincronizacion depende de fetch posterior a la mutacion
+  - usa `localStorage` para filtros y grupos de UI; no para persistencia critica
 - Archivos dominantes:
-  - [app/dashboard/[negocioId]/page.tsx](C:/Users/Alexis/Documents/tecpify/app/dashboard/[negocioId]/page.tsx)
-  - [components/dashboard/business-workspace-context.tsx](C:/Users/Alexis/Documents/tecpify/components/dashboard/business-workspace-context.tsx)
-  - [components/dashboard/use-business-orders.ts](C:/Users/Alexis/Documents/tecpify/components/dashboard/use-business-orders.ts)
-  - [components/dashboard/orders-workspace.tsx](C:/Users/Alexis/Documents/tecpify/components/dashboard/orders-workspace.tsx)
-- Dependencias:
+  - `app/dashboard/[negocioId]/page.tsx`
+  - `app/pedidos/[negocioId]/page.tsx`
+  - `components/dashboard/business-workspace-context.tsx`
+  - `components/dashboard/use-business-orders.ts`
+  - `components/dashboard/orders-workspace.tsx`
+  - `components/dashboard/order-card.tsx`
+  - `components/dashboard/order-detail-drawer.tsx`
+- Dependencia principal:
   - Supabase
-  - rutas server
-  - `localStorage` solo para filtros y grupos de UI
+  - server routes
+  - `localStorage` solo para estado visual
 
 ### Actualizacion de estados de pedido
 
 - Estado: verde
 - Que hace hoy realmente:
-  - actualiza estado, datos del pedido, revision e historial
+  - actualiza estado, pago, datos principales, historial e `isReviewed`
   - persiste por `PATCH /api/orders/[orderId]`
-  - refresca contra API despues de mutar
+  - aplica validacion de payload y guardas de transicion
+  - recalcula total si cambian productos o total
+  - refresca luego de mutar y muestra advertencia si falla la resincronizacion
 - Limitaciones:
-  - las reglas de transicion viven en frontend y backend de forma coordinada, asi que cualquier cambio de flujo debe tocar ambas fronteras con cuidado
+  - la transicion depende de coordinacion entre frontend, route handler y capa server
+  - un cambio de flujo mal alineado puede romper UX o validacion contractual
 - Archivos dominantes:
-  - [app/api/orders/[orderId]/route.ts](C:/Users/Alexis/Documents/tecpify/app/api/orders/[orderId]/route.ts)
-  - [lib/data/orders-server.ts](C:/Users/Alexis/Documents/tecpify/lib/data/orders-server.ts)
-  - [lib/orders/transitions.ts](C:/Users/Alexis/Documents/tecpify/lib/orders/transitions.ts)
-  - [components/dashboard/order-detail-drawer.tsx](C:/Users/Alexis/Documents/tecpify/components/dashboard/order-detail-drawer.tsx)
-- Dependencias:
+  - `app/api/orders/[orderId]/route.ts`
+  - `lib/data/orders-server.ts`
+  - `lib/orders/transitions.ts`
+  - `lib/orders/update-guards.ts`
+  - `components/dashboard/use-business-orders.ts`
+  - `components/dashboard/order-detail-drawer.tsx`
+- Dependencia principal:
   - Supabase
-  - rutas server
+  - route handler server
 
 ### Estados de pago
 
 - Estado: verde
 - Que hace hoy realmente:
-  - separa `status` de `paymentStatus`
-  - valida transiciones de pago en el workspace
-  - usa `payment_status` en base de datos y `paymentStatus` en dominio
+  - separa `status` y `paymentStatus`
+  - usa `payment_status` en base y `paymentStatus` en dominio/frontend
+  - bloquea avance operativo si el pago no esta verificado
+  - soporta verificacion manual y acciones de WhatsApp
 - Limitaciones:
-  - no hay conciliacion automatica ni pruebas de pago
-  - parte de la UX depende de acciones manuales de WhatsApp
+  - no hay conciliacion automatica
+  - no hay evidencia de pago persistida como archivo o modulo propio
+  - parte del flujo sigue siendo manual por WhatsApp
 - Archivos dominantes:
-  - [lib/orders/transitions.ts](C:/Users/Alexis/Documents/tecpify/lib/orders/transitions.ts)
-  - [components/dashboard/payment-helpers.ts](C:/Users/Alexis/Documents/tecpify/components/dashboard/payment-helpers.ts)
-  - [components/dashboard/order-detail-drawer.tsx](C:/Users/Alexis/Documents/tecpify/components/dashboard/order-detail-drawer.tsx)
-- Dependencias:
+  - `lib/orders/transitions.ts`
+  - `lib/orders/update-guards.ts`
+  - `components/dashboard/payment-helpers.ts`
+  - `components/dashboard/order-detail-drawer.tsx`
+- Dependencia principal:
   - Supabase
+  - reglas de dominio
 
 ### Metricas
 
 - Estado: amarillo
 - Que hace hoy realmente:
-  - calcula metricas operativas sobre pedidos persistidos
-  - reutiliza la misma capa de agregados entre dashboard y pantalla de metricas
+  - calcula metricas operativas desde pedidos persistidos
+  - muestra resumen diario, pendientes, revenue entregado, actividad y top productos
+  - reutiliza agregados entre dashboard y modulo de metricas
 - Limitaciones:
-  - no hay reporting historico persistido
   - no es BI formal
-  - sigue siendo una lectura operativa corta
+  - no hay snapshots ni historico persistido de metricas
+  - varias metricas son derivadas en runtime a partir de `ordersState`
 - Archivos dominantes:
-  - [data/orders.ts](C:/Users/Alexis/Documents/tecpify/data/orders.ts)
-  - [app/metricas/[negocioId]/page.tsx](C:/Users/Alexis/Documents/tecpify/app/metricas/[negocioId]/page.tsx)
-  - [components/dashboard/metrics-overview.tsx](C:/Users/Alexis/Documents/tecpify/components/dashboard/metrics-overview.tsx)
-- Dependencias:
+  - `data/orders.ts`
+  - `app/metricas/[negocioId]/page.tsx`
+  - `components/dashboard/metrics-overview.tsx`
+- Dependencia principal:
   - Supabase
-  - calculo en servidor y cliente
+  - calculo en runtime
 
 ### Entorno / runtime / configuracion
 
 - Estado: amarillo
 - Que hace hoy realmente:
-  - centraliza `process.env` en `lib/env.ts`
-  - separa runtime client minimo en `lib/runtime.ts`
-  - deja `SUPABASE_SERVICE_ROLE_KEY` como capacidad opcional y hoy desactivada para runtime normal
+  - centraliza lectura de entorno en `lib/env.ts`
+  - expone `getPublicEnv`, `getServerEnv` y `getSiteUrlEnv`
+  - deja `NEXT_PUBLIC_SITE_URL` con fallback local en desarrollo y obligatoria en produccion
+  - expone `isProductionRuntime()` para checks livianos en cliente
 - Limitaciones:
-  - `middleware.ts` sigue vigente aunque Next ya recomienda `proxy`
-  - cualquier reintroduccion de service role debe pasar por el inventario central y una justificacion explicita
+  - `lib/runtime.ts` es minima y no reemplaza checks server
+  - `middleware.ts` esta deprecado por convencion en Next 16
 - Archivos dominantes:
-  - [lib/env.ts](C:/Users/Alexis/Documents/tecpify/lib/env.ts)
-  - [lib/runtime.ts](C:/Users/Alexis/Documents/tecpify/lib/runtime.ts)
-  - [lib/supabase/server.ts](C:/Users/Alexis/Documents/tecpify/lib/supabase/server.ts)
-  - [middleware.ts](C:/Users/Alexis/Documents/tecpify/middleware.ts)
-- Dependencias:
-  - variables de entorno
-  - Supabase
+  - `lib/env.ts`
+  - `lib/runtime.ts`
+  - `lib/site-url.ts`
+  - `middleware.ts`
+- Dependencia principal:
+  - environment variables
+  - Next runtime
 
 ## 5. Flujos end-to-end verificados
 
-Estos flujos estan implementados y conectados a persistencia real:
+Implementados y verificados por codigo real:
 
-1. Registro o login -> callback de auth -> sesion SSR -> acceso al workspace.
-2. Creacion de negocio -> persistencia en `businesses` -> acceso a `/dashboard/[negocioSlug]`.
-3. Creacion de producto -> persistencia en `products` -> visibilidad en storefront si esta activo.
-4. Storefront publico -> `POST /api/orders` -> persistencia real en `orders` -> lectura posterior en dashboard.
-5. Dashboard / pedidos -> `GET /api/orders?businessSlug=...` -> lista real por negocio.
-6. Edicion de pedido -> `PATCH /api/orders/[orderId]` -> persistencia de estado, pago, historial e indicador de revision -> recarga consistente.
-7. Metricas -> lectura de pedidos persistidos -> agregados operativos visibles.
+1. Registro o login -> callback auth -> sesion SSR -> acceso a `/dashboard`.
+2. Creacion de negocio -> persistencia en `businesses` -> aparicion en home autenticado.
+3. Creacion de producto -> persistencia en `products` -> visibilidad publica solo si queda activo.
+4. Formulario publico -> `POST /api/orders` -> persistencia en `orders` -> respuesta con `orderCode`.
+5. Workspace privado -> `GET /api/orders?businessSlug=...` -> lectura de pedidos del negocio autenticado.
+6. Workspace -> `PATCH /api/orders/[orderId]` -> actualizacion persistida de estado/pago/historial.
+7. Dashboard y metricas -> lectura de pedidos persistidos -> agregados operativos.
+
+Cobertura automatizada actual:
+
+- si existe para `POST /api/orders`, `GET /api/orders`, `PATCH /api/orders/[orderId]`
+- si existe para reglas de transicion en `lib/orders/transitions.ts`
+- no existe E2E browser del circuito completo `storefront -> dashboard -> update`
+- no existe suite automatizada equivalente para auth, negocios y catalogo
 
 ## 6. Flujos parciales o con riesgo
 
-- Negocios legacy sin owner:
-  - el workspace privado y el storefront publico los bloquean por completo
-  - la salida operativa sigue siendo asignar owner mediante migracion controlada
-  - estado: bloqueado de forma segura
+- Negocios legacy sin owner
+  - estado: parcial por bloqueo controlado
+  - el sistema no los deja operar en publico ni en privado
+  - no hay UI de migracion
 
-- Seguridad de flujos con service role:
-  - el inventario historico vive en [lib/supabase/service-role.ts](C:/Users/Cedhu IT/Documents/tecpify/lib/supabase/service-role.ts)
-  - no hay usos activos permitidos en runtime del MVP
-  - estado: endurecido y desactivado por defecto
+- Historial de pedido
+  - estado: implementado con riesgo
+  - el servidor valida `history`, pero parte del contenido sigue naciendo en cliente
 
-- Metricas:
-  - son utiles para operacion diaria
-  - no resuelven historicos, contabilidad ni auditoria formal
-  - estado: implementado con limites claros
+- Home del operador
+  - estado: implementado con riesgo
+  - si falla la consulta de negocios, el home puede degradar a lista vacia sin una señal fuerte de error
+
+- Metricas
+  - estado: parcial
+  - son utiles para operacion diaria, no para auditoria, finanzas ni historicos robustos
+
+- Nombres heredados
+  - estado: implementado con riesgo
+  - `[negocioId]` en rutas sigue siendo slug
+  - `getBusinessByIdWithProducts()` resuelve realmente por slug y existe solo por compatibilidad
+  - `payment_status` sigue tolerado en normalizacion de update payload, pero el canon para frontend/API es `paymentStatus`
 
 ## 7. Deuda tecnica actual
 
-- `middleware.ts` sigue activo aunque Next 16 ya recomienda `proxy`.
-- La estrategia elegida para legacy businesses es bloqueo total hasta migracion de owner.
-- No hay tests automatizados del circuito critico.
-- El historial de pedido depende parcialmente del payload cliente cuando el frontend envia `history`.
-- Hay funciones con naming heredado que pueden inducir confusion, como `getBusinessByIdWithProducts` resolviendo por slug.
-- El workspace concentra muchas acciones en drawers y paneles compactos, lo que complica lectura y mantenimiento.
+- migrar `middleware.ts` a `proxy`
+- agregar E2E del circuito critico de pedidos y ownership
+- decidir si el historial inicial del pedido debe generarse siempre en servidor
+- corregir naming heredado que mezcla `negocioId`, slug y nombres de compatibilidad
+- reducir complejidad visual restante en partes del workspace
+- revisar degradaciones silenciosas o poco expresivas, por ejemplo en carga de negocios del home
+- mantener documentado y sin usos activos el inventario de service role
 
 ## 8. Riesgos funcionales actuales
 
-- Riesgo de seguridad operativa si se relajan politicas RLS de `businesses`, `products` u `orders` sin revisar storefront y workspace juntos.
-- Riesgo de UX por densidad visual en pedidos y detalle de pedido.
-- Riesgo de inconsistencia si se cambian transiciones de estado o pago en una sola capa.
-- Riesgo de regresion en auth privada si se migra middleware sin cubrir pages y APIs server-first.
+- relajar RLS de `businesses`, `products` u `orders` rompe ownership y lectura publica acotada
+- cambiar transiciones de estado o pago en una sola capa rompe el flujo operativo
+- tratar `negocioId` como si fuera id real de base de datos puede introducir bugs de acceso
+- reintroducir `localStorage` en rutas criticas romperia la fuente de verdad en Supabase
+- el historial del pedido puede derivar en inconsistencias si cliente y servidor dejan de alinear eventos
+- la advertencia de Next sobre `middleware` puede posponerse demasiado y encarecer la siguiente migracion de runtime
 
 ## 9. Prioridades recomendadas
 
-1. Agregar pruebas automatizadas del circuito critico de pedidos y ownership.
-2. Definir el procedimiento operativo para migrar ownership de negocios legacy ya bloqueados.
-3. Mantener el storefront publico simple y sin promesas parciales de perfil reutilizable.
-4. Simplificar la operacion diaria del workspace antes de abrir mas modulos.
-5. Mantener el inventario de `service role` vacio salvo que aparezca un caso realmente indispensable y documentado.
+1. Agregar pruebas E2E del circuito `storefront -> pedido persistido -> workspace -> actualizacion`.
+2. Resolver deuda de naming heredado para que slug e id no se mezclen en nuevas capas.
+3. Mover la generacion minima del historial inicial del pedido completamente al servidor.
+4. Definir proceso de migracion de negocios legacy sin owner.
+5. Consolidar la simplificacion UX del workspace en las demas vistas operativas.
 
 ## 10. Como ejecutar el proyecto localmente
 
-### 1. Instalar dependencias
+### Instalar dependencias
 
 ```bash
 npm install
 ```
 
-### 2. Configurar variables de entorno
+### Configurar variables de entorno
 
-Crea `.env.local` en la raiz con:
+Crea `.env.local` con:
 
 ```env
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
-# opcional: hoy no se usa en los flujos normales del MVP
 SUPABASE_SERVICE_ROLE_KEY=
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
 ```
 
-Tambien existe [.env.example](C:/Users/Alexis/Documents/tecpify/.env.example) con el mismo inventario.
+Notas:
 
-### 3. Configurar Supabase Auth
+- `SUPABASE_SERVICE_ROLE_KEY` hoy es opcional y no se usa en los flujos normales del MVP
+- `NEXT_PUBLIC_SITE_URL` tiene fallback a `http://localhost:3000` en desarrollo, pero debe configurarse en produccion para auth y enlaces absolutos
 
-En Supabase Auth, el proyecto necesita permitir:
+### Configurar Supabase Auth
 
-- `Site URL` del entorno correspondiente
-- `Redirect URL` para `http://localhost:3000/auth/callback`
-- `Redirect URL` para el dominio publico real, por ejemplo `https://tecpify.vercel.app/auth/callback`
+Debes permitir al menos:
 
-### 4. Aplicar migraciones en Supabase
+- `Site URL` del entorno actual
+- `Redirect URL` de `http://localhost:3000/auth/callback`
+- `Redirect URL` del dominio publico real, por ejemplo `https://tu-dominio/auth/callback`
 
-Migraciones relevantes del proyecto:
+### Aplicar migraciones
+
+Migraciones relevantes del repo:
 
 - `supabase/migrations/20260316_add_order_code_to_orders.sql`
 - `supabase/migrations/20260319_enable_basic_business_creation.sql`
@@ -342,7 +418,7 @@ Migraciones relevantes del proyecto:
 - `supabase/migrations/20260325_block_ownerless_legacy_businesses_public_access.sql`
 - `supabase/migrations/20260325_enable_public_owned_business_lookup.sql`
 
-### 5. Ejecutar en desarrollo
+### Ejecutar
 
 ```bash
 npm run dev
@@ -365,95 +441,64 @@ npm test
 
 - `NEXT_PUBLIC_SUPABASE_URL`
   - obligatoria
-  - usada por cliente, SSR auth y middleware
+  - usada por cliente, SSR auth, middleware y clientes server public/auth
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
   - obligatoria
-  - usada por cliente, SSR auth y middleware
+  - usada por cliente, SSR auth, middleware y clientes server public/auth
 - `NEXT_PUBLIC_SITE_URL`
-  - obligatoria en produccion
-  - usada para callback de auth y redirects absolutos de email
+  - requerida operativamente en produccion
+  - en desarrollo cae a `http://localhost:3000`
+  - usada por callback auth y URLs absolutas
 
 ### Servidor
 
 - `SUPABASE_SERVICE_ROLE_KEY`
   - opcional
-  - hoy no es necesaria para los flujos normales del MVP
-  - cualquier reintroduccion debe quedar registrada en [lib/supabase/service-role.ts](C:/Users/Cedhu IT/Documents/tecpify/lib/supabase/service-role.ts)
+  - no activa ningun flujo del MVP por defecto
+  - cualquier uso nuevo debe quedar inventariado en `lib/supabase/service-role.ts`
 
-Resolucion canonica:
+Regla canonica:
 
-- toda lectura de entorno vive en [lib/env.ts](C:/Users/Alexis/Documents/tecpify/lib/env.ts)
-- las utilidades client no deben importar `lib/env.ts` si ese modulo contiene lecturas server
-- para checks client minimos usar [lib/runtime.ts](C:/Users/Alexis/Documents/tecpify/lib/runtime.ts)
-
-## 11.1 Auditoria actual de service role
-
-Inventario central en [lib/supabase/service-role.ts](C:/Users/Cedhu IT/Documents/tecpify/lib/supabase/service-role.ts).
-
-- `public_business_lookup`
-  - clasificacion: reemplazable
-  - estado: deshabilitado
-  - reemplazo: RPC `get_storefront_business_by_slug` que solo expone columnas publicas del negocio
-- `public_order_business_lookup`
-  - clasificacion: reemplazable
-  - estado: deshabilitado
-  - reemplazo: lookup publico de `businessSlug -> business_id` mediante la misma RPC acotada
-- `public_order_code_precheck`
-  - clasificacion: reemplazable
-  - estado: deshabilitado
-  - reemplazo: retry de insercion sobre constraint unica de `order_code`
-- `public_order_read_after_write`
-  - clasificacion: reemplazable
-  - estado: deshabilitado
-  - reemplazo: respuesta server-side basada en payload persistido y validado
-- `authorization_fallback_reads`
-  - clasificacion: mal justificado
-  - estado: deshabilitado
-  - reemplazo: ownership resuelto solo con cliente autenticado y RLS
-
-Estado final:
-
-- no hay usos operativos activos de `SUPABASE_SERVICE_ROLE_KEY`
-- el helper privilegiado queda blindado y rechazara usos no inventariados
-- storefront y pedidos publicos dependen ahora de RLS explicita en Supabase, no de bypass administrativo
+- toda lectura de `process.env` debe vivir en `lib/env.ts`
+- utilidades client no deben importar modulos server que lean env
+- `lib/runtime.ts` solo se usa para checks minimos de runtime, no para auth ni acceso a datos
 
 ## 12. Criterios minimos para considerar el MVP operable
 
-Tecpify es operable si cumple todo esto en un entorno real:
+Tecpify es operable si en un entorno real se cumple todo esto:
 
-- un usuario puede registrarse, confirmar correo e iniciar sesion
+- un usuario puede registrarse o loguearse y obtener sesion valida
 - puede crear un negocio y quedar como owner real
 - puede crear al menos un producto activo
-- puede compartir el link publico del negocio
-- un cliente puede crear un pedido valido y ese pedido queda persistido en Supabase
+- el link publico del negocio abre correctamente
+- un cliente puede crear un pedido valido y ese pedido queda en Supabase
 - el workspace privado puede leer ese pedido al recargar
 - el operador puede actualizar estado y pago con persistencia real
-- las metricas visibles salen de pedidos reales, no de estado local
+- dashboard y metricas leen pedidos persistidos y no estado local inventado
 - los errores de persistencia se muestran como error y no como exito falso
 
 ## Recomendaciones
 
 ### UI
 
-- Reducir densidad visual del workspace de pedidos agrupando acciones secundarias dentro de menu contextual o drawer secundario.
-- Separar visualmente estado del pedido y estado del pago con jerarquia mas clara en cards y detalle.
-- Hacer mas evidente cuando un pedido esta pendiente de pago versus pendiente de preparacion.
+- Reducir aun mas el ruido del workspace consolidando acciones menos frecuentes en menus o drawers secundarios fuera del flujo principal.
+- Unificar el lenguaje visual de alertas entre dashboard, pedidos y metricas para distinguir mejor "error", "warning operativo" y "estado informativo".
+- Revisar cards y tablas donde aun convivan demasiados badges y textos de apoyo en el mismo plano visual.
 
 ### UX
 
-- Evitar reintroducir reutilizacion de perfil en storefront mientras no exista una fuente publica segura y minima para ese dato.
-- Hacer mas explicita la diferencia entre error de persistencia y error de resincronizacion posterior.
-- Mostrar mejor el siguiente paso recomendado cuando el negocio ya tiene catalogo pero aun no tiene primer pedido.
+- Hacer mas explicita la diferencia entre "pedido creado pero vista sin resincronizar" y "pedido no persistido".
+- Mantener visible el siguiente paso recomendado en dashboard y pedidos para negocios sin primer pedido y para pedidos con pago pendiente.
+- Evitar UI que sugiera reutilizacion de perfil, historial de cliente o automatizacion de pagos mientras no exista persistencia real para eso.
 
 ### Funcional
 
-- Cerrar el caso de negocios legacy sin owner antes de abrir colaboracion multiusuario.
-- Mantener bloqueado cualquier negocio sin owner tanto en workspace como en storefront hasta migrarlo.
-- Agregar una verificacion automatizada del circuito `storefront -> pedido -> dashboard -> actualizacion`.
-- Revisar si el historial inicial del pedido debe completarse siempre en servidor en lugar de depender del payload cliente.
+- Cerrar el caso de negocios legacy sin owner antes de abrir colaboracion o permisos adicionales.
+- Generar el historial minimo del pedido siempre en servidor y dejar al cliente solo como emisor de contexto opcional.
+- Agregar un test automatizado que cubra el circuito completo de negocio activo, producto activo, pedido publico y actualizacion privada.
 
 ### Tecnica
 
-- Migrar `middleware.ts` a `proxy` cuando se planifique la siguiente ronda de mantenimiento de runtime.
-- Agregar tests de integracion para `POST /api/orders` y `PATCH /api/orders/[orderId]`.
-- Mantener `SUPABASE_SERVICE_ROLE_KEY` desactivada por defecto y documentar en [lib/supabase/service-role.ts](C:/Users/Cedhu IT/Documents/tecpify/lib/supabase/service-role.ts) y en este README cualquier uso nuevo realmente indispensable.
+- Migrar `middleware.ts` a `proxy` en la siguiente ronda de mantenimiento de runtime.
+- Eliminar nombres de compatibilidad peligrosos en nuevas capas y planear la salida controlada de `getBusinessByIdWithProducts`.
+- Mantener `SUPABASE_SERVICE_ROLE_KEY` sin usos activos y documentar cualquier excepcion antes de implementarla.

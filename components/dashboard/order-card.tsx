@@ -1,26 +1,26 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
 
 import { OrdersUiIcon } from "@/components/dashboard/orders-ui-icon";
+import {
+  getPaymentMethodLabel,
+  shouldShowPaymentVerificationActions,
+} from "@/components/dashboard/payment-helpers";
 import { StatusBadgeIcon } from "@/components/dashboard/status-badge-icon";
-import { getPaymentMethodLabel } from "@/components/dashboard/payment-helpers";
-
 import {
   canManageOrderStatus,
   getAllowedOrderStatusTransitions,
   getOrderStatusIconKey,
-  getOrderStatusTransitionRule,
   getPaymentStatusIconKey,
-  isNewOrder,
   isFinalOrderStatus,
+  isNewOrder,
   ORDER_STATUS_LABELS,
   PAYMENT_STATUS_LABELS,
 } from "@/lib/orders/transitions";
 import { formatCurrency, getOperationalPriority } from "@/data/orders";
 import {
   getOrderDisplayCode,
-  PAYMENT_STATUSES,
   type OperationalPriority,
   type Order,
   type OrderStatus,
@@ -69,6 +69,17 @@ interface OrderCardProps {
 
 type FeedbackKind = "order" | "payment" | null;
 
+interface NextStepAction {
+  title: string;
+  description: string;
+  buttonLabel: string;
+  tone: string;
+  action:
+    | { kind: "payment"; value: PaymentStatus }
+    | { kind: "order"; value: OrderStatus }
+    | { kind: "details" };
+}
+
 function getProductSummary(order: Order) {
   const visibleProducts = order.products.slice(0, 2);
   const hiddenProductsCount = Math.max(order.products.length - visibleProducts.length, 0);
@@ -98,6 +109,77 @@ function StopPropagationWrapper({
   );
 }
 
+function getNextOrderStatus(order: Order) {
+  return getAllowedOrderStatusTransitions(order.status).find(
+    (statusOption) => statusOption !== order.status && statusOption !== "cancelado",
+  );
+}
+
+function getNextStepAction(order: Order): NextStepAction {
+  const nextOrderStatus = getNextOrderStatus(order);
+
+  if (isFinalOrderStatus(order.status)) {
+    return {
+      title: "Flujo cerrado",
+      description: "Este pedido ya termino. Abre el detalle si necesitas revisar el historial.",
+      buttonLabel: "Ver detalle",
+      tone: "border-slate-200 bg-slate-50 text-slate-700",
+      action: { kind: "details" },
+    };
+  }
+
+  if (shouldShowPaymentVerificationActions(order) && order.paymentStatus === "pendiente") {
+    return {
+      title: "Siguiente paso",
+      description: "Validar el pago para destrabar la operacion del pedido.",
+      buttonLabel: "Verificar pago",
+      tone: "border-amber-200 bg-amber-50 text-amber-800",
+      action: { kind: "payment", value: "verificado" },
+    };
+  }
+
+  if (
+    shouldShowPaymentVerificationActions(order) &&
+    (order.paymentStatus === "con novedad" || order.paymentStatus === "no verificado")
+  ) {
+    return {
+      title: "Pago con alerta",
+      description: "Revisa el detalle del pago antes de mover el pedido.",
+      buttonLabel: "Revisar detalle",
+      tone: "border-rose-200 bg-rose-50 text-rose-800",
+      action: { kind: "details" },
+    };
+  }
+
+  if (order.status === "pago por verificar") {
+    return {
+      title: "Siguiente paso",
+      description: "El pago ya esta validado. Confirma el pedido para pasarlo a operacion.",
+      buttonLabel: "Confirmar pedido",
+      tone: "border-sky-200 bg-sky-50 text-sky-800",
+      action: { kind: "order", value: "confirmado" },
+    };
+  }
+
+  if (canManageOrderStatus(order) && nextOrderStatus) {
+    return {
+      title: "Siguiente paso",
+      description: `Mover el pedido a ${ORDER_STATUS_LABELS[nextOrderStatus].toLowerCase()}.`,
+      buttonLabel: `Avanzar a ${ORDER_STATUS_LABELS[nextOrderStatus]}`,
+      tone: "border-sky-200 bg-sky-50 text-sky-800",
+      action: { kind: "order", value: nextOrderStatus },
+    };
+  }
+
+  return {
+    title: "Siguiente paso",
+    description: "Abre el detalle para continuar la gestion manual del pedido.",
+    buttonLabel: "Ver detalle",
+    tone: "border-slate-200 bg-slate-50 text-slate-700",
+    action: { kind: "details" },
+  };
+}
+
 export function OrderCard({
   order,
   onOpenDetails,
@@ -107,17 +189,9 @@ export function OrderCard({
 }: OrderCardProps) {
   const operationalPriority = getOperationalPriority(order);
   const baseCardPadding = compact ? "px-4 py-4 md:px-3.5 md:py-3" : "px-4 py-4 sm:px-5";
-  const [selectedOrderStatus, setSelectedOrderStatus] = useState(order.status);
-  const [selectedPaymentStatus, setSelectedPaymentStatus] = useState(order.paymentStatus);
-  const [isUpdatingOrderStatus, setIsUpdatingOrderStatus] = useState(false);
-  const [isUpdatingPaymentStatus, setIsUpdatingPaymentStatus] = useState(false);
+  const [isRunningPrimaryAction, setIsRunningPrimaryAction] = useState(false);
   const [feedbackKind, setFeedbackKind] = useState<FeedbackKind>(null);
   const [feedbackMessage, setFeedbackMessage] = useState("");
-
-  useEffect(() => {
-    setSelectedOrderStatus(order.status);
-    setSelectedPaymentStatus(order.paymentStatus);
-  }, [order.paymentStatus, order.status]);
 
   useEffect(() => {
     if (!feedbackKind) {
@@ -132,64 +206,6 @@ export function OrderCard({
     return () => window.clearTimeout(timeoutId);
   }, [feedbackKind]);
 
-  async function handleOrderStatusChange(nextStatus: OrderStatus) {
-    if (nextStatus === order.status) {
-      setSelectedOrderStatus(nextStatus);
-      return;
-    }
-
-    const rule = getOrderStatusTransitionRule(order, nextStatus);
-
-    if (!rule.allowed) {
-      setSelectedOrderStatus(order.status);
-      setFeedbackKind("order");
-      setFeedbackMessage(rule.reason ?? "Cambio de estado no permitido.");
-      return;
-    }
-
-    setSelectedOrderStatus(nextStatus);
-    setIsUpdatingOrderStatus(true);
-
-    try {
-      await onQuickUpdateOrderStatus(order.id, nextStatus);
-      setFeedbackKind("order");
-      setFeedbackMessage("Pedido actualizado.");
-    } catch (error) {
-      setSelectedOrderStatus(order.status);
-      setFeedbackKind("order");
-      setFeedbackMessage(
-        error instanceof Error ? error.message : "No fue posible actualizar el pedido.",
-      );
-    } finally {
-      setIsUpdatingOrderStatus(false);
-    }
-  }
-
-  async function handlePaymentStatusChange(nextStatus: PaymentStatus) {
-    if (nextStatus === order.paymentStatus) {
-      setSelectedPaymentStatus(nextStatus);
-      return;
-    }
-
-    setSelectedPaymentStatus(nextStatus);
-    setIsUpdatingPaymentStatus(true);
-
-    try {
-      await onQuickUpdatePaymentStatus(order.id, nextStatus);
-      setFeedbackKind("payment");
-      setFeedbackMessage("Pago actualizado.");
-    } catch (error) {
-      setSelectedPaymentStatus(order.paymentStatus);
-      setFeedbackKind("payment");
-      setFeedbackMessage(
-        error instanceof Error ? error.message : "No fue posible actualizar el pago.",
-      );
-    } finally {
-      setIsUpdatingPaymentStatus(false);
-    }
-  }
-
-  const allowedOrderStatuses = getAllowedOrderStatusTransitions(order.status);
   const isOrderFlowClosed = isFinalOrderStatus(order.status);
   const showNewOrderBadge = isNewOrder(order);
   const canEditOrderStatus = canManageOrderStatus(order) && !isOrderFlowClosed;
@@ -198,38 +214,7 @@ export function OrderCard({
   const deliveryLabel =
     order.deliveryType === "domicilio" ? "Domicilio" : "Recogida en tienda";
   const hasAddress = Boolean(order.address?.trim());
-  const orderStatusControl = canEditOrderStatus ? (
-    <StopPropagationWrapper>
-      <label
-        className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold ${statusStyles[selectedOrderStatus]}`}
-      >
-        <StatusBadgeIcon iconKey={getOrderStatusIconKey(selectedOrderStatus)} />
-        <span className="whitespace-nowrap">Pedido</span>
-        <select
-          value={selectedOrderStatus}
-          onChange={(event) =>
-            void handleOrderStatusChange(event.target.value as OrderStatus)
-          }
-          disabled={isUpdatingOrderStatus}
-          className="min-w-0 bg-transparent pr-4 text-xs font-semibold outline-none"
-        >
-          {allowedOrderStatuses.map((statusOption) => (
-            <option key={statusOption} value={statusOption}>
-              {ORDER_STATUS_LABELS[statusOption]}
-            </option>
-          ))}
-        </select>
-      </label>
-    </StopPropagationWrapper>
-  ) : (
-    <div
-      className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold ${statusStyles[selectedOrderStatus]}`}
-    >
-      <StatusBadgeIcon iconKey={getOrderStatusIconKey(selectedOrderStatus)} />
-      <span className="whitespace-nowrap">Pedido</span>
-      <span>{ORDER_STATUS_LABELS[selectedOrderStatus]}</span>
-    </div>
-  );
+  const nextStepAction = getNextStepAction(order);
   const detailsButton = (
     <button
       type="button"
@@ -242,6 +227,39 @@ export function OrderCard({
       Detalles
     </button>
   );
+
+  async function handlePrimaryAction() {
+    setIsRunningPrimaryAction(true);
+
+    try {
+      if (nextStepAction.action.kind === "payment") {
+        await onQuickUpdatePaymentStatus(order.id, nextStepAction.action.value);
+        setFeedbackKind("payment");
+        setFeedbackMessage("Pago actualizado.");
+        return;
+      }
+
+      if (nextStepAction.action.kind === "order") {
+        await onQuickUpdateOrderStatus(order.id, nextStepAction.action.value);
+        setFeedbackKind("order");
+        setFeedbackMessage("Pedido actualizado.");
+        return;
+      }
+
+      onOpenDetails(order.id);
+    } catch (error) {
+      setFeedbackKind(nextStepAction.action.kind === "payment" ? "payment" : "order");
+      setFeedbackMessage(
+        error instanceof Error
+          ? error.message
+          : nextStepAction.action.kind === "payment"
+            ? "No fue posible actualizar el pago."
+            : "No fue posible actualizar el pedido.",
+      );
+    } finally {
+      setIsRunningPrimaryAction(false);
+    }
+  }
 
   return (
     <article
@@ -311,30 +329,58 @@ export function OrderCard({
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
-          <div className="min-w-0">{orderStatusControl}</div>
-          <StopPropagationWrapper>
-            <label
-              className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold ${paymentStatusStyles[selectedPaymentStatus]}`}
-            >
-              <StatusBadgeIcon iconKey={getPaymentStatusIconKey(selectedPaymentStatus)} />
-              <span className="whitespace-nowrap">Pago</span>
-              <select
-                value={selectedPaymentStatus}
-                onChange={(event) =>
-                  void handlePaymentStatusChange(event.target.value as PaymentStatus)
-                }
-                disabled={isUpdatingPaymentStatus}
-                className="min-w-0 bg-transparent pr-4 text-xs font-semibold outline-none"
+        <div className="grid gap-2 sm:grid-cols-2 sm:gap-2.5">
+          <div className={`rounded-2xl border px-3.5 py-3 ${statusStyles[order.status]}`}>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-70">
+              Estado del pedido
+            </p>
+            <div className="mt-2 flex items-center gap-2">
+              <StatusBadgeIcon iconKey={getOrderStatusIconKey(order.status)} />
+              <span className="text-sm font-semibold">{ORDER_STATUS_LABELS[order.status]}</span>
+            </div>
+          </div>
+          <div className={`rounded-2xl border px-3.5 py-3 ${paymentStatusStyles[order.paymentStatus]}`}>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-70">
+              Estado del pago
+            </p>
+            <div className="mt-2 flex items-center gap-2">
+              <StatusBadgeIcon iconKey={getPaymentStatusIconKey(order.paymentStatus)} />
+              <span className="text-sm font-semibold">
+                {PAYMENT_STATUS_LABELS[order.paymentStatus]}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className={`rounded-2xl border px-4 py-3 ${nextStepAction.tone}`}>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-70">
+                {nextStepAction.title}
+              </p>
+              <p className="mt-1 text-sm font-medium">{nextStepAction.description}</p>
+            </div>
+            <StopPropagationWrapper>
+              <button
+                type="button"
+                onClick={() => void handlePrimaryAction()}
+                disabled={isRunningPrimaryAction}
+                className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-full border border-current/15 bg-white/80 px-3.5 py-2 text-xs font-semibold text-inherit transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {PAYMENT_STATUSES.map((statusOption) => (
-                  <option key={statusOption} value={statusOption}>
-                    {PAYMENT_STATUS_LABELS[statusOption]}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </StopPropagationWrapper>
+                <OrdersUiIcon
+                  icon={
+                    nextStepAction.action.kind === "payment"
+                      ? "save"
+                      : nextStepAction.action.kind === "order"
+                        ? "clipboard-check"
+                        : "clipboard"
+                  }
+                  className="h-3.5 w-3.5"
+                />
+                {nextStepAction.buttonLabel}
+              </button>
+            </StopPropagationWrapper>
+          </div>
         </div>
 
         <div className="pt-1 sm:mt-auto">
@@ -345,7 +391,7 @@ export function OrderCard({
               <span className="text-xs font-medium text-slate-500">
                 Flujo del pedido finalizado.
               </span>
-            ) : !canManageOrderStatus(order) ? (
+            ) : !canEditOrderStatus ? (
               <span className="text-xs font-medium text-slate-500">
                 Confirma el pago para habilitar el estado del pedido.
               </span>
@@ -359,7 +405,7 @@ export function OrderCard({
               <span className="flex-1 text-xs font-medium text-slate-500">
                 Flujo del pedido finalizado.
               </span>
-            ) : !canManageOrderStatus(order) ? (
+            ) : !canEditOrderStatus ? (
               <span className="flex-1 text-xs font-medium text-slate-500">
                 Confirma el pago para habilitar el estado del pedido.
               </span>
