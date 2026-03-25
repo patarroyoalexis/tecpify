@@ -54,7 +54,6 @@ Este repo usa este archivo como base de vigilancia de consistencia. La prioridad
   - `NEXT_PUBLIC_SITE_URL`
 - Variables de servidor permitidas:
   - `SUPABASE_SERVICE_ROLE_KEY`
-  - `AUTH_SESSION_SECRET`
 - Si una nueva variable es necesaria:
   1. declararla en `lib/env.ts`
   2. validarla allí

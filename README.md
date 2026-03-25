@@ -353,6 +353,7 @@ Notas:
 - `NEXT_PUBLIC_SUPABASE_URL` es obligatoria.
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` es obligatoria.
 - `SUPABASE_SERVICE_ROLE_KEY` se usa en servidor para operaciones privilegiadas que todavía no pueden resolverse solo con el cliente autenticado del usuario.
+- en este repo debe considerarse obligatoria en producción porque sostiene flujos server con privilegios, incluyendo storefront público, creación pública de pedidos y autorización administrativa auxiliar
 - `NEXT_PUBLIC_SITE_URL` se usa para construir el callback de auth y el redirect de confirmación por email
 - en producción `NEXT_PUBLIC_SITE_URL` debe apuntar al dominio público real
 

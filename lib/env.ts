@@ -77,6 +77,12 @@ export function getServerEnv(): ServerEnv {
   const publicEnv = getPublicEnv();
   const supabaseServiceRoleKey = normalizeEnvValue(process.env.SUPABASE_SERVICE_ROLE_KEY);
 
+  if (!supabaseServiceRoleKey && process.env.NODE_ENV === "production") {
+    throw new Error(
+      "Falta configurar SUPABASE_SERVICE_ROLE_KEY en produccion. Tecpify la necesita para flujos server con privilegios, como storefront publico, creacion publica de pedidos y autorizacion administrativa.",
+    );
+  }
+
   cachedServerEnv = {
     ...publicEnv,
     ...(supabaseServiceRoleKey ? { supabaseServiceRoleKey } : {}),
