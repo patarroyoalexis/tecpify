@@ -690,6 +690,12 @@ test("regresion: ninguna ruta o helper reintroduce history en contratos publicos
     path.join(process.cwd(), "components", "dashboard", "use-business-orders.ts"),
     "utf8",
   );
+  const insertPayloadBlock = ordersServerSource.match(
+    /const insertPayload = \{(?<block>[\s\S]*?)\n\s*};/,
+  );
+  const updatePayloadBlock = ordersServerSource.match(
+    /const updatePayload = \{(?<block>[\s\S]*?)\n\s*};/,
+  );
   const updateAllowedFieldsBlock = orderStateRulesSource.match(
     /export const ORDER_UPDATE_CLIENT_EDITABLE_FIELDS = \[(?<fields>[\s\S]*?)\] as const;/,
   );
@@ -706,8 +712,31 @@ test("regresion: ninguna ruta o helper reintroduce history en contratos publicos
   );
   assert.match(
     ordersServerSource,
+    /rpc\("update_order_with_server_history"/,
+    "La mutacion server-side debe pasar por la funcion controlada de DB para anexar historial.",
+  );
+  assert.doesNotMatch(
+    ordersServerSource,
     /appendServerGeneratedOrderHistory/,
-    "La persistencia debe reconstruir y anexar historial solo desde reglas server-side.",
+    "La capa de datos no debe volver a persistir snapshots completos de history desde Next.js.",
+  );
+  assert.ok(
+    insertPayloadBlock?.groups?.block,
+    "La persistencia del insert debe conservar un bloque identificable para guardrails.",
+  );
+  assert.doesNotMatch(
+    insertPayloadBlock.groups.block,
+    /\bhistory:/,
+    "El insert persistido no debe volver a incluir history como payload directo.",
+  );
+  assert.ok(
+    updatePayloadBlock?.groups?.block,
+    "La persistencia del patch debe conservar un bloque identificable para guardrails.",
+  );
+  assert.doesNotMatch(
+    updatePayloadBlock.groups.block,
+    /\bhistory:/,
+    "El patch persistido no debe volver a incluir history como payload directo.",
   );
   assert.match(
     historyRulesSource,

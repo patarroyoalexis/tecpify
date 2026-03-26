@@ -1,5 +1,4 @@
 import {
-  appendServerGeneratedOrderHistory,
   isValidOrderUpdateEventIntent,
   resolveOrderPersistenceMode,
   type OrderOrigin,
@@ -13,7 +12,6 @@ import {
   isValidDeliveryType,
   isValidOrderProducts,
   mapSupabaseRowToOrder,
-  normalizeOrderHistoryEvents,
   normalizeOrderApiUpdatePayload,
   type PublicOrderApiCreatePayload,
   type OrderApiUpdatePayload,
@@ -67,7 +65,6 @@ interface OrderLookupRow {
   status: Order["status"];
   payment_status: Order["paymentStatus"];
   is_reviewed: boolean;
-  history: unknown;
 }
 
 function buildPersistedInsertedOrder(
@@ -465,20 +462,35 @@ export async function createOrderInDatabase(
       payment_method: payload.paymentMethod,
       notes: payload.notes?.trim() || null,
       total: persistedTotal,
-      status: initialServerState.status,
       created_at: now,
       updated_at: now,
       products: normalizedProducts,
-      payment_status: initialServerState.paymentStatus,
       date_label: null,
-      is_reviewed: initialServerState.isReviewed,
-      history: initialServerState.history,
+      is_reviewed: false,
       inserted_at: now,
     };
-    const { error } = await supabase.from("orders").insert(insertPayload);
+    const insertQuery = supabase.from("orders").insert(insertPayload);
+    const { data, error } =
+      orderCreationMode === "auth"
+        ? await insertQuery.select("*").single()
+        : await insertQuery;
 
     if (!error) {
-      return buildPersistedInsertedOrder(insertPayload, payload.businessSlug);
+      if (orderCreationMode === "auth" && data) {
+        return mapSupabaseRowToOrder(data as Record<string, unknown>, {
+          businessSlug: payload.businessSlug,
+        });
+      }
+
+      return buildPersistedInsertedOrder(
+        {
+          ...insertPayload,
+          status: initialServerState.status,
+          payment_status: initialServerState.paymentStatus,
+          history: initialServerState.history,
+        },
+        payload.businessSlug,
+      );
     }
 
     if (error.code === "23505" && error.message.includes("order_code")) {
@@ -646,7 +658,7 @@ export async function updateOrderInDatabase(
   const { data: existingOrder, error: lookupError } = await supabase
     .from("orders")
     .select(
-      "id, business_id, customer_name, customer_whatsapp, delivery_type, delivery_address, payment_method, products, total, notes, status, payment_status, is_reviewed, history",
+      "id, business_id, customer_name, customer_whatsapp, delivery_type, delivery_address, payment_method, products, total, notes, status, payment_status, is_reviewed",
     )
     .eq("id", orderId)
     .maybeSingle<OrderLookupRow>();
@@ -738,67 +750,28 @@ export async function updateOrderInDatabase(
         { allowZero: true },
       )
     : nextTotal;
-  const now = new Date().toISOString();
-  const currentHistory = normalizeOrderHistoryEvents(existingOrder.history);
-  const nextHistory = appendServerGeneratedOrderHistory({
-    orderId,
-    occurredAt: now,
-    currentHistory,
-    currentOrder: {
-      id: orderId,
-      status: existingOrder.status,
-      paymentStatus: existingOrder.payment_status,
-      customerName: existingOrder.customer_name,
-      customerWhatsApp: existingOrder.customer_whatsapp,
-      deliveryType: existingOrder.delivery_type,
-      deliveryAddress: existingOrder.delivery_address,
-      paymentMethod: existingOrder.payment_method,
-      products: existingOrder.products,
-      notes: existingOrder.notes,
-      total: existingOrder.total,
-      isReviewed: existingOrder.is_reviewed,
-    },
-    nextOrder: {
-      id: orderId,
-      status: nextOrderState.status,
-      paymentStatus: nextOrderState.paymentStatus,
-      customerName: nextCustomerName,
-      customerWhatsApp: nextCustomerWhatsApp || null,
-      deliveryType: nextDeliveryType,
-      deliveryAddress: nextDeliveryAddress || null,
-      paymentMethod: nextOrderState.paymentMethod,
-      products: normalizedProducts ?? existingOrder.products,
-      notes:
-        normalizedPayload.notes !== undefined
-          ? normalizedPayload.notes?.trim() || null
-          : existingOrder.notes,
-      total: persistedTotal,
-      isReviewed: nextIsReviewed,
-    },
-    eventIntent: normalizedPayload.eventIntent,
-  });
 
   const updatePayload = {
     ...(resolvedStatePatch.changedFields.includes("status")
       ? { status: nextOrderState.status }
       : {}),
     ...(resolvedStatePatch.changedFields.includes("paymentStatus")
-      ? { payment_status: nextOrderState.paymentStatus }
+      ? { paymentStatus: nextOrderState.paymentStatus }
       : {}),
     ...(normalizedPayload.customerName !== undefined
-      ? { customer_name: nextCustomerName }
+      ? { customerName: nextCustomerName }
       : {}),
     ...(normalizedPayload.customerWhatsApp !== undefined
-      ? { customer_whatsapp: nextCustomerWhatsApp || null }
+      ? { customerWhatsApp: nextCustomerWhatsApp || null }
       : {}),
     ...(normalizedPayload.deliveryType !== undefined
-      ? { delivery_type: normalizedPayload.deliveryType }
+      ? { deliveryType: normalizedPayload.deliveryType }
       : {}),
     ...(normalizedPayload.deliveryAddress !== undefined
-      ? { delivery_address: nextDeliveryAddress || null }
+      ? { deliveryAddress: nextDeliveryAddress || null }
       : {}),
     ...(resolvedStatePatch.changedFields.includes("paymentMethod")
-      ? { payment_method: nextOrderState.paymentMethod }
+      ? { paymentMethod: nextOrderState.paymentMethod }
       : {}),
     ...(normalizedProducts !== undefined ? { products: normalizedProducts } : {}),
     ...(normalizedPayload.notes !== undefined
@@ -808,10 +781,8 @@ export async function updateOrderInDatabase(
       ? { total: persistedTotal }
       : {}),
     ...(nextIsReviewed !== existingOrder.is_reviewed
-      ? { is_reviewed: nextIsReviewed }
+      ? { isReviewed: nextIsReviewed }
       : {}),
-    ...(nextHistory !== currentHistory ? { history: nextHistory } : {}),
-    updated_at: now,
   };
 
   debugLog("[orders-api] Preparing order patch", {
@@ -819,12 +790,10 @@ export async function updateOrderInDatabase(
     fieldsUpdated: Object.keys(updatePayload),
   });
 
-  const { data, error } = await supabase
-    .from("orders")
-    .update(updatePayload)
-    .eq("id", orderId)
-    .select("*")
-    .single();
+  const { data, error } = await supabase.rpc("update_order_with_server_history", {
+    target_order_id: orderId,
+    patch: updatePayload,
+  });
 
   if (error) {
     debugError("[orders-api] Supabase patch failed", {
@@ -837,9 +806,18 @@ export async function updateOrderInDatabase(
     );
   }
 
+  const persistedOrder =
+    Array.isArray(data) && data.length > 0 ? data[0] : data;
+
+  if (!persistedOrder || typeof persistedOrder !== "object") {
+    throw new Error(
+      "No fue posible actualizar el pedido en Supabase. La funcion controlada no devolvio un pedido valido.",
+    );
+  }
+
   const businessSlug = await getBusinessSlugByDatabaseId(existingOrder.business_id);
 
-  return mapSupabaseRowToOrder(data as Record<string, unknown>, {
+  return mapSupabaseRowToOrder(persistedOrder as Record<string, unknown>, {
     businessSlug: businessSlug ?? undefined,
   });
 }

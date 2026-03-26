@@ -1,136 +1,92 @@
-### Regla bloqueante de service role
+# AGENTS
 
-El runtime normal del MVP debe operar exclusivamente con cliente anonimo/publico acotado, cliente autenticado SSR y RLS.
+## 1. Proposito
 
-Cualquier uso activo de `SUPABASE_SERVICE_ROLE_KEY` en:
-- route handlers del MVP
-- acciones server del flujo normal
-- lectura/escritura de negocios, productos o pedidos
-- ownership
-- storefront publico
-- dashboard, pedidos o metricas
+Este archivo es el contrato operativo de consistencia del MVP. Su funcion no es describir aspiraciones sino impedir regresiones: cualquier cambio debe mantener alineados runtime, DB, tests y documentacion.
 
-convierte automaticamente el cambio en `NO APTO TODAVIA`, salvo que exista una excepcion explicitamente documentada, justificada y aprobada en `lib/supabase/service-role.ts`.
+## 2. Principios obligatorios
 
-Si aparece un uso nuevo de service role sin esa excepcion, el guardian debe:
-1. reportarlo como Critico
-2. pedir su eliminacion o reemplazo antes de cerrar
-3. no aprobar el cambio aunque lint, typecheck y build pasen
+- El repo se evalua por garantias reales, no por intencion, UI agradable ni build verde.
+- Ningun contrato sensible puede depender de que el cliente sea honesto.
+- Ningun naming puede mentir sobre el valor real que transporta.
+- Ninguna garantia se declara cerrada si solo vive en UI, solo en handlers HTTP o solo en documentacion.
+- Si README y AGENTS sobredeclaran, gana el codigo real y la documentacion debe corregirse en la misma ronda.
 
-Guardrail tecnico actual:
-- `lib/supabase/server.ts` es solo para clientes `anon/public` y `auth`
-- `lib/env.ts` no puede leer, tipar ni transportar `SUPABASE_SERVICE_ROLE_KEY`
-- cualquier helper privilegiado debe vivir aislado en `lib/supabase/internal/service-role-client.ts`
-- `tests/service-role-guardrails.test.cjs` debe fallar si una ruta operativa vuelve a importar service role o si `SUPABASE_SERVICE_ROLE_KEY` aparece fuera del inventario permitido
+## 3. Invariantes de arquitectura
 
-### Regla bloqueante de ownership
+### Definiciones canonicas del MVP
 
-Ningun negocio es operable si `created_by_user_id` es null o no coincide con el usuario autenticado esperado.
-
-El guardian debe verificar que:
-- ningun negocio sin owner pueda abrir workspace privado
-- ningun negocio sin owner pueda exponerse en storefront publico
-- ningun pedido pueda leerse o mutarse fuera del owner real del negocio
-- toda transicion `ownerless -> owned` pase por remediacion auditable con estados persistidos y claim controlado para el usuario correcto
-
-Si existe cualquier ruta, helper, mapper o consulta que permita operar un negocio sin owner verificable, el veredicto es `NO APTO TODAVIA`.
-
-### Regla bloqueante de cobertura minima para cambios criticos
-
-Si la tarea toca:
-- ownership
-- auth
-- service role
-- storefront publico
-- creacion de pedidos
-- lectura privada de pedidos
-- mutacion de pedidos
-
-el cambio no puede cerrarse solo con `lint`, `typecheck` y `build`.
-
-Debe existir al menos una prueba automatizada nueva o actualizada que cubra el riesgo principal introducido o corregido.
-
-Cobertura minima exigida para seguridad del MVP:
-- lectura privada permitida para owner correcto
-- lectura privada denegada para usuario no owner
-- mutacion permitida para owner correcto
-- mutacion denegada para usuario no owner
-- ausencia de dependencia operativa de service role en flujo normal
-
-Si la cobertura no existe, el veredicto minimo es `APTO CON ALERTAS`.
-Si el cambio afirma cerrar una brecha critica sin prueba automatizada, el veredicto es `NO APTO TODAVIA`.
-
-### Regla bloqueante de congruencia de entorno
-
-Las variables de entorno documentadas en:
-- `AGENTS.md`
-- `README.md`
-- `.env.example`
-- `lib/env.ts`
-
-deben ser congruentes entre si.
-
-El guardian debe verificar que:
-- no exista una variable usada en `lib/env.ts` que no este documentada
-- no exista una variable documentada que ya no se use realmente
-- no haya lecturas directas de `process.env` fuera de `lib/env.ts`, salvo la excepcion privilegiada de `SUPABASE_SERVICE_ROLE_KEY` en `lib/supabase/internal/service-role-client.ts`
-
-Si hay contradiccion entre documentacion y codigo:
-- gana el codigo real
-- debe corregirse la documentacion en el mismo cambio si el alcance es directo
-- si la tarea introduce una variable nueva sin actualizar las tres fronteras documentales, el veredicto no puede ser `APTO PARA REVISAR`
-
-Frontera canonica actual de variables del repo:
-
-- `NEXT_PUBLIC_SUPABASE_URL`
-  - obligatoria
-  - debe existir en `AGENTS.md`, `README.md`, `.env.example` y `lib/env.ts`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-  - obligatoria
-  - debe existir en `AGENTS.md`, `README.md`, `.env.example` y `lib/env.ts`
-- `NEXT_PUBLIC_SITE_URL`
-  - obligatoria en produccion y con fallback local en desarrollo
-  - debe existir en `AGENTS.md`, `README.md`, `.env.example` y `lib/env.ts`
-- `SUPABASE_SERVICE_ROLE_KEY`
-  - opcional, aislada del runtime normal y sin transporte por `lib/env.ts`
-  - debe existir en `AGENTS.md`, `README.md`, `.env.example` y `lib/supabase/internal/service-role-client.ts`
-
-Excepcion temporal y justificada:
-
-- `NODE_ENV`
-  - puede ser leida en `lib/env.ts` por ser variable base del runtime de Node/Next
-  - no exige presencia en `.env.example`
-  - si se documenta, debe quedar claro que no forma parte de la configuracion operativa manual del MVP
-
-El guardian debe bloquear cierre si:
-- falta cualquiera de las cuatro variables canonicas en una de las fronteras documentales
-- sobra una variable documentada que ya no vive en `lib/env.ts` ni en `lib/supabase/internal/service-role-client.ts`
-- aparece una lectura directa nueva de `process.env` fuera de `lib/env.ts` sin excepcion temporal, acotada y justificada en test o documentacion
-- se intenta aprobar una brecha de entorno o seguridad critica solo con evidencia manual
-
-### Regla bloqueante de fuente de verdad y fronteras client/server
-
-Contrato verificable actual:
-- Supabase es la fuente de verdad para negocios, productos y pedidos del MVP.
-- `localStorage` solo puede guardar estado de UI no critico.
+- Supabase es la fuente de verdad de negocios, productos y pedidos del MVP.
 - `businessId` significa UUID de base de datos y `businessSlug` significa slug de URL; rutas, params y helpers deben respetar esa frontera.
-- El server debe resolver ownership desde sesion/contexto confiable y no confiar en `owner_id`, `created_by_user_id` ni `business_id` enviados por cliente para autorizar o mutar recursos.
-- Los negocios legacy sin owner solo salen de `ownerless_*` mediante remediacion auditable y siguen inaccesibles hasta persistir `businesses.created_by_user_id`.
-- La creacion y mutacion sensible de pedidos no puede depender solo de handlers HTTP: cualquier `status`, `paymentStatus`, `history` o metadato derivable enviado por cliente se ignora en server, y `public.orders` debe rederivar el estado inicial y rechazar combinaciones incoherentes de pago o `Contra entrega` fuera de domicilio mediante policies y triggers.
-- `SUPABASE_SERVICE_ROLE_KEY` no participa ni se transporta en el runtime normal; solo puede leerse desde `lib/supabase/internal/service-role-client.ts`.
-- `README.md` y `AGENTS.md` deben describir solo flujos realmente activos en el repo.
+- Los negocios legacy sin owner son casos invalidos/no soportados del MVP: permanecen inaccesibles en workspace, storefront y pedidos operativos, y cualquier saneamiento debe ocurrir fuera del runtime antes de persistir `businesses.created_by_user_id`.
+- `status`, `paymentStatus`, `history` y cualquier metadato derivable del pedido no son verdad cruda confiable del cliente; el server y la DB los derivan, validan o bloquean.
+- El runtime normal del MVP usa solo cliente publico/anon acotado, cliente autenticado SSR y RLS; `SUPABASE_SERVICE_ROLE_KEY` queda aislada fuera de esa frontera.
+- Una garantia no se considera cerrada si vive solo en UI, solo en handlers HTTP o solo en documentacion; cuando corresponde al dominio, tambien debe existir en runtime, DB y tests automatizados.
+- `README.md` y `AGENTS.md` no pueden declarar mas de lo que garantizan runtime + DB + tests.
 
-### 3. Validacion tecnica minima
+### Invariantes adicionales
 
-Siempre ejecutar:
+- `localStorage` solo puede guardar estado de UI no critico.
+- `lib/supabase/server.ts` y `lib/supabase/client.ts` pertenecen al runtime normal; no deben mezclar borde privilegiado.
+- Si una regla sensible existe en DB, el runtime no debe contradecirla ni duplicarla con otro contrato.
 
-- `npm run lint`
-- `npm run typecheck`
-- `npm run build`
-- `npm test`
-- tests existentes relacionados con el area tocada
-- test de congruencia de variables y fronteras de entorno
-- test de veto a lecturas directas de `process.env` fuera de `lib/env.ts`
-- test de guardia documental sobre source of truth, ownership, service role y fronteras client/server
+## 4. Reglas de contratos y naming
 
-Si la tarea toca seguridad critica, ownership o entorno y no existe un test de congruencia/documentacion, debe agregarse en la misma ronda si el alcance es directo.
+- `businessId` solo puede significar UUID de base de datos.
+- `businessSlug` solo puede significar slug de URL.
+- No se aceptan nombres publicos heredados o ambiguos que mezclen slug de URL con UUID de base de datos.
+- Un helper `byId` debe consultar por id real; un helper `bySlug` debe consultar por slug real.
+- Variables, params, helpers, payloads y docs deben usar el mismo naming canonicamente.
+- No se dejan aliases ambiguos para compatibilidad si conservan una mentira contractual.
+
+## 5. Reglas de ownership y acceso
+
+- Ningun negocio es operable si `created_by_user_id` es `null` o no coincide con el usuario autenticado esperado.
+- El server resuelve ownership desde sesion/contexto confiable; no acepta `owner_id`, `created_by_user_id` ni `business_id` del cliente como autoridad.
+- Un negocio ownerless no puede abrir workspace privado.
+- Un negocio ownerless no puede exponerse en storefront publico.
+- Un negocio ownerless no puede recibir ni operar pedidos normales.
+- Ownerless no debe volver a quedar operativo en runtime. No existe claim ni remediacion dentro del producto.
+- Cualquier saneamiento de un negocio ownerless ocurre fuera del runtime del MVP y solo antes de persistir un owner valido.
+
+## 6. Reglas de pedidos, pagos e historial
+
+- `status`, `paymentStatus` y `history` no son verdad cruda confiable del cliente.
+- El POST de pedidos solo acepta datos editables; cualquier campo derivable enviado por cliente se ignora.
+- El estado inicial del pedido se deriva en servidor y la DB debe rederivar/validar inserts directos cuando corresponda.
+- El PATCH de pedidos solo puede persistir estados coherentes y transiciones permitidas.
+- `Contra entrega` no puede existir como regla solo de UI; debe validarse tambien en server o DB.
+- El historial inicial no puede nacer desde cliente.
+- El cliente no puede reemplazar snapshots completos de `history`.
+- Si el historial es append-only, la DB debe impedir writes directos y obligar una funcion o frontera controlada.
+- Un frente de pedidos/pagos/historial no se considera cerrado si la garantia vive solo en handlers HTTP.
+
+## 7. Reglas sobre entorno y service role
+
+- El runtime normal del MVP opera solo con cliente publico/anon acotado, cliente autenticado SSR y RLS.
+- `SUPABASE_SERVICE_ROLE_KEY` no puede leerse, tiparse ni transportarse desde `lib/env.ts`.
+- El unico helper autorizado para leer `SUPABASE_SERVICE_ROLE_KEY` es `lib/supabase/internal/service-role-client.ts`.
+- Cualquier uso activo de service role en rutas, acciones server o acceso operativo a negocios, productos o pedidos vuelve el cambio `NO APTO TODAVIA`, salvo excepcion documentada y aprobada en `lib/supabase/service-role.ts`.
+- Las variables canonicas del repo son `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_SITE_URL` y `SUPABASE_SERVICE_ROLE_KEY`.
+- `AGENTS.md`, `README.md`, `.env.example` y `lib/env.ts` no pueden divergir sobre variables operativas.
+- No deben aparecer lecturas directas nuevas de `process.env` fuera de `lib/env.ts`, salvo la excepcion privilegiada aislada.
+
+## 8. Auditoria obligatoria antes de cerrar cambios
+
+- Auditar runtime, DB, tests y documentacion del frente tocado.
+- Buscar bypass por escritura directa, por rutas secundarias y por contratos de cliente.
+- Ejecutar `npm run lint`.
+- Ejecutar `npm run typecheck`.
+- Ejecutar `npm test`.
+- Ejecutar `npm run build`.
+- Ejecutar tests especificos del area tocada y los guardrails de documentacion/entorno si el cambio toca contratos, ownership, pedidos, naming o service role.
+- Actualizar README y AGENTS en la misma ronda si cambia el contrato real del sistema.
+
+## 9. Criterio estricto para declarar un frente como cerrado
+
+- Un frente solo puede declararse cerrado si la garantia existe simultaneamente en runtime, DB cuando corresponde, tests automatizados y documentacion alineada.
+- Un frente no esta cerrado si la garantia vive solo en UI.
+- Un frente no esta cerrado si la garantia vive solo en handlers HTTP.
+- Un frente no esta cerrado si la DB permite bypass directo de la regla relevante.
+- Un frente no esta cerrado si README o AGENTS prometen mas de lo que garantizan runtime + DB + tests.
+- Un frente no esta cerrado si reintroduce ownerless operativo, service role en flujo normal, naming enganoso o confianza en `status`, `paymentStatus` o `history` enviados por cliente.

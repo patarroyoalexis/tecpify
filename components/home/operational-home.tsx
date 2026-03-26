@@ -1,6 +1,5 @@
 import { CreateBusinessPanel } from "@/components/home/create-business-panel";
 import { BusinessCard } from "@/components/home/business-card";
-import { LegacyBusinessRemediationPanel } from "@/components/home/legacy-business-remediation-panel";
 import type { HomeBusinessesSnapshot } from "@/data/businesses";
 
 interface OperationalHomeProps {
@@ -12,7 +11,7 @@ export function OperationalHome({
   businesses,
   operatorEmail,
 }: OperationalHomeProps) {
-  const { realBusinesses, legacyOwnershipRemediations } = businesses;
+  const { realBusinesses, unsupportedLegacyBusinessesCount } = businesses;
 
   return (
     <div className="space-y-6">
@@ -39,18 +38,39 @@ export function OperationalHome({
                 Sesion activa: {operatorEmail}
               </span>
             ) : null}
-            <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-sm font-medium text-amber-800">
-              {legacyOwnershipRemediations.length} remediacion
-              {legacyOwnershipRemediations.length === 1 ? "" : "es"} legacy visible
-              {legacyOwnershipRemediations.length === 1 ? "" : "s"}
-            </span>
+            {unsupportedLegacyBusinessesCount > 0 ? (
+              <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-sm font-medium text-amber-800">
+                {unsupportedLegacyBusinessesCount} legacy ownerless no soportado
+                {unsupportedLegacyBusinessesCount === 1 ? "" : "s"}
+              </span>
+            ) : null}
           </div>
         </div>
 
         <CreateBusinessPanel />
       </section>
 
-      <LegacyBusinessRemediationPanel remediations={legacyOwnershipRemediations} />
+      {unsupportedLegacyBusinessesCount > 0 ? (
+        <section className="rounded-[32px] border border-amber-200 bg-amber-50/80 p-6 shadow-[0_24px_80px_rgba(15,23,42,0.06)] sm:p-7">
+          <p className="text-sm font-semibold uppercase tracking-[0.24em] text-amber-700">
+            Legacy ownerless
+          </p>
+          <h2 className="mt-2 text-2xl font-semibold text-slate-950">
+            No soportados en runtime del MVP
+          </h2>
+          <p className="mt-3 text-sm leading-6 text-slate-700">
+            Se detectaron {unsupportedLegacyBusinessesCount} negocio
+            {unsupportedLegacyBusinessesCount === 1 ? "" : "s"} legacy sin owner real.
+            Permanecen bloqueados fuera del workspace, del storefront publico y de los pedidos
+            operativos. Tecpify ya no ofrece remediacion ni claim dentro del producto para estos
+            casos.
+          </p>
+          <p className="mt-3 text-sm leading-6 text-slate-600">
+            Si alguno debe volver a existir, el saneamiento tiene que ocurrir fuera del runtime del
+            MVP antes de reingresar como negocio valido con owner persistido.
+          </p>
+        </section>
+      ) : null}
 
       <section className="space-y-4">
         <div className="flex items-center justify-between gap-3">

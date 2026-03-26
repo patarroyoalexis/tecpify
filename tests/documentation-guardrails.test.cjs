@@ -6,38 +6,47 @@ const path = require("node:path");
 
 const repoRoot = process.cwd();
 
-const README_CONTRACT_HEADING = "## 11.1 Contrato verificable del MVP";
-const AGENTS_CONTRACT_HEADING =
-  "### Regla bloqueante de fuente de verdad y fronteras client/server";
-
-const README_CONTRACT_ITEMS = [
-  "Supabase es la fuente de verdad de negocios, productos y pedidos del MVP.",
-  "`localStorage` solo puede guardar estado de UI no critico.",
-  "`businessId` significa UUID de base de datos y `businessSlug` significa slug de URL; rutas, params y helpers deben respetar esa frontera.",
-  "El canon server/API resuelve ownership desde sesion/contexto confiable; no acepta `owner_id`, `created_by_user_id` ni `business_id` del cliente como autoridad.",
-  "Los negocios legacy sin owner solo salen de `ownerless_*` mediante remediacion auditable y siguen inaccesibles hasta persistir `businesses.created_by_user_id`.",
-  "La creacion y mutacion sensible de pedidos no dependen solo de handlers HTTP: cualquier `status`, `paymentStatus`, `history` o metadato derivable enviado por cliente se ignora en servidor, y `public.orders` rederiva el estado inicial y rechaza combinaciones incoherentes de pago o `Contra entrega` fuera de domicilio mediante policies y triggers.",
-  "`lib/supabase/server.ts` solo expone clientes `public` y `auth`.",
-  "`SUPABASE_SERVICE_ROLE_KEY` no participa ni se transporta en el runtime normal del MVP; solo existe en el helper interno privilegiado.",
-  "Toda lectura de `process.env` debe vivir en `lib/env.ts`, salvo `SUPABASE_SERVICE_ROLE_KEY` aislada dentro de `lib/supabase/internal/service-role-client.ts`.",
+const README_REQUIRED_HEADINGS = [
+  "## 1. Que es Tecpify hoy",
+  "## 2. Problema que resuelve",
+  "## 3. Objetivo actual del MVP",
+  "## 4. Circuito operativo validado",
+  "## 5. Estado funcional actual",
+  "## 6. Garantias tecnicas activas",
+  "## 7. Limites actuales del producto",
+  "## 8. Siguiente etapa del proyecto",
 ];
 
-const AGENTS_CONTRACT_ITEMS = [
-  "Supabase es la fuente de verdad para negocios, productos y pedidos del MVP.",
-  "`localStorage` solo puede guardar estado de UI no critico.",
+const AGENTS_REQUIRED_HEADINGS = [
+  "## 1. Proposito",
+  "## 2. Principios obligatorios",
+  "## 3. Invariantes de arquitectura",
+  "## 4. Reglas de contratos y naming",
+  "## 5. Reglas de ownership y acceso",
+  "## 6. Reglas de pedidos, pagos e historial",
+  "## 7. Reglas sobre entorno y service role",
+  "## 8. Auditoria obligatoria antes de cerrar cambios",
+  "## 9. Criterio estricto para declarar un frente como cerrado",
+];
+
+const README_DEFINITIONS_HEADING = "### Definiciones canonicas del MVP";
+const AGENTS_DEFINITIONS_HEADING = "### Definiciones canonicas del MVP";
+
+const CANONICAL_DEFINITION_ITEMS = [
+  "Supabase es la fuente de verdad de negocios, productos y pedidos del MVP.",
   "`businessId` significa UUID de base de datos y `businessSlug` significa slug de URL; rutas, params y helpers deben respetar esa frontera.",
-  "El server debe resolver ownership desde sesion/contexto confiable y no confiar en `owner_id`, `created_by_user_id` ni `business_id` enviados por cliente para autorizar o mutar recursos.",
-  "Los negocios legacy sin owner solo salen de `ownerless_*` mediante remediacion auditable y siguen inaccesibles hasta persistir `businesses.created_by_user_id`.",
-  "La creacion y mutacion sensible de pedidos no puede depender solo de handlers HTTP: cualquier `status`, `paymentStatus`, `history` o metadato derivable enviado por cliente se ignora en server, y `public.orders` debe rederivar el estado inicial y rechazar combinaciones incoherentes de pago o `Contra entrega` fuera de domicilio mediante policies y triggers.",
-  "`SUPABASE_SERVICE_ROLE_KEY` no participa ni se transporta en el runtime normal; solo puede leerse desde `lib/supabase/internal/service-role-client.ts`.",
-  "`README.md` y `AGENTS.md` deben describir solo flujos realmente activos en el repo.",
+  "Los negocios legacy sin owner son casos invalidos/no soportados del MVP: permanecen inaccesibles en workspace, storefront y pedidos operativos, y cualquier saneamiento debe ocurrir fuera del runtime antes de persistir `businesses.created_by_user_id`.",
+  "`status`, `paymentStatus`, `history` y cualquier metadato derivable del pedido no son verdad cruda confiable del cliente; el server y la DB los derivan, validan o bloquean.",
+  "El runtime normal del MVP usa solo cliente publico/anon acotado, cliente autenticado SSR y RLS; `SUPABASE_SERVICE_ROLE_KEY` queda aislada fuera de esa frontera.",
+  "Una garantia no se considera cerrada si vive solo en UI, solo en handlers HTTP o solo en documentacion; cuando corresponde al dominio, tambien debe existir en runtime, DB y tests automatizados.",
+  "`README.md` y `AGENTS.md` no pueden declarar mas de lo que garantizan runtime + DB + tests.",
 ];
 
 function readFile(relativePath) {
   return fs.readFileSync(path.join(repoRoot, relativePath), "utf8");
 }
 
-function getContractSectionBulletItems(relativePath, heading) {
+function getSectionBulletItems(relativePath, heading) {
   const lines = readFile(relativePath).split(/\r?\n/);
   const startIndex = lines.findIndex((line) => line.trim() === heading);
 
@@ -67,6 +76,18 @@ function getContractSectionBulletItems(relativePath, heading) {
   return items;
 }
 
+function assertContainsHeadings(relativePath, headings) {
+  const source = readFile(relativePath);
+
+  for (const heading of headings) {
+    assert.match(
+      source,
+      new RegExp(`^${heading.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "m"),
+      `${relativePath} debe incluir la seccion "${heading}".`,
+    );
+  }
+}
+
 function normalizeRelativePath(relativePath) {
   return relativePath.split(path.sep).join("/");
 }
@@ -93,51 +114,80 @@ function getAllRepoFiles(rootDirectory) {
   return files;
 }
 
-test("documentacion: README y AGENTS mantienen sus secciones contractuales canonicas", () => {
+test("documentacion: README y AGENTS mantienen estructura y definiciones canonicas", () => {
+  assertContainsHeadings("README.md", README_REQUIRED_HEADINGS);
+  assertContainsHeadings("AGENTS.md", AGENTS_REQUIRED_HEADINGS);
   assert.deepEqual(
-    getContractSectionBulletItems("README.md", README_CONTRACT_HEADING).sort(),
-    [...README_CONTRACT_ITEMS].sort(),
-    "README.md debe mantener exactamente el bloque canonico del MVP.",
+    getSectionBulletItems("README.md", README_DEFINITIONS_HEADING).sort(),
+    [...CANONICAL_DEFINITION_ITEMS].sort(),
+    "README.md debe mantener exactamente las definiciones canonicas del MVP.",
   );
   assert.deepEqual(
-    getContractSectionBulletItems("AGENTS.md", AGENTS_CONTRACT_HEADING).sort(),
-    [...AGENTS_CONTRACT_ITEMS].sort(),
-    "AGENTS.md debe mantener exactamente el bloque canonico del guardian.",
+    getSectionBulletItems("AGENTS.md", AGENTS_DEFINITIONS_HEADING).sort(),
+    [...CANONICAL_DEFINITION_ITEMS].sort(),
+    "AGENTS.md debe compartir exactamente las mismas definiciones canonicas del MVP.",
   );
 });
 
 test("documentacion: las afirmaciones contractuales siguen alineadas con el codigo real", () => {
+  const readmeSource = readFile("README.md");
+  const agentsSource = readFile("AGENTS.md");
   const businessesApiSource = readFile("app/api/businesses/route.ts");
   const productsApiSource = readFile("app/api/products/route.ts");
   const productByIdApiSource = readFile("app/api/products/[productId]/route.ts");
   const ordersApiSource = readFile("app/api/orders/route.ts");
   const workspaceOrdersApiSource = readFile("app/api/orders/private/route.ts");
   const orderByIdApiSource = readFile("app/api/orders/[orderId]/route.ts");
-  const legacyRemediationRequestApiSource = readFile(
-    "app/api/businesses/legacy-remediation/request/route.ts",
-  );
-  const legacyRemediationClaimApiSource = readFile(
-    "app/api/businesses/legacy-remediation/claim/route.ts",
-  );
   const envSource = readFile("lib/env.ts");
   const supabaseServerSource = readFile("lib/supabase/server.ts");
   const supabaseClientSource = readFile("lib/supabase/client.ts");
   const serviceRoleClientSource = readFile("lib/supabase/internal/service-role-client.ts");
   const businessesDataSource = readFile("data/businesses.ts");
+  const operationalHomeSource = readFile("components/home/operational-home.tsx");
+  const legacyBusinessAccessSource = readFile("lib/auth/legacy-business-access.ts");
   const privateBusinessPagesSource = readFile("lib/page-contracts/private-business-pages.ts");
   const storefrontOrderPageSource = readFile("lib/page-contracts/storefront-order-page.ts");
-  const legacyRemediationDataSource = readFile("lib/data/business-ownership-remediation.ts");
   const productsDataSource = readFile("lib/data/products.ts");
   const ordersDataSource = readFile("lib/data/orders-server.ts");
   const orderStateRulesSource = readFile("lib/orders/state-rules.ts");
   const orderHistoryRulesSource = readFile("lib/orders/history-rules.ts");
   const paymentHelpersSource = readFile("components/dashboard/payment-helpers.ts");
   const businessOrdersHookSource = readFile("components/dashboard/use-business-orders.ts");
-  const legacyRemediationMigrationSource = readFile(
-    "supabase/migrations/20260326_add_legacy_business_ownership_remediation.sql",
+  const ordersInsertPayloadBlock = ordersDataSource.match(
+    /const insertPayload = \{(?<block>[\s\S]*?)\n\s*};/,
+  );
+  const ordersUpdatePayloadBlock = ordersDataSource.match(
+    /const updatePayload = \{(?<block>[\s\S]*?)\n\s*};/,
+  );
+  const legacyRemediationRetirementMigrationSource = readFile(
+    "supabase/migrations/20260326_retire_legacy_business_runtime_remediation.sql",
   );
   const orderPaymentMigrationSource = readFile(
     "supabase/migrations/20260326_enforce_order_payment_rules_in_db.sql",
+  );
+  const orderHistoryMigrationSource = readFile(
+    "supabase/migrations/20260326_enforce_order_history_in_db.sql",
+  );
+
+  assert.match(
+    readmeSource,
+    /casos invalidos\/no soportados del MVP/i,
+    "README.md debe describir honestamente la estrategia final para negocios ownerless.",
+  );
+  assert.match(
+    agentsSource,
+    /cualquier saneamiento debe ocurrir fuera del runtime/i,
+    "AGENTS.md debe describir honestamente la estrategia final para negocios ownerless.",
+  );
+  assert.doesNotMatch(
+    readmeSource,
+    /remediacion auditable|claim controlado/i,
+    "README.md no debe prometer una remediacion legacy que el MVP no ejecuta.",
+  );
+  assert.doesNotMatch(
+    agentsSource,
+    /remediacion auditable|claim controlado/i,
+    "AGENTS.md no debe prometer una remediacion legacy que el guardian ya no respalda.",
   );
 
   assert.match(
@@ -211,16 +261,6 @@ test("documentacion: las afirmaciones contractuales siguen alineadas con el codi
     "La ruta privada de pedidos debe sanear campos sensibles derivados antes de persistir.",
   );
   assert.match(
-    legacyRemediationRequestApiSource,
-    /requireAuthenticatedApiUser/,
-    "La solicitud de remediacion legacy debe exigir sesion autenticada.",
-  );
-  assert.match(
-    legacyRemediationClaimApiSource,
-    /requireAuthenticatedApiUser/,
-    "El claim de remediacion legacy debe exigir sesion autenticada.",
-  );
-  assert.match(
     supabaseServerSource,
     /keySource:\s*"NEXT_PUBLIC_SUPABASE_ANON_KEY"/,
     "lib/supabase/server.ts debe seguir usando la anon key en flujo normal.",
@@ -272,8 +312,38 @@ test("documentacion: las afirmaciones contractuales siguen alineadas con el codi
   );
   assert.match(
     businessesDataSource,
+    /countUnsupportedLegacyBusinesses/,
+    "La home operativa debe exponer solo el conteo de negocios legacy ownerless no soportados.",
+  );
+  assert.doesNotMatch(
+    businessesDataSource,
     /listCurrentUserLegacyBusinessOwnershipRemediations/,
-    "La home operativa debe exponer el estado de remediacion legacy para la sesion autenticada.",
+    "La home operativa no debe depender de un flujo runtime de remediacion legacy.",
+  );
+  assert.match(
+    operationalHomeSource,
+    /No soportados en runtime del MVP/,
+    "La UI debe describir honestamente que los legacy ownerless no estan soportados en runtime.",
+  );
+  assert.match(
+    operationalHomeSource,
+    /Tecpify ya no ofrece remediacion ni claim dentro del producto/,
+    "La UI no puede prometer una remediacion legacy inexistente.",
+  );
+  assert.doesNotMatch(
+    operationalHomeSource,
+    /LegacyBusinessRemediationPanel|Solicitar remediacion legacy|Reclamar ownership|claim controlado/i,
+    "La UI no debe conservar superficies ni copy de remediacion runtime.",
+  );
+  assert.match(
+    legacyBusinessAccessSource,
+    /unsupported_ownerless_blocked|ownerless_unsupported/,
+    "La estrategia de ownership debe declarar que ownerless es un caso bloqueado y no soportado.",
+  );
+  assert.doesNotMatch(
+    legacyBusinessAccessSource,
+    /ownerless_requested|ownerless_claimable|remediated/,
+    "La capa de acceso no debe seguir modelando estados de remediacion runtime.",
   );
   assert.match(
     privateBusinessPagesSource,
@@ -294,11 +364,6 @@ test("documentacion: las afirmaciones contractuales siguen alineadas con el codi
     storefrontOrderPageSource,
     /\bnegocioId\b|params:\s*Promise<\{\s*businessId:\s*string\s*\}>/,
     "El page contract publico no debe exponer negocioId ni businessId engañosos para slugs.",
-  );
-  assert.match(
-    legacyRemediationDataSource,
-    /createServerSupabaseAuthClient/,
-    "La remediacion legacy debe operar con cliente autenticado SSR y no con service role.",
   );
   assert.match(
     productsDataSource,
@@ -327,8 +392,31 @@ test("documentacion: las afirmaciones contractuales siguen alineadas con el codi
   );
   assert.match(
     ordersDataSource,
+    /update_order_with_server_history/,
+    "La mutacion de pedidos debe pasar por la funcion controlada que anexa historial en DB.",
+  );
+  assert.doesNotMatch(
+    ordersDataSource,
     /appendServerGeneratedOrderHistory/,
-    "La mutacion de pedidos debe anexar historial desde reglas server-side y no desde snapshots del cliente.",
+    "La capa de datos no debe volver a anexar history desde Next.js.",
+  );
+  assert.ok(
+    ordersInsertPayloadBlock?.groups?.block,
+    "La persistencia del insert debe conservar un bloque identificable para guardrails.",
+  );
+  assert.doesNotMatch(
+    ordersInsertPayloadBlock.groups.block,
+    /\bhistory:/,
+    "El insert persistido no debe volver a incluir history como payload directo.",
+  );
+  assert.ok(
+    ordersUpdatePayloadBlock?.groups?.block,
+    "La persistencia del patch debe conservar un bloque identificable para guardrails.",
+  );
+  assert.doesNotMatch(
+    ordersUpdatePayloadBlock.groups.block,
+    /\bhistory:/,
+    "El patch persistido no debe volver a incluir history como payload directo.",
   );
   assert.match(
     ordersDataSource,
@@ -385,25 +473,74 @@ test("documentacion: las afirmaciones contractuales siguen alineadas con el codi
     /createHistoryEvent|appendOrderEvent/,
     "El cliente no debe volver a fabricar eventos de historial antes de mutar pedidos.",
   );
-  assert.match(
-    legacyRemediationMigrationSource,
-    /create table if not exists public\.legacy_business_ownership_remediations/i,
-    "La remediacion legacy debe persistir su estado en tabla dedicada.",
+  assert.equal(
+    fs.existsSync(path.join(repoRoot, "lib", "data", "business-ownership-remediation.ts")),
+    false,
+    "El repo no debe conservar un helper runtime para remediacion legacy.",
+  );
+  assert.equal(
+    fs.existsSync(
+      path.join(repoRoot, "app", "api", "businesses", "legacy-remediation", "request", "route.ts"),
+    ),
+    false,
+    "El repo no debe conservar una ruta runtime para solicitar remediacion legacy.",
+  );
+  assert.equal(
+    fs.existsSync(
+      path.join(repoRoot, "app", "api", "businesses", "legacy-remediation", "claim", "route.ts"),
+    ),
+    false,
+    "El repo no debe conservar una ruta runtime para reclamar ownership legacy.",
   );
   assert.match(
-    legacyRemediationMigrationSource,
-    /create table if not exists public\.legacy_business_ownership_remediation_events/i,
-    "La remediacion legacy debe dejar evidencia auditable en eventos persistidos.",
+    legacyRemediationRetirementMigrationSource,
+    /drop function if exists public\.request_legacy_business_ownership_remediation\(text\) cascade/i,
+    "La migracion final debe retirar la solicitud runtime legacy.",
   );
   assert.match(
-    legacyRemediationMigrationSource,
-    /businesses_require_legacy_remediation_before_owner_assignment/i,
-    "La base debe bloquear asignaciones legacy sin remediacion claimable.",
+    legacyRemediationRetirementMigrationSource,
+    /drop function if exists public\.grant_legacy_business_owner_claim\(text, text\) cascade/i,
+    "La migracion final debe retirar la habilitacion runtime de claim legacy.",
   );
   assert.match(
-    legacyRemediationMigrationSource,
-    /grant_legacy_business_owner_claim/i,
-    "La remediacion legacy debe conservar un paso de habilitacion controlada para el claim.",
+    legacyRemediationRetirementMigrationSource,
+    /drop function if exists public\.claim_legacy_business_ownership\(text\) cascade/i,
+    "La migracion final debe retirar el claim runtime legacy.",
+  );
+  assert.match(
+    legacyRemediationRetirementMigrationSource,
+    /drop table if exists public\.legacy_business_ownership_remediation_events cascade/i,
+    "La migracion final no debe dejar la remediacion solo en tablas SQL aisladas.",
+  );
+  assert.match(
+    legacyRemediationRetirementMigrationSource,
+    /drop table if exists public\.legacy_business_ownership_remediations cascade/i,
+    "La migracion final debe retirar el estado persistido de remediacion runtime.",
+  );
+  assert.match(
+    legacyRemediationRetirementMigrationSource,
+    /prevent_unsupported_legacy_business_owner_assignment/i,
+    "La base debe bloquear ownerless -> owned dentro del runtime del MVP.",
+  );
+  assert.match(
+    legacyRemediationRetirementMigrationSource,
+    /cannot be claimed or reassigned in runtime/i,
+    "La base debe declarar de forma explicita que ownerless no es remediable en runtime.",
+  );
+  assert.match(
+    orderPaymentMigrationSource,
+    /create policy "public can create orders"[\s\S]*to anon/i,
+    "La policy publica de insert debe quedar restringida a anon para no abrir bypass de ownership.",
+  );
+  assert.match(
+    orderPaymentMigrationSource,
+    /orders_insert_request_is_valid/i,
+    "Supabase debe separar la validacion del request base del insert antes del trigger autoritativo.",
+  );
+  assert.match(
+    orderPaymentMigrationSource,
+    /create policy "authenticated can insert owned orders"[\s\S]*created_by_user_id = auth\.uid\(\)/i,
+    "Supabase debe separar el insert autenticado de pedidos bajo ownership real.",
   );
   assert.match(
     orderPaymentMigrationSource,
@@ -424,6 +561,31 @@ test("documentacion: las afirmaciones contractuales siguen alineadas con el codi
     orderPaymentMigrationSource,
     /Contra entrega solo se permite en pedidos a domicilio\./i,
     "Supabase debe bloquear Contra entrega fuera del flujo permitido.",
+  );
+  assert.match(
+    orderHistoryMigrationSource,
+    /orders_enforce_server_generated_history_before_insert/i,
+    "Supabase debe generar el historial inicial desde DB tambien en inserts directos.",
+  );
+  assert.match(
+    orderHistoryMigrationSource,
+    /history es server-generated y no acepta eventos iniciales enviados por cliente/i,
+    "Supabase debe rechazar inserts directos con history inicial arbitrario.",
+  );
+  assert.match(
+    orderHistoryMigrationSource,
+    /orders_block_direct_history_before_update/i,
+    "Supabase debe bloquear updates directos que intenten reemplazar history.",
+  );
+  assert.match(
+    orderHistoryMigrationSource,
+    /public\.update_order_with_server_history/i,
+    "El append-only del historial debe pasar por una funcion controlada de DB.",
+  );
+  assert.match(
+    orderHistoryMigrationSource,
+    /grant execute on function public\.update_order_with_server_history\(uuid, jsonb\) to authenticated/i,
+    "La funcion controlada del historial solo debe exponerse a la frontera autenticada permitida.",
   );
 
   const localStorageUsageFiles = getAllRepoFiles(repoRoot)

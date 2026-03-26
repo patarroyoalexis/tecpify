@@ -3,6 +3,8 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
+const React = require("react");
+const { renderToStaticMarkup } = require("react-dom/server");
 
 const { loadTsModule } = require("./helpers/test-runtime.cjs");
 
@@ -15,12 +17,10 @@ const {
   resolveLegacyBusinessOwnershipState,
 } = loadTsModule("lib/auth/legacy-business-access.ts");
 const { createOrdersRouteHandlers } = loadTsModule("app/api/orders/route.ts");
-const {
-  createLegacyBusinessRemediationRequestRouteHandlers,
-} = loadTsModule("app/api/businesses/legacy-remediation/request/route.ts");
-const {
-  createLegacyBusinessRemediationClaimRouteHandlers,
-} = loadTsModule("app/api/businesses/legacy-remediation/claim/route.ts");
+const { createStorefrontOrderPage } = loadTsModule(
+  "lib/page-contracts/storefront-order-page.ts",
+);
+const { createGetBusinessBySlugWithProducts } = loadTsModule("data/businesses.ts");
 
 const OWNER_ID = "user-owner";
 const NON_OWNER_ID = "user-other";
@@ -35,27 +35,35 @@ function createJsonRequest(url, method, body) {
   });
 }
 
-function createRemediationRecord(overrides = {}) {
+function createProductFixture(overrides = {}) {
   return {
-    businessId: "biz-legacy",
-    businessSlug: "legacy-shop",
-    businessName: "Legacy Shop",
-    remediationStatus: "ownerless_requested",
-    accessStatus: "inaccessible",
-    requestedAt: "2026-03-26T15:00:00.000Z",
+    id: "prod-1",
+    business_id: "biz-1",
+    name: "Hamburguesa",
+    description: "Doble carne",
+    price: 15000,
+    is_available: true,
+    is_featured: false,
+    sort_order: 1,
+    created_at: "2026-03-25T21:00:00.000Z",
+    updated_at: "2026-03-25T21:00:00.000Z",
     ...overrides,
   };
 }
 
-test("legacy remediation: ownerless queda bloqueado en acceso privado hasta persistir owner real", () => {
-  assert.equal(LEGACY_BUSINESS_OWNERSHIP_STRATEGY.mode, "audited_claim_before_access");
+function render(element) {
+  return renderToStaticMarkup(element);
+}
+
+test("legacy ownerless: negocio sin owner queda bloqueado en acceso privado y marcado como no soportado", () => {
+  assert.equal(LEGACY_BUSINESS_OWNERSHIP_STRATEGY.mode, "unsupported_ownerless_blocked");
 
   assert.deepEqual(
     resolveLegacyBusinessOwnershipState({ ownerUserId: null }),
     {
-      remediationStatus: "ownerless_unassigned",
+      runtimeStatus: "ownerless_unsupported",
       accessStatus: "inaccessible",
-      isRemediated: false,
+      isSupported: false,
       isAccessible: false,
     },
   );
@@ -80,7 +88,7 @@ test("legacy remediation: ownerless queda bloqueado en acceso privado hasta pers
   );
 });
 
-test("legacy remediation: ownerless sigue bloqueado en flujo sensible mientras no haya owner real", async () => {
+test("legacy ownerless: negocio sin owner sigue bloqueado para recibir pedidos operativos", async () => {
   const handlers = createOrdersRouteHandlers({
     normalizeBusinessSlug: (value) => value.trim().toLowerCase(),
     requireBusinessApiContext: async () => {
@@ -112,144 +120,165 @@ test("legacy remediation: ownerless sigue bloqueado en flujo sensible mientras n
   assert.match(body.error, /blocked until it has a real owner/i);
 });
 
-test("legacy remediation: solicitar remediacion registra ownerless -> requested y deja evidencia operativa", async () => {
-  const handlers = createLegacyBusinessRemediationRequestRouteHandlers({
-    requireAuthenticatedApiUser: async () => ({
-      ok: true,
-      user: {
-        userId: OWNER_ID,
-        email: "owner@example.com",
-        user: { id: OWNER_ID, email: "owner@example.com" },
-      },
-    }),
-    requestLegacyBusinessOwnershipRemediation: async () =>
-      createRemediationRecord(),
-  });
-
-  const response = await handlers.POST(
-    createJsonRequest("http://localhost/api/businesses/legacy-remediation/request", "POST", {
-      businessSlug: "legacy-shop",
-    }),
-  );
-  const body = await response.json();
-
-  assert.equal(response.status, 200);
-  assert.equal(body.remediation.businessSlug, "legacy-shop");
-  assert.equal(body.remediation.remediationStatus, "ownerless_requested");
-  assert.equal(body.remediation.accessStatus, "inaccessible");
-});
-
-test("legacy remediation: claim exitoso persiste ownerless -> owned y devuelve negocio remediado", async () => {
-  const handlers = createLegacyBusinessRemediationClaimRouteHandlers({
-    requireAuthenticatedApiUser: async () => ({
-      ok: true,
-      user: {
-        userId: OWNER_ID,
-        email: "owner@example.com",
-        user: { id: OWNER_ID, email: "owner@example.com" },
-      },
-    }),
-    claimLegacyBusinessOwnershipRemediation: async () => ({
+test("legacy ownerless: storefront sigue bloqueado y no vuelve operativo un negocio sin owner", async () => {
+  const getBusinessBySlugWithProducts = createGetBusinessBySlugWithProducts({
+    getBusinessBySlugFromDatabase: async () => ({
       id: "biz-legacy",
       slug: "legacy-shop",
       name: "Legacy Shop",
-      createdAt: "2026-03-20T14:00:00.000Z",
-      updatedAt: "2026-03-26T15:10:00.000Z",
-      createdByUserId: OWNER_ID,
+      createdAt: "2026-03-25T21:00:00.000Z",
+      updatedAt: "2026-03-25T21:00:00.000Z",
+      createdByUserId: null,
     }),
+    getProductsByBusinessId: async () => [createProductFixture()],
+    mapProductToBusinessProduct(product) {
+      return {
+        id: product.id,
+        name: product.name,
+        description: product.description ?? "",
+        price: product.price,
+        isAvailable: product.is_available,
+        isFeatured: product.is_featured,
+        sortOrder: product.sort_order ?? 0,
+      };
+    },
+    debugLog: () => {},
+  });
+  const page = createStorefrontOrderPage({
+    getBusinessBySlugWithProducts,
+    StorefrontOrderWizard() {
+      return React.createElement("div", { "data-marker": "storefront-wizard" }, "activo");
+    },
   });
 
-  const response = await handlers.POST(
-    createJsonRequest("http://localhost/api/businesses/legacy-remediation/claim", "POST", {
-      businessSlug: "legacy-shop",
-    }),
+  const html = render(
+    await page({ params: Promise.resolve({ businessSlug: "legacy-shop" }) }),
   );
-  const body = await response.json();
 
-  assert.equal(response.status, 200);
-  assert.equal(body.business.slug, "legacy-shop");
-  assert.equal(body.business.createdByUserId, OWNER_ID);
+  assert.match(html, /Negocio no encontrado/);
+  assert.doesNotMatch(html, /storefront-wizard/);
 });
 
-test("legacy remediation: negocio remediado queda accesible para el owner correcto", () => {
-  assert.deepEqual(
-    resolveLegacyBusinessOwnershipState({ ownerUserId: OWNER_ID }),
-    {
-      remediationStatus: "remediated",
-      accessStatus: "accessible",
-      isRemediated: true,
-      isAccessible: true,
-    },
+test("legacy ownerless: la home operativa muestra la estrategia final sin prometer remediacion runtime", () => {
+  const source = fs.readFileSync(
+    path.join(process.cwd(), "components", "home", "operational-home.tsx"),
+    "utf8",
   );
-  assert.equal(
-    getBusinessAccessLevel(
-      {
-        businessId: "biz-legacy",
-        businessSlug: "legacy-shop",
-        ownerUserId: OWNER_ID,
-      },
-      OWNER_ID,
-    ),
-    "owned",
+
+  assert.match(source, /No soportados en runtime del MVP/);
+  assert.match(
+    source,
+    /Permanecen bloqueados fuera del workspace, del storefront publico y de los pedidos\s+operativos/,
   );
+  assert.match(source, /Tecpify ya no ofrece remediacion ni claim dentro del producto/);
+  assert.doesNotMatch(source, /Solicitar remediacion legacy|Reclamar ownership|Habilitar claim controlado/);
 });
 
-test("legacy remediation: negocio remediado no queda accesible para un usuario ajeno", () => {
+test("legacy ownerless: el repo ya no expone panel ni rutas runtime de remediacion", () => {
   assert.equal(
-    getBusinessAccessLevel(
-      {
-        businessId: "biz-legacy",
-        businessSlug: "legacy-shop",
-        ownerUserId: OWNER_ID,
-      },
-      NON_OWNER_ID,
+    fs.existsSync(
+      path.join(process.cwd(), "components", "home", "legacy-business-remediation-panel.tsx"),
     ),
-    null,
+    false,
   );
   assert.equal(
-    canAccessBusiness(NON_OWNER_ID, {
-      businessId: "biz-legacy",
-      businessSlug: "legacy-shop",
-      ownerUserId: OWNER_ID,
-    }),
+    fs.existsSync(
+      path.join(
+        process.cwd(),
+        "app",
+        "api",
+        "businesses",
+        "legacy-remediation",
+        "request",
+        "route.ts",
+      ),
+    ),
+    false,
+  );
+  assert.equal(
+    fs.existsSync(
+      path.join(
+        process.cwd(),
+        "app",
+        "api",
+        "businesses",
+        "legacy-remediation",
+        "claim",
+        "route.ts",
+      ),
+    ),
     false,
   );
 });
 
-test("legacy remediation: la migracion bloquea regresiones que vuelvan a aceptar ownerless como caso operativo", () => {
+test("legacy ownerless: la migracion final elimina la remediacion SQL y bloquea ownerless -> owned", () => {
   const migrationSource = fs.readFileSync(
     path.join(
       process.cwd(),
       "supabase",
       "migrations",
-      "20260326_add_legacy_business_ownership_remediation.sql",
+      "20260326_retire_legacy_business_runtime_remediation.sql",
     ),
     "utf8",
   );
 
   assert.match(
     migrationSource,
-    /insert into public\.legacy_business_ownership_remediations \(business_id, remediation_status\)\s+select businesses\.id, 'ownerless_unassigned'/i,
-    "Los negocios legacy existentes deben quedar inventariados como ownerless_unassigned.",
+    /drop function if exists public\.request_legacy_business_ownership_remediation\(text\)/i,
+    "La estrategia final debe retirar la solicitud runtime de remediacion.",
   );
   assert.match(
     migrationSource,
-    /raise exception 'legacy businesses require a claimable remediation state before assigning created_by_user_id'/i,
-    "La base debe bloquear la asignacion legacy sin estado claimable.",
+    /drop function if exists public\.claim_legacy_business_ownership\(text\)/i,
+    "La estrategia final debe retirar el claim runtime legacy.",
   );
   assert.match(
     migrationSource,
-    /raise exception 'business owner reassignment is not supported for the MVP'/i,
-    "La base debe bloquear reasignaciones silenciosas de ownership.",
+    /drop table if exists public\.legacy_business_ownership_remediations cascade/i,
+    "La estrategia final no debe dejar la remediacion solo en SQL.",
   );
   assert.match(
     migrationSource,
-    /update public\.businesses\s+set created_by_user_id = auth\.uid\(\)/i,
-    "El claim debe persistir el owner real directamente en businesses.created_by_user_id.",
+    /legacy businesses without owner are unsupported in the MVP and cannot be claimed or reassigned in runtime/i,
+    "La base debe bloquear definitivamente ownerless -> owned dentro del MVP.",
   );
   assert.match(
     migrationSource,
-    /revoke all on function public\.grant_legacy_business_owner_claim\(text, text\)\s+from public, anon, authenticated;/i,
-    "La habilitacion controlada del claim no debe quedar expuesta al runtime autenticado normal.",
+    /create trigger businesses_block_unsupported_legacy_owner_assignment/i,
+    "La base debe cablear el veto definitivo de ownerless -> owned.",
+  );
+});
+
+test("legacy ownerless: negocio con owner real sigue accesible para owner correcto y bloqueado para usuario ajeno", () => {
+  assert.deepEqual(
+    resolveLegacyBusinessOwnershipState({ ownerUserId: OWNER_ID }),
+    {
+      runtimeStatus: "owned",
+      accessStatus: "accessible",
+      isSupported: true,
+      isAccessible: true,
+    },
+  );
+  assert.equal(
+    getBusinessAccessLevel(
+      {
+        businessId: "biz-owned",
+        businessSlug: "mi-tienda",
+        ownerUserId: OWNER_ID,
+      },
+      OWNER_ID,
+    ),
+    "owned",
+  );
+  assert.equal(
+    getBusinessAccessLevel(
+      {
+        businessId: "biz-owned",
+        businessSlug: "mi-tienda",
+        ownerUserId: OWNER_ID,
+      },
+      NON_OWNER_ID,
+    ),
+    null,
   );
 });

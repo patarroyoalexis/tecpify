@@ -1,22 +1,19 @@
-import type {
-  BusinessOperationalAccessStatus,
-  LegacyBusinessRemediationStatus,
-} from "@/types/businesses";
-
 export interface LegacyBusinessOwnershipStateInput {
   ownerUserId: string | null;
-  remediationStatus?: Exclude<LegacyBusinessRemediationStatus, "remediated"> | null;
 }
 
+export type LegacyBusinessRuntimeStatus = "owned" | "ownerless_unsupported";
+export type BusinessOperationalAccessStatus = "accessible" | "inaccessible";
+
 export interface LegacyBusinessOwnershipState {
-  remediationStatus: LegacyBusinessRemediationStatus;
+  runtimeStatus: LegacyBusinessRuntimeStatus;
   accessStatus: BusinessOperationalAccessStatus;
-  isRemediated: boolean;
+  isSupported: boolean;
   isAccessible: boolean;
 }
 
 export const LEGACY_BUSINESS_OWNERSHIP_STRATEGY = {
-  mode: "audited_claim_before_access",
+  mode: "unsupported_ownerless_blocked",
 } as const;
 
 export function hasLegacyBusinessOwner(ownerUserId: string | null): ownerUserId is string {
@@ -28,26 +25,21 @@ export function resolveLegacyBusinessOwnershipState(
 ): LegacyBusinessOwnershipState {
   if (hasLegacyBusinessOwner(input.ownerUserId)) {
     return {
-      remediationStatus: "remediated",
+      runtimeStatus: "owned",
       accessStatus: "accessible",
-      isRemediated: true,
+      isSupported: true,
       isAccessible: true,
     };
   }
 
-  const remediationStatus = input.remediationStatus ?? "ownerless_unassigned";
-
   return {
-    remediationStatus,
+    runtimeStatus: "ownerless_unsupported",
     accessStatus: "inaccessible",
-    isRemediated: false,
+    isSupported: false,
     isAccessible: false,
   };
 }
 
-export function isLegacyBusinessBlocked(
-  ownerUserId: string | null,
-  remediationStatus?: Exclude<LegacyBusinessRemediationStatus, "remediated"> | null,
-) {
-  return !resolveLegacyBusinessOwnershipState({ ownerUserId, remediationStatus }).isAccessible;
+export function isLegacyBusinessBlocked(ownerUserId: string | null) {
+  return !resolveLegacyBusinessOwnershipState({ ownerUserId }).isAccessible;
 }

@@ -71,8 +71,18 @@ test("db guardrails: Supabase rechaza updates directos incoherentes y contra ent
 test("db guardrails: las policies de orders obligan el blindaje de pago en insert y update", () => {
   assert.match(
     migrationSource,
-    /create policy "public can create orders"[\s\S]*orders_payment_write_is_valid/i,
-    "La policy de insert debe exigir la validacion de pago en DB.",
+    /create or replace function public\.orders_insert_request_is_valid\(/i,
+    "La base debe exponer una validacion reutilizable para el request base del insert.",
+  );
+  assert.match(
+    migrationSource,
+    /create policy "public can create orders"[\s\S]*to anon[\s\S]*orders_insert_request_is_valid/i,
+    "La policy publica de insert debe quedar acotada a anon y validar solo el request base antes del trigger autoritativo.",
+  );
+  assert.match(
+    migrationSource,
+    /create policy "authenticated can insert owned orders"[\s\S]*created_by_user_id = auth\.uid\(\)[\s\S]*orders_insert_request_is_valid/i,
+    "El insert autenticado debe respetar ownership real y el request base validado en DB.",
   );
   assert.match(
     migrationSource,

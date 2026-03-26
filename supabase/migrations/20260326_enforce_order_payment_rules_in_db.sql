@@ -57,6 +57,23 @@ as $$
   select candidate_payment_method in ('Efectivo', 'Contra entrega');
 $$;
 
+create or replace function public.orders_insert_request_is_valid(
+  candidate_delivery_type text,
+  candidate_payment_method text
+)
+returns boolean
+language sql
+immutable
+as $$
+  select
+    public.orders_delivery_type_is_valid(candidate_delivery_type)
+    and public.orders_payment_method_is_valid(candidate_payment_method)
+    and (
+      candidate_payment_method <> 'Contra entrega'
+      or candidate_delivery_type = 'domicilio'
+    );
+$$;
+
 create or replace function public.orders_payment_write_is_valid(
   candidate_delivery_type text,
   candidate_payment_method text,
@@ -314,6 +331,7 @@ drop policy if exists "public can create orders" on public.orders;
 create policy "public can create orders"
   on public.orders
   for insert
+  to anon
   with check (
     exists (
       select 1
@@ -321,11 +339,27 @@ create policy "public can create orders"
       where businesses.id = orders.business_id
         and businesses.created_by_user_id is not null
     )
-    and public.orders_payment_write_is_valid(
+    and public.orders_insert_request_is_valid(
       orders.delivery_type,
-      orders.payment_method,
-      orders.payment_status,
-      orders.status
+      orders.payment_method
+    )
+  );
+
+drop policy if exists "authenticated can insert owned orders" on public.orders;
+create policy "authenticated can insert owned orders"
+  on public.orders
+  for insert
+  to authenticated
+  with check (
+    exists (
+      select 1
+      from public.businesses
+      where businesses.id = orders.business_id
+        and businesses.created_by_user_id = auth.uid()
+    )
+    and public.orders_insert_request_is_valid(
+      orders.delivery_type,
+      orders.payment_method
     )
   );
 

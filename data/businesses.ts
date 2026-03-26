@@ -1,7 +1,6 @@
 import { debugError, debugLog } from "@/lib/debug";
 import { hasVerifiedBusinessOwner } from "@/lib/auth/business-access";
 import { normalizeBusinessSlug } from "@/lib/businesses/slug";
-import { listCurrentUserLegacyBusinessOwnershipRemediations } from "@/lib/data/business-ownership-remediation";
 import {
   createServerSupabaseAuthClient,
   createServerSupabasePublicClient,
@@ -9,7 +8,6 @@ import {
 import { DELIVERY_TYPES, PAYMENT_METHODS } from "@/types/orders";
 import type {
   BusinessRecord,
-  LegacyBusinessOwnershipRemediationRecord,
 } from "@/types/businesses";
 import type { BusinessConfig } from "@/types/storefront";
 
@@ -33,7 +31,7 @@ type AuthenticatedSupabaseBusinessRow = {
 
 export interface HomeBusinessesSnapshot {
   realBusinesses: BusinessConfig[];
-  legacyOwnershipRemediations: LegacyBusinessOwnershipRemediationRecord[];
+  unsupportedLegacyBusinessesCount: number;
 }
 
 export type BusinessProductsLookupResult =
@@ -176,11 +174,25 @@ async function getBusinessesFromDatabase() {
   return ((data ?? []) as AuthenticatedSupabaseBusinessRow[]).map(mapSupabaseBusinessRow);
 }
 
+async function countUnsupportedLegacyBusinesses() {
+  const supabase = await createServerSupabaseAuthClient();
+  const { count, error } = await supabase
+    .from("businesses")
+    .select("id", { count: "exact", head: true })
+    .is("created_by_user_id", null);
+
+  if (error) {
+    throw new Error(`Supabase businesses count failed: ${error.message}`);
+  }
+
+  return count ?? 0;
+}
+
 export async function getHomeBusinesses(
   operatorUserId?: string | null,
 ): Promise<HomeBusinessesSnapshot> {
   let databaseBusinesses: BusinessRecord[] = [];
-  let legacyOwnershipRemediations: LegacyBusinessOwnershipRemediationRecord[] = [];
+  let unsupportedLegacyBusinessesCount = 0;
 
   try {
     databaseBusinesses = await getBusinessesFromDatabase();
@@ -191,11 +203,11 @@ export async function getHomeBusinesses(
   }
 
   try {
-    legacyOwnershipRemediations = operatorUserId
-      ? await listCurrentUserLegacyBusinessOwnershipRemediations()
-      : [];
+    unsupportedLegacyBusinessesCount = operatorUserId
+      ? await countUnsupportedLegacyBusinesses()
+      : 0;
   } catch (error) {
-    debugError("[businesses] Failed to load legacy ownership remediations for home", {
+    debugError("[businesses] Failed to count unsupported legacy businesses for home", {
       message: error instanceof Error ? error.message : "unknown",
     });
   }
@@ -208,7 +220,7 @@ export async function getHomeBusinesses(
 
   return {
     realBusinesses: accessibleBusinesses.map(mapDatabaseBusinessToConfig),
-    legacyOwnershipRemediations,
+    unsupportedLegacyBusinessesCount,
   };
 }
 
