@@ -66,7 +66,7 @@ Las deudas mas visibles hoy no son de feature count sino de consistencia y mante
 - `NEXT_PUBLIC_SUPABASE_URL`: obligatoria.
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`: obligatoria.
 - `NEXT_PUBLIC_SITE_URL`: obligatoria en produccion, con fallback local en desarrollo.
-- `SUPABASE_SERVICE_ROLE_KEY`: opcional y sin uso operativo activo en el runtime normal del MVP.
+- `SUPABASE_SERVICE_ROLE_KEY`: opcional y aislada del runtime normal; solo puede leerse desde `lib/supabase/internal/service-role-client.ts`.
 
 Arranque local minimo: define esas variables, ejecuta `npm install` y luego `npm run dev`.
 
@@ -93,8 +93,8 @@ Arranque local minimo: define esas variables, ejecuta `npm install` y luego `npm
 - Los negocios legacy sin owner solo salen de `ownerless_*` mediante remediacion auditable y siguen inaccesibles hasta persistir `businesses.created_by_user_id`.
 - La creacion de pedidos solo toma datos editables; cualquier `status`, `paymentStatus`, `history` o metadato derivable enviado por cliente se ignora y el servidor deriva estado e historial segun el medio de pago y el origen, dejando `history` append-only bajo control server-side.
 - `lib/supabase/server.ts` solo expone clientes `public` y `auth`.
-- `SUPABASE_SERVICE_ROLE_KEY` no participa en el runtime normal del MVP.
-- Toda lectura de `process.env` debe vivir en `lib/env.ts`.
+- `SUPABASE_SERVICE_ROLE_KEY` no participa ni se transporta en el runtime normal del MVP; solo existe en el helper interno privilegiado.
+- Toda lectura de `process.env` debe vivir en `lib/env.ts`, salvo `SUPABASE_SERVICE_ROLE_KEY` aislada dentro de `lib/supabase/internal/service-role-client.ts`.
 
 ## 12. Cierre breve sobre la vision del MVP
 

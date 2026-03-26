@@ -19,6 +19,7 @@ Si aparece un uso nuevo de service role sin esa excepcion, el guardian debe:
 
 Guardrail tecnico actual:
 - `lib/supabase/server.ts` es solo para clientes `anon/public` y `auth`
+- `lib/env.ts` no puede leer, tipar ni transportar `SUPABASE_SERVICE_ROLE_KEY`
 - cualquier helper privilegiado debe vivir aislado en `lib/supabase/internal/service-role-client.ts`
 - `tests/service-role-guardrails.test.cjs` debe fallar si una ruta operativa vuelve a importar service role o si `SUPABASE_SERVICE_ROLE_KEY` aparece fuera del inventario permitido
 
@@ -72,7 +73,7 @@ deben ser congruentes entre si.
 El guardian debe verificar que:
 - no exista una variable usada en `lib/env.ts` que no este documentada
 - no exista una variable documentada que ya no se use realmente
-- no haya lecturas directas de `process.env` fuera de `lib/env.ts`
+- no haya lecturas directas de `process.env` fuera de `lib/env.ts`, salvo la excepcion privilegiada de `SUPABASE_SERVICE_ROLE_KEY` en `lib/supabase/internal/service-role-client.ts`
 
 Si hay contradiccion entre documentacion y codigo:
 - gana el codigo real
@@ -91,8 +92,8 @@ Frontera canonica actual de variables del repo:
   - obligatoria en produccion y con fallback local en desarrollo
   - debe existir en `AGENTS.md`, `README.md`, `.env.example` y `lib/env.ts`
 - `SUPABASE_SERVICE_ROLE_KEY`
-  - opcional y sin uso operativo activo en runtime normal del MVP
-  - debe existir en `AGENTS.md`, `README.md`, `.env.example` y `lib/env.ts`
+  - opcional, aislada del runtime normal y sin transporte por `lib/env.ts`
+  - debe existir en `AGENTS.md`, `README.md`, `.env.example` y `lib/supabase/internal/service-role-client.ts`
 
 Excepcion temporal y justificada:
 
@@ -103,7 +104,7 @@ Excepcion temporal y justificada:
 
 El guardian debe bloquear cierre si:
 - falta cualquiera de las cuatro variables canonicas en una de las fronteras documentales
-- sobra una variable documentada que ya no vive en `lib/env.ts`
+- sobra una variable documentada que ya no vive en `lib/env.ts` ni en `lib/supabase/internal/service-role-client.ts`
 - aparece una lectura directa nueva de `process.env` fuera de `lib/env.ts` sin excepcion temporal, acotada y justificada en test o documentacion
 - se intenta aprobar una brecha de entorno o seguridad critica solo con evidencia manual
 
@@ -115,6 +116,7 @@ Contrato verificable actual:
 - El server debe resolver ownership desde sesion/contexto confiable y no confiar en `owner_id`, `created_by_user_id` ni `business_id` enviados por cliente para autorizar o mutar recursos.
 - Los negocios legacy sin owner solo salen de `ownerless_*` mediante remediacion auditable y siguen inaccesibles hasta persistir `businesses.created_by_user_id`.
 - La creacion de pedidos debe tomar solo datos editables; cualquier `status`, `paymentStatus`, `history` o metadato derivable enviado por cliente se ignora y el server deriva estado e historial segun medio de pago y origen, dejando `history` append-only bajo control server-side.
+- `SUPABASE_SERVICE_ROLE_KEY` no participa ni se transporta en el runtime normal; solo puede leerse desde `lib/supabase/internal/service-role-client.ts`.
 - `README.md` y `AGENTS.md` deben describir solo flujos realmente activos en el repo.
 
 ### 3. Validacion tecnica minima

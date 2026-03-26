@@ -37,24 +37,19 @@ function assertValidHttpUrl(name: string, value: string) {
   }
 }
 
-export interface PublicEnv {
+export interface OperationalEnv {
   nextPublicSupabaseUrl: string;
   nextPublicSupabaseAnonKey: string;
 }
 
-export interface ServerEnv extends PublicEnv {
-  supabaseServiceRoleKey?: string;
-}
+let cachedOperationalEnv: OperationalEnv | null = null;
 
-let cachedPublicEnv: PublicEnv | null = null;
-let cachedServerEnv: ServerEnv | null = null;
-
-export function getPublicEnv(): PublicEnv {
-  if (cachedPublicEnv) {
-    return cachedPublicEnv;
+export function getOperationalEnv(): OperationalEnv {
+  if (cachedOperationalEnv) {
+    return cachedOperationalEnv;
   }
 
-  cachedPublicEnv = {
+  cachedOperationalEnv = {
     nextPublicSupabaseUrl: readRequiredEnv(
       "NEXT_PUBLIC_SUPABASE_URL",
       process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -65,23 +60,7 @@ export function getPublicEnv(): PublicEnv {
     ),
   };
 
-  return cachedPublicEnv;
-}
-
-export function getServerEnv(): ServerEnv {
-  if (cachedServerEnv) {
-    return cachedServerEnv;
-  }
-
-  const publicEnv = getPublicEnv();
-  const supabaseServiceRoleKey = normalizeEnvValue(process.env.SUPABASE_SERVICE_ROLE_KEY);
-
-  cachedServerEnv = {
-    ...publicEnv,
-    ...(supabaseServiceRoleKey ? { supabaseServiceRoleKey } : {}),
-  };
-
-  return cachedServerEnv;
+  return cachedOperationalEnv;
 }
 
 export function getSiteUrlEnv() {

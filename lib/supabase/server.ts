@@ -2,12 +2,12 @@ import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
 
-import { getServerEnv } from "@/lib/env";
+import { getOperationalEnv } from "@/lib/env";
 
-const serverEnv = getServerEnv();
+const operationalEnv = getOperationalEnv();
 
 function createStatelessSupabaseClient(accessToken: string) {
-  return createClient(serverEnv.nextPublicSupabaseUrl, accessToken, {
+  return createClient(operationalEnv.nextPublicSupabaseUrl, accessToken, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,
@@ -19,8 +19,8 @@ export async function createServerSupabaseAuthClient() {
   const cookieStore = await cookies();
 
   return createServerClient(
-    serverEnv.nextPublicSupabaseUrl,
-    serverEnv.nextPublicSupabaseAnonKey,
+    operationalEnv.nextPublicSupabaseUrl,
+    operationalEnv.nextPublicSupabaseAnonKey,
     {
       cookies: {
         getAll() {
@@ -41,7 +41,7 @@ export async function createServerSupabaseAuthClient() {
 }
 
 export function createServerSupabasePublicClient() {
-  return createStatelessSupabaseClient(serverEnv.nextPublicSupabaseAnonKey);
+  return createStatelessSupabaseClient(operationalEnv.nextPublicSupabaseAnonKey);
 }
 
 export function getSupabaseServerAuthMode(mode: "auth" | "public" = "auth") {

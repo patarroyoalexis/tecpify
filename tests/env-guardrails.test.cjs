@@ -3,9 +3,17 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
+const { loadTsModule } = require("./helpers/test-runtime.cjs");
 
 const repoRoot = process.cwd();
 const envModulePath = path.join(repoRoot, "lib", "env.ts");
+const privilegedEnvModulePath = path.join(
+  repoRoot,
+  "lib",
+  "supabase",
+  "internal",
+  "service-role-client.ts",
+);
 
 const DOC_PREFIX_PATTERN = /\b(?:NEXT_PUBLIC|SUPABASE)_[A-Z0-9_]+\b/g;
 const PROCESS_ENV_PATTERN = /process\.env\.([A-Z0-9_]+)/g;
@@ -21,6 +29,10 @@ const PROCESS_ENV_READ_EXCEPTIONS = new Map([
   [
     normalizeRelativePath(path.join("tests", "helpers", "test-runtime.cjs")),
     "Bootstrap de pruebas que inyecta entorno controlado para cargar modulos TypeScript en Node test.",
+  ],
+  [
+    normalizeRelativePath(path.join("lib", "supabase", "internal", "service-role-client.ts")),
+    "Borde privilegiado aislado: es el unico helper autorizado para leer SUPABASE_SERVICE_ROLE_KEY fuera de lib/env.ts.",
   ],
   [
     normalizeRelativePath(path.join("tests", "service-role-guardrails.test.cjs")),
@@ -44,7 +56,7 @@ function formatSet(values) {
   return [...values].sort().join(", ");
 }
 
-function getCanonicalEnvUsage() {
+function getOperationalEnvUsage() {
   const envSource = fs.readFileSync(envModulePath, "utf8");
   const usedNames = extractEnvNames(envSource, PROCESS_ENV_PATTERN);
   const canonicalNames = new Set(
@@ -54,6 +66,15 @@ function getCanonicalEnvUsage() {
   return {
     usedNames,
     canonicalNames,
+  };
+}
+
+function getPrivilegedEnvUsage() {
+  const privilegedEnvSource = fs.readFileSync(privilegedEnvModulePath, "utf8");
+  const privilegedNames = extractEnvNames(privilegedEnvSource, PROCESS_ENV_PATTERN);
+
+  return {
+    privilegedNames,
   };
 }
 
@@ -83,8 +104,10 @@ function getAllRepoFiles(rootDirectory) {
   return files;
 }
 
-test("entorno: AGENTS, README y .env.example se mantienen congruentes con lib/env.ts", () => {
-  const { canonicalNames } = getCanonicalEnvUsage();
+test("entorno: AGENTS, README y .env.example se mantienen congruentes con env operativo y borde privilegiado", () => {
+  const { canonicalNames } = getOperationalEnvUsage();
+  const { privilegedNames } = getPrivilegedEnvUsage();
+  const documentedEnvNames = new Set([...canonicalNames, ...privilegedNames]);
   const documentedInAgents = getDocumentedEnvNames("AGENTS.md");
   const documentedInReadme = getDocumentedEnvNames("README.md");
   const documentedInEnvExample = getDocumentedEnvNames(".env.example");
@@ -95,23 +118,45 @@ test("entorno: AGENTS, README y .env.example se mantienen congruentes con lib/en
     [".env.example", documentedInEnvExample],
   ]) {
     const missingInDocument = new Set(
-      [...canonicalNames].filter((name) => !documentedNames.has(name)),
+      [...documentedEnvNames].filter((name) => !documentedNames.has(name)),
     );
     const unusedInDocument = new Set(
-      [...documentedNames].filter((name) => !canonicalNames.has(name)),
+      [...documentedNames].filter((name) => !documentedEnvNames.has(name)),
     );
 
     assert.equal(
       missingInDocument.size,
       0,
-      `${label} no documenta variables usadas en lib/env.ts: ${formatSet(missingInDocument)}`,
+      `${label} no documenta variables usadas en el runtime operativo o el borde privilegiado: ${formatSet(missingInDocument)}`,
     );
     assert.equal(
       unusedInDocument.size,
       0,
-      `${label} documenta variables que no se usan en lib/env.ts: ${formatSet(unusedInDocument)}`,
+      `${label} documenta variables que no se usan en el runtime operativo o el borde privilegiado: ${formatSet(unusedInDocument)}`,
     );
   }
+});
+
+test("entorno: el env operativo no contiene service role ni getter compartido", () => {
+  const envSource = fs.readFileSync(envModulePath, "utf8");
+  const envModule = loadTsModule("lib/env.ts");
+  const operationalEnv = envModule.getOperationalEnv();
+
+  assert.doesNotMatch(
+    envSource,
+    /\bSUPABASE_SERVICE_ROLE_KEY\b|\bsupabaseServiceRoleKey\b|\bgetServerEnv\b|\bServerEnv\b/,
+    "lib/env.ts no debe leer, tipar ni exportar la service role en el runtime operativo.",
+  );
+  assert.equal(
+    "supabaseServiceRoleKey" in operationalEnv,
+    false,
+    "El getter operativo no debe exponer supabaseServiceRoleKey.",
+  );
+  assert.equal(
+    "getServerEnv" in envModule,
+    false,
+    "No debe existir un getter compartido que remezcle el env privilegiado con el runtime normal.",
+  );
 });
 
 test("entorno: no hay lecturas directas de process.env fuera de lib/env.ts salvo excepciones justificadas", () => {

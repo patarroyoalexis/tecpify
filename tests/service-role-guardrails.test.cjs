@@ -8,6 +8,7 @@ const { loadTsModule } = require("./helpers/test-runtime.cjs");
 
 const repoRoot = process.cwd();
 const SERVICE_ROLE_ENV_PATTERN = /\bSUPABASE_SERVICE_ROLE_KEY\b/g;
+const SERVICE_ROLE_RUNTIME_SYMBOL_PATTERN = /\bsupabaseServiceRoleKey\b/g;
 const SERVICE_ROLE_IMPORT_PATTERNS = [
   /@\/lib\/supabase\/service-role/g,
   /@\/lib\/supabase\/internal\/service-role-client/g,
@@ -15,6 +16,8 @@ const SERVICE_ROLE_IMPORT_PATTERNS = [
   /\bcreateServerSupabaseAdminClient\b/g,
 ];
 const OPERATIONAL_MODULES_TO_LOAD = [
+  "lib/env.ts",
+  "lib/supabase/client.ts",
   "lib/supabase/server.ts",
   "data/businesses.ts",
   "lib/data/products.ts",
@@ -30,12 +33,12 @@ const OPERATIONAL_MODULES_TO_LOAD = [
   "app/api/orders/route.ts",
   "app/api/orders/private/route.ts",
   "app/api/orders/[orderId]/route.ts",
+  "middleware.ts",
 ];
 const ALLOWED_SERVICE_ROLE_ENV_REFERENCES = new Set([
   ".env.example",
   "AGENTS.md",
   "README.md",
-  "lib/env.ts",
   "lib/supabase/service-role.ts",
   "lib/supabase/internal/service-role-client.ts",
   "tests/documentation-guardrails.test.cjs",
@@ -45,6 +48,10 @@ const ALLOWED_SERVICE_ROLE_ENV_REFERENCES = new Set([
 const SERVICE_ROLE_MODULE_FILES = new Set([
   "lib/supabase/service-role.ts",
   "lib/supabase/internal/service-role-client.ts",
+  "tests/service-role-guardrails.test.cjs",
+]);
+const ALLOWED_SERVICE_ROLE_RUNTIME_SYMBOL_REFERENCES = new Set([
+  "tests/env-guardrails.test.cjs",
   "tests/service-role-guardrails.test.cjs",
 ]);
 
@@ -116,6 +123,30 @@ test("service role: SUPABASE_SERVICE_ROLE_KEY solo aparece en archivos permitido
     offendingFiles,
     [],
     `SUPABASE_SERVICE_ROLE_KEY aparecio fuera del inventario permitido: ${offendingFiles.join(", ")}`,
+  );
+});
+
+test("service role: supabaseServiceRoleKey no reaparece fuera de los guardrails", () => {
+  const offendingFiles = [];
+
+  for (const absolutePath of getAllRepoFiles(repoRoot)) {
+    const relativePath = normalizeRelativePath(path.relative(repoRoot, absolutePath));
+    const source = fs.readFileSync(absolutePath, "utf8");
+    SERVICE_ROLE_RUNTIME_SYMBOL_PATTERN.lastIndex = 0;
+
+    if (!SERVICE_ROLE_RUNTIME_SYMBOL_PATTERN.test(source)) {
+      continue;
+    }
+
+    if (!ALLOWED_SERVICE_ROLE_RUNTIME_SYMBOL_REFERENCES.has(relativePath)) {
+      offendingFiles.push(relativePath);
+    }
+  }
+
+  assert.deepEqual(
+    offendingFiles,
+    [],
+    `supabaseServiceRoleKey reaparecio fuera de los guardrails permitidos: ${offendingFiles.join(", ")}`,
   );
 });
 

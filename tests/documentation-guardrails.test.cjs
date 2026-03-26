@@ -17,8 +17,8 @@ const README_CONTRACT_ITEMS = [
   "Los negocios legacy sin owner solo salen de `ownerless_*` mediante remediacion auditable y siguen inaccesibles hasta persistir `businesses.created_by_user_id`.",
   "La creacion de pedidos solo toma datos editables; cualquier `status`, `paymentStatus`, `history` o metadato derivable enviado por cliente se ignora y el servidor deriva estado e historial segun el medio de pago y el origen, dejando `history` append-only bajo control server-side.",
   "`lib/supabase/server.ts` solo expone clientes `public` y `auth`.",
-  "`SUPABASE_SERVICE_ROLE_KEY` no participa en el runtime normal del MVP.",
-  "Toda lectura de `process.env` debe vivir en `lib/env.ts`.",
+  "`SUPABASE_SERVICE_ROLE_KEY` no participa ni se transporta en el runtime normal del MVP; solo existe en el helper interno privilegiado.",
+  "Toda lectura de `process.env` debe vivir en `lib/env.ts`, salvo `SUPABASE_SERVICE_ROLE_KEY` aislada dentro de `lib/supabase/internal/service-role-client.ts`.",
 ];
 
 const AGENTS_CONTRACT_ITEMS = [
@@ -27,6 +27,7 @@ const AGENTS_CONTRACT_ITEMS = [
   "El server debe resolver ownership desde sesion/contexto confiable y no confiar en `owner_id`, `created_by_user_id` ni `business_id` enviados por cliente para autorizar o mutar recursos.",
   "Los negocios legacy sin owner solo salen de `ownerless_*` mediante remediacion auditable y siguen inaccesibles hasta persistir `businesses.created_by_user_id`.",
   "La creacion de pedidos debe tomar solo datos editables; cualquier `status`, `paymentStatus`, `history` o metadato derivable enviado por cliente se ignora y el server deriva estado e historial segun medio de pago y origen, dejando `history` append-only bajo control server-side.",
+  "`SUPABASE_SERVICE_ROLE_KEY` no participa ni se transporta en el runtime normal; solo puede leerse desde `lib/supabase/internal/service-role-client.ts`.",
   "`README.md` y `AGENTS.md` deben describir solo flujos realmente activos en el repo.",
 ];
 
@@ -116,7 +117,10 @@ test("documentacion: las afirmaciones contractuales siguen alineadas con el codi
   const legacyRemediationClaimApiSource = readFile(
     "app/api/businesses/legacy-remediation/claim/route.ts",
   );
+  const envSource = readFile("lib/env.ts");
   const supabaseServerSource = readFile("lib/supabase/server.ts");
+  const supabaseClientSource = readFile("lib/supabase/client.ts");
+  const serviceRoleClientSource = readFile("lib/supabase/internal/service-role-client.ts");
   const businessesDataSource = readFile("data/businesses.ts");
   const legacyRemediationDataSource = readFile("lib/data/business-ownership-remediation.ts");
   const productsDataSource = readFile("lib/data/products.ts");
@@ -215,8 +219,33 @@ test("documentacion: las afirmaciones contractuales siguen alineadas con el codi
   );
   assert.match(
     supabaseServerSource,
+    /getOperationalEnv/,
+    "lib/supabase/server.ts debe depender solo del env operativo compartido.",
+  );
+  assert.match(
+    supabaseClientSource,
+    /getOperationalEnv/,
+    "lib/supabase/client.ts debe depender solo del env operativo compartido.",
+  );
+  assert.match(
+    supabaseServerSource,
     /isUsingServiceRole:\s*false/,
     "lib/supabase/server.ts no debe declarar uso de service role en flujo normal.",
+  );
+  assert.doesNotMatch(
+    envSource,
+    /\bSUPABASE_SERVICE_ROLE_KEY\b|\bsupabaseServiceRoleKey\b|\bgetServerEnv\b|\bServerEnv\b/,
+    "lib/env.ts no debe mezclar el borde privilegiado con el env operativo.",
+  );
+  assert.match(
+    serviceRoleClientSource,
+    /process\.env\.SUPABASE_SERVICE_ROLE_KEY/,
+    "El helper privilegiado debe ser el unico que lea la service role desde process.env.",
+  );
+  assert.match(
+    serviceRoleClientSource,
+    /getOperationalEnv/,
+    "El helper privilegiado debe reutilizar solo la parte operativa compartida del env.",
   );
   assert.match(
     businessesDataSource,
