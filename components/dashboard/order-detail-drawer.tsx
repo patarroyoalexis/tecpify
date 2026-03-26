@@ -620,11 +620,13 @@ export function OrderDetailDrawer({
     try {
       resolveAuthoritativeOrderStatePatch(
         {
+          deliveryType: currentOrder.deliveryType,
           paymentMethod: currentOrder.paymentMethod,
           paymentStatus: currentOrder.paymentStatus,
           status: currentOrder.status,
         },
         {
+          deliveryType: currentEditForm.deliveryType,
           paymentMethod: effectivePaymentMethod,
           paymentStatus: currentEditForm.paymentStatus,
           status: currentEditForm.status,

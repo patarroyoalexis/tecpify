@@ -22,6 +22,7 @@ import { debugError, debugLog } from "@/lib/debug";
 import { hasVerifiedBusinessOwner } from "@/lib/auth/business-access";
 import {
   ORDER_UPDATE_CLIENT_EDITABLE_FIELDS,
+  getOrderPaymentMethodDeliveryTypeError,
   resolveAuthoritativeOrderStatePatch,
 } from "@/lib/orders/state-rules";
 import {
@@ -402,6 +403,15 @@ export async function createOrderInDatabase(
     );
   }
 
+  const paymentMethodDeliveryTypeError = getOrderPaymentMethodDeliveryTypeError(
+    payload.deliveryType,
+    payload.paymentMethod,
+  );
+
+  if (paymentMethodDeliveryTypeError) {
+    throw new Error(`Invalid order payload. ${paymentMethodDeliveryTypeError}`);
+  }
+
   const orderOrigin = options?.origin ?? "public_form";
   const orderCreationMode = resolveOrderPersistenceMode(orderOrigin);
   let businessId = options?.businessId;
@@ -424,6 +434,7 @@ export async function createOrderInDatabase(
     orderId,
     businessSlug: payload.businessSlug,
     createdAt: now,
+    deliveryType: payload.deliveryType,
     paymentMethod: payload.paymentMethod,
     origin: orderOrigin,
   });
@@ -650,11 +661,13 @@ export async function updateOrderInDatabase(
 
   const resolvedStatePatch = resolveAuthoritativeOrderStatePatch(
     {
+      deliveryType: existingOrder.delivery_type,
       paymentMethod: existingOrder.payment_method,
       paymentStatus: existingOrder.payment_status,
       status: existingOrder.status,
     },
     {
+      deliveryType: normalizedPayload.deliveryType,
       paymentMethod: normalizedPayload.paymentMethod,
       paymentStatus: normalizedPayload.paymentStatus,
       status: normalizedPayload.status,

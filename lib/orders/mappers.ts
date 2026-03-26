@@ -18,7 +18,10 @@ import {
   type OrderOrigin,
   type OrderUpdateEventIntent,
 } from "@/lib/orders/history-rules";
-import { deriveInitialOrderStateFromPaymentMethod } from "@/lib/orders/state-rules";
+import {
+  deriveInitialOrderStateFromPaymentMethod,
+  getOrderPaymentMethodDeliveryTypeError,
+} from "@/lib/orders/state-rules";
 
 export type SupabaseOrderRow = Record<string, unknown>;
 
@@ -219,9 +222,19 @@ export function buildInitialOrderServerState(options: {
   orderId: string;
   businessSlug: string;
   createdAt: string;
+  deliveryType: DeliveryType;
   paymentMethod: PaymentMethod;
   origin: OrderOrigin;
 }) {
+  const paymentMethodDeliveryTypeError = getOrderPaymentMethodDeliveryTypeError(
+    options.deliveryType,
+    options.paymentMethod,
+  );
+
+  if (paymentMethodDeliveryTypeError) {
+    throw new Error(paymentMethodDeliveryTypeError);
+  }
+
   const initialState = deriveInitialOrderStateFromPaymentMethod(options.paymentMethod);
 
   return {

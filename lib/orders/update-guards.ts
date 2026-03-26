@@ -1,8 +1,14 @@
 import type { OrderApiUpdatePayload } from "@/lib/orders/mappers";
-import type { OrderStatus, PaymentMethod, PaymentStatus } from "@/types/orders";
+import type {
+  DeliveryType,
+  OrderStatus,
+  PaymentMethod,
+  PaymentStatus,
+} from "@/types/orders";
 import { getOrderStateUpdateError } from "@/lib/orders/state-rules";
 
 interface OrderTransitionSnapshot {
+  deliveryType?: DeliveryType;
   status: OrderStatus;
   paymentStatus: PaymentStatus;
   paymentMethod?: PaymentMethod;
@@ -21,12 +27,14 @@ export function getOrderUpdateTransitionError(
 ) {
   return getOrderStateUpdateError(
     {
+      deliveryType: order.deliveryType ?? "domicilio",
       paymentMethod: order.paymentMethod ?? "Nequi",
       paymentStatus: order.paymentStatus,
       status: order.status,
     },
     {
-      paymentMethod: order.paymentMethod,
+      deliveryType: payload.deliveryType,
+      paymentMethod: payload.paymentMethod,
       paymentStatus: readNextPaymentStatus(order, payload),
       status: payload.status,
     },

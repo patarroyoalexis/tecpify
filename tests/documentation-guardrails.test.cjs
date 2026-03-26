@@ -16,7 +16,7 @@ const README_CONTRACT_ITEMS = [
   "`businessId` significa UUID de base de datos y `businessSlug` significa slug de URL; rutas, params y helpers deben respetar esa frontera.",
   "El canon server/API resuelve ownership desde sesion/contexto confiable; no acepta `owner_id`, `created_by_user_id` ni `business_id` del cliente como autoridad.",
   "Los negocios legacy sin owner solo salen de `ownerless_*` mediante remediacion auditable y siguen inaccesibles hasta persistir `businesses.created_by_user_id`.",
-  "La creacion de pedidos solo toma datos editables; cualquier `status`, `paymentStatus`, `history` o metadato derivable enviado por cliente se ignora y el servidor deriva estado e historial segun el medio de pago y el origen, dejando `history` append-only bajo control server-side.",
+  "La creacion y mutacion sensible de pedidos no dependen solo de handlers HTTP: cualquier `status`, `paymentStatus`, `history` o metadato derivable enviado por cliente se ignora en servidor, y `public.orders` rederiva el estado inicial y rechaza combinaciones incoherentes de pago o `Contra entrega` fuera de domicilio mediante policies y triggers.",
   "`lib/supabase/server.ts` solo expone clientes `public` y `auth`.",
   "`SUPABASE_SERVICE_ROLE_KEY` no participa ni se transporta en el runtime normal del MVP; solo existe en el helper interno privilegiado.",
   "Toda lectura de `process.env` debe vivir en `lib/env.ts`, salvo `SUPABASE_SERVICE_ROLE_KEY` aislada dentro de `lib/supabase/internal/service-role-client.ts`.",
@@ -28,7 +28,7 @@ const AGENTS_CONTRACT_ITEMS = [
   "`businessId` significa UUID de base de datos y `businessSlug` significa slug de URL; rutas, params y helpers deben respetar esa frontera.",
   "El server debe resolver ownership desde sesion/contexto confiable y no confiar en `owner_id`, `created_by_user_id` ni `business_id` enviados por cliente para autorizar o mutar recursos.",
   "Los negocios legacy sin owner solo salen de `ownerless_*` mediante remediacion auditable y siguen inaccesibles hasta persistir `businesses.created_by_user_id`.",
-  "La creacion de pedidos debe tomar solo datos editables; cualquier `status`, `paymentStatus`, `history` o metadato derivable enviado por cliente se ignora y el server deriva estado e historial segun medio de pago y origen, dejando `history` append-only bajo control server-side.",
+  "La creacion y mutacion sensible de pedidos no puede depender solo de handlers HTTP: cualquier `status`, `paymentStatus`, `history` o metadato derivable enviado por cliente se ignora en server, y `public.orders` debe rederivar el estado inicial y rechazar combinaciones incoherentes de pago o `Contra entrega` fuera de domicilio mediante policies y triggers.",
   "`SUPABASE_SERVICE_ROLE_KEY` no participa ni se transporta en el runtime normal; solo puede leerse desde `lib/supabase/internal/service-role-client.ts`.",
   "`README.md` y `AGENTS.md` deben describir solo flujos realmente activos en el repo.",
 ];
@@ -131,9 +131,13 @@ test("documentacion: las afirmaciones contractuales siguen alineadas con el codi
   const ordersDataSource = readFile("lib/data/orders-server.ts");
   const orderStateRulesSource = readFile("lib/orders/state-rules.ts");
   const orderHistoryRulesSource = readFile("lib/orders/history-rules.ts");
+  const paymentHelpersSource = readFile("components/dashboard/payment-helpers.ts");
   const businessOrdersHookSource = readFile("components/dashboard/use-business-orders.ts");
   const legacyRemediationMigrationSource = readFile(
     "supabase/migrations/20260326_add_legacy_business_ownership_remediation.sql",
+  );
+  const orderPaymentMigrationSource = readFile(
+    "supabase/migrations/20260326_enforce_order_payment_rules_in_db.sql",
   );
 
   assert.match(
@@ -313,6 +317,11 @@ test("documentacion: las afirmaciones contractuales siguen alineadas con el codi
   );
   assert.match(
     ordersDataSource,
+    /getOrderPaymentMethodDeliveryTypeError/,
+    "La creacion de pedidos debe validar reglas de pago como Contra entrega tambien en servidor.",
+  );
+  assert.match(
+    ordersDataSource,
     /resolveAuthoritativeOrderStatePatch/,
     "La mutacion de pedidos debe pasar por el resolvedor central de estado y pago.",
   );
@@ -348,8 +357,18 @@ test("documentacion: las afirmaciones contractuales siguen alineadas con el codi
   );
   assert.match(
     orderStateRulesSource,
+    /isPaymentMethodAllowedForDeliveryType|getOrderPaymentMethodDeliveryTypeError/,
+    "El nucleo de reglas debe validar server-side la compatibilidad entre entrega y metodo de pago.",
+  );
+  assert.match(
+    orderStateRulesSource,
     /resolveAuthoritativeOrderStatePatch/,
     "El nucleo de reglas debe resolver y validar el snapshot autoritativo del PATCH.",
+  );
+  assert.match(
+    paymentHelpersSource,
+    /isPaymentMethodAllowedForDeliveryType/,
+    "La UI debe reutilizar la regla central de pago y no mantener Contra entrega solo en cliente.",
   );
   assert.match(
     orderHistoryRulesSource,
@@ -385,6 +404,26 @@ test("documentacion: las afirmaciones contractuales siguen alineadas con el codi
     legacyRemediationMigrationSource,
     /grant_legacy_business_owner_claim/i,
     "La remediacion legacy debe conservar un paso de habilitacion controlada para el claim.",
+  );
+  assert.match(
+    orderPaymentMigrationSource,
+    /orders_payment_write_is_valid/i,
+    "Supabase debe exponer una validacion reutilizable para blindar writes directos de orders.",
+  );
+  assert.match(
+    orderPaymentMigrationSource,
+    /orders_enforce_authoritative_payment_before_insert/i,
+    "Supabase debe derivar el estado inicial de pago tambien en DB.",
+  );
+  assert.match(
+    orderPaymentMigrationSource,
+    /orders_enforce_authoritative_payment_before_update/i,
+    "Supabase debe validar updates directos de orders tambien en DB.",
+  );
+  assert.match(
+    orderPaymentMigrationSource,
+    /Contra entrega solo se permite en pedidos a domicilio\./i,
+    "Supabase debe bloquear Contra entrega fuera del flujo permitido.",
   );
 
   const localStorageUsageFiles = getAllRepoFiles(repoRoot)

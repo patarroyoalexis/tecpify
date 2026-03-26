@@ -68,6 +68,7 @@ test("POST publico genera historial inicial server-side", () => {
     orderId: ORDER_ID,
     businessSlug: "mi-tienda",
     createdAt: "2026-03-25T21:00:00.000Z",
+    deliveryType: "domicilio",
     paymentMethod: "Nequi",
     origin: "public_form",
   });
@@ -82,6 +83,7 @@ test("POST manual genera historial inicial server-side", () => {
     orderId: ORDER_ID,
     businessSlug: "mi-tienda",
     createdAt: "2026-03-25T21:00:00.000Z",
+    deliveryType: "domicilio",
     paymentMethod: "Nequi",
     origin: "workspace_manual",
   });
@@ -96,6 +98,7 @@ test("dominio: el primer evento del historial difiere segun el origen real", () 
     orderId: ORDER_ID,
     businessSlug: "mi-tienda",
     createdAt: "2026-03-25T21:00:00.000Z",
+    deliveryType: "domicilio",
     paymentMethod: "Nequi",
     origin: "public_form",
   });
@@ -103,6 +106,7 @@ test("dominio: el primer evento del historial difiere segun el origen real", () 
     orderId: ORDER_ID,
     businessSlug: "mi-tienda",
     createdAt: "2026-03-25T21:00:00.000Z",
+    deliveryType: "domicilio",
     paymentMethod: "Nequi",
     origin: "workspace_manual",
   });
@@ -123,6 +127,35 @@ test("dominio: el estado inicial se deriva en servidor segun la regla de pago re
     status: "confirmado",
     paymentStatus: "verificado",
   });
+});
+
+test("dominio: POST server-side rechaza Contra entrega fuera de domicilio", () => {
+  assert.throws(
+    () =>
+      buildInitialOrderServerState({
+        orderId: ORDER_ID,
+        businessSlug: "mi-tienda",
+        createdAt: "2026-03-25T21:00:00.000Z",
+        deliveryType: "recogida en tienda",
+        paymentMethod: "Contra entrega",
+        origin: "public_form",
+      }),
+    /Contra entrega solo se permite en pedidos a domicilio/i,
+  );
+});
+
+test("dominio: POST server-side acepta Contra entrega solo cuando el pedido es a domicilio", () => {
+  const serverState = buildInitialOrderServerState({
+    orderId: ORDER_ID,
+    businessSlug: "mi-tienda",
+    createdAt: "2026-03-25T21:00:00.000Z",
+    deliveryType: "domicilio",
+    paymentMethod: "Contra entrega",
+    origin: "public_form",
+  });
+
+  assert.equal(serverState.status, "confirmado");
+  assert.equal(serverState.paymentStatus, "verificado");
 });
 
 test("POST /api/orders crea un pedido valido desde storefront", async () => {
@@ -538,6 +571,7 @@ test("dominio: PATCH rechaza combinaciones incoherentes entre estado y pago", ()
     try {
       resolveAuthoritativeOrderStatePatch(
         {
+          deliveryType: "domicilio",
           paymentMethod: "Nequi",
           paymentStatus: "verificado",
           status: "confirmado",
@@ -558,6 +592,7 @@ test("dominio: PATCH rechaza combinaciones incoherentes entre estado y pago", ()
 test("dominio: PATCH acepta transicion valida y deriva status complementario desde servidor", () => {
   const resolvedStatePatch = resolveAuthoritativeOrderStatePatch(
     {
+      deliveryType: "domicilio",
       paymentMethod: "Nequi",
       paymentStatus: "pendiente",
       status: "pendiente de pago",
@@ -568,6 +603,7 @@ test("dominio: PATCH acepta transicion valida y deriva status complementario des
   );
 
   assert.deepEqual(resolvedStatePatch.nextState, {
+    deliveryType: "domicilio",
     paymentMethod: "Nequi",
     paymentStatus: "verificado",
     status: "pago por verificar",

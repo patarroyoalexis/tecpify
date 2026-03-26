@@ -32,7 +32,7 @@ Hoy ese circuito incluye:
 - Catalogo por negocio con alta, edicion, activacion, destacado y reordenamiento.
 - Storefront publico por slug, con solo productos activos y solo negocios con owner verificable.
 - Creacion de pedidos desde el link publico y tambien desde el workspace privado.
-- Creacion publica e interna de pedidos con `status`, `paymentStatus` e historial inicial autoritativos en servidor, derivados segun medio de pago y origen real del pedido.
+- Creacion publica e interna de pedidos con `status`, `paymentStatus` e historial inicial autoritativos en servidor, y blindaje en `public.orders` para rederivar el estado inicial y rechazar combinaciones incoherentes de pago, incluida `Contra entrega` fuera de domicilio.
 - Remediacion auditable de negocios legacy sin owner mediante solicitud autenticada, habilitacion controlada de claim y persistencia final de `created_by_user_id`.
 - Lectura y mutacion privada de pedidos, con `status` y `paymentStatus` separados.
 - Verificacion de pago todavia manual o asistida desde la operacion, no automatizada.
@@ -91,7 +91,7 @@ Arranque local minimo: define esas variables, ejecuta `npm install` y luego `npm
 - `businessId` significa UUID de base de datos y `businessSlug` significa slug de URL; rutas, params y helpers deben respetar esa frontera.
 - El canon server/API resuelve ownership desde sesion/contexto confiable; no acepta `owner_id`, `created_by_user_id` ni `business_id` del cliente como autoridad.
 - Los negocios legacy sin owner solo salen de `ownerless_*` mediante remediacion auditable y siguen inaccesibles hasta persistir `businesses.created_by_user_id`.
-- La creacion de pedidos solo toma datos editables; cualquier `status`, `paymentStatus`, `history` o metadato derivable enviado por cliente se ignora y el servidor deriva estado e historial segun el medio de pago y el origen, dejando `history` append-only bajo control server-side.
+- La creacion y mutacion sensible de pedidos no dependen solo de handlers HTTP: cualquier `status`, `paymentStatus`, `history` o metadato derivable enviado por cliente se ignora en servidor, y `public.orders` rederiva el estado inicial y rechaza combinaciones incoherentes de pago o `Contra entrega` fuera de domicilio mediante policies y triggers.
 - `lib/supabase/server.ts` solo expone clientes `public` y `auth`.
 - `SUPABASE_SERVICE_ROLE_KEY` no participa ni se transporta en el runtime normal del MVP; solo existe en el helper interno privilegiado.
 - Toda lectura de `process.env` debe vivir en `lib/env.ts`, salvo `SUPABASE_SERVICE_ROLE_KEY` aislada dentro de `lib/supabase/internal/service-role-client.ts`.

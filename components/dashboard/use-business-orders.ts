@@ -225,11 +225,13 @@ export function useBusinessOrders({
 
     const resolvedStatePatch = resolveAuthoritativeOrderStatePatch(
       {
+        deliveryType: currentOrder.deliveryType,
         paymentMethod: currentOrder.paymentMethod,
         paymentStatus: currentOrder.paymentStatus,
         status: currentOrder.status,
       },
       {
+        deliveryType: payload.deliveryType,
         paymentMethod: payload.paymentMethod,
         paymentStatus: payload.paymentStatus,
         status: payload.status,

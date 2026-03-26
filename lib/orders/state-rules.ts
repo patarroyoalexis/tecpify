@@ -1,4 +1,9 @@
-import type { OrderStatus, PaymentMethod, PaymentStatus } from "@/types/orders";
+import type {
+  DeliveryType,
+  OrderStatus,
+  PaymentMethod,
+  PaymentStatus,
+} from "@/types/orders";
 
 export const ORDER_CREATE_CLIENT_EDITABLE_FIELDS = [
   "businessSlug",
@@ -66,12 +71,14 @@ const OPERATIONAL_ORDER_STATUSES_REQUIRING_CONFIRMED_PAYMENT = new Set<OrderStat
 ]);
 
 export interface OrderStateSnapshot {
+  deliveryType: DeliveryType;
   paymentMethod: PaymentMethod;
   paymentStatus: PaymentStatus;
   status: OrderStatus;
 }
 
 export interface AuthoritativeOrderStatePatchInput {
+  deliveryType?: DeliveryType;
   paymentMethod?: PaymentMethod;
   paymentStatus?: PaymentStatus;
   payment_status?: PaymentStatus;
@@ -101,6 +108,28 @@ function isPendingPaymentStatus(paymentStatus: PaymentStatus) {
     paymentStatus === "con novedad" ||
     paymentStatus === "no verificado"
   );
+}
+
+export function isPaymentMethodAllowedForDeliveryType(
+  paymentMethod: PaymentMethod,
+  deliveryType: DeliveryType,
+): boolean {
+  if (paymentMethod === "Contra entrega") {
+    return deliveryType === "domicilio";
+  }
+
+  return true;
+}
+
+export function getOrderPaymentMethodDeliveryTypeError(
+  deliveryType: DeliveryType,
+  paymentMethod: PaymentMethod,
+) {
+  if (!isPaymentMethodAllowedForDeliveryType(paymentMethod, deliveryType)) {
+    return "Contra entrega solo se permite en pedidos a domicilio.";
+  }
+
+  return null;
 }
 
 export function isDigitalPaymentMethod(method: PaymentMethod): boolean {
@@ -163,6 +192,15 @@ export function deriveInitialOrderStateFromPaymentMethod(
 }
 
 export function getOrderStateConsistencyError(state: OrderStateSnapshot) {
+  const paymentMethodDeliveryTypeError = getOrderPaymentMethodDeliveryTypeError(
+    state.deliveryType,
+    state.paymentMethod,
+  );
+
+  if (paymentMethodDeliveryTypeError) {
+    return paymentMethodDeliveryTypeError;
+  }
+
   if (isCashPaymentMethod(state.paymentMethod)) {
     if (!isPaymentConfirmed(state.paymentStatus)) {
       return "Los pagos en efectivo o contra entrega solo pueden persistirse como verificados.";
@@ -356,6 +394,7 @@ export function resolveAuthoritativeOrderStatePatch(
   currentState: OrderStateSnapshot,
   patch: AuthoritativeOrderStatePatchInput,
 ): AuthoritativeOrderStatePatchResult {
+  const nextDeliveryType = patch.deliveryType ?? currentState.deliveryType;
   const nextPaymentMethod = patch.paymentMethod ?? currentState.paymentMethod;
   const nextPaymentStatus = resolveNextPaymentStatus(
     currentState,
@@ -369,6 +408,7 @@ export function resolveAuthoritativeOrderStatePatch(
     nextPaymentStatus,
   );
   const nextState: OrderStateSnapshot = {
+    deliveryType: nextDeliveryType,
     paymentMethod: nextPaymentMethod,
     paymentStatus: nextPaymentStatus,
     status: resolvedStatus.status,
@@ -391,6 +431,7 @@ export function resolveAuthoritativeOrderStatePatch(
     [
       currentState.status !== nextState.status ? "status" : null,
       currentState.paymentStatus !== nextState.paymentStatus ? "paymentStatus" : null,
+      currentState.deliveryType !== nextState.deliveryType ? "deliveryType" : null,
       currentState.paymentMethod !== nextState.paymentMethod ? "paymentMethod" : null,
     ] as Array<keyof OrderStateSnapshot | null>
   ).filter((field): field is keyof OrderStateSnapshot => field !== null);

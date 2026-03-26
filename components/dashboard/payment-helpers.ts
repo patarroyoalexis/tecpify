@@ -6,6 +6,7 @@ import type {
 import {
   isCashPaymentMethod,
   isDigitalPaymentMethod,
+  isPaymentMethodAllowedForDeliveryType,
 } from "@/lib/orders/state-rules";
 
 export const allPaymentMethods: PaymentMethod[] = [
@@ -27,11 +28,13 @@ export function isCashPayment(method: PaymentMethod): boolean {
 export function getAvailablePaymentMethods(
   deliveryType: DeliveryType | "",
 ): PaymentMethod[] {
-  if (deliveryType === "recogida en tienda") {
-    return allPaymentMethods.filter((method) => method !== "Contra entrega");
+  if (!deliveryType) {
+    return allPaymentMethods;
   }
 
-  return allPaymentMethods;
+  return allPaymentMethods.filter((method) =>
+    isPaymentMethodAllowedForDeliveryType(method, deliveryType),
+  );
 }
 
 export function getPaymentMethodLabel(

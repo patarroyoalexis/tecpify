@@ -37,6 +37,7 @@ test("dominio: bloquea saltos de estado y estados finales", async (t) => {
 test("dominio: exige pago verificado para avanzar el estado operativo", () => {
   const error = getOrderUpdateTransitionError(
     {
+      deliveryType: "domicilio",
       status: "pendiente de pago",
       paymentStatus: "pendiente",
     },
@@ -51,6 +52,7 @@ test("dominio: exige pago verificado para avanzar el estado operativo", () => {
 test("dominio: permite verificar pago y avanzar en la misma actualizacion", () => {
   const error = getOrderUpdateTransitionError(
     {
+      deliveryType: "domicilio",
       status: "pendiente de pago",
       paymentStatus: "pendiente",
     },
@@ -77,6 +79,7 @@ test("dominio: cambios de pago verificado mantienen confirmacion explicita", () 
 
 test("dominio: pagos no digitales no aceptan estados de pago pendientes", () => {
   const error = getOrderStateConsistencyError({
+    deliveryType: "domicilio",
     paymentMethod: "Efectivo",
     paymentStatus: "pendiente",
     status: "confirmado",
@@ -85,9 +88,21 @@ test("dominio: pagos no digitales no aceptan estados de pago pendientes", () => 
   assert.match(error, /efectivo o contra entrega/i);
 });
 
+test("dominio: contra entrega solo se permite a domicilio tambien en servidor", () => {
+  const error = getOrderStateConsistencyError({
+    deliveryType: "recogida en tienda",
+    paymentMethod: "Contra entrega",
+    paymentStatus: "verificado",
+    status: "confirmado",
+  });
+
+  assert.match(error, /Contra entrega solo se permite en pedidos a domicilio/i);
+});
+
 test("dominio: cambiar a efectivo deriva confirmacion server-side sin dejar el pedido incoherente", () => {
   const resolvedStatePatch = resolveAuthoritativeOrderStatePatch(
     {
+      deliveryType: "domicilio",
       paymentMethod: "Nequi",
       paymentStatus: "pendiente",
       status: "pendiente de pago",
@@ -98,6 +113,7 @@ test("dominio: cambiar a efectivo deriva confirmacion server-side sin dejar el p
   );
 
   assert.deepEqual(resolvedStatePatch.nextState, {
+    deliveryType: "domicilio",
     paymentMethod: "Efectivo",
     paymentStatus: "verificado",
     status: "confirmado",
@@ -106,4 +122,27 @@ test("dominio: cambiar a efectivo deriva confirmacion server-side sin dejar el p
     resolvedStatePatch.changedFields.sort(),
     ["paymentMethod", "paymentStatus", "status"],
   );
+});
+
+test("dominio: cambiar un pedido contra entrega a recogida en tienda se rechaza server-side", () => {
+  const error = (() => {
+    try {
+      resolveAuthoritativeOrderStatePatch(
+        {
+          deliveryType: "domicilio",
+          paymentMethod: "Contra entrega",
+          paymentStatus: "verificado",
+          status: "confirmado",
+        },
+        {
+          deliveryType: "recogida en tienda",
+        },
+      );
+      return null;
+    } catch (patchError) {
+      return patchError instanceof Error ? patchError.message : String(patchError);
+    }
+  })();
+
+  assert.match(error, /Contra entrega solo se permite en pedidos a domicilio/i);
 });
