@@ -32,6 +32,7 @@ Hoy ese circuito incluye:
 - Catalogo por negocio con alta, edicion, activacion, destacado y reordenamiento.
 - Storefront publico por slug, con solo productos activos y solo negocios con owner verificable.
 - Creacion de pedidos desde el link publico y tambien desde el workspace privado.
+- Creacion publica e interna de pedidos con estado inicial, historial e indicadores operativos derivados server-side segun el origen del pedido.
 - Lectura y mutacion privada de pedidos, con `status` y `paymentStatus` separados.
 - Verificacion de pago todavia manual o asistida desde la operacion, no automatizada.
 - Metricas operativas basicas calculadas sobre pedidos persistidos.
@@ -48,9 +49,9 @@ Hoy ese circuito incluye:
 
 ## 7. Estado actual del proyecto
 
-Tecpify ya es operativo en su circuito central, pero sigue en fase de consolidacion tecnica. El nucleo de negocios, productos y pedidos persiste en Supabase y el ownership se resuelve server-side, mientras `localStorage` queda limitado a estado visual no critico del workspace.
+Tecpify ya es operativo en su circuito central, pero sigue en fase de consolidacion tecnica. El nucleo de negocios, productos y pedidos persiste en Supabase, el ownership se resuelve server-side y la creacion de pedidos deriva sus metadatos operativos en el servidor, mientras `localStorage` queda limitado a estado visual no critico del workspace.
 
-Las deudas mas visibles hoy no son de feature count sino de consistencia y mantenimiento: naming heredado donde `[negocioId]` sigue representando un slug, migracion pendiente de `middleware.ts` a `proxy`, flujo faltante para migrar negocios legacy sin owner, parte del historial inicial del pedido aun dependiente de input del cliente y simplificacion pendiente de algunas vistas del workspace.
+Las deudas mas visibles hoy no son de feature count sino de consistencia y mantenimiento: naming heredado donde `[negocioId]` sigue representando un slug, migracion pendiente de `middleware.ts` a `proxy`, flujo faltante para migrar negocios legacy sin owner y simplificacion pendiente de algunas vistas del workspace.
 
 ## 8. Stack o base tecnica
 
@@ -78,17 +79,17 @@ Arranque local minimo: define esas variables, ejecuta `npm install` y luego `npm
 
 ## 10. Proximos pasos prioritarios
 
-1. Llevar la generacion minima del historial inicial del pedido completamente al servidor.
-2. Reducir naming heredado para que slug e id no se mezclen en nuevas capas.
-3. Migrar `middleware.ts` a `proxy` en la siguiente ronda de mantenimiento de runtime.
-4. Definir una salida operativa para negocios legacy sin `created_by_user_id`.
-5. Sumar E2E browser del circuito critico y seguir simplificando el workspace.
+1. Reducir naming heredado para que slug e id no se mezclen en nuevas capas.
+2. Migrar `middleware.ts` a `proxy` en la siguiente ronda de mantenimiento de runtime.
+3. Definir una salida operativa para negocios legacy sin `created_by_user_id`.
+4. Sumar E2E browser del circuito critico y seguir simplificando el workspace.
 
 ## 11.1 Contrato verificable del MVP
 
 - Supabase es la fuente de verdad de negocios, productos y pedidos del MVP.
 - `localStorage` solo puede guardar estado de UI no critico.
 - El canon server/API resuelve ownership desde sesion/contexto confiable; no acepta `owner_id`, `created_by_user_id` ni `business_id` del cliente como autoridad.
+- La creacion de pedidos solo acepta datos editables del pedido; estado inicial, historial e indicadores operativos se derivan en servidor segun el origen publico o autenticado.
 - `lib/supabase/server.ts` solo expone clientes `public` y `auth`.
 - `SUPABASE_SERVICE_ROLE_KEY` no participa en el runtime normal del MVP.
 - Toda lectura de `process.env` debe vivir en `lib/env.ts`.

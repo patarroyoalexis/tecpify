@@ -1,0 +1,143 @@
+import { NextResponse } from "next/server";
+
+import { debugError, debugLog } from "@/lib/debug";
+import { normalizeBusinessSlug } from "@/lib/businesses/slug";
+import { requireBusinessApiContext } from "@/lib/auth/server";
+import { createOrderInDatabase } from "@/lib/data/orders-server";
+
+const WORKSPACE_ORDER_ALLOWED_FIELDS = new Set([
+  "businessSlug",
+  "customerName",
+  "customerWhatsApp",
+  "deliveryType",
+  "deliveryAddress",
+  "paymentMethod",
+  "products",
+  "total",
+  "notes",
+]);
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+interface WorkspaceOrdersRouteDependencies {
+  normalizeBusinessSlug: typeof normalizeBusinessSlug;
+  requireBusinessApiContext: typeof requireBusinessApiContext;
+  createOrderInDatabase: typeof createOrderInDatabase;
+}
+
+export function createWorkspaceOrdersRouteHandlers(
+  dependencies: WorkspaceOrdersRouteDependencies = {
+    normalizeBusinessSlug,
+    requireBusinessApiContext,
+    createOrderInDatabase,
+  },
+) {
+  return {
+    async POST(request: Request) {
+      let payload: unknown;
+
+      try {
+        payload = await request.json();
+      } catch {
+        return NextResponse.json(
+          { error: "El body JSON para crear pedido manual no es valido." },
+          { status: 400 },
+        );
+      }
+
+      if (!isPlainObject(payload)) {
+        return NextResponse.json(
+          { error: "El payload para crear pedido manual debe ser un objeto JSON." },
+          { status: 400 },
+        );
+      }
+
+      const payloadFields = Object.keys(payload);
+      const invalidFields = payloadFields.filter(
+        (field) => !WORKSPACE_ORDER_ALLOWED_FIELDS.has(field),
+      );
+
+      if (invalidFields.length > 0) {
+        return NextResponse.json(
+          {
+            error: `El payload para crear pedido manual contiene campos no permitidos: ${invalidFields.join(", ")}.`,
+          },
+          { status: 400 },
+        );
+      }
+
+      const normalizedBusinessSlug =
+        typeof payload.businessSlug === "string"
+          ? dependencies.normalizeBusinessSlug(payload.businessSlug)
+          : "";
+
+      if (!normalizedBusinessSlug) {
+        return NextResponse.json(
+          { error: "businessSlug es obligatorio y debe ser valido." },
+          { status: 400 },
+        );
+      }
+
+      const businessContextResult =
+        await dependencies.requireBusinessApiContext(normalizedBusinessSlug);
+
+      if (!businessContextResult.ok) {
+        return businessContextResult.response;
+      }
+
+      try {
+        const order = await dependencies.createOrderInDatabase(
+          {
+            ...payload,
+            businessSlug: businessContextResult.context.businessSlug,
+          },
+          {
+            source: "workspace",
+            businessId: businessContextResult.context.businessId,
+          },
+        );
+        debugLog("[workspace-orders-api] Created manual order", {
+          orderId: order.id,
+          businessSlug: businessContextResult.context.businessSlug,
+          persistedRemotely: true,
+        });
+        return NextResponse.json(
+          {
+            order,
+            orderCode: order.orderCode ?? null,
+            persistedRemotely: true,
+          },
+          { status: 201 },
+        );
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "No fue posible guardar el pedido manual.";
+        const statusCode =
+          message.startsWith("Invalid order payload.")
+            ? 400
+            : message.startsWith("Business not found")
+              ? 404
+              : message.includes("is blocked until it has a real owner")
+                ? 403
+              : message.includes("no existe") || message.includes("no esta activo")
+                ? 409
+                : 500;
+
+        debugError("[workspace-orders-api] Failed to create manual order", {
+          statusCode,
+          message,
+          payloadFields,
+          businessSlug: businessContextResult.context.businessSlug,
+        });
+
+        return NextResponse.json({ error: message }, { status: statusCode });
+      }
+    },
+  };
+}
+
+const workspaceOrdersRouteHandlers = createWorkspaceOrdersRouteHandlers();
+
+export const POST = workspaceOrdersRouteHandlers.POST;

@@ -14,6 +14,7 @@ const README_CONTRACT_ITEMS = [
   "Supabase es la fuente de verdad de negocios, productos y pedidos del MVP.",
   "`localStorage` solo puede guardar estado de UI no critico.",
   "El canon server/API resuelve ownership desde sesion/contexto confiable; no acepta `owner_id`, `created_by_user_id` ni `business_id` del cliente como autoridad.",
+  "La creacion de pedidos solo acepta datos editables del pedido; estado inicial, historial e indicadores operativos se derivan en servidor segun el origen publico o autenticado.",
   "`lib/supabase/server.ts` solo expone clientes `public` y `auth`.",
   "`SUPABASE_SERVICE_ROLE_KEY` no participa en el runtime normal del MVP.",
   "Toda lectura de `process.env` debe vivir en `lib/env.ts`.",
@@ -23,6 +24,7 @@ const AGENTS_CONTRACT_ITEMS = [
   "Supabase es la fuente de verdad para negocios, productos y pedidos del MVP.",
   "`localStorage` solo puede guardar estado de UI no critico.",
   "El server debe resolver ownership desde sesion/contexto confiable y no confiar en `owner_id`, `created_by_user_id` ni `business_id` enviados por cliente para autorizar o mutar recursos.",
+  "La creacion de pedidos debe aceptar solo datos editables; estado inicial, historial e indicadores operativos se derivan en server segun si el origen es publico o autenticado.",
   "`README.md` y `AGENTS.md` deben describir solo flujos realmente activos en el repo.",
 ];
 
@@ -104,6 +106,7 @@ test("documentacion: las afirmaciones contractuales siguen alineadas con el codi
   const productsApiSource = readFile("app/api/products/route.ts");
   const productByIdApiSource = readFile("app/api/products/[productId]/route.ts");
   const ordersApiSource = readFile("app/api/orders/route.ts");
+  const workspaceOrdersApiSource = readFile("app/api/orders/private/route.ts");
   const orderByIdApiSource = readFile("app/api/orders/[orderId]/route.ts");
   const supabaseServerSource = readFile("lib/supabase/server.ts");
   const businessesDataSource = readFile("data/businesses.ts");
@@ -146,10 +149,49 @@ test("documentacion: las afirmaciones contractuales siguen alineadas con el codi
     "La lectura privada de pedidos debe validar ownership server-side.",
   );
   assert.match(
+    ordersApiSource,
+    /source:\s*"storefront"/,
+    "La creacion publica de pedidos debe declararse explicitamente como flujo storefront server-side.",
+  );
+  assert.match(
+    ordersApiSource,
+    /createOrderInDatabase\(\s*\{\s*\.\.\.payload,\s*businessSlug:\s*normalizedBusinessSlug,\s*\},\s*\{\s*source:\s*"storefront"\s*\}\s*\)/s,
+    "La creacion publica de pedidos debe delegar el origen del pedido al servidor.",
+  );
+  assert.match(
     orderByIdApiSource,
     /requireOrderApiContext/,
     "La mutacion privada de pedidos debe validar ownership server-side.",
   );
+  assert.match(
+    workspaceOrdersApiSource,
+    /requireBusinessApiContext/,
+    "La creacion manual de pedidos debe validar ownership server-side.",
+  );
+  assert.match(
+    workspaceOrdersApiSource,
+    /source:\s*"workspace"/,
+    "La creacion manual de pedidos debe declararse explicitamente como flujo autenticado.",
+  );
+  assert.match(
+    workspaceOrdersApiSource,
+    /businessId:\s*businessContextResult\.context\.businessId/,
+    "La creacion manual debe persistir usando el businessId autenticado del contexto server-side.",
+  );
+  const createOrderAllowedFieldsBlock = ordersApiSource.match(
+    /const CREATE_ORDER_ALLOWED_FIELDS = new Set\(\[(?<fields>[\s\S]*?)\]\)/,
+  );
+  assert.ok(
+    createOrderAllowedFieldsBlock?.groups?.fields,
+    "La ruta publica de pedidos debe mantener un inventario explicito de campos permitidos.",
+  );
+  for (const forbiddenField of ["status", "paymentStatus", "dateLabel", "isReviewed", "history"]) {
+    assert.doesNotMatch(
+      createOrderAllowedFieldsBlock.groups.fields,
+      new RegExp(`"${forbiddenField}"`),
+      `La creacion publica de pedidos no debe aceptar ${forbiddenField} desde cliente.`,
+    );
+  }
   assert.match(
     supabaseServerSource,
     /keySource:\s*"NEXT_PUBLIC_SUPABASE_ANON_KEY"/,
@@ -177,13 +219,23 @@ test("documentacion: las afirmaciones contractuales siguen alineadas con el codi
   );
   assert.match(
     ordersDataSource,
-    /createServerSupabasePublicClient/,
-    "La creacion publica de pedidos debe seguir usando cliente publico de Supabase.",
+    /buildInitialOrderServerState/,
+    "La creacion de pedidos debe derivar estado e historial inicial desde servidor.",
+  );
+  assert.match(
+    ordersDataSource,
+    /options\?\.businessId/,
+    "La creacion privada de pedidos debe poder reutilizar el businessId resuelto por el contexto autenticado.",
   );
   assert.match(
     ordersDataSource,
     /createServerSupabaseAuthClient/,
-    "La lectura o mutacion privada de pedidos debe seguir usando cliente autenticado SSR.",
+    "La lectura, mutacion y creacion privada de pedidos debe seguir usando cliente autenticado SSR.",
+  );
+  assert.match(
+    ordersDataSource,
+    /createServerSupabasePublicClient/,
+    "La creacion publica de pedidos debe seguir usando cliente publico de Supabase.",
   );
 
   const localStorageUsageFiles = getAllRepoFiles(repoRoot)

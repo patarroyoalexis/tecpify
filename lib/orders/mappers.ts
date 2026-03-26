@@ -16,8 +16,9 @@ import {
 
 export type SupabaseOrderRow = Record<string, unknown>;
 
-export interface OrderApiCreatePayload {
-  businessSlug: string;
+export type OrderCreationSource = "storefront" | "workspace";
+
+export interface OrderCreateDraftPayload {
   customerName: string;
   customerWhatsApp: string;
   deliveryType: DeliveryType;
@@ -25,13 +26,14 @@ export interface OrderApiCreatePayload {
   paymentMethod: PaymentMethod;
   notes?: string;
   total: number;
-  status?: OrderStatus;
   products: OrderProduct[];
-  paymentStatus?: PaymentStatus;
-  dateLabel?: string;
-  isReviewed?: boolean;
-  history?: OrderHistoryEvent[];
 }
+
+export interface PublicOrderApiCreatePayload extends OrderCreateDraftPayload {
+  businessSlug: string;
+}
+
+export type WorkspaceOrderApiCreatePayload = PublicOrderApiCreatePayload;
 
 export interface OrderApiUpdatePayload {
   status?: OrderStatus;
@@ -229,24 +231,59 @@ export function getInitialOrderState(paymentMethod: PaymentMethod) {
 }
 
 export function createInitialOrderHistory(
-  orderId: string,
-  businessSlug: string,
-  createdAt: string,
+  options: {
+    orderId: string;
+    businessSlug: string;
+    createdAt: string;
+    source: OrderCreationSource;
+  },
 ): OrderHistoryEvent[] {
+  const originEvent =
+    options.source === "workspace"
+      ? {
+          id: `${options.businessSlug}-${options.createdAt}-workspace-created`,
+          title: "Pedido creado manualmente",
+          description:
+            "El equipo del negocio registro el pedido manualmente desde el workspace privado.",
+        }
+      : {
+          id: `${options.businessSlug}-${options.createdAt}-storefront-created`,
+          title: "Pedido creado desde formulario publico",
+          description:
+            "El cliente confirmo el pedido desde el enlace compartido del negocio.",
+        };
+
   return [
     {
-      id: `${businessSlug}-${createdAt}-created`,
-      title: "Pedido creado desde formulario publico",
-      description: "El cliente confirmo el pedido desde el enlace compartido del negocio.",
-      occurredAt: createdAt,
+      ...originEvent,
+      occurredAt: options.createdAt,
     },
     {
-      id: `${orderId}-created`,
+      id: `${options.orderId}-created`,
       title: "Pedido registrado",
-      description: "El pedido quedo persistido en la base principal del MVP.",
-      occurredAt: createdAt,
+      description:
+        options.source === "workspace"
+          ? "El pedido manual quedo persistido en la base principal del MVP."
+          : "El pedido quedo persistido en la base principal del MVP.",
+      occurredAt: options.createdAt,
     },
   ];
+}
+
+export function buildInitialOrderServerState(options: {
+  orderId: string;
+  businessSlug: string;
+  createdAt: string;
+  paymentMethod: PaymentMethod;
+  source: OrderCreationSource;
+}) {
+  const initialState = getInitialOrderState(options.paymentMethod);
+
+  return {
+    ...initialState,
+    isReviewed: false,
+    history: createInitialOrderHistory(options),
+  };
 }
 
 export function mapSupabaseRowToOrder(

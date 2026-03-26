@@ -14,6 +14,9 @@ const {
 } = loadTsModule("lib/auth/business-access.ts");
 const { createBusinessesRouteHandlers } = loadTsModule("app/api/businesses/route.ts");
 const { createOrdersRouteHandlers } = loadTsModule("app/api/orders/route.ts");
+const { createWorkspaceOrdersRouteHandlers } = loadTsModule(
+  "app/api/orders/private/route.ts",
+);
 const { createOrderByIdRouteHandlers } = loadTsModule("app/api/orders/[orderId]/route.ts");
 const { createProductsRouteHandlers } = loadTsModule("app/api/products/route.ts");
 const { createProductByIdRouteHandlers } = loadTsModule(
@@ -379,6 +382,114 @@ test("ownership: crear pedidos publicos rechaza campos de ownership enviados por
   assert.equal(response.status, 400);
   assert.match(body.error, /campos no permitidos/i);
   assert.match(body.error, /businessId/);
+  assert.equal(createOrderWasCalled, false);
+});
+
+test("ownership: crear pedidos manuales exige sesion valida", async () => {
+  let createOrderWasCalled = false;
+  const handlers = createWorkspaceOrdersRouteHandlers({
+    normalizeBusinessSlug: (value) => value.trim().toLowerCase(),
+    requireBusinessApiContext: async () => ({
+      ok: false,
+      response: NextResponse.json(
+        { error: "Debes iniciar sesion para usar este espacio operativo." },
+        { status: 401 },
+      ),
+    }),
+    createOrderInDatabase: async () => {
+      createOrderWasCalled = true;
+      throw new Error("No debe crear pedidos manuales sin sesion valida");
+    },
+  });
+
+  const response = await handlers.POST(
+    createJsonRequest("http://localhost/api/orders/private", "POST", {
+      businessSlug: "mi-tienda",
+      customerName: "Ana Perez",
+      customerWhatsApp: "3001234567",
+      deliveryType: "domicilio",
+      deliveryAddress: "Calle 1 # 2-3",
+      paymentMethod: "Nequi",
+      products: [{ productId: PRODUCT_ID, name: "Hamburguesa", quantity: 2, unitPrice: 15000 }],
+      total: 30000,
+    }),
+  );
+  const body = await response.json();
+
+  assert.equal(response.status, 401);
+  assert.equal(body.error, "Debes iniciar sesion para usar este espacio operativo.");
+  assert.equal(createOrderWasCalled, false);
+});
+
+test("ownership: owner puede crear pedidos manuales solo dentro de su negocio", async () => {
+  let receivedPayload = null;
+  let receivedOptions = null;
+  const handlers = createWorkspaceOrdersRouteHandlers({
+    normalizeBusinessSlug: (value) => value.trim().toLowerCase(),
+    requireBusinessApiContext: async (businessSlug) => ({
+      ok: true,
+      context: createOwnedBusinessContext({ businessSlug }),
+    }),
+    createOrderInDatabase: async (payload, options) => {
+      receivedPayload = payload;
+      receivedOptions = options;
+      return createOrderFixture();
+    },
+  });
+
+  const response = await handlers.POST(
+    createJsonRequest("http://localhost/api/orders/private", "POST", {
+      businessSlug: "Mi-Tienda",
+      customerName: "Ana Perez",
+      customerWhatsApp: "3001234567",
+      deliveryType: "domicilio",
+      deliveryAddress: "Calle 1 # 2-3",
+      paymentMethod: "Nequi",
+      products: [{ productId: PRODUCT_ID, name: "Hamburguesa", quantity: 2, unitPrice: 15000 }],
+      total: 30000,
+    }),
+  );
+  const body = await response.json();
+
+  assert.equal(response.status, 201);
+  assert.equal(receivedPayload.businessSlug, "mi-tienda");
+  assert.deepEqual(receivedOptions, {
+    source: "workspace",
+    businessId: "biz-1",
+  });
+  assert.equal(body.order.id, ORDER_ID);
+});
+
+test("ownership: no-owner no puede crear pedidos manuales en negocio ajeno", async () => {
+  let createOrderWasCalled = false;
+  const handlers = createWorkspaceOrdersRouteHandlers({
+    normalizeBusinessSlug: (value) => value.trim().toLowerCase(),
+    requireBusinessApiContext: async () => ({
+      ok: false,
+      response: NextResponse.json({ error: "No tienes acceso a este negocio." }, { status: 403 }),
+    }),
+    createOrderInDatabase: async () => {
+      createOrderWasCalled = true;
+      throw new Error("No debe crear pedidos manuales en negocio ajeno");
+    },
+  });
+
+  const response = await handlers.POST(
+    createJsonRequest("http://localhost/api/orders/private", "POST", {
+      businessSlug: "mi-tienda",
+      customerName: "Ana Perez",
+      customerWhatsApp: "3001234567",
+      deliveryType: "domicilio",
+      deliveryAddress: "Calle 1 # 2-3",
+      paymentMethod: "Nequi",
+      products: [{ productId: PRODUCT_ID, name: "Hamburguesa", quantity: 2, unitPrice: 15000 }],
+      total: 30000,
+    }),
+  );
+  const body = await response.json();
+
+  assert.equal(response.status, 403);
+  assert.equal(body.error, "No tienes acceso a este negocio.");
   assert.equal(createOrderWasCalled, false);
 });
 

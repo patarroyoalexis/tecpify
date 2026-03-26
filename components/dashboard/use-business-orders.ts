@@ -4,14 +4,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { debugError } from "@/lib/debug";
 import {
-  createOrderViaApi,
+  createWorkspaceOrderViaApi,
   fetchOrdersByBusinessSlug,
   updateOrderViaApi,
 } from "@/lib/orders/api";
-import {
-  getInitialOrderState,
-  type OrderApiUpdatePayload,
-} from "@/lib/orders/mappers";
+import { type OrderApiUpdatePayload } from "@/lib/orders/mappers";
 import {
   getAllowedOrderStatusTransitions,
   getOrderStatusTransitionRule,
@@ -25,7 +22,6 @@ import type {
   Order,
   OrderHistoryEvent,
   OrderStatus,
-  PaymentMethod,
   PaymentStatus,
 } from "@/types/orders";
 import { DELIVERY_TYPES } from "@/types/orders";
@@ -74,13 +70,6 @@ function createHistoryEvent(
 
 function isValidDeliveryType(value: unknown): value is DeliveryType {
   return typeof value === "string" && DELIVERY_TYPES.includes(value as DeliveryType);
-}
-
-function buildDateLabel(createdAt: string) {
-  return new Intl.DateTimeFormat("es-CO", {
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(new Date(createdAt));
 }
 
 function formatOrderValue(field: keyof EditableOrderPayload, value: unknown): string {
@@ -618,21 +607,10 @@ export function useBusinessOrders({
   }
 
   async function handleCreateOrder(input: NewOrderFormValue) {
-    const createdAt = new Date().toISOString();
-    const initialState = getInitialOrderState(input.paymentMethod as PaymentMethod);
-    const history: OrderHistoryEvent[] = [
-      {
-        id: `${businessSlug}-${createdAt}-manual-created`,
-        title: "Pedido creado manualmente",
-        description: "El pedido fue registrado desde el centro operativo.",
-        occurredAt: createdAt,
-      },
-    ];
-
     setOrdersError(null);
 
     try {
-      const persistedOrder = await createOrderViaApi({
+      const persistedOrder = await createWorkspaceOrderViaApi({
         businessSlug,
         customerName: input.client,
         customerWhatsApp: input.customerWhatsApp,
@@ -641,12 +619,7 @@ export function useBusinessOrders({
         paymentMethod: input.paymentMethod,
         notes: input.observations,
         total: input.total,
-        status: initialState.status,
         products: input.products,
-        paymentStatus: initialState.paymentStatus,
-        dateLabel: `Hoy, ${buildDateLabel(createdAt)}`,
-        isReviewed: false,
-        history,
       });
 
       await resyncAfterMutation([persistedOrder]);

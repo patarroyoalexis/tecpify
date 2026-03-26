@@ -17,12 +17,7 @@ const CREATE_ORDER_ALLOWED_FIELDS = new Set([
   "paymentMethod",
   "products",
   "total",
-  "status",
-  "paymentStatus",
-  "dateLabel",
   "notes",
-  "isReviewed",
-  "history",
 ]);
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -134,7 +129,7 @@ export function createOrdersRouteHandlers(
         const order = await dependencies.createOrderInDatabase({
           ...payload,
           businessSlug: normalizedBusinessSlug,
-        });
+        }, { source: "storefront" });
         const responsePayload = {
           order,
           orderCode: order.orderCode ?? null,

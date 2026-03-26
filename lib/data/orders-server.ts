@@ -1,7 +1,6 @@
 import {
   calculateOrderProductsTotal,
-  createInitialOrderHistory,
-  getInitialOrderState,
+  buildInitialOrderServerState,
   isValidOrderStatus,
   isValidPaymentMethod,
   isValidPaymentStatus,
@@ -10,7 +9,8 @@ import {
   mapSupabaseRowToOrder,
   normalizeOrderHistoryEvents,
   normalizeOrderApiUpdatePayload,
-  type OrderApiCreatePayload,
+  type OrderCreationSource,
+  type PublicOrderApiCreatePayload,
   type OrderApiUpdatePayload,
 } from "@/lib/orders/mappers";
 import { debugError, debugLog } from "@/lib/debug";
@@ -90,12 +90,12 @@ function generateUniqueOrderCode() {
   return generateCandidateOrderCode();
 }
 
-function validateCreateOrderPayload(payload: unknown): payload is OrderApiCreatePayload {
+function validateCreateOrderPayload(payload: unknown): payload is PublicOrderApiCreatePayload {
   if (!payload || typeof payload !== "object") {
     return false;
   }
 
-  const candidate = payload as Partial<OrderApiCreatePayload>;
+  const candidate = payload as Partial<PublicOrderApiCreatePayload>;
 
   return (
     typeof candidate.businessSlug === "string" &&
@@ -110,11 +110,9 @@ function validateCreateOrderPayload(payload: unknown): payload is OrderApiCreate
     typeof candidate.total === "number" &&
     Number.isFinite(candidate.total) &&
     candidate.total > 0 &&
-    (candidate.status === undefined || isValidOrderStatus(candidate.status)) &&
-    (candidate.paymentStatus === undefined || isValidPaymentStatus(candidate.paymentStatus)) &&
-    (candidate.isReviewed === undefined || typeof candidate.isReviewed === "boolean") &&
-    (candidate.dateLabel === undefined || typeof candidate.dateLabel === "string") &&
-    (candidate.history === undefined || Array.isArray(candidate.history))
+    (candidate.deliveryAddress === undefined ||
+      typeof candidate.deliveryAddress === "string") &&
+    (candidate.notes === undefined || typeof candidate.notes === "string")
   );
 }
 
@@ -123,7 +121,7 @@ function describePayloadProblems(payload: unknown) {
     return ["El payload debe ser un objeto JSON valido."];
   }
 
-  const candidate = payload as Partial<OrderApiCreatePayload>;
+  const candidate = payload as Partial<PublicOrderApiCreatePayload>;
   const problems: string[] = [];
 
   if (typeof candidate.businessSlug !== "string" || candidate.businessSlug.trim().length === 0) {
@@ -168,27 +166,15 @@ function describePayloadProblems(payload: unknown) {
     problems.push("deliveryAddress es obligatoria para pedidos a domicilio.");
   }
 
-  if (candidate.status !== undefined && !isValidOrderStatus(candidate.status)) {
-    problems.push("status no es valido para public.orders.");
-  }
-
   if (
-    candidate.paymentStatus !== undefined &&
-    !isValidPaymentStatus(candidate.paymentStatus)
+    candidate.deliveryAddress !== undefined &&
+    typeof candidate.deliveryAddress !== "string"
   ) {
-    problems.push("paymentStatus no es valido para public.orders.");
+    problems.push("deliveryAddress debe ser texto cuando se envia.");
   }
 
-  if (candidate.isReviewed !== undefined && typeof candidate.isReviewed !== "boolean") {
-    problems.push("isReviewed debe ser booleano.");
-  }
-
-  if (candidate.dateLabel !== undefined && typeof candidate.dateLabel !== "string") {
-    problems.push("dateLabel debe ser texto cuando se envia.");
-  }
-
-  if (candidate.history !== undefined && !Array.isArray(candidate.history)) {
-    problems.push("history debe ser un arreglo.");
+  if (candidate.notes !== undefined && typeof candidate.notes !== "string") {
+    problems.push("notes debe ser texto cuando se envia.");
   }
 
   return problems;
@@ -418,7 +404,10 @@ export async function getOrdersByBusinessIdFromDatabase(
   );
 }
 
-export async function createOrderInDatabase(payload: unknown): Promise<Order> {
+export async function createOrderInDatabase(
+  payload: unknown,
+  options?: { source?: OrderCreationSource; businessId?: string },
+): Promise<Order> {
   if (!validateCreateOrderPayload(payload)) {
     throw new Error(`Invalid order payload. ${describePayloadProblems(payload).join(" ")}`);
   }
@@ -432,37 +421,50 @@ export async function createOrderInDatabase(payload: unknown): Promise<Order> {
     );
   }
 
-  const business = await getBusinessDatabaseRecordBySlug(payload.businessSlug);
-  assertBusinessHasVerifiedOwner(business, { businessSlug: payload.businessSlug });
+  const orderSource = options?.source ?? "storefront";
+  const orderCreationMode = orderSource === "workspace" ? "auth" : "public";
+  let businessId = options?.businessId;
+
+  if (!businessId) {
+    const business = await getBusinessDatabaseRecordBySlug(payload.businessSlug);
+    assertBusinessHasVerifiedOwner(business, { businessSlug: payload.businessSlug });
+    businessId = business.id;
+  }
 
   const normalizedProducts = normalizeOrderProductsForPersistence(
     payload.products,
-    await getBusinessProductsForOrder(business.id, { mode: "public" }),
+    await getBusinessProductsForOrder(businessId, { mode: orderCreationMode }),
     { requireActiveLinkedProducts: true },
   );
 
   const now = new Date().toISOString();
   const orderId = crypto.randomUUID();
-  const initialState = getInitialOrderState(payload.paymentMethod);
-  const history =
-    payload.history !== undefined && payload.history.length > 0
-      ? normalizeHistoryForPersistence(payload.history)
-      : createInitialOrderHistory(orderId, payload.businessSlug, now);
+  const initialServerState = buildInitialOrderServerState({
+    orderId,
+    businessSlug: payload.businessSlug,
+    createdAt: now,
+    paymentMethod: payload.paymentMethod,
+    source: orderSource,
+  });
   const persistedTotal = assertOrderTotalMatchesProducts(payload.total, normalizedProducts);
 
   debugLog("[orders-api] Preparing order insert", {
-    authMode: getSupabaseServerAuthMode("public"),
+    authMode: getSupabaseServerAuthMode(orderCreationMode),
     businessSlug: payload.businessSlug,
+    orderSource,
     productsCount: normalizedProducts.length,
   });
 
-  const publicSupabase = createServerSupabasePublicClient();
+  const supabase =
+    orderCreationMode === "auth"
+      ? await createServerSupabaseAuthClient()
+      : createServerSupabasePublicClient();
   for (let attempt = 0; attempt < 8; attempt += 1) {
     const orderCode = generateUniqueOrderCode();
     const insertPayload = {
       id: orderId,
       order_code: orderCode,
-      business_id: business.id,
+      business_id: businessId,
       customer_id: null,
       customer_name: payload.customerName.trim(),
       customer_whatsapp: payload.customerWhatsApp.trim(),
@@ -471,17 +473,17 @@ export async function createOrderInDatabase(payload: unknown): Promise<Order> {
       payment_method: payload.paymentMethod,
       notes: payload.notes?.trim() || null,
       total: persistedTotal,
-      status: payload.status ?? initialState.status,
+      status: initialServerState.status,
       created_at: now,
       updated_at: now,
       products: normalizedProducts,
-      payment_status: payload.paymentStatus ?? initialState.paymentStatus,
-      date_label: payload.dateLabel ?? null,
-      is_reviewed: payload.isReviewed ?? false,
-      history,
+      payment_status: initialServerState.paymentStatus,
+      date_label: null,
+      is_reviewed: initialServerState.isReviewed,
+      history: initialServerState.history,
       inserted_at: now,
     };
-    const { error } = await publicSupabase.from("orders").insert(insertPayload);
+    const { error } = await supabase.from("orders").insert(insertPayload);
 
     if (!error) {
       return buildPersistedInsertedOrder(insertPayload, payload.businessSlug);
@@ -492,7 +494,7 @@ export async function createOrderInDatabase(payload: unknown): Promise<Order> {
     }
 
     debugError("[orders-api] Supabase insert failed", {
-      authMode: getSupabaseServerAuthMode("public"),
+      authMode: getSupabaseServerAuthMode(orderCreationMode),
       businessSlug: payload.businessSlug,
       code: error.code ?? null,
     });

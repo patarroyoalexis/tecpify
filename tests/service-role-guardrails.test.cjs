@@ -23,6 +23,7 @@ const OPERATIONAL_MODULES_TO_LOAD = [
   "lib/auth/business-access.ts",
   "app/api/businesses/route.ts",
   "app/api/orders/route.ts",
+  "app/api/orders/private/route.ts",
   "app/api/orders/[orderId]/route.ts",
 ];
 const ALLOWED_SERVICE_ROLE_ENV_REFERENCES = new Set([

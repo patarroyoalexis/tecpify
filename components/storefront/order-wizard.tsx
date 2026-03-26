@@ -10,10 +10,9 @@ import {
 import {
   getAvailablePaymentMethods,
   getPaymentMethodLabel,
-  isDigitalPayment,
 } from "@/components/dashboard/payment-helpers";
 import { debugError } from "@/lib/debug";
-import { createOrderViaApi } from "@/lib/orders/api";
+import { createStorefrontOrderViaApi } from "@/lib/orders/api";
 import { isValidWhatsAppPhone } from "@/lib/whatsapp";
 import {
   getOrderDisplayCode,
@@ -157,10 +156,6 @@ function formatCreatedAt(value: string) {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));
-}
-
-function getInitialStatus(paymentMethod: PaymentMethod) {
-  return isDigitalPayment(paymentMethod) ? "pendiente de pago" : "confirmado";
 }
 
 function getProductCount(items: Record<string, number>) {
@@ -423,18 +418,8 @@ export function StorefrontOrderWizard({
     setIsSubmitting(true);
     setSubmitError("");
 
-    const createdAt = new Date().toISOString();
-    const history = [
-      {
-        id: `${business.slug}-${createdAt}-created`,
-        title: "Pedido creado desde formulario publico",
-        description: "El cliente confirmo el pedido desde el enlace compartido del negocio.",
-        occurredAt: createdAt,
-      },
-    ];
-
     try {
-      const persistedOrder = await createOrderViaApi({
+      const persistedOrder = await createStorefrontOrderViaApi({
         businessSlug: business.slug,
         customerName: customerName.trim(),
         customerWhatsApp: customerPhone.trim(),
@@ -443,12 +428,7 @@ export function StorefrontOrderWizard({
         paymentMethod,
         notes: observations.trim() || undefined,
         total,
-        status: getInitialStatus(paymentMethod),
         products: selectedProducts,
-        paymentStatus: isDigitalPayment(paymentMethod) ? "pendiente" : "verificado",
-        dateLabel: formatCreatedAt(createdAt),
-        isReviewed: false,
-        history,
       });
 
       setConfirmedOrder(persistedOrder);
