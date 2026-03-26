@@ -52,7 +52,7 @@ Hoy ese circuito incluye:
 
 Tecpify ya es operativo en su circuito central, pero sigue en fase de consolidacion tecnica. El nucleo de negocios, productos y pedidos persiste en Supabase, el ownership se resuelve server-side, los negocios legacy ownerless pasan por una remediacion auditable antes de volver a operar y la creacion de pedidos deriva estado e historial en el servidor, mientras `localStorage` queda limitado a estado visual no critico del workspace.
 
-Las deudas mas visibles hoy no son de feature count sino de consistencia y mantenimiento: naming heredado donde `[negocioId]` sigue representando un slug, migracion pendiente de `middleware.ts` a `proxy` y simplificacion pendiente de algunas vistas del workspace.
+Las deudas mas visibles hoy no son de feature count sino de consistencia y mantenimiento: migracion pendiente de `middleware.ts` a `proxy` y simplificacion pendiente de algunas vistas del workspace.
 
 ## 8. Stack o base tecnica
 
@@ -80,15 +80,15 @@ Arranque local minimo: define esas variables, ejecuta `npm install` y luego `npm
 
 ## 10. Proximos pasos prioritarios
 
-1. Reducir naming heredado para que slug e id no se mezclen en nuevas capas.
-2. Migrar `middleware.ts` a `proxy` en la siguiente ronda de mantenimiento de runtime.
-3. Sumar E2E browser del circuito critico, incluyendo la remediacion legacy con claim controlado.
-4. Seguir simplificando el workspace sin abrir excepciones sobre ownership ni source of truth.
+1. Migrar `middleware.ts` a `proxy` en la siguiente ronda de mantenimiento de runtime.
+2. Sumar E2E browser del circuito critico, incluyendo la remediacion legacy con claim controlado.
+3. Seguir simplificando el workspace sin abrir excepciones sobre ownership ni source of truth.
 
 ## 11.1 Contrato verificable del MVP
 
 - Supabase es la fuente de verdad de negocios, productos y pedidos del MVP.
 - `localStorage` solo puede guardar estado de UI no critico.
+- `businessId` significa UUID de base de datos y `businessSlug` significa slug de URL; rutas, params y helpers deben respetar esa frontera.
 - El canon server/API resuelve ownership desde sesion/contexto confiable; no acepta `owner_id`, `created_by_user_id` ni `business_id` del cliente como autoridad.
 - Los negocios legacy sin owner solo salen de `ownerless_*` mediante remediacion auditable y siguen inaccesibles hasta persistir `businesses.created_by_user_id`.
 - La creacion de pedidos solo toma datos editables; cualquier `status`, `paymentStatus`, `history` o metadato derivable enviado por cliente se ignora y el servidor deriva estado e historial segun el medio de pago y el origen, dejando `history` append-only bajo control server-side.

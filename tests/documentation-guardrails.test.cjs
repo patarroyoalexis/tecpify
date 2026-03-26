@@ -13,6 +13,7 @@ const AGENTS_CONTRACT_HEADING =
 const README_CONTRACT_ITEMS = [
   "Supabase es la fuente de verdad de negocios, productos y pedidos del MVP.",
   "`localStorage` solo puede guardar estado de UI no critico.",
+  "`businessId` significa UUID de base de datos y `businessSlug` significa slug de URL; rutas, params y helpers deben respetar esa frontera.",
   "El canon server/API resuelve ownership desde sesion/contexto confiable; no acepta `owner_id`, `created_by_user_id` ni `business_id` del cliente como autoridad.",
   "Los negocios legacy sin owner solo salen de `ownerless_*` mediante remediacion auditable y siguen inaccesibles hasta persistir `businesses.created_by_user_id`.",
   "La creacion de pedidos solo toma datos editables; cualquier `status`, `paymentStatus`, `history` o metadato derivable enviado por cliente se ignora y el servidor deriva estado e historial segun el medio de pago y el origen, dejando `history` append-only bajo control server-side.",
@@ -24,6 +25,7 @@ const README_CONTRACT_ITEMS = [
 const AGENTS_CONTRACT_ITEMS = [
   "Supabase es la fuente de verdad para negocios, productos y pedidos del MVP.",
   "`localStorage` solo puede guardar estado de UI no critico.",
+  "`businessId` significa UUID de base de datos y `businessSlug` significa slug de URL; rutas, params y helpers deben respetar esa frontera.",
   "El server debe resolver ownership desde sesion/contexto confiable y no confiar en `owner_id`, `created_by_user_id` ni `business_id` enviados por cliente para autorizar o mutar recursos.",
   "Los negocios legacy sin owner solo salen de `ownerless_*` mediante remediacion auditable y siguen inaccesibles hasta persistir `businesses.created_by_user_id`.",
   "La creacion de pedidos debe tomar solo datos editables; cualquier `status`, `paymentStatus`, `history` o metadato derivable enviado por cliente se ignora y el server deriva estado e historial segun medio de pago y origen, dejando `history` append-only bajo control server-side.",
@@ -122,6 +124,8 @@ test("documentacion: las afirmaciones contractuales siguen alineadas con el codi
   const supabaseClientSource = readFile("lib/supabase/client.ts");
   const serviceRoleClientSource = readFile("lib/supabase/internal/service-role-client.ts");
   const businessesDataSource = readFile("data/businesses.ts");
+  const privateBusinessPagesSource = readFile("lib/page-contracts/private-business-pages.ts");
+  const storefrontOrderPageSource = readFile("lib/page-contracts/storefront-order-page.ts");
   const legacyRemediationDataSource = readFile("lib/data/business-ownership-remediation.ts");
   const productsDataSource = readFile("lib/data/products.ts");
   const ordersDataSource = readFile("lib/data/orders-server.ts");
@@ -254,8 +258,38 @@ test("documentacion: las afirmaciones contractuales siguen alineadas con el codi
   );
   assert.match(
     businessesDataSource,
+    /createGetBusinessByIdWithProducts/,
+    "La capa de datos debe exponer un helper byId honesto para businessId de base de datos.",
+  );
+  assert.doesNotMatch(
+    businessesDataSource,
+    /return\s+getBusinessBySlugWithProducts\(businessId\)/,
+    "Un helper byId no puede delegar encubiertamente al lookup por slug.",
+  );
+  assert.match(
+    businessesDataSource,
     /listCurrentUserLegacyBusinessOwnershipRemediations/,
     "La home operativa debe exponer el estado de remediacion legacy para la sesion autenticada.",
+  );
+  assert.match(
+    privateBusinessPagesSource,
+    /params:\s*Promise<\{\s*businessSlug:\s*string\s*\}>/,
+    "Los page contracts privados deben recibir businessSlug cuando el valor real es el slug de URL.",
+  );
+  assert.doesNotMatch(
+    privateBusinessPagesSource,
+    /\bnegocioId\b|params:\s*Promise<\{\s*businessId:\s*string\s*\}>/,
+    "Los page contracts privados no deben exponer negocioId ni businessId engañosos para slugs.",
+  );
+  assert.match(
+    storefrontOrderPageSource,
+    /params:\s*Promise<\{\s*businessSlug:\s*string\s*\}>/,
+    "El page contract publico debe recibir businessSlug cuando el valor real es el slug de URL.",
+  );
+  assert.doesNotMatch(
+    storefrontOrderPageSource,
+    /\bnegocioId\b|params:\s*Promise<\{\s*businessId:\s*string\s*\}>/,
+    "El page contract publico no debe exponer negocioId ni businessId engañosos para slugs.",
   );
   assert.match(
     legacyRemediationDataSource,

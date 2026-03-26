@@ -127,11 +127,39 @@ export async function getBusinessBySlugFromDatabase(slug: string) {
 
 interface BusinessProductsLookupDependencies {
   getBusinessBySlugFromDatabase: typeof getBusinessBySlugFromDatabase;
+  getBusinessByIdFromDatabase: typeof getBusinessByIdFromDatabase;
   getProductsByBusinessId: (businessId: string) => Promise<
     Awaited<ReturnType<typeof import("@/lib/data/products").getProductsByBusinessId>>
   >;
   mapProductToBusinessProduct: typeof import("@/lib/data/products").mapProductToBusinessProduct;
   debugLog: typeof debugLog;
+}
+
+export async function getBusinessByIdFromDatabase(businessId: string) {
+  if (typeof businessId !== "string" || businessId.trim().length === 0) {
+    return null;
+  }
+
+  debugLog("[businesses] Resolving business by database id", { businessId });
+
+  const supabase = await createServerSupabaseAuthClient();
+  const { data, error } = await supabase
+    .from("businesses")
+    .select("id, slug, name, created_at, updated_at, created_by_user_id")
+    .eq("id", businessId.trim())
+    .maybeSingle<AuthenticatedSupabaseBusinessRow>();
+
+  if (error) {
+    debugError("[businesses] Failed to resolve business by database id", { businessId });
+    throw new Error(`Supabase businesses query failed: ${error.message}`);
+  }
+
+  debugLog("[businesses] Business resolved by database id", {
+    businessId: businessId.trim(),
+    found: Boolean(data),
+  });
+
+  return data ? mapSupabaseBusinessRow(data) : null;
 }
 
 async function getBusinessesFromDatabase() {
@@ -184,6 +212,56 @@ export async function getHomeBusinesses(
   };
 }
 
+async function buildBusinessProductsLookupResult(
+  databaseBusiness: BusinessRecord | null,
+  lookupValue: string,
+  dependencies?: Partial<BusinessProductsLookupDependencies>,
+): Promise<BusinessProductsLookupResult> {
+  (dependencies?.debugLog ?? debugLog)("[businesses] Received business lookup", {
+    lookupValue,
+    resolved: Boolean(databaseBusiness),
+  });
+
+  if (!databaseBusiness || !hasVerifiedBusinessOwner(databaseBusiness.createdByUserId)) {
+    return { status: "not_found" };
+  }
+
+  const business = mapDatabaseBusinessToConfig(databaseBusiness);
+  let getProductsByBusinessId = dependencies?.getProductsByBusinessId;
+  let mapProductToBusinessProduct = dependencies?.mapProductToBusinessProduct;
+
+  if (!getProductsByBusinessId || !mapProductToBusinessProduct) {
+    const productsModule = await import("@/lib/data/products");
+    getProductsByBusinessId ??= productsModule.getProductsByBusinessId;
+    mapProductToBusinessProduct ??= productsModule.mapProductToBusinessProduct;
+  }
+
+  const products = await getProductsByBusinessId(databaseBusiness.id);
+
+  (dependencies?.debugLog ?? debugLog)("[businesses] Products query completed", {
+    lookupValue,
+    productsCount: products.length,
+  });
+
+  if (products.length === 0) {
+    return {
+      status: "no_products",
+      business: {
+        ...business,
+        products: [],
+      },
+    };
+  }
+
+  return {
+    status: "ok",
+    business: {
+      ...business,
+      products: products.map(mapProductToBusinessProduct),
+    },
+  };
+}
+
 export function createGetBusinessBySlugWithProducts(
   dependencies?: Partial<BusinessProductsLookupDependencies>,
 ) {
@@ -194,54 +272,24 @@ export function createGetBusinessBySlugWithProducts(
       dependencies?.getBusinessBySlugFromDatabase ?? getBusinessBySlugFromDatabase
     )(slug);
 
-    (dependencies?.debugLog ?? debugLog)("[businesses] Received storefront slug", {
-      slug,
-      resolved: Boolean(databaseBusiness),
-    });
-
-    if (!databaseBusiness || !hasVerifiedBusinessOwner(databaseBusiness.createdByUserId)) {
-      return { status: "not_found" };
-    }
-
-    const business = mapDatabaseBusinessToConfig(databaseBusiness);
-    let getProductsByBusinessId = dependencies?.getProductsByBusinessId;
-    let mapProductToBusinessProduct = dependencies?.mapProductToBusinessProduct;
-
-    if (!getProductsByBusinessId || !mapProductToBusinessProduct) {
-      const productsModule = await import("@/lib/data/products");
-      getProductsByBusinessId ??= productsModule.getProductsByBusinessId;
-      mapProductToBusinessProduct ??= productsModule.mapProductToBusinessProduct;
-    }
-
-    const products = await getProductsByBusinessId(databaseBusiness.id);
-
-    (dependencies?.debugLog ?? debugLog)("[businesses] Products query completed", {
-      slug,
-      productsCount: products.length,
-    });
-
-    if (products.length === 0) {
-      return {
-        status: "no_products",
-        business: {
-          ...business,
-          products: [],
-        },
-      };
-    }
-
-    return {
-      status: "ok",
-      business: {
-        ...business,
-        products: products.map(mapProductToBusinessProduct),
-      },
-    };
+    return buildBusinessProductsLookupResult(databaseBusiness, slug, dependencies);
   };
 }
 
 export const getBusinessBySlugWithProducts = createGetBusinessBySlugWithProducts();
 
-export async function getBusinessByIdWithProducts(businessId: string) {
-  return getBusinessBySlugWithProducts(businessId);
+export function createGetBusinessByIdWithProducts(
+  dependencies?: Partial<BusinessProductsLookupDependencies>,
+) {
+  return async function getBusinessByIdWithProducts(
+    businessId: string,
+  ): Promise<BusinessProductsLookupResult> {
+    const databaseBusiness = await (
+      dependencies?.getBusinessByIdFromDatabase ?? getBusinessByIdFromDatabase
+    )(businessId);
+
+    return buildBusinessProductsLookupResult(databaseBusiness, businessId, dependencies);
+  };
 }
+
+export const getBusinessByIdWithProducts = createGetBusinessByIdWithProducts();

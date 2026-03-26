@@ -331,7 +331,7 @@ for (const scenario of pageScenarios) {
   test(`ownership directo: ${scenario.name} renderiza workspace para owner correcto`, async () => {
     const page = scenario.createPage(scenario.createDependencies());
     const html = render(
-      await page({ params: Promise.resolve({ negocioId: "mi-tienda" }) }),
+      await page({ params: Promise.resolve({ businessSlug: "mi-tienda" }) }),
     );
 
     assert.match(html, new RegExp(scenario.expectedTitle));
@@ -350,7 +350,7 @@ for (const scenario of pageScenarios) {
     );
 
     await assert.rejects(
-      () => page({ params: Promise.resolve({ negocioId: "mi-tienda" }) }),
+      () => page({ params: Promise.resolve({ businessSlug: "mi-tienda" }) }),
       (error) => error === redirectError,
     );
   });
@@ -362,7 +362,7 @@ for (const scenario of pageScenarios) {
       }),
     );
     const html = render(
-      await page({ params: Promise.resolve({ negocioId: "mi-tienda" }) }),
+      await page({ params: Promise.resolve({ businessSlug: "mi-tienda" }) }),
     );
 
     assert.match(html, /Acceso no autorizado/);
@@ -391,7 +391,7 @@ test("ownership directo: storefront owner correcto renderiza wizard", async () =
   });
 
   const html = render(
-    await page({ params: Promise.resolve({ negocioId: "mi-tienda" }) }),
+    await page({ params: Promise.resolve({ businessSlug: "mi-tienda" }) }),
   );
 
   assert.match(html, /storefront-wizard/);
@@ -430,7 +430,7 @@ test("ownership directo: storefront bloquea negocio legacy sin owner y no lo vue
   });
 
   const html = render(
-    await page({ params: Promise.resolve({ negocioId: "legacy-shop" }) }),
+    await page({ params: Promise.resolve({ businessSlug: "legacy-shop" }) }),
   );
 
   assert.match(html, /Negocio no encontrado/);

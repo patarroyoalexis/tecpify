@@ -4,7 +4,7 @@ import type { BusinessProductsLookupResult } from "@/data/businesses";
 import type { BusinessConfig } from "@/types/storefront";
 
 interface StorefrontOrderPageParams {
-  params: Promise<{ negocioId: string }>;
+  params: Promise<{ businessSlug: string }>;
 }
 
 function StorefrontMessage({
@@ -79,11 +79,11 @@ export function createStorefrontOrderPage(
   dependencies: StorefrontOrderPageDependencies,
 ) {
   return async function StorefrontOrderPage({ params }: StorefrontOrderPageParams) {
-    const { negocioId } = await params;
+    const { businessSlug } = await params;
     let business = null;
 
     try {
-      const result = await dependencies.getBusinessBySlugWithProducts(negocioId);
+      const result = await dependencies.getBusinessBySlugWithProducts(businessSlug);
 
       if (result.status === "ok" || result.status === "no_products") {
         business = result.business;

@@ -6,7 +6,7 @@ import type { Order } from "@/types/orders";
 import type { Product } from "@/types/products";
 
 interface BusinessPageParams {
-  params: Promise<{ negocioId: string }>;
+  params: Promise<{ businessSlug: string }>;
 }
 
 export interface BusinessWorkspaceShellContractProps {
@@ -117,10 +117,10 @@ interface MetricsPageDependencies extends CommonPageDependencies {
 
 export function createBusinessDashboardPage(dependencies: DashboardPageDependencies) {
   return async function BusinessDashboardPage({ params }: BusinessPageParams) {
-    const { negocioId } = await params;
+    const { businessSlug } = await params;
     const businessContext = await dependencies.requireBusinessContext(
-      negocioId,
-      `/dashboard/${negocioId}`,
+      businessSlug,
+      `/dashboard/${businessSlug}`,
     );
 
     if (!businessContext) {
@@ -180,10 +180,10 @@ export function createBusinessDashboardPage(dependencies: DashboardPageDependenc
 
 export function createOrdersPage(dependencies: OrdersPageDependencies) {
   return async function OrdersPage({ params }: BusinessPageParams) {
-    const { negocioId } = await params;
+    const { businessSlug } = await params;
     const businessContext = await dependencies.requireBusinessContext(
-      negocioId,
-      `/pedidos/${negocioId}`,
+      businessSlug,
+      `/pedidos/${businessSlug}`,
     );
 
     if (!businessContext) {
@@ -228,10 +228,10 @@ export function createOrdersPage(dependencies: OrdersPageDependencies) {
 
 export function createMetricsPage(dependencies: MetricsPageDependencies) {
   return async function MetricsPage({ params }: BusinessPageParams) {
-    const { negocioId } = await params;
+    const { businessSlug } = await params;
     const businessContext = await dependencies.requireBusinessContext(
-      negocioId,
-      `/metricas/${negocioId}`,
+      businessSlug,
+      `/metricas/${businessSlug}`,
     );
 
     if (!businessContext) {
