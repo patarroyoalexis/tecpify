@@ -51,6 +51,7 @@ export const SERVICE_ROLE_USAGE_INVENTORY = [
 
 export type ServiceRoleUsageId = (typeof SERVICE_ROLE_USAGE_INVENTORY)[number]["id"];
 
+// Guardrail canonico del repo: el flujo normal del MVP no tiene usos activos de service role.
 const ACTIVE_SERVICE_ROLE_USAGE_IDS = new Set<ServiceRoleUsageId>();
 
 export function assertServiceRoleUsageAllowed(usageId: ServiceRoleUsageId) {
@@ -59,4 +60,8 @@ export function assertServiceRoleUsageAllowed(usageId: ServiceRoleUsageId) {
       `SUPABASE_SERVICE_ROLE_KEY no esta habilitada para "${usageId}" en este MVP. Revisa lib/supabase/service-role.ts antes de reintroducir privilegios.`,
     );
   }
+}
+
+export function getActiveServiceRoleUsageIds() {
+  return [...ACTIVE_SERVICE_ROLE_USAGE_IDS];
 }

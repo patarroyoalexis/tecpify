@@ -3,10 +3,6 @@ import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
 
 import { getServerEnv } from "@/lib/env";
-import {
-  assertServiceRoleUsageAllowed,
-  type ServiceRoleUsageId,
-} from "@/lib/supabase/service-role";
 
 const serverEnv = getServerEnv();
 
@@ -48,25 +44,10 @@ export function createServerSupabasePublicClient() {
   return createStatelessSupabaseClient(serverEnv.nextPublicSupabaseAnonKey);
 }
 
-export function createServerSupabaseAdminClient(usageId: ServiceRoleUsageId) {
-  assertServiceRoleUsageAllowed(usageId);
-
-  if (!serverEnv.supabaseServiceRoleKey) {
-    throw new Error(
-      "SUPABASE_SERVICE_ROLE_KEY no esta configurada para el flujo privilegiado solicitado.",
-    );
-  }
-
-  return createStatelessSupabaseClient(serverEnv.supabaseServiceRoleKey);
-}
-
-export function getSupabaseServerAuthMode(mode: "auth" | "public" | "admin" = "auth") {
+export function getSupabaseServerAuthMode(mode: "auth" | "public" = "auth") {
   return {
     mode,
-    keySource:
-      mode === "admin"
-        ? "SUPABASE_SERVICE_ROLE_KEY"
-        : "NEXT_PUBLIC_SUPABASE_ANON_KEY",
-    isUsingServiceRole: mode === "admin",
+    keySource: "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+    isUsingServiceRole: false,
   };
 }

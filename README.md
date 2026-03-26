@@ -179,13 +179,15 @@ Fuera de alcance hoy:
   - negocios, productos y pedidos persisten en Supabase
   - las rutas publicas usan `anon key` y politicas publicas restringidas
   - las rutas privadas usan cliente autenticado SSR
-  - `SUPABASE_SERVICE_ROLE_KEY` queda deshabilitada para el MVP normal
-  - el helper admin existe, pero esta blindado por inventario vacio de usos activos
+  - `SUPABASE_SERVICE_ROLE_KEY` queda fuera del circuito operativo normal del MVP
+  - `lib/supabase/server.ts` solo expone clientes `public` y `auth`
+  - cualquier helper privilegiado queda aislado como internal-only y sin consumidores activos
 - Limitaciones:
   - depende de migraciones y RLS correctas; si se relajan, se rompen seguridad y ownership
 - Archivos dominantes:
   - `lib/supabase/server.ts`
   - `lib/supabase/service-role.ts`
+  - `lib/supabase/internal/service-role-client.ts`
   - `lib/data/orders-server.ts`
   - `lib/data/products.ts`
   - `data/businesses.ts`
@@ -319,6 +321,8 @@ Cobertura automatizada actual:
 
 - si existe para `POST /api/orders`, `GET /api/orders`, `PATCH /api/orders/[orderId]`
 - si existe para reglas de transicion en `lib/orders/transitions.ts`
+- si existe para ownership y para veto de service role en `tests/ownership-access.test.cjs` y `tests/service-role-guardrails.test.cjs`
+- si existe para congruencia de entorno y veto a `process.env` directo en `tests/env-guardrails.test.cjs`
 - no existe E2E browser del circuito completo `storefront -> dashboard -> update`
 - no existe suite automatizada equivalente para auth, negocios y catalogo
 
@@ -396,6 +400,7 @@ NEXT_PUBLIC_SITE_URL=http://localhost:3000
 Notas:
 
 - `SUPABASE_SERVICE_ROLE_KEY` hoy es opcional y no se usa en los flujos normales del MVP
+- si se define localmente, no cambia el comportamiento del circuito normal porque `lib/supabase/server.ts` no expone cliente admin
 - `NEXT_PUBLIC_SITE_URL` tiene fallback a `http://localhost:3000` en desarrollo, pero debe configurarse en produccion para auth y enlaces absolutos
 
 ### Configurar Supabase Auth
@@ -454,14 +459,16 @@ npm test
 
 - `SUPABASE_SERVICE_ROLE_KEY`
   - opcional
-  - no activa ningun flujo del MVP por defecto
+  - no participa en auth, catalogo, storefront, pedidos, dashboard ni metricas del MVP normal
   - cualquier uso nuevo debe quedar inventariado en `lib/supabase/service-role.ts`
+  - cualquier helper privilegiado debe vivir aislado en `lib/supabase/internal/service-role-client.ts` y sin imports operativos
 
 Regla canonica:
 
 - toda lectura de `process.env` debe vivir en `lib/env.ts`
 - utilidades client no deben importar modulos server que lean env
 - `lib/runtime.ts` solo se usa para checks minimos de runtime, no para auth ni acceso a datos
+- `tests/service-role-guardrails.test.cjs` debe fallar si una ruta operativa vuelve a importar service role o si `SUPABASE_SERVICE_ROLE_KEY` reaparece fuera del inventario permitido
 
 ## 12. Criterios minimos para considerar el MVP operable
 

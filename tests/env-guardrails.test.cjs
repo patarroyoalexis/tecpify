@@ -22,6 +22,10 @@ const PROCESS_ENV_READ_EXCEPTIONS = new Map([
     normalizeRelativePath(path.join("tests", "helpers", "test-runtime.cjs")),
     "Bootstrap de pruebas que inyecta entorno controlado para cargar modulos TypeScript en Node test.",
   ],
+  [
+    normalizeRelativePath(path.join("tests", "service-role-guardrails.test.cjs")),
+    "Guardrail que verifica de forma explicita que los modulos operativos siguen cargando sin SUPABASE_SERVICE_ROLE_KEY.",
+  ],
 ]);
 
 function normalizeRelativePath(relativePath) {

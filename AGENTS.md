@@ -17,6 +17,11 @@ Si aparece un uso nuevo de service role sin esa excepcion, el guardian debe:
 2. pedir su eliminacion o reemplazo antes de cerrar
 3. no aprobar el cambio aunque lint, typecheck y build pasen
 
+Guardrail tecnico actual:
+- `lib/supabase/server.ts` es solo para clientes `anon/public` y `auth`
+- cualquier helper privilegiado debe vivir aislado en `lib/supabase/internal/service-role-client.ts`
+- `tests/service-role-guardrails.test.cjs` debe fallar si una ruta operativa vuelve a importar service role o si `SUPABASE_SERVICE_ROLE_KEY` aparece fuera del inventario permitido
+
 ### Regla bloqueante de ownership
 
 Ningun negocio es operable si `created_by_user_id` es null o no coincide con el usuario autenticado esperado.

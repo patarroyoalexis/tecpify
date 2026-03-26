@@ -44,7 +44,6 @@ export interface PublicEnv {
 
 export interface ServerEnv extends PublicEnv {
   supabaseServiceRoleKey?: string;
-  isUsingServiceRole: boolean;
 }
 
 let cachedPublicEnv: PublicEnv | null = null;
@@ -80,7 +79,6 @@ export function getServerEnv(): ServerEnv {
   cachedServerEnv = {
     ...publicEnv,
     ...(supabaseServiceRoleKey ? { supabaseServiceRoleKey } : {}),
-    isUsingServiceRole: Boolean(supabaseServiceRoleKey),
   };
 
   return cachedServerEnv;
