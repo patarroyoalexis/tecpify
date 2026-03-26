@@ -1,5 +1,6 @@
 import { CreateBusinessPanel } from "@/components/home/create-business-panel";
 import { BusinessCard } from "@/components/home/business-card";
+import { LegacyBusinessRemediationPanel } from "@/components/home/legacy-business-remediation-panel";
 import type { HomeBusinessesSnapshot } from "@/data/businesses";
 
 interface OperationalHomeProps {
@@ -11,7 +12,7 @@ export function OperationalHome({
   businesses,
   operatorEmail,
 }: OperationalHomeProps) {
-  const { realBusinesses } = businesses;
+  const { realBusinesses, legacyOwnershipRemediations } = businesses;
 
   return (
     <div className="space-y-6">
@@ -38,11 +39,18 @@ export function OperationalHome({
                 Sesion activa: {operatorEmail}
               </span>
             ) : null}
+            <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-sm font-medium text-amber-800">
+              {legacyOwnershipRemediations.length} remediacion
+              {legacyOwnershipRemediations.length === 1 ? "" : "es"} legacy visible
+              {legacyOwnershipRemediations.length === 1 ? "" : "s"}
+            </span>
           </div>
         </div>
 
         <CreateBusinessPanel />
       </section>
+
+      <LegacyBusinessRemediationPanel remediations={legacyOwnershipRemediations} />
 
       <section className="space-y-4">
         <div className="flex items-center justify-between gap-3">

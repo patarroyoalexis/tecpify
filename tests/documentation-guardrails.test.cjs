@@ -14,7 +14,8 @@ const README_CONTRACT_ITEMS = [
   "Supabase es la fuente de verdad de negocios, productos y pedidos del MVP.",
   "`localStorage` solo puede guardar estado de UI no critico.",
   "El canon server/API resuelve ownership desde sesion/contexto confiable; no acepta `owner_id`, `created_by_user_id` ni `business_id` del cliente como autoridad.",
-  "La creacion de pedidos solo acepta datos editables del pedido; estado inicial, historial e indicadores operativos se derivan en servidor segun el origen publico o autenticado.",
+  "Los negocios legacy sin owner solo salen de `ownerless_*` mediante remediacion auditable y siguen inaccesibles hasta persistir `businesses.created_by_user_id`.",
+  "La creacion de pedidos solo toma datos editables; cualquier `status`, `paymentStatus` o metadato derivable enviado por cliente se ignora y el servidor deriva el estado segun el medio de pago y el origen.",
   "`lib/supabase/server.ts` solo expone clientes `public` y `auth`.",
   "`SUPABASE_SERVICE_ROLE_KEY` no participa en el runtime normal del MVP.",
   "Toda lectura de `process.env` debe vivir en `lib/env.ts`.",
@@ -24,7 +25,8 @@ const AGENTS_CONTRACT_ITEMS = [
   "Supabase es la fuente de verdad para negocios, productos y pedidos del MVP.",
   "`localStorage` solo puede guardar estado de UI no critico.",
   "El server debe resolver ownership desde sesion/contexto confiable y no confiar en `owner_id`, `created_by_user_id` ni `business_id` enviados por cliente para autorizar o mutar recursos.",
-  "La creacion de pedidos debe aceptar solo datos editables; estado inicial, historial e indicadores operativos se derivan en server segun si el origen es publico o autenticado.",
+  "Los negocios legacy sin owner solo salen de `ownerless_*` mediante remediacion auditable y siguen inaccesibles hasta persistir `businesses.created_by_user_id`.",
+  "La creacion de pedidos debe tomar solo datos editables; cualquier `status`, `paymentStatus` o metadato derivable enviado por cliente se ignora y el server deriva el estado segun medio de pago y origen.",
   "`README.md` y `AGENTS.md` deben describir solo flujos realmente activos en el repo.",
 ];
 
@@ -108,10 +110,21 @@ test("documentacion: las afirmaciones contractuales siguen alineadas con el codi
   const ordersApiSource = readFile("app/api/orders/route.ts");
   const workspaceOrdersApiSource = readFile("app/api/orders/private/route.ts");
   const orderByIdApiSource = readFile("app/api/orders/[orderId]/route.ts");
+  const legacyRemediationRequestApiSource = readFile(
+    "app/api/businesses/legacy-remediation/request/route.ts",
+  );
+  const legacyRemediationClaimApiSource = readFile(
+    "app/api/businesses/legacy-remediation/claim/route.ts",
+  );
   const supabaseServerSource = readFile("lib/supabase/server.ts");
   const businessesDataSource = readFile("data/businesses.ts");
+  const legacyRemediationDataSource = readFile("lib/data/business-ownership-remediation.ts");
   const productsDataSource = readFile("lib/data/products.ts");
   const ordersDataSource = readFile("lib/data/orders-server.ts");
+  const orderStateRulesSource = readFile("lib/orders/state-rules.ts");
+  const legacyRemediationMigrationSource = readFile(
+    "supabase/migrations/20260326_add_legacy_business_ownership_remediation.sql",
+  );
 
   assert.match(
     businessesApiSource,
@@ -155,8 +168,8 @@ test("documentacion: las afirmaciones contractuales siguen alineadas con el codi
   );
   assert.match(
     ordersApiSource,
-    /createOrderInDatabase\(\s*\{\s*\.\.\.payload,\s*businessSlug:\s*normalizedBusinessSlug,\s*\},\s*\{\s*source:\s*"storefront"\s*\}\s*\)/s,
-    "La creacion publica de pedidos debe delegar el origen del pedido al servidor.",
+    /sanitizeClientCreateOrderPayload/,
+    "La ruta publica de pedidos debe sanear campos sensibles derivados antes de persistir.",
   );
   assert.match(
     orderByIdApiSource,
@@ -178,20 +191,21 @@ test("documentacion: las afirmaciones contractuales siguen alineadas con el codi
     /businessId:\s*businessContextResult\.context\.businessId/,
     "La creacion manual debe persistir usando el businessId autenticado del contexto server-side.",
   );
-  const createOrderAllowedFieldsBlock = ordersApiSource.match(
-    /const CREATE_ORDER_ALLOWED_FIELDS = new Set\(\[(?<fields>[\s\S]*?)\]\)/,
+  assert.match(
+    workspaceOrdersApiSource,
+    /sanitizeClientCreateOrderPayload/,
+    "La ruta privada de pedidos debe sanear campos sensibles derivados antes de persistir.",
   );
-  assert.ok(
-    createOrderAllowedFieldsBlock?.groups?.fields,
-    "La ruta publica de pedidos debe mantener un inventario explicito de campos permitidos.",
+  assert.match(
+    legacyRemediationRequestApiSource,
+    /requireAuthenticatedApiUser/,
+    "La solicitud de remediacion legacy debe exigir sesion autenticada.",
   );
-  for (const forbiddenField of ["status", "paymentStatus", "dateLabel", "isReviewed", "history"]) {
-    assert.doesNotMatch(
-      createOrderAllowedFieldsBlock.groups.fields,
-      new RegExp(`"${forbiddenField}"`),
-      `La creacion publica de pedidos no debe aceptar ${forbiddenField} desde cliente.`,
-    );
-  }
+  assert.match(
+    legacyRemediationClaimApiSource,
+    /requireAuthenticatedApiUser/,
+    "El claim de remediacion legacy debe exigir sesion autenticada.",
+  );
   assert.match(
     supabaseServerSource,
     /keySource:\s*"NEXT_PUBLIC_SUPABASE_ANON_KEY"/,
@@ -206,6 +220,16 @@ test("documentacion: las afirmaciones contractuales siguen alineadas con el codi
     businessesDataSource,
     /createServerSupabasePublicClient/,
     "La resolucion publica del storefront debe seguir pasando por el cliente publico de Supabase.",
+  );
+  assert.match(
+    businessesDataSource,
+    /listCurrentUserLegacyBusinessOwnershipRemediations/,
+    "La home operativa debe exponer el estado de remediacion legacy para la sesion autenticada.",
+  );
+  assert.match(
+    legacyRemediationDataSource,
+    /createServerSupabaseAuthClient/,
+    "La remediacion legacy debe operar con cliente autenticado SSR y no con service role.",
   );
   assert.match(
     productsDataSource,
@@ -224,6 +248,11 @@ test("documentacion: las afirmaciones contractuales siguen alineadas con el codi
   );
   assert.match(
     ordersDataSource,
+    /resolveAuthoritativeOrderStatePatch/,
+    "La mutacion de pedidos debe pasar por el resolvedor central de estado y pago.",
+  );
+  assert.match(
+    ordersDataSource,
     /options\?\.businessId/,
     "La creacion privada de pedidos debe poder reutilizar el businessId resuelto por el contexto autenticado.",
   );
@@ -236,6 +265,41 @@ test("documentacion: las afirmaciones contractuales siguen alineadas con el codi
     ordersDataSource,
     /createServerSupabasePublicClient/,
     "La creacion publica de pedidos debe seguir usando cliente publico de Supabase.",
+  );
+  assert.match(
+    orderStateRulesSource,
+    /sanitizeClientCreateOrderPayload/,
+    "El nucleo de reglas debe sanear los campos sensibles derivados del POST.",
+  );
+  assert.match(
+    orderStateRulesSource,
+    /deriveInitialOrderStateFromPaymentMethod/,
+    "El nucleo de reglas debe derivar el estado inicial segun el metodo de pago.",
+  );
+  assert.match(
+    orderStateRulesSource,
+    /resolveAuthoritativeOrderStatePatch/,
+    "El nucleo de reglas debe resolver y validar el snapshot autoritativo del PATCH.",
+  );
+  assert.match(
+    legacyRemediationMigrationSource,
+    /create table if not exists public\.legacy_business_ownership_remediations/i,
+    "La remediacion legacy debe persistir su estado en tabla dedicada.",
+  );
+  assert.match(
+    legacyRemediationMigrationSource,
+    /create table if not exists public\.legacy_business_ownership_remediation_events/i,
+    "La remediacion legacy debe dejar evidencia auditable en eventos persistidos.",
+  );
+  assert.match(
+    legacyRemediationMigrationSource,
+    /businesses_require_legacy_remediation_before_owner_assignment/i,
+    "La base debe bloquear asignaciones legacy sin remediacion claimable.",
+  );
+  assert.match(
+    legacyRemediationMigrationSource,
+    /grant_legacy_business_owner_claim/i,
+    "La remediacion legacy debe conservar un paso de habilitacion controlada para el claim.",
   );
 
   const localStorageUsageFiles = getAllRepoFiles(repoRoot)

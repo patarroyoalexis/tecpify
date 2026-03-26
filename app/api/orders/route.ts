@@ -3,22 +3,11 @@ import { NextResponse } from "next/server";
 import { debugError, debugLog } from "@/lib/debug";
 import { normalizeBusinessSlug } from "@/lib/businesses/slug";
 import { requireBusinessApiContext } from "@/lib/auth/server";
+import { sanitizeClientCreateOrderPayload } from "@/lib/orders/state-rules";
 import {
   createOrderInDatabase,
   getOrdersByBusinessIdFromDatabase,
 } from "@/lib/data/orders-server";
-
-const CREATE_ORDER_ALLOWED_FIELDS = new Set([
-  "businessSlug",
-  "customerName",
-  "customerWhatsApp",
-  "deliveryType",
-  "deliveryAddress",
-  "paymentMethod",
-  "products",
-  "total",
-  "notes",
-]);
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -100,9 +89,11 @@ export function createOrdersRouteHandlers(
       }
 
       const payloadFields = Object.keys(payload);
-      const invalidFields = payloadFields.filter(
-        (field) => !CREATE_ORDER_ALLOWED_FIELDS.has(field),
-      );
+      const {
+        sanitizedPayload,
+        invalidFields,
+        ignoredDerivedFields,
+      } = sanitizeClientCreateOrderPayload(payload);
 
       if (invalidFields.length > 0) {
         return NextResponse.json(
@@ -114,8 +105,8 @@ export function createOrdersRouteHandlers(
       }
 
       const normalizedBusinessSlug =
-        typeof payload.businessSlug === "string"
-          ? dependencies.normalizeBusinessSlug(payload.businessSlug)
+        typeof sanitizedPayload.businessSlug === "string"
+          ? dependencies.normalizeBusinessSlug(sanitizedPayload.businessSlug)
           : "";
 
       if (!normalizedBusinessSlug) {
@@ -127,7 +118,7 @@ export function createOrdersRouteHandlers(
 
       try {
         const order = await dependencies.createOrderInDatabase({
-          ...payload,
+          ...sanitizedPayload,
           businessSlug: normalizedBusinessSlug,
         }, { source: "storefront" });
         const responsePayload = {
@@ -139,6 +130,7 @@ export function createOrdersRouteHandlers(
           orderId: order.id,
           hasOrderCode: Boolean(order.orderCode),
           persistedRemotely: true,
+          ignoredDerivedFields,
         });
         return NextResponse.json(responsePayload, { status: 201 });
       } catch (error) {

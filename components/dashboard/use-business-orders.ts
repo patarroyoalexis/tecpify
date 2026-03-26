@@ -11,12 +11,10 @@ import {
 import { type OrderApiUpdatePayload } from "@/lib/orders/mappers";
 import {
   getAllowedOrderStatusTransitions,
-  getOrderStatusTransitionRule,
-  getPaymentStatusTransitionRule,
-  isPaymentConfirmed,
   ORDER_STATUS_LABELS,
   PAYMENT_STATUS_LABELS,
 } from "@/lib/orders/transitions";
+import { resolveAuthoritativeOrderStatePatch } from "@/lib/orders/state-rules";
 import type {
   DeliveryType,
   Order,
@@ -373,49 +371,49 @@ export function useBusinessOrders({
       throw new Error("No encontramos el pedido que intentas editar.");
     }
 
-    const nextPaymentStatus = payload.paymentStatus ?? currentOrder.paymentStatus;
-
-    if (
-      payload.status !== undefined &&
-      payload.status !== currentOrder.status &&
-      !isPaymentConfirmed(nextPaymentStatus)
-    ) {
-      throw new Error(
-        "Confirma el pago primero para habilitar los cambios en el estado del pedido.",
-      );
-    }
-
-    if (payload.status !== undefined) {
-      const statusRule = getOrderStatusTransitionRule(currentOrder, payload.status);
-
-      if (!statusRule.allowed) {
-        throw new Error(statusRule.reason ?? "Ese cambio de estado no esta permitido.");
-      }
-    }
-
-    if (payload.paymentStatus !== undefined) {
-      const paymentRule = getPaymentStatusTransitionRule(currentOrder, payload.paymentStatus);
-
-      if (!paymentRule.allowed) {
-        throw new Error(paymentRule.reason ?? "Ese cambio de pago no esta permitido.");
-      }
-    }
-
     if (payload.deliveryType !== undefined && !isValidDeliveryType(payload.deliveryType)) {
       throw new Error("Selecciona un tipo de entrega valido.");
     }
 
+    const resolvedStatePatch = resolveAuthoritativeOrderStatePatch(
+      {
+        paymentMethod: currentOrder.paymentMethod,
+        paymentStatus: currentOrder.paymentStatus,
+        status: currentOrder.status,
+      },
+      {
+        paymentMethod: payload.paymentMethod,
+        paymentStatus: payload.paymentStatus,
+        status: payload.status,
+      },
+    );
+    const normalizedPayload: EditableOrderPayload = {
+      ...payload,
+      ...(payload.paymentMethod !== undefined ||
+      resolvedStatePatch.changedFields.includes("paymentMethod")
+        ? { paymentMethod: resolvedStatePatch.nextState.paymentMethod }
+        : {}),
+      ...(payload.paymentStatus !== undefined ||
+      resolvedStatePatch.changedFields.includes("paymentStatus")
+        ? { paymentStatus: resolvedStatePatch.nextState.paymentStatus }
+        : {}),
+      ...(payload.status !== undefined || resolvedStatePatch.changedFields.includes("status")
+        ? { status: resolvedStatePatch.nextState.status }
+        : {}),
+    };
+
     const nextHistory = [
-      ...buildOrderHistoryEvents(currentOrder, payload),
+      ...buildOrderHistoryEvents(currentOrder, normalizedPayload),
       ...currentOrder.history,
     ];
     const shouldMarkAsReviewed =
       !currentOrder.isReviewed &&
-      ((payload.status !== undefined && payload.status !== currentOrder.status) ||
-        (payload.paymentStatus !== undefined &&
-          payload.paymentStatus !== currentOrder.paymentStatus));
+      ((normalizedPayload.status !== undefined &&
+        normalizedPayload.status !== currentOrder.status) ||
+        (normalizedPayload.paymentStatus !== undefined &&
+          normalizedPayload.paymentStatus !== currentOrder.paymentStatus));
     const nextPayload: OrderApiUpdatePayload = {
-      ...payload,
+      ...normalizedPayload,
       ...(shouldMarkAsReviewed ? { isReviewed: true } : {}),
       history: nextHistory,
     };

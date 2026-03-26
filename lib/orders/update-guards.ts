@@ -1,13 +1,11 @@
 import type { OrderApiUpdatePayload } from "@/lib/orders/mappers";
-import {
-  getOrderStatusTransitionRule,
-  isPaymentConfirmed,
-} from "@/lib/orders/transitions";
-import type { OrderStatus, PaymentStatus } from "@/types/orders";
+import type { OrderStatus, PaymentMethod, PaymentStatus } from "@/types/orders";
+import { getOrderStateUpdateError } from "@/lib/orders/state-rules";
 
 interface OrderTransitionSnapshot {
   status: OrderStatus;
   paymentStatus: PaymentStatus;
+  paymentMethod?: PaymentMethod;
 }
 
 function readNextPaymentStatus(
@@ -21,24 +19,18 @@ export function getOrderUpdateTransitionError(
   order: OrderTransitionSnapshot,
   payload: OrderApiUpdatePayload,
 ) {
-  if (payload.status === undefined || payload.status === order.status) {
-    return null;
-  }
-
-  const nextPaymentStatus = readNextPaymentStatus(order, payload);
-  const isCancellingOrder = payload.status === "cancelado";
-
-  if (!isCancellingOrder && !isPaymentConfirmed(nextPaymentStatus)) {
-    return "Invalid order update payload. No puedes avanzar el estado del pedido mientras el pago no este verificado.";
-  }
-
-  const statusRule = getOrderStatusTransitionRule({ status: order.status }, payload.status);
-
-  if (!statusRule.allowed) {
-    return `Invalid order update payload. ${statusRule.reason ?? "La transicion de estado no esta permitida."}`;
-  }
-
-  return null;
+  return getOrderStateUpdateError(
+    {
+      paymentMethod: order.paymentMethod ?? "Nequi",
+      paymentStatus: order.paymentStatus,
+      status: order.status,
+    },
+    {
+      paymentMethod: order.paymentMethod,
+      paymentStatus: readNextPaymentStatus(order, payload),
+      status: payload.status,
+    },
+  );
 }
 
 export function assertOrderUpdateTransitionAllowed(

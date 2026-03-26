@@ -3,6 +3,10 @@ import type {
   Order,
   PaymentMethod,
 } from "@/types/orders";
+import {
+  isCashPaymentMethod,
+  isDigitalPaymentMethod,
+} from "@/lib/orders/state-rules";
 
 export const allPaymentMethods: PaymentMethod[] = [
   "Efectivo",
@@ -13,15 +17,11 @@ export const allPaymentMethods: PaymentMethod[] = [
 ];
 
 export function isDigitalPayment(method: PaymentMethod): boolean {
-  return (
-    method === "Transferencia" ||
-    method === "Tarjeta" ||
-    method === "Nequi"
-  );
+  return isDigitalPaymentMethod(method);
 }
 
 export function isCashPayment(method: PaymentMethod): boolean {
-  return method === "Efectivo" || method === "Contra entrega";
+  return isCashPaymentMethod(method);
 }
 
 export function getAvailablePaymentMethods(

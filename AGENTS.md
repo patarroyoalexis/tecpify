@@ -30,6 +30,7 @@ El guardian debe verificar que:
 - ningun negocio sin owner pueda abrir workspace privado
 - ningun negocio sin owner pueda exponerse en storefront publico
 - ningun pedido pueda leerse o mutarse fuera del owner real del negocio
+- toda transicion `ownerless -> owned` pase por remediacion auditable con estados persistidos y claim controlado para el usuario correcto
 
 Si existe cualquier ruta, helper, mapper o consulta que permita operar un negocio sin owner verificable, el veredicto es `NO APTO TODAVIA`.
 
@@ -112,7 +113,8 @@ Contrato verificable actual:
 - Supabase es la fuente de verdad para negocios, productos y pedidos del MVP.
 - `localStorage` solo puede guardar estado de UI no critico.
 - El server debe resolver ownership desde sesion/contexto confiable y no confiar en `owner_id`, `created_by_user_id` ni `business_id` enviados por cliente para autorizar o mutar recursos.
-- La creacion de pedidos debe aceptar solo datos editables; estado inicial, historial e indicadores operativos se derivan en server segun si el origen es publico o autenticado.
+- Los negocios legacy sin owner solo salen de `ownerless_*` mediante remediacion auditable y siguen inaccesibles hasta persistir `businesses.created_by_user_id`.
+- La creacion de pedidos debe tomar solo datos editables; cualquier `status`, `paymentStatus` o metadato derivable enviado por cliente se ignora y el server deriva el estado segun medio de pago y origen.
 - `README.md` y `AGENTS.md` deben describir solo flujos realmente activos en el repo.
 
 ### 3. Validacion tecnica minima

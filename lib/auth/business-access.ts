@@ -1,5 +1,8 @@
 import { normalizeBusinessSlug } from "@/lib/businesses/slug";
-import { isLegacyBusinessBlocked } from "@/lib/auth/legacy-business-access";
+import {
+  hasLegacyBusinessOwner,
+  isLegacyBusinessBlocked,
+} from "@/lib/auth/legacy-business-access";
 import { createServerSupabaseAuthClient } from "@/lib/supabase/server";
 
 interface BusinessOwnershipRow {
@@ -30,9 +33,7 @@ interface BusinessAccessInput {
   ownerUserId: string | null;
 }
 
-export function hasVerifiedBusinessOwner(ownerUserId: string | null): ownerUserId is string {
-  return typeof ownerUserId === "string" && ownerUserId.trim().length > 0;
-}
+export const hasVerifiedBusinessOwner = hasLegacyBusinessOwner;
 
 export function getBusinessAccessLevel(
   { businessId, businessSlug, ownerUserId }: BusinessAccessInput,

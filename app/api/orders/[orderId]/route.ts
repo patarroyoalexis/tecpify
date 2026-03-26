@@ -3,21 +3,9 @@ import { NextResponse } from "next/server";
 import { debugError, debugLog } from "@/lib/debug";
 import { requireOrderApiContext } from "@/lib/auth/server";
 import { updateOrderInDatabase } from "@/lib/data/orders-server";
+import { ORDER_UPDATE_CLIENT_EDITABLE_FIELDS } from "@/lib/orders/state-rules";
 
-const UPDATE_ORDER_ALLOWED_FIELDS = new Set([
-  "status",
-  "paymentStatus",
-  "customerName",
-  "customerWhatsApp",
-  "deliveryType",
-  "deliveryAddress",
-  "paymentMethod",
-  "products",
-  "notes",
-  "total",
-  "isReviewed",
-  "history",
-]);
+const UPDATE_ORDER_ALLOWED_FIELDS = new Set<string>(ORDER_UPDATE_CLIENT_EDITABLE_FIELDS);
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);

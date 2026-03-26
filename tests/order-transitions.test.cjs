@@ -11,6 +11,10 @@ const {
 const {
   getOrderUpdateTransitionError,
 } = loadTsModule("lib/orders/update-guards.ts");
+const {
+  getOrderStateConsistencyError,
+  resolveAuthoritativeOrderStatePatch,
+} = loadTsModule("lib/orders/state-rules.ts");
 
 test("dominio: bloquea saltos de estado y estados finales", async (t) => {
   await t.test("no permite saltar pasos del flujo", () => {
@@ -41,7 +45,7 @@ test("dominio: exige pago verificado para avanzar el estado operativo", () => {
     },
   );
 
-  assert.match(error, /pago no este verificado/i);
+  assert.match(error, /(pago por verificar|pago no este verificado)/i);
 });
 
 test("dominio: permite verificar pago y avanzar en la misma actualizacion", () => {
@@ -69,4 +73,37 @@ test("dominio: cambios de pago verificado mantienen confirmacion explicita", () 
 
   assert.equal(result.allowed, true);
   assert.match(result.requiresConfirmation, /confirma/i);
+});
+
+test("dominio: pagos no digitales no aceptan estados de pago pendientes", () => {
+  const error = getOrderStateConsistencyError({
+    paymentMethod: "Efectivo",
+    paymentStatus: "pendiente",
+    status: "confirmado",
+  });
+
+  assert.match(error, /efectivo o contra entrega/i);
+});
+
+test("dominio: cambiar a efectivo deriva confirmacion server-side sin dejar el pedido incoherente", () => {
+  const resolvedStatePatch = resolveAuthoritativeOrderStatePatch(
+    {
+      paymentMethod: "Nequi",
+      paymentStatus: "pendiente",
+      status: "pendiente de pago",
+    },
+    {
+      paymentMethod: "Efectivo",
+    },
+  );
+
+  assert.deepEqual(resolvedStatePatch.nextState, {
+    paymentMethod: "Efectivo",
+    paymentStatus: "verificado",
+    status: "confirmado",
+  });
+  assert.deepEqual(
+    resolvedStatePatch.changedFields.sort(),
+    ["paymentMethod", "paymentStatus", "status"],
+  );
 });

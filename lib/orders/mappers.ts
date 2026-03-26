@@ -13,6 +13,7 @@ import {
   PAYMENT_METHODS,
   PAYMENT_STATUSES,
 } from "@/types/orders";
+import { deriveInitialOrderStateFromPaymentMethod } from "@/lib/orders/state-rules";
 
 export type SupabaseOrderRow = Record<string, unknown>;
 
@@ -211,25 +212,6 @@ function buildDateLabel(createdAt: string, fallback: string) {
   }).format(new Date(createdAt));
 }
 
-export function getInitialOrderState(paymentMethod: PaymentMethod) {
-  const isDigitalPayment =
-    paymentMethod === "Transferencia" ||
-    paymentMethod === "Tarjeta" ||
-    paymentMethod === "Nequi";
-
-  if (isDigitalPayment) {
-    return {
-      paymentStatus: "pendiente" as PaymentStatus,
-      status: "pendiente de pago" as OrderStatus,
-    };
-  }
-
-  return {
-    paymentStatus: "verificado" as PaymentStatus,
-    status: "confirmado" as OrderStatus,
-  };
-}
-
 export function createInitialOrderHistory(
   options: {
     orderId: string;
@@ -277,7 +259,7 @@ export function buildInitialOrderServerState(options: {
   paymentMethod: PaymentMethod;
   source: OrderCreationSource;
 }) {
-  const initialState = getInitialOrderState(options.paymentMethod);
+  const initialState = deriveInitialOrderStateFromPaymentMethod(options.paymentMethod);
 
   return {
     ...initialState,

@@ -4,18 +4,7 @@ import { debugError, debugLog } from "@/lib/debug";
 import { normalizeBusinessSlug } from "@/lib/businesses/slug";
 import { requireBusinessApiContext } from "@/lib/auth/server";
 import { createOrderInDatabase } from "@/lib/data/orders-server";
-
-const WORKSPACE_ORDER_ALLOWED_FIELDS = new Set([
-  "businessSlug",
-  "customerName",
-  "customerWhatsApp",
-  "deliveryType",
-  "deliveryAddress",
-  "paymentMethod",
-  "products",
-  "total",
-  "notes",
-]);
+import { sanitizeClientCreateOrderPayload } from "@/lib/orders/state-rules";
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -55,9 +44,11 @@ export function createWorkspaceOrdersRouteHandlers(
       }
 
       const payloadFields = Object.keys(payload);
-      const invalidFields = payloadFields.filter(
-        (field) => !WORKSPACE_ORDER_ALLOWED_FIELDS.has(field),
-      );
+      const {
+        sanitizedPayload,
+        invalidFields,
+        ignoredDerivedFields,
+      } = sanitizeClientCreateOrderPayload(payload);
 
       if (invalidFields.length > 0) {
         return NextResponse.json(
@@ -69,8 +60,8 @@ export function createWorkspaceOrdersRouteHandlers(
       }
 
       const normalizedBusinessSlug =
-        typeof payload.businessSlug === "string"
-          ? dependencies.normalizeBusinessSlug(payload.businessSlug)
+        typeof sanitizedPayload.businessSlug === "string"
+          ? dependencies.normalizeBusinessSlug(sanitizedPayload.businessSlug)
           : "";
 
       if (!normalizedBusinessSlug) {
@@ -90,7 +81,7 @@ export function createWorkspaceOrdersRouteHandlers(
       try {
         const order = await dependencies.createOrderInDatabase(
           {
-            ...payload,
+            ...sanitizedPayload,
             businessSlug: businessContextResult.context.businessSlug,
           },
           {
@@ -102,6 +93,7 @@ export function createWorkspaceOrdersRouteHandlers(
           orderId: order.id,
           businessSlug: businessContextResult.context.businessSlug,
           persistedRemotely: true,
+          ignoredDerivedFields,
         });
         return NextResponse.json(
           {

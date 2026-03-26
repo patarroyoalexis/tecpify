@@ -1,12 +1,16 @@
 import { debugError, debugLog } from "@/lib/debug";
 import { hasVerifiedBusinessOwner } from "@/lib/auth/business-access";
 import { normalizeBusinessSlug } from "@/lib/businesses/slug";
+import { listCurrentUserLegacyBusinessOwnershipRemediations } from "@/lib/data/business-ownership-remediation";
 import {
   createServerSupabaseAuthClient,
   createServerSupabasePublicClient,
 } from "@/lib/supabase/server";
 import { DELIVERY_TYPES, PAYMENT_METHODS } from "@/types/orders";
-import type { BusinessRecord } from "@/types/businesses";
+import type {
+  BusinessRecord,
+  LegacyBusinessOwnershipRemediationRecord,
+} from "@/types/businesses";
 import type { BusinessConfig } from "@/types/storefront";
 
 type PublicSupabaseBusinessRow = {
@@ -29,6 +33,7 @@ type AuthenticatedSupabaseBusinessRow = {
 
 export interface HomeBusinessesSnapshot {
   realBusinesses: BusinessConfig[];
+  legacyOwnershipRemediations: LegacyBusinessOwnershipRemediationRecord[];
 }
 
 export type BusinessProductsLookupResult =
@@ -147,6 +152,7 @@ export async function getHomeBusinesses(
   operatorUserId?: string | null,
 ): Promise<HomeBusinessesSnapshot> {
   let databaseBusinesses: BusinessRecord[] = [];
+  let legacyOwnershipRemediations: LegacyBusinessOwnershipRemediationRecord[] = [];
 
   try {
     databaseBusinesses = await getBusinessesFromDatabase();
@@ -156,10 +162,25 @@ export async function getHomeBusinesses(
     });
   }
 
-  const accessibleBusinesses = operatorUserId ? databaseBusinesses : [];
+  try {
+    legacyOwnershipRemediations = operatorUserId
+      ? await listCurrentUserLegacyBusinessOwnershipRemediations()
+      : [];
+  } catch (error) {
+    debugError("[businesses] Failed to load legacy ownership remediations for home", {
+      message: error instanceof Error ? error.message : "unknown",
+    });
+  }
+
+  const accessibleBusinesses = operatorUserId
+    ? databaseBusinesses.filter(
+        (business) => business.createdByUserId === operatorUserId && hasVerifiedBusinessOwner(business.createdByUserId),
+      )
+    : [];
 
   return {
     realBusinesses: accessibleBusinesses.map(mapDatabaseBusinessToConfig),
+    legacyOwnershipRemediations,
   };
 }
 

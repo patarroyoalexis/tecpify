@@ -26,6 +26,7 @@ import {
   ORDER_STATUS_LABELS,
   PAYMENT_STATUS_LABELS,
 } from "@/lib/orders/transitions";
+import { resolveAuthoritativeOrderStatePatch } from "@/lib/orders/state-rules";
 import { buildWhatsAppUrl } from "@/lib/whatsapp";
 import {
   DELIVERY_TYPES,
@@ -616,16 +617,23 @@ export function OrderDetailDrawer({
       return "La dirección es obligatoria para domicilio.";
     }
 
-    if (!statusRule.allowed) {
-      return statusRule.reason ?? "Ese cambio de estado no está permitido.";
-    }
-
-    if (!paymentRule.allowed) {
-      return paymentRule.reason ?? "Ese cambio de pago no está permitido.";
-    }
-
-    if (!isDigitalPayment(effectivePaymentMethod) && currentEditForm.paymentStatus !== "verificado") {
-      return "Para pagos no digitales, el estado del pago debe quedar en Verificado.";
+    try {
+      resolveAuthoritativeOrderStatePatch(
+        {
+          paymentMethod: currentOrder.paymentMethod,
+          paymentStatus: currentOrder.paymentStatus,
+          status: currentOrder.status,
+        },
+        {
+          paymentMethod: effectivePaymentMethod,
+          paymentStatus: currentEditForm.paymentStatus,
+          status: currentEditForm.status,
+        },
+      );
+    } catch (error) {
+      return error instanceof Error
+        ? error.message.replace(/^Invalid order update payload\.\s*/i, "")
+        : "Ese cambio de estado o pago no está permitido.";
     }
 
     if (changedFields.length === 0) {

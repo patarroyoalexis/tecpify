@@ -1,6 +1,8 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
 const { NextResponse } = require("next/server");
 
 const { loadTsModule } = require("./helpers/test-runtime.cjs");
@@ -13,6 +15,10 @@ const { createOrderByIdRouteHandlers } = loadTsModule(
   "app/api/orders/[orderId]/route.ts",
 );
 const { buildInitialOrderServerState } = loadTsModule("lib/orders/mappers.ts");
+const {
+  deriveInitialOrderStateFromPaymentMethod,
+  resolveAuthoritativeOrderStatePatch,
+} = loadTsModule("lib/orders/state-rules.ts");
 
 const ORDER_ID = "0f9f5d8d-1234-4f6b-8f16-6e16b14ac001";
 
@@ -84,6 +90,17 @@ test("dominio: el servidor deriva metadatos iniciales segun el origen del pedido
   assert.match(workspaceState.history[0].description, /workspace privado/i);
 });
 
+test("dominio: el estado inicial se deriva en servidor segun la regla de pago real", () => {
+  assert.deepEqual(deriveInitialOrderStateFromPaymentMethod("Nequi"), {
+    status: "pendiente de pago",
+    paymentStatus: "pendiente",
+  });
+  assert.deepEqual(deriveInitialOrderStateFromPaymentMethod("Efectivo"), {
+    status: "confirmado",
+    paymentStatus: "verificado",
+  });
+});
+
 test("POST /api/orders crea un pedido valido desde storefront", async () => {
   let receivedPayload = null;
   let receivedOptions = null;
@@ -126,8 +143,8 @@ test("POST /api/orders crea un pedido valido desde storefront", async () => {
   assert.equal(body.order.id, expectedOrder.id);
 });
 
-test("POST /api/orders rechaza metadatos operativos enviados por cliente", async () => {
-  let createOrderWasCalled = false;
+test("POST /api/orders ignora status enviado por cliente", async () => {
+  let receivedPayload = null;
   const handlers = createOrdersRouteHandlers({
     normalizeBusinessSlug: (value) => value.trim().toLowerCase(),
     requireBusinessApiContext: async () => {
@@ -136,8 +153,8 @@ test("POST /api/orders rechaza metadatos operativos enviados por cliente", async
     getOrdersByBusinessIdFromDatabase: async () => {
       throw new Error("getOrdersByBusinessIdFromDatabase no debe usarse en POST");
     },
-    createOrderInDatabase: async () => {
-      createOrderWasCalled = true;
+    createOrderInDatabase: async (payload) => {
+      receivedPayload = payload;
       return createOrderFixture();
     },
   });
@@ -156,13 +173,46 @@ test("POST /api/orders rechaza metadatos operativos enviados por cliente", async
       history: [{ id: "fake", title: "Fake", description: "Fake", occurredAt: "2026-03-25T21:00:00.000Z" }],
     }),
   );
-  const body = await response.json();
 
-  assert.equal(response.status, 400);
-  assert.match(body.error, /campos no permitidos/i);
-  assert.match(body.error, /status/);
-  assert.match(body.error, /history/);
-  assert.equal(createOrderWasCalled, false);
+  assert.equal(response.status, 201);
+  assert.equal(receivedPayload.status, undefined);
+  assert.equal(receivedPayload.history, undefined);
+});
+
+test("POST /api/orders ignora paymentStatus enviado por cliente", async () => {
+  let receivedPayload = null;
+  const handlers = createOrdersRouteHandlers({
+    normalizeBusinessSlug: (value) => value.trim().toLowerCase(),
+    requireBusinessApiContext: async () => {
+      throw new Error("requireBusinessApiContext no debe usarse en POST");
+    },
+    getOrdersByBusinessIdFromDatabase: async () => {
+      throw new Error("getOrdersByBusinessIdFromDatabase no debe usarse en POST");
+    },
+    createOrderInDatabase: async (payload) => {
+      receivedPayload = payload;
+      return createOrderFixture();
+    },
+  });
+
+  const response = await handlers.POST(
+    createJsonRequest("http://localhost/api/orders", "POST", {
+      businessSlug: "mi-tienda",
+      customerName: "Ana Perez",
+      customerWhatsApp: "3001234567",
+      deliveryType: "domicilio",
+      deliveryAddress: "Calle 1 # 2-3",
+      paymentMethod: "Nequi",
+      products: [{ productId: "prod-1", name: "Hamburguesa", quantity: 2, unitPrice: 15000 }],
+      total: 30000,
+      paymentStatus: "verificado",
+      isReviewed: true,
+    }),
+  );
+
+  assert.equal(response.status, 201);
+  assert.equal(receivedPayload.paymentStatus, undefined);
+  assert.equal(receivedPayload.isReviewed, undefined);
 });
 
 test("POST /api/orders/private crea un pedido manual autenticado", async () => {
@@ -342,6 +392,90 @@ test("PATCH /api/orders/[orderId] actualiza estado, pago, historial e isReviewed
   });
   assert.equal(body.persistedRemotely, true);
   assert.equal(body.order.isReviewed, true);
+});
+
+test("dominio: PATCH rechaza combinaciones incoherentes entre estado y pago", () => {
+  const error = (() => {
+    try {
+      resolveAuthoritativeOrderStatePatch(
+        {
+          paymentMethod: "Nequi",
+          paymentStatus: "verificado",
+          status: "confirmado",
+        },
+        {
+          paymentStatus: "pendiente",
+        },
+      );
+      return null;
+    } catch (patchError) {
+      return patchError instanceof Error ? patchError.message : String(patchError);
+    }
+  })();
+
+  assert.match(error, /pago no este verificado/i);
+});
+
+test("dominio: PATCH acepta transicion valida y deriva status complementario desde servidor", () => {
+  const resolvedStatePatch = resolveAuthoritativeOrderStatePatch(
+    {
+      paymentMethod: "Nequi",
+      paymentStatus: "pendiente",
+      status: "pendiente de pago",
+    },
+    {
+      paymentStatus: "verificado",
+    },
+  );
+
+  assert.deepEqual(resolvedStatePatch.nextState, {
+    paymentMethod: "Nequi",
+    paymentStatus: "verificado",
+    status: "pago por verificar",
+  });
+  assert.deepEqual(resolvedStatePatch.changedFields.sort(), ["paymentStatus", "status"]);
+  assert.deepEqual(resolvedStatePatch.derivedFields, ["status"]);
+});
+
+test("regresion: ninguna ruta o helper persiste estados sensibles sin pasar por el nucleo central", () => {
+  const publicOrdersRouteSource = fs.readFileSync(
+    path.join(process.cwd(), "app", "api", "orders", "route.ts"),
+    "utf8",
+  );
+  const privateOrdersRouteSource = fs.readFileSync(
+    path.join(process.cwd(), "app", "api", "orders", "private", "route.ts"),
+    "utf8",
+  );
+  const ordersServerSource = fs.readFileSync(
+    path.join(process.cwd(), "lib", "data", "orders-server.ts"),
+    "utf8",
+  );
+
+  assert.match(
+    publicOrdersRouteSource,
+    /sanitizeClientCreateOrderPayload/,
+    "El POST publico debe sanear estados derivados antes de persistir.",
+  );
+  assert.match(
+    privateOrdersRouteSource,
+    /sanitizeClientCreateOrderPayload/,
+    "El POST privado debe sanear estados derivados antes de persistir.",
+  );
+  assert.match(
+    ordersServerSource,
+    /resolveAuthoritativeOrderStatePatch/,
+    "La persistencia debe resolver el snapshot autoritativo antes de tocar status o payment_status.",
+  );
+  assert.match(
+    ordersServerSource,
+    /status:\s*nextOrderState\.status/,
+    "status debe persistirse desde el snapshot resuelto en servidor.",
+  );
+  assert.match(
+    ordersServerSource,
+    /payment_status:\s*nextOrderState\.paymentStatus/,
+    "paymentStatus debe persistirse desde el snapshot resuelto en servidor.",
+  );
 });
 
 test("PATCH /api/orders/[orderId] bloquea acceso indebido al pedido", async () => {

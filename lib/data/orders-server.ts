@@ -15,13 +15,20 @@ import {
 } from "@/lib/orders/mappers";
 import { debugError, debugLog } from "@/lib/debug";
 import { hasVerifiedBusinessOwner } from "@/lib/auth/business-access";
-import { assertOrderUpdateTransitionAllowed } from "@/lib/orders/update-guards";
+import {
+  ORDER_UPDATE_CLIENT_EDITABLE_FIELDS,
+  resolveAuthoritativeOrderStatePatch,
+} from "@/lib/orders/state-rules";
 import {
   createServerSupabaseAuthClient,
   createServerSupabasePublicClient,
   getSupabaseServerAuthMode,
 } from "@/lib/supabase/server";
 import type { Order } from "@/types/orders";
+
+const ORDER_UPDATE_CLIENT_EDITABLE_FIELD_SET = new Set<string>(
+  ORDER_UPDATE_CLIENT_EDITABLE_FIELDS,
+);
 
 interface BusinessLookupRow {
   id: string;
@@ -539,22 +546,8 @@ function validateUpdateOrderPayload(payload: unknown): payload is OrderApiUpdate
         candidate.total >= 0)) &&
     (candidate.isReviewed === undefined || typeof candidate.isReviewed === "boolean") &&
     (candidate.history === undefined || Array.isArray(candidate.history)) &&
-    Object.keys(candidate).some((key) =>
-      [
-        "status",
-        "paymentStatus",
-        "customerName",
-        "customerWhatsApp",
-        "deliveryType",
-        "deliveryAddress",
-        "paymentMethod",
-        "products",
-        "notes",
-        "total",
-        "isReviewed",
-        "history",
-      ].includes(key),
-    )
+    Object.keys(candidate).length > 0 &&
+    Object.keys(candidate).every((key) => ORDER_UPDATE_CLIENT_EDITABLE_FIELD_SET.has(key))
   );
 }
 
@@ -567,27 +560,13 @@ function describeUpdatePayloadProblems(payload: unknown) {
 
   const candidate = normalizedPayload as Partial<OrderApiUpdatePayload>;
   const problems: string[] = [];
-  const allowedKeys = [
-    "status",
-    "paymentStatus",
-    "customerName",
-    "customerWhatsApp",
-    "deliveryType",
-    "deliveryAddress",
-    "paymentMethod",
-    "products",
-    "notes",
-    "total",
-    "isReviewed",
-    "history",
-  ];
   const receivedKeys = Object.keys(candidate);
 
   if (receivedKeys.length === 0) {
     problems.push("Debes enviar al menos un campo editable.");
   }
 
-  if (receivedKeys.some((key) => !allowedKeys.includes(key))) {
+  if (receivedKeys.some((key) => !ORDER_UPDATE_CLIENT_EDITABLE_FIELD_SET.has(key))) {
     problems.push("El payload contiene campos no permitidos.");
   }
 
@@ -687,6 +666,20 @@ export async function updateOrderInDatabase(
     throw new Error(`Order not found for id "${orderId}".`);
   }
 
+  const resolvedStatePatch = resolveAuthoritativeOrderStatePatch(
+    {
+      paymentMethod: existingOrder.payment_method,
+      paymentStatus: existingOrder.payment_status,
+      status: existingOrder.status,
+    },
+    {
+      paymentMethod: normalizedPayload.paymentMethod,
+      paymentStatus: normalizedPayload.paymentStatus,
+      status: normalizedPayload.status,
+    },
+  );
+  const nextOrderState = resolvedStatePatch.nextState;
+
   const nextCustomerName =
     normalizedPayload.customerName !== undefined
       ? normalizedPayload.customerName.trim()
@@ -707,14 +700,6 @@ export async function updateOrderInDatabase(
     normalizedPayload.total !== undefined ? normalizedPayload.total : existingOrder.total;
   const nextProducts =
     normalizedPayload.products !== undefined ? normalizedPayload.products : existingOrder.products;
-
-  assertOrderUpdateTransitionAllowed(
-    {
-      status: existingOrder.status,
-      paymentStatus: existingOrder.payment_status,
-    },
-    normalizedPayload,
-  );
 
   if (nextCustomerName.length === 0) {
     throw new Error("Invalid order update payload. customerName is required.");
@@ -765,9 +750,11 @@ export async function updateOrderInDatabase(
     : nextTotal;
 
   const updatePayload = {
-    ...(normalizedPayload.status !== undefined ? { status: normalizedPayload.status } : {}),
-    ...(normalizedPayload.paymentStatus !== undefined
-      ? { payment_status: normalizedPayload.paymentStatus }
+    ...(resolvedStatePatch.changedFields.includes("status")
+      ? { status: nextOrderState.status }
+      : {}),
+    ...(resolvedStatePatch.changedFields.includes("paymentStatus")
+      ? { payment_status: nextOrderState.paymentStatus }
       : {}),
     ...(normalizedPayload.customerName !== undefined
       ? { customer_name: nextCustomerName }
@@ -781,8 +768,8 @@ export async function updateOrderInDatabase(
     ...(normalizedPayload.deliveryAddress !== undefined
       ? { delivery_address: nextDeliveryAddress || null }
       : {}),
-    ...(normalizedPayload.paymentMethod !== undefined
-      ? { payment_method: normalizedPayload.paymentMethod }
+    ...(resolvedStatePatch.changedFields.includes("paymentMethod")
+      ? { payment_method: nextOrderState.paymentMethod }
       : {}),
     ...(normalizedProducts !== undefined ? { products: normalizedProducts } : {}),
     ...(normalizedPayload.notes !== undefined
