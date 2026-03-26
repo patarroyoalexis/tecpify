@@ -14,6 +14,7 @@ import {
   type OrderApiUpdatePayload,
 } from "@/lib/orders/mappers";
 import { debugError, debugLog } from "@/lib/debug";
+import { hasVerifiedBusinessOwner } from "@/lib/auth/business-access";
 import { assertOrderUpdateTransitionAllowed } from "@/lib/orders/update-guards";
 import {
   createServerSupabaseAuthClient,
@@ -25,6 +26,7 @@ import type { Order } from "@/types/orders";
 interface BusinessLookupRow {
   id: string;
   slug: string;
+  created_by_user_id: string | null;
 }
 
 interface BusinessSlugRow {
@@ -209,7 +211,7 @@ async function getAuthenticatedBusinessDatabaseRecordBySlug(slug: string) {
   const supabase = await createServerSupabaseAuthClient();
   const { data, error } = await supabase
     .from("businesses")
-    .select("id, slug")
+    .select("id, slug, created_by_user_id")
     .eq("slug", slug)
     .maybeSingle<BusinessLookupRow>();
 
@@ -218,6 +220,21 @@ async function getAuthenticatedBusinessDatabaseRecordBySlug(slug: string) {
   }
 
   return data;
+}
+
+function assertBusinessHasVerifiedOwner(
+  business: BusinessLookupRow | null,
+  options: { businessSlug: string },
+): asserts business is BusinessLookupRow & { created_by_user_id: string } {
+  if (!business) {
+    throw new Error(`Business not found for slug "${options.businessSlug}".`);
+  }
+
+  if (!hasVerifiedBusinessOwner(business.created_by_user_id)) {
+    throw new Error(
+      `Business "${options.businessSlug}" is blocked until it has a real owner in created_by_user_id.`,
+    );
+  }
 }
 
 async function getBusinessSlugByDatabaseId(businessDatabaseId: string) {
@@ -370,10 +387,7 @@ export async function getOrdersByBusinessSlugFromDatabase(
   businessSlug: string,
 ): Promise<Order[]> {
   const business = await getAuthenticatedBusinessDatabaseRecordBySlug(businessSlug);
-
-  if (!business) {
-    throw new Error(`Business not found for slug "${businessSlug}".`);
-  }
+  assertBusinessHasVerifiedOwner(business, { businessSlug });
 
   return getOrdersByBusinessIdFromDatabase(business.id, { businessSlug });
 }
@@ -419,10 +433,7 @@ export async function createOrderInDatabase(payload: unknown): Promise<Order> {
   }
 
   const business = await getBusinessDatabaseRecordBySlug(payload.businessSlug);
-
-  if (!business) {
-    throw new Error(`Business not found for slug "${payload.businessSlug}".`);
-  }
+  assertBusinessHasVerifiedOwner(business, { businessSlug: payload.businessSlug });
 
   const normalizedProducts = normalizeOrderProductsForPersistence(
     payload.products,

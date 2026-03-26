@@ -51,7 +51,7 @@ function mapSupabaseBusinessRow(
     name: row.name,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
-    ...("created_by_user_id" in row ? { createdByUserId: row.created_by_user_id } : {}),
+    createdByUserId: "created_by_user_id" in row ? row.created_by_user_id : null,
   };
 }
 

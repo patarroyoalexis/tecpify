@@ -4,7 +4,7 @@ export interface BusinessRecord {
   name: string;
   createdAt: string;
   updatedAt: string;
-  createdByUserId?: string | null;
+  createdByUserId: string | null;
 }
 
 export interface CreateBusinessPayload {

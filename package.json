@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test": "node --test --test-isolation=none tests/orders-api.test.cjs tests/order-transitions.test.cjs"
+    "test": "node --test --test-isolation=none tests/orders-api.test.cjs tests/order-transitions.test.cjs tests/env-guardrails.test.cjs tests/ownership-access.test.cjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.9.0",

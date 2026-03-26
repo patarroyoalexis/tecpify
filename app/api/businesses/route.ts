@@ -12,6 +12,7 @@ interface SupabaseBusinessRow {
   name: string;
   created_at: string;
   updated_at: string;
+  created_by_user_id: string | null;
 }
 
 function mapBusinessRow(row: SupabaseBusinessRow): BusinessRecord {
@@ -21,6 +22,7 @@ function mapBusinessRow(row: SupabaseBusinessRow): BusinessRecord {
     name: row.name,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    createdByUserId: row.created_by_user_id,
   };
 }
 
@@ -106,7 +108,7 @@ export async function POST(request: Request) {
       created_at: now,
       updated_at: now,
     })
-    .select("id, slug, name, created_at, updated_at")
+    .select("id, slug, name, created_at, updated_at, created_by_user_id")
     .single<SupabaseBusinessRow>();
 
   if (error) {

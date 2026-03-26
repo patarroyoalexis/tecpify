@@ -1,4 +1,5 @@
 import { normalizeBusinessSlug } from "@/lib/businesses/slug";
+import { isLegacyBusinessBlocked } from "@/lib/auth/legacy-business-access";
 import { createServerSupabaseAuthClient } from "@/lib/supabase/server";
 
 interface BusinessOwnershipRow {
@@ -19,7 +20,7 @@ export interface BusinessAccessResult {
   businessId: string;
   businessSlug: string;
   businessName: string;
-  ownerUserId: string | null;
+  ownerUserId: string;
   accessLevel: BusinessAccessLevel;
 }
 
@@ -29,12 +30,20 @@ interface BusinessAccessInput {
   ownerUserId: string | null;
 }
 
+export function hasVerifiedBusinessOwner(ownerUserId: string | null): ownerUserId is string {
+  return typeof ownerUserId === "string" && ownerUserId.trim().length > 0;
+}
+
 export function getBusinessAccessLevel(
   { businessId, businessSlug, ownerUserId }: BusinessAccessInput,
   userId: string,
 ): BusinessAccessLevel | null {
   void businessId;
   void businessSlug;
+
+  if (isLegacyBusinessBlocked(ownerUserId) || !hasVerifiedBusinessOwner(ownerUserId)) {
+    return null;
+  }
 
   if (ownerUserId === userId) {
     return "owned";
@@ -44,6 +53,10 @@ export function getBusinessAccessLevel(
 }
 
 function mapBusinessAccessResult(row: BusinessOwnershipRow, userId: string): BusinessAccessResult | null {
+  if (!hasVerifiedBusinessOwner(row.created_by_user_id)) {
+    return null;
+  }
+
   const accessLevel = getBusinessAccessLevel(
     {
       businessId: row.id,
