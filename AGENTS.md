@@ -106,6 +106,14 @@ El guardian debe bloquear cierre si:
 - aparece una lectura directa nueva de `process.env` fuera de `lib/env.ts` sin excepcion temporal, acotada y justificada en test o documentacion
 - se intenta aprobar una brecha de entorno o seguridad critica solo con evidencia manual
 
+### Regla bloqueante de fuente de verdad y fronteras client/server
+
+Contrato verificable actual:
+- Supabase es la fuente de verdad para negocios, productos y pedidos del MVP.
+- `localStorage` solo puede guardar estado de UI no critico.
+- El server debe resolver ownership desde sesion/contexto confiable y no confiar en `owner_id`, `created_by_user_id` ni `business_id` enviados por cliente para autorizar o mutar recursos.
+- `README.md` y `AGENTS.md` deben describir solo flujos realmente activos en el repo.
+
 ### 3. Validacion tecnica minima
 
 Siempre ejecutar:
@@ -117,5 +125,6 @@ Siempre ejecutar:
 - tests existentes relacionados con el area tocada
 - test de congruencia de variables y fronteras de entorno
 - test de veto a lecturas directas de `process.env` fuera de `lib/env.ts`
+- test de guardia documental sobre source of truth, ownership, service role y fronteras client/server
 
 Si la tarea toca seguridad critica, ownership o entorno y no existe un test de congruencia/documentacion, debe agregarse en la misma ronda si el alcance es directo.

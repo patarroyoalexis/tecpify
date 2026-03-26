@@ -32,6 +32,7 @@ const ALLOWED_SERVICE_ROLE_ENV_REFERENCES = new Set([
   "lib/env.ts",
   "lib/supabase/service-role.ts",
   "lib/supabase/internal/service-role-client.ts",
+  "tests/documentation-guardrails.test.cjs",
   "tests/env-guardrails.test.cjs",
   "tests/service-role-guardrails.test.cjs",
 ]);

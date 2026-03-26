@@ -463,6 +463,17 @@ npm test
   - cualquier uso nuevo debe quedar inventariado en `lib/supabase/service-role.ts`
   - cualquier helper privilegiado debe vivir aislado en `lib/supabase/internal/service-role-client.ts` y sin imports operativos
 
+## 11.1 Contrato verificable del MVP
+
+Bloque canonico para las pruebas automáticas del repo:
+
+- Supabase es la fuente de verdad de negocios, productos y pedidos del MVP.
+- `localStorage` solo puede guardar estado de UI no critico.
+- El canon server/API resuelve ownership desde sesion/contexto confiable; no acepta `owner_id`, `created_by_user_id` ni `business_id` del cliente como autoridad.
+- `lib/supabase/server.ts` solo expone clientes `public` y `auth`.
+- `SUPABASE_SERVICE_ROLE_KEY` no participa en el runtime normal del MVP.
+- Toda lectura de `process.env` debe vivir en `lib/env.ts`.
+
 Regla canonica:
 
 - toda lectura de `process.env` debe vivir en `lib/env.ts`

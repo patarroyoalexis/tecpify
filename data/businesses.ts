@@ -1,4 +1,5 @@
 import { debugError, debugLog } from "@/lib/debug";
+import { hasVerifiedBusinessOwner } from "@/lib/auth/business-access";
 import { normalizeBusinessSlug } from "@/lib/businesses/slug";
 import {
   createServerSupabaseAuthClient,
@@ -14,6 +15,7 @@ type PublicSupabaseBusinessRow = {
   name: string;
   created_at: string;
   updated_at: string;
+  created_by_user_id: string | null;
 };
 
 type AuthenticatedSupabaseBusinessRow = {
@@ -118,6 +120,15 @@ export async function getBusinessBySlugFromDatabase(slug: string) {
   return storefrontBusiness ? mapSupabaseBusinessRow(storefrontBusiness) : null;
 }
 
+interface BusinessProductsLookupDependencies {
+  getBusinessBySlugFromDatabase: typeof getBusinessBySlugFromDatabase;
+  getProductsByBusinessId: (businessId: string) => Promise<
+    Awaited<ReturnType<typeof import("@/lib/data/products").getProductsByBusinessId>>
+  >;
+  mapProductToBusinessProduct: typeof import("@/lib/data/products").mapProductToBusinessProduct;
+  debugLog: typeof debugLog;
+}
+
 async function getBusinessesFromDatabase() {
   const supabase = await createServerSupabaseAuthClient();
   const { data, error } = await supabase
@@ -152,49 +163,63 @@ export async function getHomeBusinesses(
   };
 }
 
-export async function getBusinessBySlugWithProducts(
-  slug: string,
-): Promise<BusinessProductsLookupResult> {
-  const databaseBusiness = await getBusinessBySlugFromDatabase(slug);
+export function createGetBusinessBySlugWithProducts(
+  dependencies?: Partial<BusinessProductsLookupDependencies>,
+) {
+  return async function getBusinessBySlugWithProducts(
+    slug: string,
+  ): Promise<BusinessProductsLookupResult> {
+    const databaseBusiness = await (
+      dependencies?.getBusinessBySlugFromDatabase ?? getBusinessBySlugFromDatabase
+    )(slug);
 
-  debugLog("[businesses] Received storefront slug", {
-    slug,
-    resolved: Boolean(databaseBusiness),
-  });
+    (dependencies?.debugLog ?? debugLog)("[businesses] Received storefront slug", {
+      slug,
+      resolved: Boolean(databaseBusiness),
+    });
 
-  if (!databaseBusiness) {
-    return { status: "not_found" };
-  }
+    if (!databaseBusiness || !hasVerifiedBusinessOwner(databaseBusiness.createdByUserId)) {
+      return { status: "not_found" };
+    }
 
-  const business = mapDatabaseBusinessToConfig(databaseBusiness);
-  const { getProductsByBusinessId, mapProductToBusinessProduct } = await import(
-    "@/lib/data/products"
-  );
-  const products = await getProductsByBusinessId(databaseBusiness.id);
+    const business = mapDatabaseBusinessToConfig(databaseBusiness);
+    let getProductsByBusinessId = dependencies?.getProductsByBusinessId;
+    let mapProductToBusinessProduct = dependencies?.mapProductToBusinessProduct;
 
-  debugLog("[businesses] Products query completed", {
-    slug,
-    productsCount: products.length,
-  });
+    if (!getProductsByBusinessId || !mapProductToBusinessProduct) {
+      const productsModule = await import("@/lib/data/products");
+      getProductsByBusinessId ??= productsModule.getProductsByBusinessId;
+      mapProductToBusinessProduct ??= productsModule.mapProductToBusinessProduct;
+    }
 
-  if (products.length === 0) {
+    const products = await getProductsByBusinessId(databaseBusiness.id);
+
+    (dependencies?.debugLog ?? debugLog)("[businesses] Products query completed", {
+      slug,
+      productsCount: products.length,
+    });
+
+    if (products.length === 0) {
+      return {
+        status: "no_products",
+        business: {
+          ...business,
+          products: [],
+        },
+      };
+    }
+
     return {
-      status: "no_products",
+      status: "ok",
       business: {
         ...business,
-        products: [],
+        products: products.map(mapProductToBusinessProduct),
       },
     };
-  }
-
-  return {
-    status: "ok",
-    business: {
-      ...business,
-      products: products.map(mapProductToBusinessProduct),
-    },
   };
 }
+
+export const getBusinessBySlugWithProducts = createGetBusinessBySlugWithProducts();
 
 export async function getBusinessByIdWithProducts(businessId: string) {
   return getBusinessBySlugWithProducts(businessId);
