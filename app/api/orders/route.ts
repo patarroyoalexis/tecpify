@@ -120,7 +120,7 @@ export function createOrdersRouteHandlers(
         const order = await dependencies.createOrderInDatabase({
           ...sanitizedPayload,
           businessSlug: normalizedBusinessSlug,
-        }, { source: "storefront" });
+        }, { origin: "public_form" });
         const responsePayload = {
           order,
           orderCode: order.orderCode ?? null,

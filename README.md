@@ -32,7 +32,7 @@ Hoy ese circuito incluye:
 - Catalogo por negocio con alta, edicion, activacion, destacado y reordenamiento.
 - Storefront publico por slug, con solo productos activos y solo negocios con owner verificable.
 - Creacion de pedidos desde el link publico y tambien desde el workspace privado.
-- Creacion publica e interna de pedidos con `status` y `paymentStatus` autoritativos en servidor, derivados segun medio de pago y origen del pedido.
+- Creacion publica e interna de pedidos con `status`, `paymentStatus` e historial inicial autoritativos en servidor, derivados segun medio de pago y origen real del pedido.
 - Remediacion auditable de negocios legacy sin owner mediante solicitud autenticada, habilitacion controlada de claim y persistencia final de `created_by_user_id`.
 - Lectura y mutacion privada de pedidos, con `status` y `paymentStatus` separados.
 - Verificacion de pago todavia manual o asistida desde la operacion, no automatizada.
@@ -50,7 +50,7 @@ Hoy ese circuito incluye:
 
 ## 7. Estado actual del proyecto
 
-Tecpify ya es operativo en su circuito central, pero sigue en fase de consolidacion tecnica. El nucleo de negocios, productos y pedidos persiste en Supabase, el ownership se resuelve server-side, los negocios legacy ownerless pasan por una remediacion auditable antes de volver a operar y la creacion de pedidos deriva sus metadatos operativos en el servidor, mientras `localStorage` queda limitado a estado visual no critico del workspace.
+Tecpify ya es operativo en su circuito central, pero sigue en fase de consolidacion tecnica. El nucleo de negocios, productos y pedidos persiste en Supabase, el ownership se resuelve server-side, los negocios legacy ownerless pasan por una remediacion auditable antes de volver a operar y la creacion de pedidos deriva estado e historial en el servidor, mientras `localStorage` queda limitado a estado visual no critico del workspace.
 
 Las deudas mas visibles hoy no son de feature count sino de consistencia y mantenimiento: naming heredado donde `[negocioId]` sigue representando un slug, migracion pendiente de `middleware.ts` a `proxy` y simplificacion pendiente de algunas vistas del workspace.
 
@@ -91,7 +91,7 @@ Arranque local minimo: define esas variables, ejecuta `npm install` y luego `npm
 - `localStorage` solo puede guardar estado de UI no critico.
 - El canon server/API resuelve ownership desde sesion/contexto confiable; no acepta `owner_id`, `created_by_user_id` ni `business_id` del cliente como autoridad.
 - Los negocios legacy sin owner solo salen de `ownerless_*` mediante remediacion auditable y siguen inaccesibles hasta persistir `businesses.created_by_user_id`.
-- La creacion de pedidos solo toma datos editables; cualquier `status`, `paymentStatus` o metadato derivable enviado por cliente se ignora y el servidor deriva el estado segun el medio de pago y el origen.
+- La creacion de pedidos solo toma datos editables; cualquier `status`, `paymentStatus`, `history` o metadato derivable enviado por cliente se ignora y el servidor deriva estado e historial segun el medio de pago y el origen, dejando `history` append-only bajo control server-side.
 - `lib/supabase/server.ts` solo expone clientes `public` y `auth`.
 - `SUPABASE_SERVICE_ROLE_KEY` no participa en el runtime normal del MVP.
 - Toda lectura de `process.env` debe vivir en `lib/env.ts`.

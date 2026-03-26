@@ -1,4 +1,10 @@
 import {
+  appendServerGeneratedOrderHistory,
+  isValidOrderUpdateEventIntent,
+  resolveOrderPersistenceMode,
+  type OrderOrigin,
+} from "@/lib/orders/history-rules";
+import {
   calculateOrderProductsTotal,
   buildInitialOrderServerState,
   isValidOrderStatus,
@@ -9,7 +15,6 @@ import {
   mapSupabaseRowToOrder,
   normalizeOrderHistoryEvents,
   normalizeOrderApiUpdatePayload,
-  type OrderCreationSource,
   type PublicOrderApiCreatePayload,
   type OrderApiUpdatePayload,
 } from "@/lib/orders/mappers";
@@ -60,6 +65,8 @@ interface OrderLookupRow {
   notes: string | null;
   status: Order["status"];
   payment_status: Order["paymentStatus"];
+  is_reviewed: boolean;
+  history: unknown;
 }
 
 function buildPersistedInsertedOrder(
@@ -322,39 +329,6 @@ function normalizeOrderProductsForPersistence(
   });
 }
 
-function normalizeHistoryForPersistence(
-  history: unknown,
-  fallbackHistory?: Order["history"],
-): Order["history"] {
-  if (history === undefined) {
-    return fallbackHistory ?? [];
-  }
-
-  if (!Array.isArray(history)) {
-    throw new Error("Invalid order payload. history debe ser un arreglo de eventos validos.");
-  }
-
-  const normalizedHistory = normalizeOrderHistoryEvents(history);
-
-  if (normalizedHistory.length !== history.length) {
-    throw new Error(
-      "Invalid order payload. history debe contener eventos validos con id, title y occurredAt.",
-    );
-  }
-
-  const uniqueEventIds = new Set<string>();
-
-  for (const historyEvent of normalizedHistory) {
-    if (uniqueEventIds.has(historyEvent.id)) {
-      throw new Error("Invalid order payload. history contiene eventos repetidos.");
-    }
-
-    uniqueEventIds.add(historyEvent.id);
-  }
-
-  return normalizedHistory;
-}
-
 function assertOrderTotalMatchesProducts(
   total: number,
   products: Order["products"],
@@ -413,7 +387,7 @@ export async function getOrdersByBusinessIdFromDatabase(
 
 export async function createOrderInDatabase(
   payload: unknown,
-  options?: { source?: OrderCreationSource; businessId?: string },
+  options?: { origin?: OrderOrigin; businessId?: string },
 ): Promise<Order> {
   if (!validateCreateOrderPayload(payload)) {
     throw new Error(`Invalid order payload. ${describePayloadProblems(payload).join(" ")}`);
@@ -428,8 +402,8 @@ export async function createOrderInDatabase(
     );
   }
 
-  const orderSource = options?.source ?? "storefront";
-  const orderCreationMode = orderSource === "workspace" ? "auth" : "public";
+  const orderOrigin = options?.origin ?? "public_form";
+  const orderCreationMode = resolveOrderPersistenceMode(orderOrigin);
   let businessId = options?.businessId;
 
   if (!businessId) {
@@ -451,14 +425,14 @@ export async function createOrderInDatabase(
     businessSlug: payload.businessSlug,
     createdAt: now,
     paymentMethod: payload.paymentMethod,
-    source: orderSource,
+    origin: orderOrigin,
   });
   const persistedTotal = assertOrderTotalMatchesProducts(payload.total, normalizedProducts);
 
   debugLog("[orders-api] Preparing order insert", {
     authMode: getSupabaseServerAuthMode(orderCreationMode),
     businessSlug: payload.businessSlug,
-    orderSource,
+    orderOrigin,
     productsCount: normalizedProducts.length,
   });
 
@@ -545,7 +519,8 @@ function validateUpdateOrderPayload(payload: unknown): payload is OrderApiUpdate
         Number.isFinite(candidate.total) &&
         candidate.total >= 0)) &&
     (candidate.isReviewed === undefined || typeof candidate.isReviewed === "boolean") &&
-    (candidate.history === undefined || Array.isArray(candidate.history)) &&
+    (candidate.eventIntent === undefined ||
+      isValidOrderUpdateEventIntent(candidate.eventIntent)) &&
     Object.keys(candidate).length > 0 &&
     Object.keys(candidate).every((key) => ORDER_UPDATE_CLIENT_EDITABLE_FIELD_SET.has(key))
   );
@@ -558,6 +533,7 @@ function describeUpdatePayloadProblems(payload: unknown) {
     return ["El payload debe ser un objeto JSON valido."];
   }
 
+  const rawCandidate = normalizedPayload as Record<string, unknown>;
   const candidate = normalizedPayload as Partial<OrderApiUpdatePayload>;
   const problems: string[] = [];
   const receivedKeys = Object.keys(candidate);
@@ -630,8 +606,14 @@ function describeUpdatePayloadProblems(payload: unknown) {
     problems.push("isReviewed debe ser booleano.");
   }
 
-  if (candidate.history !== undefined && !Array.isArray(candidate.history)) {
-    problems.push("history debe ser un arreglo.");
+  if (candidate.eventIntent !== undefined && !isValidOrderUpdateEventIntent(candidate.eventIntent)) {
+    problems.push("eventIntent no es valido para public.orders.");
+  }
+
+  if ("history" in rawCandidate) {
+    problems.push(
+      "history no acepta snapshots completos; el historial es append-only y se deriva en servidor.",
+    );
   }
 
   return problems;
@@ -653,7 +635,7 @@ export async function updateOrderInDatabase(
   const { data: existingOrder, error: lookupError } = await supabase
     .from("orders")
     .select(
-      "id, business_id, customer_name, customer_whatsapp, delivery_type, delivery_address, payment_method, products, total, notes, status, payment_status",
+      "id, business_id, customer_name, customer_whatsapp, delivery_type, delivery_address, payment_method, products, total, notes, status, payment_status, is_reviewed, history",
     )
     .eq("id", orderId)
     .maybeSingle<OrderLookupRow>();
@@ -700,6 +682,11 @@ export async function updateOrderInDatabase(
     normalizedPayload.total !== undefined ? normalizedPayload.total : existingOrder.total;
   const nextProducts =
     normalizedPayload.products !== undefined ? normalizedPayload.products : existingOrder.products;
+  const nextIsReviewed =
+    normalizedPayload.eventIntent === "mark_reviewed_from_operation" ||
+    normalizedPayload.eventIntent === "mark_reviewed_from_new_orders"
+      ? true
+      : normalizedPayload.isReviewed ?? existingOrder.is_reviewed;
 
   if (nextCustomerName.length === 0) {
     throw new Error("Invalid order update payload. customerName is required.");
@@ -728,16 +715,6 @@ export async function updateOrderInDatabase(
           await getBusinessProductsForOrder(existingOrder.business_id, { mode: "auth" }),
         )
       : undefined;
-  const normalizedHistory =
-    normalizedPayload.history !== undefined
-      ? normalizeHistoryForPersistence(normalizedPayload.history)
-      : undefined;
-
-  if (normalizedPayload.history !== undefined && normalizedHistory?.length === 0) {
-    throw new Error(
-      "Invalid order update payload. history debe conservar al menos un evento valido.",
-    );
-  }
 
   const shouldValidatePersistedTotal =
     normalizedPayload.products !== undefined || normalizedPayload.total !== undefined;
@@ -748,6 +725,45 @@ export async function updateOrderInDatabase(
         { allowZero: true },
       )
     : nextTotal;
+  const now = new Date().toISOString();
+  const currentHistory = normalizeOrderHistoryEvents(existingOrder.history);
+  const nextHistory = appendServerGeneratedOrderHistory({
+    orderId,
+    occurredAt: now,
+    currentHistory,
+    currentOrder: {
+      id: orderId,
+      status: existingOrder.status,
+      paymentStatus: existingOrder.payment_status,
+      customerName: existingOrder.customer_name,
+      customerWhatsApp: existingOrder.customer_whatsapp,
+      deliveryType: existingOrder.delivery_type,
+      deliveryAddress: existingOrder.delivery_address,
+      paymentMethod: existingOrder.payment_method,
+      products: existingOrder.products,
+      notes: existingOrder.notes,
+      total: existingOrder.total,
+      isReviewed: existingOrder.is_reviewed,
+    },
+    nextOrder: {
+      id: orderId,
+      status: nextOrderState.status,
+      paymentStatus: nextOrderState.paymentStatus,
+      customerName: nextCustomerName,
+      customerWhatsApp: nextCustomerWhatsApp || null,
+      deliveryType: nextDeliveryType,
+      deliveryAddress: nextDeliveryAddress || null,
+      paymentMethod: nextOrderState.paymentMethod,
+      products: normalizedProducts ?? existingOrder.products,
+      notes:
+        normalizedPayload.notes !== undefined
+          ? normalizedPayload.notes?.trim() || null
+          : existingOrder.notes,
+      total: persistedTotal,
+      isReviewed: nextIsReviewed,
+    },
+    eventIntent: normalizedPayload.eventIntent,
+  });
 
   const updatePayload = {
     ...(resolvedStatePatch.changedFields.includes("status")
@@ -778,11 +794,11 @@ export async function updateOrderInDatabase(
     ...(normalizedPayload.total !== undefined || normalizedPayload.products !== undefined
       ? { total: persistedTotal }
       : {}),
-    ...(normalizedPayload.isReviewed !== undefined
-      ? { is_reviewed: normalizedPayload.isReviewed }
+    ...(nextIsReviewed !== existingOrder.is_reviewed
+      ? { is_reviewed: nextIsReviewed }
       : {}),
-    ...(normalizedHistory !== undefined ? { history: normalizedHistory } : {}),
-    updated_at: new Date().toISOString(),
+    ...(nextHistory !== currentHistory ? { history: nextHistory } : {}),
+    updated_at: now,
   };
 
   debugLog("[orders-api] Preparing order patch", {

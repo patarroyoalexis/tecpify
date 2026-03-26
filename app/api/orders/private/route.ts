@@ -85,7 +85,7 @@ export function createWorkspaceOrdersRouteHandlers(
             businessSlug: businessContextResult.context.businessSlug,
           },
           {
-            source: "workspace",
+            origin: "workspace_manual",
             businessId: businessContextResult.context.businessId,
           },
         );

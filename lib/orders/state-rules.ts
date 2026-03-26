@@ -42,7 +42,7 @@ export const ORDER_UPDATE_CLIENT_EDITABLE_FIELDS = [
   "notes",
   "total",
   "isReviewed",
-  "history",
+  "eventIntent",
 ] as const;
 
 const ORDER_CREATE_CLIENT_EDITABLE_FIELD_SET = new Set<string>(

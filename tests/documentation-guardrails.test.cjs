@@ -15,7 +15,7 @@ const README_CONTRACT_ITEMS = [
   "`localStorage` solo puede guardar estado de UI no critico.",
   "El canon server/API resuelve ownership desde sesion/contexto confiable; no acepta `owner_id`, `created_by_user_id` ni `business_id` del cliente como autoridad.",
   "Los negocios legacy sin owner solo salen de `ownerless_*` mediante remediacion auditable y siguen inaccesibles hasta persistir `businesses.created_by_user_id`.",
-  "La creacion de pedidos solo toma datos editables; cualquier `status`, `paymentStatus` o metadato derivable enviado por cliente se ignora y el servidor deriva el estado segun el medio de pago y el origen.",
+  "La creacion de pedidos solo toma datos editables; cualquier `status`, `paymentStatus`, `history` o metadato derivable enviado por cliente se ignora y el servidor deriva estado e historial segun el medio de pago y el origen, dejando `history` append-only bajo control server-side.",
   "`lib/supabase/server.ts` solo expone clientes `public` y `auth`.",
   "`SUPABASE_SERVICE_ROLE_KEY` no participa en el runtime normal del MVP.",
   "Toda lectura de `process.env` debe vivir en `lib/env.ts`.",
@@ -26,7 +26,7 @@ const AGENTS_CONTRACT_ITEMS = [
   "`localStorage` solo puede guardar estado de UI no critico.",
   "El server debe resolver ownership desde sesion/contexto confiable y no confiar en `owner_id`, `created_by_user_id` ni `business_id` enviados por cliente para autorizar o mutar recursos.",
   "Los negocios legacy sin owner solo salen de `ownerless_*` mediante remediacion auditable y siguen inaccesibles hasta persistir `businesses.created_by_user_id`.",
-  "La creacion de pedidos debe tomar solo datos editables; cualquier `status`, `paymentStatus` o metadato derivable enviado por cliente se ignora y el server deriva el estado segun medio de pago y origen.",
+  "La creacion de pedidos debe tomar solo datos editables; cualquier `status`, `paymentStatus`, `history` o metadato derivable enviado por cliente se ignora y el server deriva estado e historial segun medio de pago y origen, dejando `history` append-only bajo control server-side.",
   "`README.md` y `AGENTS.md` deben describir solo flujos realmente activos en el repo.",
 ];
 
@@ -122,6 +122,8 @@ test("documentacion: las afirmaciones contractuales siguen alineadas con el codi
   const productsDataSource = readFile("lib/data/products.ts");
   const ordersDataSource = readFile("lib/data/orders-server.ts");
   const orderStateRulesSource = readFile("lib/orders/state-rules.ts");
+  const orderHistoryRulesSource = readFile("lib/orders/history-rules.ts");
+  const businessOrdersHookSource = readFile("components/dashboard/use-business-orders.ts");
   const legacyRemediationMigrationSource = readFile(
     "supabase/migrations/20260326_add_legacy_business_ownership_remediation.sql",
   );
@@ -163,8 +165,8 @@ test("documentacion: las afirmaciones contractuales siguen alineadas con el codi
   );
   assert.match(
     ordersApiSource,
-    /source:\s*"storefront"/,
-    "La creacion publica de pedidos debe declararse explicitamente como flujo storefront server-side.",
+    /origin:\s*"public_form"/,
+    "La creacion publica de pedidos debe declarar un origin server-side explicito.",
   );
   assert.match(
     ordersApiSource,
@@ -183,8 +185,8 @@ test("documentacion: las afirmaciones contractuales siguen alineadas con el codi
   );
   assert.match(
     workspaceOrdersApiSource,
-    /source:\s*"workspace"/,
-    "La creacion manual de pedidos debe declararse explicitamente como flujo autenticado.",
+    /origin:\s*"workspace_manual"/,
+    "La creacion manual de pedidos debe declarar un origin server-side explicito.",
   );
   assert.match(
     workspaceOrdersApiSource,
@@ -253,6 +255,11 @@ test("documentacion: las afirmaciones contractuales siguen alineadas con el codi
   );
   assert.match(
     ordersDataSource,
+    /appendServerGeneratedOrderHistory/,
+    "La mutacion de pedidos debe anexar historial desde reglas server-side y no desde snapshots del cliente.",
+  );
+  assert.match(
+    ordersDataSource,
     /options\?\.businessId/,
     "La creacion privada de pedidos debe poder reutilizar el businessId resuelto por el contexto autenticado.",
   );
@@ -280,6 +287,21 @@ test("documentacion: las afirmaciones contractuales siguen alineadas con el codi
     orderStateRulesSource,
     /resolveAuthoritativeOrderStatePatch/,
     "El nucleo de reglas debe resolver y validar el snapshot autoritativo del PATCH.",
+  );
+  assert.match(
+    orderHistoryRulesSource,
+    /createInitialOrderHistory/,
+    "El historial inicial debe vivir en un modulo central server-side.",
+  );
+  assert.match(
+    orderHistoryRulesSource,
+    /appendServerGeneratedOrderHistory/,
+    "Los eventos posteriores del historial deben derivarse en un modulo central server-side.",
+  );
+  assert.doesNotMatch(
+    businessOrdersHookSource,
+    /createHistoryEvent|appendOrderEvent/,
+    "El cliente no debe volver a fabricar eventos de historial antes de mutar pedidos.",
   );
   assert.match(
     legacyRemediationMigrationSource,

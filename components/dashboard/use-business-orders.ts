@@ -9,19 +9,10 @@ import {
   updateOrderViaApi,
 } from "@/lib/orders/api";
 import { type OrderApiUpdatePayload } from "@/lib/orders/mappers";
-import {
-  getAllowedOrderStatusTransitions,
-  ORDER_STATUS_LABELS,
-  PAYMENT_STATUS_LABELS,
-} from "@/lib/orders/transitions";
+import { getAllowedOrderStatusTransitions } from "@/lib/orders/transitions";
+import { type OrderUpdateEventIntent } from "@/lib/orders/history-rules";
 import { resolveAuthoritativeOrderStatePatch } from "@/lib/orders/state-rules";
-import type {
-  DeliveryType,
-  Order,
-  OrderHistoryEvent,
-  OrderStatus,
-  PaymentStatus,
-} from "@/types/orders";
+import type { DeliveryType, Order, PaymentStatus } from "@/types/orders";
 import { DELIVERY_TYPES } from "@/types/orders";
 import type { NewOrderFormValue } from "./new-order-drawer";
 
@@ -47,154 +38,8 @@ type EditableOrderPayload = Pick<
   | "total"
 >;
 
-function createHistoryEvent(
-  orderId: string,
-  title: string,
-  description: string,
-  field?: string,
-  previousValue?: string,
-  newValue?: string,
-): OrderHistoryEvent {
-  return {
-    id: `${orderId}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
-    title,
-    description,
-    occurredAt: new Date().toISOString(),
-    field,
-    previousValue,
-    newValue,
-  };
-}
-
 function isValidDeliveryType(value: unknown): value is DeliveryType {
   return typeof value === "string" && DELIVERY_TYPES.includes(value as DeliveryType);
-}
-
-function formatOrderValue(field: keyof EditableOrderPayload, value: unknown): string {
-  if (value === null || value === undefined || value === "") {
-    return "Sin dato";
-  }
-
-  if (field === "status" && typeof value === "string") {
-    return ORDER_STATUS_LABELS[value as OrderStatus] ?? value;
-  }
-
-  if (field === "paymentStatus" && typeof value === "string") {
-    return PAYMENT_STATUS_LABELS[value as PaymentStatus] ?? value;
-  }
-
-  if (field === "deliveryType" && typeof value === "string") {
-    return value === "domicilio" ? "Domicilio" : "Recogida en tienda";
-  }
-
-  if (field === "total" && typeof value === "number") {
-    return new Intl.NumberFormat("es-CO", {
-      style: "currency",
-      currency: "COP",
-      maximumFractionDigits: 0,
-    }).format(value);
-  }
-
-  if (field === "products" && Array.isArray(value)) {
-    return value
-      .map((product) =>
-        product && typeof product === "object"
-          ? `${String((product as Order["products"][number]).quantity)} x ${String((product as Order["products"][number]).name)}`
-          : "",
-      )
-      .filter(Boolean)
-      .join(", ");
-  }
-
-  return String(value);
-}
-
-function getFieldLabel(field: keyof EditableOrderPayload): string {
-  switch (field) {
-    case "status":
-      return "Estado del pedido";
-    case "paymentStatus":
-      return "Estado del pago";
-    case "customerName":
-      return "Nombre del cliente";
-    case "customerWhatsApp":
-      return "WhatsApp del cliente";
-    case "deliveryType":
-      return "Tipo de entrega";
-    case "deliveryAddress":
-      return "Direccion de entrega";
-    case "paymentMethod":
-      return "Metodo de pago";
-    case "products":
-      return "Articulos";
-    case "notes":
-      return "Notas";
-    case "total":
-      return "Total";
-    default:
-      return "Pedido";
-  }
-}
-
-function getCurrentFieldValue(order: Order, field: keyof EditableOrderPayload) {
-  switch (field) {
-    case "status":
-      return order.status;
-    case "paymentStatus":
-      return order.paymentStatus;
-    case "customerName":
-      return order.client;
-    case "customerWhatsApp":
-      return order.customerPhone ?? "";
-    case "deliveryType":
-      return order.deliveryType;
-    case "deliveryAddress":
-      return order.address ?? "";
-    case "paymentMethod":
-      return order.paymentMethod;
-    case "products":
-      return order.products;
-    case "notes":
-      return order.observations ?? "";
-    case "total":
-      return order.total;
-    default:
-      return undefined;
-  }
-}
-
-function buildOrderHistoryEvents(order: Order, payload: EditableOrderPayload): OrderHistoryEvent[] {
-  return (Object.keys(payload) as Array<keyof EditableOrderPayload>)
-    .filter((field) => {
-      const previousValue = getCurrentFieldValue(order, field);
-      const nextValue = payload[field];
-
-      if (typeof previousValue === "number" && typeof nextValue === "number") {
-        return previousValue !== nextValue;
-      }
-
-      return String(previousValue ?? "").trim() !== String(nextValue ?? "").trim();
-    })
-    .map((field) => {
-      const previousValue = getCurrentFieldValue(order, field);
-      const nextValue = payload[field];
-      const formattedPreviousValue = formatOrderValue(field, previousValue);
-      const formattedNextValue = formatOrderValue(field, nextValue);
-      const fieldLabel = getFieldLabel(field);
-
-      return createHistoryEvent(
-        order.id,
-        field === "status"
-          ? "Estado del pedido actualizado"
-          : field === "paymentStatus"
-            ? "Estado del pago actualizado"
-            : "Dato principal del pedido actualizado",
-        `${fieldLabel}: "${formattedPreviousValue}" -> "${formattedNextValue}"`,
-        field,
-        formattedPreviousValue,
-        formattedNextValue,
-      );
-    });
 }
 
 function buildOrdersSyncError(error: unknown) {
@@ -207,6 +52,17 @@ function buildOrdersSyncError(error: unknown) {
 
 function buildOrdersResyncWarning() {
   return "El cambio se guardo, pero no pudimos resincronizar la vista. Recarga o espera el siguiente refresco automatico.";
+}
+
+function buildOrderEventIntentPayload(
+  eventIntent: OrderUpdateEventIntent,
+): Pick<OrderApiUpdatePayload, "eventIntent" | "isReviewed"> {
+  return eventIntent === "request_payment_proof_whatsapp"
+    ? { eventIntent }
+    : {
+        eventIntent,
+        isReviewed: true,
+      };
 }
 
 export function useBusinessOrders({
@@ -320,14 +176,6 @@ export function useBusinessOrders({
     [ordersState],
   );
 
-  function appendOrderEvent(
-    order: Order,
-    title: string,
-    description: string,
-  ): OrderHistoryEvent[] {
-    return [createHistoryEvent(order.id, title, description), ...order.history];
-  }
-
   function getCurrentOrderById(orderId: string) {
     return ordersStateRef.current.find((order) => order.id === orderId) ?? null;
   }
@@ -401,11 +249,6 @@ export function useBusinessOrders({
         ? { status: resolvedStatePatch.nextState.status }
         : {}),
     };
-
-    const nextHistory = [
-      ...buildOrderHistoryEvents(currentOrder, normalizedPayload),
-      ...currentOrder.history,
-    ];
     const shouldMarkAsReviewed =
       !currentOrder.isReviewed &&
       ((normalizedPayload.status !== undefined &&
@@ -415,7 +258,6 @@ export function useBusinessOrders({
     const nextPayload: OrderApiUpdatePayload = {
       ...normalizedPayload,
       ...(shouldMarkAsReviewed ? { isReviewed: true } : {}),
-      history: nextHistory,
     };
 
     setOrdersError(null);
@@ -437,7 +279,7 @@ export function useBusinessOrders({
 
   async function synchronizeOrderMutation(
     orderId: string,
-    computeNextOrder: (order: Order) => Order,
+    buildPayload: (order: Order) => OrderApiUpdatePayload | null,
   ) {
     const currentOrder = getCurrentOrderById(orderId);
 
@@ -445,21 +287,16 @@ export function useBusinessOrders({
       return;
     }
 
-    const nextOrder = computeNextOrder(currentOrder);
+    const nextPayload = buildPayload(currentOrder);
 
-    if (nextOrder === currentOrder) {
+    if (!nextPayload) {
       return;
     }
 
     setOrdersError(null);
 
     try {
-      const persistedOrder = await updateOrderViaApi(orderId, {
-        status: nextOrder.status,
-        paymentStatus: nextOrder.paymentStatus,
-        isReviewed: nextOrder.isReviewed,
-        history: nextOrder.history,
-      });
+      const persistedOrder = await updateOrderViaApi(orderId, nextPayload);
       await resyncAfterMutation([persistedOrder]);
     } catch (error) {
       debugError("[dashboard] Order mutation failed", { orderId });
@@ -471,28 +308,28 @@ export function useBusinessOrders({
 
   async function synchronizeBulkOrderMutation(
     orderIds: string[],
-    computeNextOrder: (order: Order) => Order,
+    buildPayload: (order: Order) => OrderApiUpdatePayload | null,
   ) {
     if (orderIds.length === 0) {
       return;
     }
 
     const currentOrders = ordersStateRef.current;
-    const ordersToUpdate = currentOrders
+    const orderMutations = currentOrders
       .filter((order) => orderIds.includes(order.id))
-      .map((order) => computeNextOrder(order));
+      .map((order) => ({ order, payload: buildPayload(order) }))
+      .filter(
+        (
+          mutation,
+        ): mutation is { order: Order; payload: OrderApiUpdatePayload } => mutation.payload !== null,
+      );
 
     setOrdersError(null);
 
     try {
       const persistedOrders = await Promise.all(
-        ordersToUpdate.map((order) =>
-          updateOrderViaApi(order.id, {
-            status: order.status,
-            paymentStatus: order.paymentStatus,
-            isReviewed: order.isReviewed,
-            history: order.history,
-          }),
+        orderMutations.map(({ order, payload }) =>
+          updateOrderViaApi(order.id, payload),
         ),
       );
       await resyncAfterMutation(persistedOrders);
@@ -509,16 +346,8 @@ export function useBusinessOrders({
   function handleMarkAsReviewed(orderId: string) {
     void synchronizeOrderMutation(orderId, (order) =>
       order.isReviewed
-        ? order
-        : {
-            ...order,
-            isReviewed: true,
-            history: appendOrderEvent(
-              order,
-              "Pedido revisado",
-              "El negocio reviso manualmente este pedido desde la operacion.",
-            ),
-          },
+        ? null
+        : buildOrderEventIntentPayload("mark_reviewed_from_operation"),
     ).catch(() => {
       // The banner already communicates the failure.
     });
@@ -531,16 +360,8 @@ export function useBusinessOrders({
 
     void synchronizeBulkOrderMutation(pendingOrderIds, (order) =>
       order.isReviewed
-        ? order
-        : {
-            ...order,
-            isReviewed: true,
-            history: appendOrderEvent(
-              order,
-              "Pedido revisado",
-              "El negocio reviso manualmente este pedido desde la bandeja de nuevos.",
-            ),
-          },
+        ? null
+        : buildOrderEventIntentPayload("mark_reviewed_from_new_orders"),
     ).catch(() => {
       // The banner already communicates the failure.
     });
@@ -556,13 +377,10 @@ export function useBusinessOrders({
     setOrdersError(null);
 
     try {
-      const persistedOrder = await updateOrderViaApi(orderId, {
-        history: appendOrderEvent(
-          currentOrder,
-          "Mensaje de comprobante preparado para WhatsApp",
-          "Se preparo un mensaje manual para solicitar el comprobante de pago al cliente.",
-        ),
-      });
+      const persistedOrder = await updateOrderViaApi(
+        orderId,
+        buildOrderEventIntentPayload("request_payment_proof_whatsapp"),
+      );
       await resyncAfterMutation([persistedOrder]);
       return true;
     } catch (error) {

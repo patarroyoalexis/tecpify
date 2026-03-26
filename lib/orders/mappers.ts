@@ -13,11 +13,14 @@ import {
   PAYMENT_METHODS,
   PAYMENT_STATUSES,
 } from "@/types/orders";
+import {
+  createInitialOrderHistory,
+  type OrderOrigin,
+  type OrderUpdateEventIntent,
+} from "@/lib/orders/history-rules";
 import { deriveInitialOrderStateFromPaymentMethod } from "@/lib/orders/state-rules";
 
 export type SupabaseOrderRow = Record<string, unknown>;
-
-export type OrderCreationSource = "storefront" | "workspace";
 
 export interface OrderCreateDraftPayload {
   customerName: string;
@@ -49,7 +52,7 @@ export interface OrderApiUpdatePayload {
   notes?: string | null;
   total?: number;
   isReviewed?: boolean;
-  history?: OrderHistoryEvent[];
+  eventIntent?: OrderUpdateEventIntent;
 }
 
 function readString(row: SupabaseOrderRow, ...keys: string[]) {
@@ -212,52 +215,12 @@ function buildDateLabel(createdAt: string, fallback: string) {
   }).format(new Date(createdAt));
 }
 
-export function createInitialOrderHistory(
-  options: {
-    orderId: string;
-    businessSlug: string;
-    createdAt: string;
-    source: OrderCreationSource;
-  },
-): OrderHistoryEvent[] {
-  const originEvent =
-    options.source === "workspace"
-      ? {
-          id: `${options.businessSlug}-${options.createdAt}-workspace-created`,
-          title: "Pedido creado manualmente",
-          description:
-            "El equipo del negocio registro el pedido manualmente desde el workspace privado.",
-        }
-      : {
-          id: `${options.businessSlug}-${options.createdAt}-storefront-created`,
-          title: "Pedido creado desde formulario publico",
-          description:
-            "El cliente confirmo el pedido desde el enlace compartido del negocio.",
-        };
-
-  return [
-    {
-      ...originEvent,
-      occurredAt: options.createdAt,
-    },
-    {
-      id: `${options.orderId}-created`,
-      title: "Pedido registrado",
-      description:
-        options.source === "workspace"
-          ? "El pedido manual quedo persistido en la base principal del MVP."
-          : "El pedido quedo persistido en la base principal del MVP.",
-      occurredAt: options.createdAt,
-    },
-  ];
-}
-
 export function buildInitialOrderServerState(options: {
   orderId: string;
   businessSlug: string;
   createdAt: string;
   paymentMethod: PaymentMethod;
-  source: OrderCreationSource;
+  origin: OrderOrigin;
 }) {
   const initialState = deriveInitialOrderStateFromPaymentMethod(options.paymentMethod);
 

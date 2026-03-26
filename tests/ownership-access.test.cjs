@@ -454,7 +454,7 @@ test("ownership: owner puede crear pedidos manuales solo dentro de su negocio", 
   assert.equal(response.status, 201);
   assert.equal(receivedPayload.businessSlug, "mi-tienda");
   assert.deepEqual(receivedOptions, {
-    source: "workspace",
+    origin: "workspace_manual",
     businessId: "biz-1",
   });
   assert.equal(body.order.id, ORDER_ID);

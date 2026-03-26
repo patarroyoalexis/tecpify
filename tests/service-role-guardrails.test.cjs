@@ -20,6 +20,7 @@ const OPERATIONAL_MODULES_TO_LOAD = [
   "lib/data/products.ts",
   "lib/data/orders-server.ts",
   "lib/orders/state-rules.ts",
+  "lib/orders/history-rules.ts",
   "lib/auth/server.ts",
   "lib/auth/business-access.ts",
   "lib/data/business-ownership-remediation.ts",
