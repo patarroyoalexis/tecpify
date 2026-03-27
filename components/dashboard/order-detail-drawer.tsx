@@ -818,6 +818,7 @@ export function OrderDetailDrawer({
         onClick={isSaving ? undefined : onClose}
       />
       <aside
+        data-testid="order-detail-drawer"
         className={`fixed right-0 top-0 z-50 flex h-screen w-full max-w-2xl flex-col border-l border-slate-200 bg-slate-50 transition-all duration-200 ease-out will-change-transform ${
           isVisible ? "translate-x-0 opacity-100" : "translate-x-full opacity-0"
         }`}
@@ -1544,7 +1545,10 @@ export function OrderDetailDrawer({
             ) : null}
           </section>
 
-          <section className="rounded-[24px] border border-slate-200 bg-white p-5">
+          <section
+            data-testid="order-history-section"
+            className="rounded-[24px] border border-slate-200 bg-white p-5"
+          >
             <h3 className="text-lg font-semibold text-slate-950">Historial del pedido</h3>
             <p className="mt-1 text-sm text-slate-600">
               Cada cambio relevante deja rastro con fecha, campo y valores.
@@ -1553,6 +1557,7 @@ export function OrderDetailDrawer({
               {sortedHistory.map((event) => (
                 <article
                   key={event.id}
+                  data-testid="order-history-event"
                   className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4"
                 >
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">

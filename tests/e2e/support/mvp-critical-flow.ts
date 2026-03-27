@@ -5,6 +5,13 @@ import {
 } from "@playwright/test";
 
 import { getPlaywrightEnv } from "../../../lib/env";
+import type {
+  DeliveryType,
+  OrderHistoryEvent,
+  OrderStatus,
+  PaymentMethod,
+  PaymentStatus,
+} from "../../../types/orders";
 import { buildE2eTestEmail } from "./e2e-email";
 import { ensureConfirmedE2eUser } from "./supabase-admin-bootstrap";
 
@@ -30,8 +37,121 @@ export interface CriticalFlowScenario {
   customerPhone: string;
 }
 
+interface SessionApiAttempt<TPayload = unknown> {
+  status: number;
+  payload: TPayload | string | null;
+}
+
+interface PrivateProductsApiPayload {
+  products?: Array<{
+    id?: string;
+    name?: string;
+    price?: number;
+  }>;
+  error?: string;
+}
+
+export interface PrivateOrderApiRecord {
+  id?: string;
+  client?: string;
+  customerPhone?: string;
+  status?: OrderStatus;
+  paymentStatus?: PaymentStatus;
+  deliveryType?: DeliveryType;
+  paymentMethod?: PaymentMethod;
+  isReviewed?: boolean;
+  history?: OrderHistoryEvent[];
+  products?: Array<{
+    productId?: string;
+    name?: string;
+    quantity?: number;
+    unitPrice?: number;
+  }>;
+}
+
+interface PrivateOrdersApiPayload {
+  orders?: PrivateOrderApiRecord[];
+  error?: string;
+}
+
+interface PublicOrdersApiCreatePayload {
+  order?: PrivateOrderApiRecord;
+  orderCode?: string | null;
+  error?: string;
+}
+
+export interface StorefrontOrderCreationOptions {
+  customerName?: string;
+  customerPhone?: string;
+  deliveryType?: DeliveryType;
+  deliveryAddress?: string;
+  paymentMethod?: PaymentMethod;
+  notes?: string;
+}
+
+export interface OrderLookupOptions {
+  orderId?: string;
+  customerName?: string;
+  productName?: string;
+  timeoutMs?: number;
+}
+
+export interface OwnedBusinessResourceIds {
+  productId: string;
+  orderId: string;
+}
+
+function isPrivateProductsApiPayload(
+  payload: SessionApiAttempt<PrivateProductsApiPayload>["payload"],
+): payload is PrivateProductsApiPayload {
+  return Boolean(payload) && typeof payload === "object" && !Array.isArray(payload);
+}
+
+function isPrivateOrdersApiPayload(
+  payload: SessionApiAttempt<PrivateOrdersApiPayload>["payload"],
+): payload is PrivateOrdersApiPayload {
+  return Boolean(payload) && typeof payload === "object" && !Array.isArray(payload);
+}
+
 function buildGeneratedSuffix() {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function buildOrderLookupDescription(options: OrderLookupOptions) {
+  return [
+    options.orderId ? `orderId=${options.orderId}` : null,
+    options.customerName ? `customerName=${options.customerName}` : null,
+    options.productName ? `productName=${options.productName}` : null,
+  ]
+    .filter(Boolean)
+    .join(", ");
+}
+
+function orderMatchesLookup(
+  order: PrivateOrderApiRecord | undefined,
+  options: OrderLookupOptions,
+) {
+  if (!order) {
+    return false;
+  }
+
+  if (options.orderId && order.id !== options.orderId) {
+    return false;
+  }
+
+  if (options.customerName && order.client !== options.customerName) {
+    return false;
+  }
+
+  if (
+    options.productName &&
+    (!Array.isArray(order.products) ||
+      !order.products.some((product) => product?.name === options.productName))
+  ) {
+    return false;
+  }
+
+  return Boolean(order.id);
 }
 
 function readConfiguredUser(role: "OWNER" | "INTRUDER"): TestUserCredentials | null {
@@ -171,6 +291,13 @@ export async function loginThroughUi(page: Page, credentials: TestUserCredential
   await expect(page.getByTestId("create-business-panel")).toBeVisible();
 }
 
+export async function logoutThroughUi(page: Page) {
+  await expect(page.getByTestId("logout-button")).toBeVisible();
+  await page.getByTestId("logout-button").click();
+  await page.waitForURL((url) => url.pathname === "/login");
+  await expect(page.getByTestId("login-form")).toBeVisible();
+}
+
 export async function createBusinessFromWorkspace(
   page: Page,
   scenario: CriticalFlowScenario,
@@ -200,13 +327,12 @@ export async function createActiveProductFromDrawer(
 
   await page.getByTestId("product-form-submit-button").click();
 
-  await expect(page.getByTestId("products-drawer-ready-state")).toBeVisible();
   await expect(page.getByTestId("products-management-drawer")).toContainText(
     `/pedido/${scenario.businessSlug}`,
   );
 }
 
-export async function createOrderFromPublicStorefront(
+export async function openPublicStorefront(
   page: Page,
   scenario: CriticalFlowScenario,
 ) {
@@ -220,7 +346,8 @@ export async function createOrderFromPublicStorefront(
     await expect(page).toHaveURL(storefrontUrlPattern);
 
     if (await page.getByTestId("storefront-order-wizard").count()) {
-      break;
+      await expect(page.getByTestId("storefront-order-wizard")).toBeVisible();
+      return;
     }
 
     if (await page.getByTestId("storefront-business-not-found").count()) {
@@ -240,27 +367,48 @@ export async function createOrderFromPublicStorefront(
     await page.waitForTimeout(1_000);
   }
 
-  if (!(await page.getByTestId("storefront-order-wizard").count())) {
-    throw new Error(
-      `El storefront publico no quedo listo para ${scenario.businessSlug}. ${lastDiagnostic}`,
-    );
-  }
+  throw new Error(
+    `El storefront publico no quedo listo para ${scenario.businessSlug}. ${lastDiagnostic}`,
+  );
+}
 
-  await expect(page.getByTestId("storefront-order-wizard")).toBeVisible();
+export async function createOrderFromPublicStorefront(
+  page: Page,
+  scenario: CriticalFlowScenario,
+  options?: StorefrontOrderCreationOptions,
+) {
+  const deliveryType = options?.deliveryType ?? "recogida en tienda";
+  const paymentMethod = options?.paymentMethod ?? "Nequi";
+  const customerPhone = options?.customerPhone ?? scenario.customerPhone;
+  const customerName = options?.customerName ?? scenario.customerName;
+
+  await openPublicStorefront(page, scenario);
   const inlineProducts = page.getByTestId("storefront-inline-products");
   await expect(inlineProducts.getByText(scenario.productName)).toBeVisible();
 
   await inlineProducts.getByRole("button", { name: `Sumar ${scenario.productName}` }).click();
-  await page.getByTestId("storefront-customer-phone-input").fill(scenario.customerPhone);
-  await page.getByTestId("storefront-customer-name-input").fill(scenario.customerName);
-  await page.getByTestId("storefront-delivery-type-select").selectOption("recogida en tienda");
-  await page.getByTestId("storefront-payment-method-select").selectOption("Nequi");
+  await page.getByTestId("storefront-customer-phone-input").fill(customerPhone);
+  await page.getByTestId("storefront-customer-name-input").fill(customerName);
+  await page.getByTestId("storefront-delivery-type-select").selectOption(deliveryType);
+
+  if (deliveryType === "domicilio") {
+    await page
+      .getByTestId("storefront-delivery-address-input")
+      .fill(options?.deliveryAddress ?? "Calle 10 # 20-30");
+  }
+
+  await page.getByTestId("storefront-payment-method-select").selectOption(paymentMethod);
+
+  if (options?.notes) {
+    await page.getByTestId("storefront-order-notes-input").fill(options.notes);
+  }
+
   await page.getByTestId("storefront-privacy-checkbox").check();
   await page.getByTestId("storefront-submit-order-button").click();
 
   await expect(page.getByTestId("storefront-order-confirmation")).toBeVisible();
   await expect(page.getByTestId("storefront-order-confirmation")).toContainText(
-    scenario.customerName,
+    customerName,
   );
 }
 
@@ -273,4 +421,202 @@ export async function assertOrderVisibleInWorkspace(
   await expect(page.getByRole("heading", { name: "Pedidos" })).toBeVisible();
   await expect(page.getByText(scenario.customerName)).toBeVisible();
   await expect(page.getByText(scenario.productName)).toBeVisible();
+}
+
+async function requestJsonInBrowserSession<TPayload>(
+  page: Page,
+  request: {
+    method: "GET" | "POST" | "PATCH" | "DELETE";
+    path: string;
+    body?: unknown;
+  },
+): Promise<SessionApiAttempt<TPayload>> {
+  return page.evaluate(
+    async ({ method, path, body }) => {
+      const response = await fetch(path, {
+        method,
+        headers:
+          body === undefined
+            ? undefined
+            : {
+                "Content-Type": "application/json",
+              },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      });
+      const rawPayload = await response.text().catch(() => "");
+
+      try {
+        return {
+          status: response.status,
+          payload: rawPayload ? JSON.parse(rawPayload) : null,
+        };
+      } catch {
+        return {
+          status: response.status,
+          payload: rawPayload || null,
+        };
+      }
+    },
+    request,
+  );
+}
+
+export async function getProductsFromPrivateApi(page: Page, businessSlug: string) {
+  return requestJsonInBrowserSession<PrivateProductsApiPayload>(page, {
+    method: "GET",
+    path: `/api/products?businessSlug=${encodeURIComponent(businessSlug)}`,
+  });
+}
+
+export async function getOrdersFromPrivateApi(page: Page, businessSlug: string) {
+  return requestJsonInBrowserSession<PrivateOrdersApiPayload>(page, {
+    method: "GET",
+    path: `/api/orders?businessSlug=${encodeURIComponent(businessSlug)}`,
+  });
+}
+
+export async function createOrderThroughPublicApi(
+  page: Page,
+  payload: Record<string, unknown>,
+) {
+  return requestJsonInBrowserSession<PublicOrdersApiCreatePayload>(page, {
+    method: "POST",
+    path: "/api/orders",
+    body: payload,
+  });
+}
+
+export async function updateProductThroughPrivateApi(
+  page: Page,
+  productId: string,
+  payload: Record<string, unknown>,
+) {
+  return requestJsonInBrowserSession(page, {
+    method: "PATCH",
+    path: `/api/products/${productId}`,
+    body: payload,
+  });
+}
+
+export async function updateOrderThroughPrivateApi(
+  page: Page,
+  orderId: string,
+  payload: Record<string, unknown>,
+) {
+  return requestJsonInBrowserSession(page, {
+    method: "PATCH",
+    path: `/api/orders/${orderId}`,
+    body: payload,
+  });
+}
+
+export async function waitForProductInPrivateApi(
+  page: Page,
+  businessSlug: string,
+  productName: string,
+  options?: { timeoutMs?: number },
+) {
+  const timeoutMs = options?.timeoutMs ?? 15_000;
+  const deadline = Date.now() + timeoutMs;
+  let lastPayloadSummary = "<sin payload>";
+
+  while (Date.now() < deadline) {
+    const productsAttempt = await getProductsFromPrivateApi(page, businessSlug);
+
+    if (productsAttempt.status === 200) {
+      const productsPayload = isPrivateProductsApiPayload(productsAttempt.payload)
+        ? productsAttempt.payload
+        : null;
+      const matchedProduct = Array.isArray(productsPayload?.products)
+        ? productsPayload.products.find(
+            (product: { id?: string; name?: string; price?: number } | undefined) =>
+              product?.name === productName &&
+              typeof product.id === "string" &&
+              typeof product.price === "number",
+          )
+        : null;
+
+      if (matchedProduct?.id && typeof matchedProduct.price === "number") {
+        return matchedProduct;
+      }
+    }
+
+    lastPayloadSummary =
+      productsAttempt.payload === null
+        ? "<sin payload>"
+        : typeof productsAttempt.payload === "string"
+          ? productsAttempt.payload
+          : JSON.stringify(productsAttempt.payload);
+    await page.waitForTimeout(750);
+  }
+
+  throw new Error(
+    `No encontramos el producto ${productName} en /api/products para ${businessSlug}. payload=${lastPayloadSummary}`,
+  );
+}
+
+export async function waitForOrderInPrivateApi(
+  page: Page,
+  businessSlug: string,
+  lookup: OrderLookupOptions,
+) {
+  const timeoutMs = lookup.timeoutMs ?? 15_000;
+  const deadline = Date.now() + timeoutMs;
+  const lookupDescription = buildOrderLookupDescription(lookup) || "sin criterios";
+  let lastPayloadSummary = "<sin payload>";
+
+  while (Date.now() < deadline) {
+    const ordersAttempt = await getOrdersFromPrivateApi(page, businessSlug);
+
+    if (ordersAttempt.status === 200) {
+      const ordersPayload = isPrivateOrdersApiPayload(ordersAttempt.payload)
+        ? ordersAttempt.payload
+        : null;
+      const matchedOrder = Array.isArray(ordersPayload?.orders)
+        ? ordersPayload.orders.find((order) => orderMatchesLookup(order, lookup))
+        : null;
+
+      if (matchedOrder?.id) {
+        return matchedOrder;
+      }
+    }
+
+    lastPayloadSummary =
+      ordersAttempt.payload === null
+        ? "<sin payload>"
+        : typeof ordersAttempt.payload === "string"
+          ? ordersAttempt.payload
+          : JSON.stringify(ordersAttempt.payload);
+    await page.waitForTimeout(750);
+  }
+
+  throw new Error(
+    `No encontramos el pedido buscado en /api/orders para ${businessSlug}. ${lookupDescription}. payload=${lastPayloadSummary}`,
+  );
+}
+
+export async function getOwnedBusinessResourceIds(
+  page: Page,
+  scenario: CriticalFlowScenario,
+): Promise<OwnedBusinessResourceIds> {
+  const ownedProduct = await waitForProductInPrivateApi(
+    page,
+    scenario.businessSlug,
+    scenario.productName,
+  );
+  const ownedOrder = await waitForOrderInPrivateApi(page, scenario.businessSlug, {
+    customerName: scenario.customerName,
+    productName: scenario.productName,
+  });
+
+  if (!ownedProduct.id || !ownedOrder.id) {
+    throw new Error(
+      `No fue posible resolver los IDs reales de producto y pedido para ${scenario.businessSlug}.`,
+    );
+  }
+
+  return {
+    productId: ownedProduct.id,
+    orderId: ownedOrder.id,
+  };
 }

@@ -263,6 +263,7 @@ export function OrderCard({
 
   return (
     <article
+      data-testid={`order-card-${order.id}`}
       className={`relative h-full rounded-[22px] border bg-white ${compact ? baseCardPadding : "px-4 py-4 sm:px-4 sm:py-3.5"} shadow-[0_14px_34px_rgba(15,23,42,0.05)] transition-colors ${
         order.isReviewed ? "border-slate-200/80" : "border-rose-200 bg-rose-50/30"
       } ${priorityStyles[operationalPriority].accent} hover:border-slate-300/90`}
@@ -330,7 +331,10 @@ export function OrderCard({
         </div>
 
         <div className="grid gap-2 sm:grid-cols-2 sm:gap-2.5">
-          <div className={`rounded-2xl border px-3.5 py-3 ${statusStyles[order.status]}`}>
+          <div
+            data-testid={`order-card-status-${order.id}`}
+            className={`rounded-2xl border px-3.5 py-3 ${statusStyles[order.status]}`}
+          >
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-70">
               Estado del pedido
             </p>
@@ -339,7 +343,10 @@ export function OrderCard({
               <span className="text-sm font-semibold">{ORDER_STATUS_LABELS[order.status]}</span>
             </div>
           </div>
-          <div className={`rounded-2xl border px-3.5 py-3 ${paymentStatusStyles[order.paymentStatus]}`}>
+          <div
+            data-testid={`order-card-payment-status-${order.id}`}
+            className={`rounded-2xl border px-3.5 py-3 ${paymentStatusStyles[order.paymentStatus]}`}
+          >
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-70">
               Estado del pago
             </p>
@@ -365,6 +372,7 @@ export function OrderCard({
                 type="button"
                 onClick={() => void handlePrimaryAction()}
                 disabled={isRunningPrimaryAction}
+                data-testid={`order-card-primary-action-${order.id}`}
                 className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-full border border-current/15 bg-white/80 px-3.5 py-2 text-xs font-semibold text-inherit transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <OrdersUiIcon

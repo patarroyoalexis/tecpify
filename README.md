@@ -79,8 +79,8 @@ Las garantias activas del MVP hoy no viven solo en UI ni solo en handlers HTTP: 
 
 ## 8. Siguiente etapa del proyecto
 
-1. Extender los E2E hacia transiciones de pedidos, pagos e historial append-only.
-2. Migrar `middleware.ts` a `proxy` para cerrar la deuda de runtime pendiente de Next.
+1. Migrar `middleware.ts` a `proxy` para cerrar la deuda de runtime pendiente de Next.
+2. Extender los E2E hacia mas variantes del flujo operativo, como creacion manual de pedidos y metricas privadas.
 3. Seguir simplificando el workspace sin abrir excepciones sobre ownership, naming ni source of truth.
 
 ## 9. E2E del circuito critico
@@ -94,6 +94,15 @@ La suite inicial de Playwright ya cubre el circuito base del MVP:
 5. creacion de pedido desde el formulario publico
 6. verificacion de que el pedido aparece en `pedidos/[businessSlug]`
 7. validacion de que otro usuario autenticado no puede abrir ni operar ese negocio
+
+Ademas, la fase actual de E2E ya protege reglas criticas del dominio de pedidos:
+
+1. pedidos digitales creados desde storefront nacen con `status` y `paymentStatus` derivados server-side
+2. el POST publico ignora `status`, `paymentStatus`, `history` e `isReviewed` enviados por cliente
+3. el historial inicial nace segun el origen real `public_form`
+4. una mutacion valida desde workspace agrega eventos al historial sin reemplazar el snapshot previo
+5. `Contra entrega` queda bloqueado para `recogida en tienda` en el formulario y tambien en el endpoint real
+6. un pedido valido a domicilio con `Contra entrega` nace en el estado confirmado/verificado esperado
 
 ### Ejecucion
 

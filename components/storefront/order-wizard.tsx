@@ -750,6 +750,7 @@ export function StorefrontOrderWizard({
                             clearFieldError("address");
                           }}
                           placeholder="Calle, barrio, referencias o apartamento"
+                          data-testid="storefront-delivery-address-input"
                           className={`w-full rounded-2xl border bg-slate-50 px-4 py-3 pl-11 text-base leading-6 text-slate-900 outline-none transition focus:bg-white sm:text-sm sm:leading-5 ${
                             errors.address
                               ? "border-rose-300 focus:border-rose-400"
@@ -778,6 +779,7 @@ export function StorefrontOrderWizard({
                     value={observations}
                     onChange={(event) => setObservations(event.target.value)}
                     placeholder="Indicaciones de entrega, referencias, detalles del pago o cualquier nota importante"
+                    data-testid="storefront-order-notes-input"
                     className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 pl-11 text-base leading-6 text-slate-900 outline-none transition focus:border-slate-400 focus:bg-white sm:text-sm sm:leading-5"
                   />
                 </div>
