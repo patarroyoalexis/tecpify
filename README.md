@@ -99,10 +99,12 @@ La suite inicial de Playwright ya cubre el circuito base del MVP:
 
 - `npm run test:e2e`
 - `npm run test:e2e:headed`
+- La base enlazada debe tener aplicadas las migraciones vigentes de `supabase/migrations`. Si el proyecto remoto queda atrasado respecto del repo, el owner puede quedar bloqueado por RLS al crear negocio o publicar productos y la suite E2E no cerrara el circuito real.
 
 ### Variables opcionales para E2E
 
 - `PLAYWRIGHT_BASE_URL`: por defecto `http://localhost:3000`.
+- `E2E_TEST_EMAIL_DOMAIN`: dominio opcional para los correos generados de owner/intruder E2E. Si no se define, la suite intenta derivar uno valido desde `NEXT_PUBLIC_SITE_URL` y, si sigue en `localhost`, usa un fallback sintacticamente aceptado por el runtime.
 - `PLAYWRIGHT_OWNER_EMAIL` y `PLAYWRIGHT_OWNER_PASSWORD`: reutilizan un owner ya confirmado.
 - `PLAYWRIGHT_INTRUDER_EMAIL` y `PLAYWRIGHT_INTRUDER_PASSWORD`: reutilizan un usuario autenticado distinto.
 - Si esas credenciales no existen, la suite crea usuarios E2E confirmados en un bootstrap de tests aislado usando `SUPABASE_SERVICE_ROLE_KEY`. Ese uso queda fuera del runtime normal del MVP y solo existe para dejar el login E2E reproducible.

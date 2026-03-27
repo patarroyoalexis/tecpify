@@ -7,7 +7,10 @@ import {
   getBusinessAccessBySlug,
   type BusinessAccessResult,
 } from "@/lib/auth/business-access";
-import { createServerSupabaseAuthClient } from "@/lib/supabase/server";
+import {
+  createServerSupabaseAuthClient,
+  type ServerSupabaseAuthClient,
+} from "@/lib/supabase/server";
 
 export interface WorkspaceUser {
   userId: string;
@@ -98,12 +101,14 @@ async function getBusinessContextForUser(
   };
 }
 
-export async function getCurrentUser(): Promise<WorkspaceUser | null> {
-  const supabase = await createServerSupabaseAuthClient();
+export async function getCurrentUser(
+  supabase?: ServerSupabaseAuthClient,
+): Promise<WorkspaceUser | null> {
+  const authSupabase = supabase ?? (await createServerSupabaseAuthClient());
   const {
     data: { user },
     error,
-  } = await supabase.auth.getUser();
+  } = await authSupabase.auth.getUser();
 
   if (error || !user) {
     return null;
@@ -112,8 +117,11 @@ export async function getCurrentUser(): Promise<WorkspaceUser | null> {
   return mapWorkspaceUser(user);
 }
 
-export async function requireAuthenticatedUser(redirectTo: string) {
-  const user = await getCurrentUser();
+export async function requireAuthenticatedUser(
+  redirectTo: string,
+  supabase?: ServerSupabaseAuthClient,
+) {
+  const user = await getCurrentUser(supabase);
 
   if (!user) {
     redirect(buildLoginHref(redirectTo));
@@ -122,8 +130,10 @@ export async function requireAuthenticatedUser(redirectTo: string) {
   return user;
 }
 
-export async function requireAuthenticatedApiUser(): Promise<AuthenticatedApiResult> {
-  const user = await getCurrentUser();
+export async function requireAuthenticatedApiUser(
+  supabase?: ServerSupabaseAuthClient,
+): Promise<AuthenticatedApiResult> {
+  const user = await getCurrentUser(supabase);
 
   if (!user) {
     return {

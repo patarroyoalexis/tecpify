@@ -51,3 +51,7 @@ export function getSupabaseServerAuthMode(mode: "auth" | "public" = "auth") {
     isUsingServiceRole: false,
   };
 }
+
+export type ServerSupabaseAuthClient = Awaited<
+  ReturnType<typeof createServerSupabaseAuthClient>
+>;

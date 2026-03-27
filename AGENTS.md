@@ -68,7 +68,7 @@ Este archivo es el contrato operativo de consistencia del MVP. Su funcion no es 
 - El unico helper autorizado para leer `SUPABASE_SERVICE_ROLE_KEY` es `lib/supabase/internal/service-role-client.ts`.
 - Cualquier uso activo de service role en rutas, acciones server o acceso operativo a negocios, productos o pedidos vuelve el cambio `NO APTO TODAVIA`, salvo excepcion documentada y aprobada en `lib/supabase/service-role.ts`.
 - Las variables canonicas del repo son `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_SITE_URL` y `SUPABASE_SERVICE_ROLE_KEY`.
-- Variables de test-only para Playwright/CI (`PLAYWRIGHT_BASE_URL`, `PLAYWRIGHT_OWNER_EMAIL`, `PLAYWRIGHT_OWNER_PASSWORD`, `PLAYWRIGHT_INTRUDER_EMAIL`, `PLAYWRIGHT_INTRUDER_PASSWORD`, `PLAYWRIGHT_SKIP_WEBSERVER`, `CI`) no forman parte del runtime normal del MVP ni autorizan acceso operativo; solo parametrizan la ejecucion automatizada de la suite E2E.
+- Variables de test-only para Playwright/CI (`PLAYWRIGHT_BASE_URL`, `E2E_TEST_EMAIL_DOMAIN`, `PLAYWRIGHT_OWNER_EMAIL`, `PLAYWRIGHT_OWNER_PASSWORD`, `PLAYWRIGHT_INTRUDER_EMAIL`, `PLAYWRIGHT_INTRUDER_PASSWORD`, `PLAYWRIGHT_SKIP_WEBSERVER`, `CI`) no forman parte del runtime normal del MVP ni autorizan acceso operativo; solo parametrizan la ejecucion automatizada de la suite E2E.
 - `AGENTS.md`, `README.md`, `.env.example` y `lib/env.ts` no pueden divergir sobre variables operativas.
 - No deben aparecer lecturas directas nuevas de `process.env` fuera de `lib/env.ts`, salvo la excepcion privilegiada aislada.
 

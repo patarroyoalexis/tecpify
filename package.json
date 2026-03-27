@@ -10,7 +10,7 @@
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
     "typecheck": "tsc --noEmit",
-    "test": "node --test --test-isolation=none tests/orders-api.test.cjs tests/order-transitions.test.cjs tests/env-guardrails.test.cjs tests/documentation-guardrails.test.cjs tests/service-role-guardrails.test.cjs tests/ownership-access.test.cjs tests/ownership-direct-surfaces.test.cjs tests/legacy-business-remediation.test.cjs tests/business-naming-guardrails.test.cjs tests/orders-db-guardrails.test.cjs tests/orders-history-db-guardrails.test.cjs && powershell -NoProfile -ExecutionPolicy Bypass -File tests\\orders-history-db-integration.ps1"
+    "test": "node --test --test-isolation=none tests/orders-api.test.cjs tests/order-transitions.test.cjs tests/env-guardrails.test.cjs tests/documentation-guardrails.test.cjs tests/service-role-guardrails.test.cjs tests/ownership-access.test.cjs tests/ownership-direct-surfaces.test.cjs tests/legacy-business-remediation.test.cjs tests/business-naming-guardrails.test.cjs tests/orders-db-guardrails.test.cjs tests/orders-history-db-guardrails.test.cjs tests/operational-db-privileges.test.cjs tests/e2e-email-generation.test.cjs tests/storefront-business-lookup-contract.test.cjs && powershell -NoProfile -ExecutionPolicy Bypass -File tests\\orders-history-db-integration.ps1"
   },
   "dependencies": {
     "@supabase/ssr": "^0.9.0",

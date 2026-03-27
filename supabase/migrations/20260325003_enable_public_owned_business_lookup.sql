@@ -1,4 +1,6 @@
-create or replace function public.get_storefront_business_by_slug(requested_slug text)
+drop function if exists public.get_storefront_business_by_slug(text);
+
+create function public.get_storefront_business_by_slug(requested_slug text)
 returns table (
   id uuid,
   slug text,
@@ -21,7 +23,3 @@ as $$
     and businesses.created_by_user_id is not null
   limit 1;
 $$;
-
-revoke all on function public.get_storefront_business_by_slug(text) from public;
-grant execute on function public.get_storefront_business_by_slug(text) to anon;
-grant execute on function public.get_storefront_business_by_slug(text) to authenticated;

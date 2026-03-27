@@ -50,6 +50,7 @@ export interface PlaywrightEnv {
   baseUrl: string;
   skipWebServer: boolean;
   isCi: boolean;
+  testEmailDomain?: string;
   ownerEmail?: string;
   ownerPassword?: string;
   intruderEmail?: string;
@@ -117,6 +118,7 @@ export function getPlaywrightEnv(): PlaywrightEnv {
     baseUrl: configuredBaseUrl ? assertValidHttpUrl("PLAYWRIGHT_BASE_URL", configuredBaseUrl) : LOCAL_SITE_URL,
     skipWebServer: readOptionalEnv("PLAYWRIGHT_SKIP_WEBSERVER") === "1",
     isCi: Boolean(readOptionalEnv("CI")),
+    testEmailDomain: readOptionalEnv("E2E_TEST_EMAIL_DOMAIN"),
     ownerEmail: readOptionalEnv("PLAYWRIGHT_OWNER_EMAIL"),
     ownerPassword: readOptionalEnv("PLAYWRIGHT_OWNER_PASSWORD"),
     intruderEmail: readOptionalEnv("PLAYWRIGHT_INTRUDER_EMAIL"),

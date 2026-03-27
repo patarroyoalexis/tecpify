@@ -708,7 +708,7 @@ test("ownership: la migracion operativa impide nuevos negocios sin owner y evita
     process.cwd(),
     "supabase",
     "migrations",
-    "20260325_enforce_business_owner_presence.sql",
+    "20260325002_enforce_business_owner_presence.sql",
   );
   const migrationSource = fs.readFileSync(migrationPath, "utf8");
 

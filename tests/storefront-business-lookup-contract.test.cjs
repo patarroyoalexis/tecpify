@@ -1,0 +1,59 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+
+const repoRoot = process.cwd();
+const migrationsDir = path.join(repoRoot, "supabase", "migrations");
+
+function getLatestStorefrontLookupMigration() {
+  const migrationFilenames = fs
+    .readdirSync(migrationsDir)
+    .filter((filename) => filename.endsWith(".sql"))
+    .filter((filename) => {
+      const source = fs.readFileSync(path.join(migrationsDir, filename), "utf8");
+      return /create(?:\s+or\s+replace)?\s+function\s+public\.get_storefront_business_by_slug/i.test(
+        source,
+      );
+    })
+    .sort();
+
+  if (migrationFilenames.length === 0) {
+    throw new Error(
+      "No se encontro ninguna migracion que defina public.get_storefront_business_by_slug.",
+    );
+  }
+
+  const latestFilename = migrationFilenames.at(-1);
+
+  return {
+    filename: latestFilename,
+    source: fs.readFileSync(path.join(migrationsDir, latestFilename), "utf8"),
+  };
+}
+
+test("storefront business lookup: la ultima migracion mantiene el owner en el contrato publico controlado", () => {
+  const latestMigration = getLatestStorefrontLookupMigration();
+
+  assert.match(
+    latestMigration.source,
+    /returns table\s*\([\s\S]*created_by_user_id\s+uuid[\s\S]*\)/i,
+    `La ultima definicion de get_storefront_business_by_slug debe exponer created_by_user_id. Revision requerida en ${latestMigration.filename}.`,
+  );
+  assert.match(
+    latestMigration.source,
+    /select[\s\S]*businesses\.created_by_user_id/i,
+    `La ultima definicion de get_storefront_business_by_slug debe seleccionar created_by_user_id. Revision requerida en ${latestMigration.filename}.`,
+  );
+  assert.match(
+    latestMigration.source,
+    /grant execute on function public\.get_storefront_business_by_slug\(text\) to anon;/i,
+    `La ultima definicion de get_storefront_business_by_slug debe preservar el acceso controlado para anon. Revision requerida en ${latestMigration.filename}.`,
+  );
+  assert.match(
+    latestMigration.source,
+    /grant execute on function public\.get_storefront_business_by_slug\(text\) to authenticated;/i,
+    `La ultima definicion de get_storefront_business_by_slug debe preservar el acceso controlado para authenticated. Revision requerida en ${latestMigration.filename}.`,
+  );
+});

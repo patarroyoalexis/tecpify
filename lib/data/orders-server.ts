@@ -23,6 +23,8 @@ import {
   getOrderPaymentMethodDeliveryTypeError,
   resolveAuthoritativeOrderStatePatch,
 } from "@/lib/orders/state-rules";
+import { getStorefrontBusinessLookupBySlug } from "@/data/businesses";
+import { normalizeBusinessSlug } from "@/lib/businesses/slug";
 import {
   createServerSupabaseAuthClient,
   createServerSupabasePublicClient,
@@ -38,6 +40,7 @@ interface BusinessLookupRow {
   id: string;
   slug: string;
   created_by_user_id: string | null;
+  ownership_verified?: boolean;
 }
 
 interface BusinessSlugRow {
@@ -193,24 +196,28 @@ function describePayloadProblems(payload: unknown) {
 }
 
 export async function getBusinessDatabaseRecordBySlug(slug: string) {
-  const supabase = createServerSupabasePublicClient();
-  const { data, error } = await supabase.rpc("get_storefront_business_by_slug", {
-    requested_slug: slug,
-  });
+  const storefrontLookup = await getStorefrontBusinessLookupBySlug(slug);
+  const business = storefrontLookup.business;
 
-  if (error) {
-    throw new Error(`Supabase businesses query failed: ${error.message}`);
+  if (!business) {
+    return null;
   }
 
-  return Array.isArray(data) ? ((data[0] as BusinessLookupRow | undefined) ?? null) : null;
+  return {
+    id: business.id,
+    slug: business.slug,
+    created_by_user_id: business.createdByUserId,
+    ownership_verified: storefrontLookup.ownershipVerified,
+  } satisfies BusinessLookupRow;
 }
 
 async function getAuthenticatedBusinessDatabaseRecordBySlug(slug: string) {
+  const normalizedSlug = normalizeBusinessSlug(slug);
   const supabase = await createServerSupabaseAuthClient();
   const { data, error } = await supabase
     .from("businesses")
     .select("id, slug, created_by_user_id")
-    .eq("slug", slug)
+    .eq("slug", normalizedSlug)
     .maybeSingle<BusinessLookupRow>();
 
   if (error) {
@@ -223,9 +230,13 @@ async function getAuthenticatedBusinessDatabaseRecordBySlug(slug: string) {
 function assertBusinessHasVerifiedOwner(
   business: BusinessLookupRow | null,
   options: { businessSlug: string },
-): asserts business is BusinessLookupRow & { created_by_user_id: string } {
+): asserts business is BusinessLookupRow {
   if (!business) {
     throw new Error(`Business not found for slug "${options.businessSlug}".`);
+  }
+
+  if (business.ownership_verified === true) {
+    return;
   }
 
   if (!hasVerifiedBusinessOwner(business.created_by_user_id)) {

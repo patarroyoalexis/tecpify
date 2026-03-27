@@ -12,11 +12,13 @@ function StorefrontMessage({
   eyebrow,
   title,
   description,
+  testId,
 }: {
   tone: "rose" | "amber";
   eyebrow: string;
   title: string;
   description: ReactNode;
+  testId: string;
 }) {
   return createElement(
     "main",
@@ -34,6 +36,7 @@ function StorefrontMessage({
         {
           className:
             "w-full rounded-[32px] border border-white/70 bg-white/95 p-8 text-center shadow-[0_24px_80px_rgba(15,23,42,0.12)]",
+          "data-testid": testId,
         },
         [
           createElement(
@@ -97,6 +100,7 @@ export function createStorefrontOrderPage(
         tone: "rose",
         eyebrow: "Link no disponible",
         title: "Negocio no encontrado",
+        testId: "storefront-business-not-found",
         description: createElement(
           Fragment,
           null,
@@ -110,6 +114,7 @@ export function createStorefrontOrderPage(
         tone: "amber",
         eyebrow: "Catalogo no disponible",
         title: "Este negocio aun no esta listo para recibir pedidos",
+        testId: "storefront-business-without-products",
         description: createElement(
           Fragment,
           null,

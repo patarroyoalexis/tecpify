@@ -14,17 +14,21 @@ import {
 const testUsers = resolveTestUsers();
 
 test.beforeAll(async ({ request }) => {
-  void request;
-  await ensureUserExists(testUsers.owner);
-  await ensureUserExists(testUsers.intruder);
+  await ensureUserExists(request, testUsers.owner);
+  await ensureUserExists(request, testUsers.intruder);
 });
 
 test.describe("MVP critical flow", () => {
   test("owner can create a business, publish a product, receive a public order and see it in the correct workspace", async ({
-    context,
+    browser,
     page,
-  }) => {
+  }, testInfo) => {
     const scenario = createCriticalFlowScenario();
+    const baseURL = testInfo.project.use.baseURL;
+
+    if (typeof baseURL !== "string" || baseURL.length === 0) {
+      throw new Error("Playwright baseURL debe estar configurada para abrir el storefront publico.");
+    }
 
     await test.step("owner login and business creation", async () => {
       await loginThroughUi(page, testUsers.owner);
@@ -36,10 +40,14 @@ test.describe("MVP critical flow", () => {
     });
 
     await test.step("public storefront order creation by slug", async () => {
-      const storefrontPage = await context.newPage();
+      const storefrontContext = await browser.newContext({ baseURL });
+      const storefrontPage = await storefrontContext.newPage();
 
-      await createOrderFromPublicStorefront(storefrontPage, scenario);
-      await storefrontPage.close();
+      try {
+        await createOrderFromPublicStorefront(storefrontPage, scenario);
+      } finally {
+        await storefrontContext.close();
+      }
     });
 
     await test.step("private workspace order visibility for the owner", async () => {

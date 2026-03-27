@@ -1,8 +1,8 @@
 $ErrorActionPreference = "Stop"
 
 $RepoRoot = Split-Path -Parent $PSScriptRoot
-$PaymentMigrationPath = Join-Path $RepoRoot "supabase\migrations\20260326_enforce_order_payment_rules_in_db.sql"
-$HistoryMigrationPath = Join-Path $RepoRoot "supabase\migrations\20260326_enforce_order_history_in_db.sql"
+$PaymentMigrationPath = Join-Path $RepoRoot "supabase\migrations\20260326002_enforce_order_payment_rules_in_db.sql"
+$HistoryMigrationPath = Join-Path $RepoRoot "supabase\migrations\20260326003_enforce_order_history_in_db.sql"
 $OwnerId = "11111111-1111-4111-8111-111111111111"
 $OtherUserId = "22222222-2222-4222-8222-222222222222"
 $BusinessId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
@@ -426,6 +426,19 @@ create table if not exists public.businesses (
   created_by_user_id uuid null
 );
 
+create table if not exists public.products (
+  id uuid primary key,
+  business_id uuid not null references public.businesses(id) on delete cascade,
+  name text not null,
+  description text null,
+  price numeric not null,
+  is_available boolean not null default true,
+  is_featured boolean not null default false,
+  sort_order integer not null default 1,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 create table if not exists public.orders (
   id uuid primary key,
   order_code text not null unique,
@@ -449,9 +462,14 @@ create table if not exists public.orders (
   inserted_at timestamptz not null default now()
 );
 
-grant usage on schema public to public, anon, authenticated;
-grant select on public.businesses to public, anon, authenticated;
-grant select, insert, update on public.orders to anon, authenticated;
+grant usage on schema public to anon, authenticated;
+grant select on public.businesses to anon, authenticated;
+grant insert on public.businesses to authenticated;
+grant select on public.products to anon, authenticated;
+grant insert, update, delete on public.products to authenticated;
+grant select on public.orders to authenticated;
+grant insert on public.orders to anon, authenticated;
+grant update on public.orders to authenticated;
 
 alter table public.businesses enable row level security;
 alter table public.orders enable row level security;

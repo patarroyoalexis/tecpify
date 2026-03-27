@@ -160,13 +160,13 @@ test("documentacion: las afirmaciones contractuales siguen alineadas con el codi
     /const updatePayload = \{(?<block>[\s\S]*?)\n\s*};/,
   );
   const legacyRemediationRetirementMigrationSource = readFile(
-    "supabase/migrations/20260326_retire_legacy_business_runtime_remediation.sql",
+    "supabase/migrations/20260326001_retire_legacy_business_runtime_remediation.sql",
   );
   const orderPaymentMigrationSource = readFile(
-    "supabase/migrations/20260326_enforce_order_payment_rules_in_db.sql",
+    "supabase/migrations/20260326002_enforce_order_payment_rules_in_db.sql",
   );
   const orderHistoryMigrationSource = readFile(
-    "supabase/migrations/20260326_enforce_order_history_in_db.sql",
+    "supabase/migrations/20260326003_enforce_order_history_in_db.sql",
   );
 
   assert.match(

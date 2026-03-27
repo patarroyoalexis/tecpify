@@ -217,7 +217,7 @@ test("legacy ownerless: la migracion final elimina la remediacion SQL y bloquea 
       process.cwd(),
       "supabase",
       "migrations",
-      "20260326_retire_legacy_business_runtime_remediation.sql",
+      "20260326001_retire_legacy_business_runtime_remediation.sql",
     ),
     "utf8",
   );

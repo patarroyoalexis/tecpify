@@ -1,7 +1,12 @@
-import { expect, type Page } from "@playwright/test";
+import {
+  expect,
+  type APIRequestContext,
+  type Page,
+} from "@playwright/test";
 
 import { getPlaywrightEnv } from "../../../lib/env";
-import { createConfirmedE2eUser } from "./supabase-admin-bootstrap";
+import { buildE2eTestEmail } from "./e2e-email";
+import { ensureConfirmedE2eUser } from "./supabase-admin-bootstrap";
 
 type UserSource = "env" | "generated";
 
@@ -57,7 +62,7 @@ function createGeneratedUser(role: "owner" | "intruder"): TestUserCredentials {
   const suffix = buildGeneratedSuffix();
 
   return {
-    email: `playwright-${role}-${suffix}@example.com`,
+    email: buildE2eTestEmail(role, { uniqueToken: suffix }),
     password: `Tecpify!${suffix}`,
     source: "generated",
   };
@@ -83,14 +88,75 @@ export function createCriticalFlowScenario(): CriticalFlowScenario {
   };
 }
 
+async function registerUserThroughRuntime(
+  request: APIRequestContext,
+  credentials: TestUserCredentials,
+) {
+  const response = await request.post("/api/auth/register", {
+    data: {
+      email: credentials.email,
+      password: credentials.password,
+      redirectTo: "/dashboard",
+    },
+  });
+
+  if (response.ok()) {
+    return;
+  }
+
+  let errorMessage = "No fue posible registrar el usuario E2E por el flujo normal.";
+  let responsePayload: unknown = null;
+
+  try {
+    responsePayload = (await response.json()) as { error?: string };
+    if (
+      responsePayload &&
+      typeof responsePayload === "object" &&
+      "error" in responsePayload &&
+      typeof responsePayload.error === "string"
+    ) {
+      errorMessage = responsePayload.error;
+    }
+  } catch {
+    responsePayload = await response.text().catch(() => null);
+  }
+
+  if (/already registered|already been registered/i.test(errorMessage)) {
+    return;
+  }
+
+  if (/email rate limit exceeded/i.test(errorMessage)) {
+    return;
+  }
+
+  const payloadSummary =
+    responsePayload === null
+      ? "<sin payload>"
+      : typeof responsePayload === "string"
+        ? responsePayload
+        : JSON.stringify(responsePayload);
+
+  throw new Error(
+    [
+      "No fue posible registrar el usuario E2E por el flujo normal.",
+      `email=${credentials.email}`,
+      `status=${response.status()}`,
+      `error=${errorMessage}`,
+      `payload=${payloadSummary}`,
+    ].join(" | "),
+  );
+}
+
 export async function ensureUserExists(
+  request: APIRequestContext,
   credentials: TestUserCredentials,
 ) {
   if (credentials.source !== "generated") {
     return;
   }
 
-  await createConfirmedE2eUser(credentials);
+  await registerUserThroughRuntime(request, credentials);
+  await ensureConfirmedE2eUser(credentials);
 }
 
 export async function loginThroughUi(page: Page, credentials: TestUserCredentials) {
@@ -144,11 +210,47 @@ export async function createOrderFromPublicStorefront(
   page: Page,
   scenario: CriticalFlowScenario,
 ) {
-  await page.goto(`/pedido/${scenario.businessSlug}`);
-  await expect(page.getByTestId("storefront-order-wizard")).toBeVisible();
-  await expect(page.getByText(scenario.productName)).toBeVisible();
+  const storefrontUrl = `/pedido/${scenario.businessSlug}`;
+  const storefrontUrlPattern = new RegExp(`/pedido/${scenario.businessSlug}$`);
+  const deadline = Date.now() + 15_000;
+  let lastDiagnostic = "Storefront publico aun no disponible.";
 
-  await page.getByRole("button", { name: `Sumar ${scenario.productName}` }).click();
+  while (Date.now() < deadline) {
+    await page.goto(storefrontUrl);
+    await expect(page).toHaveURL(storefrontUrlPattern);
+
+    if (await page.getByTestId("storefront-order-wizard").count()) {
+      break;
+    }
+
+    if (await page.getByTestId("storefront-business-not-found").count()) {
+      lastDiagnostic = "El storefront devolvio 'Negocio no encontrado'.";
+    } else if (await page.getByTestId("storefront-business-without-products").count()) {
+      lastDiagnostic =
+        "El storefront devolvio 'Catalogo no disponible' aun cuando el producto ya fue activado en el workspace.";
+    } else {
+      lastDiagnostic = (
+        await page.locator("body").innerText().catch(() => "Sin contenido legible en body.")
+      )
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 280);
+    }
+
+    await page.waitForTimeout(1_000);
+  }
+
+  if (!(await page.getByTestId("storefront-order-wizard").count())) {
+    throw new Error(
+      `El storefront publico no quedo listo para ${scenario.businessSlug}. ${lastDiagnostic}`,
+    );
+  }
+
+  await expect(page.getByTestId("storefront-order-wizard")).toBeVisible();
+  const inlineProducts = page.getByTestId("storefront-inline-products");
+  await expect(inlineProducts.getByText(scenario.productName)).toBeVisible();
+
+  await inlineProducts.getByRole("button", { name: `Sumar ${scenario.productName}` }).click();
   await page.getByTestId("storefront-customer-phone-input").fill(scenario.customerPhone);
   await page.getByTestId("storefront-customer-name-input").fill(scenario.customerName);
   await page.getByTestId("storefront-delivery-type-select").selectOption("recogida en tienda");

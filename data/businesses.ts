@@ -17,7 +17,7 @@ type PublicSupabaseBusinessRow = {
   name: string;
   created_at: string;
   updated_at: string;
-  created_by_user_id: string | null;
+  created_by_user_id?: string | null;
 };
 
 type AuthenticatedSupabaseBusinessRow = {
@@ -32,6 +32,11 @@ type AuthenticatedSupabaseBusinessRow = {
 export interface HomeBusinessesSnapshot {
   realBusinesses: BusinessConfig[];
   unsupportedLegacyBusinessesCount: number;
+}
+
+export interface StorefrontBusinessLookupResult {
+  business: BusinessRecord | null;
+  ownershipVerified: boolean;
 }
 
 export type BusinessProductsLookupResult =
@@ -56,7 +61,10 @@ function mapSupabaseBusinessRow(
     name: row.name,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
-    createdByUserId: "created_by_user_id" in row ? row.created_by_user_id : null,
+    createdByUserId:
+      "created_by_user_id" in row && typeof row.created_by_user_id === "string"
+        ? row.created_by_user_id
+        : null,
   };
 }
 
@@ -98,6 +106,14 @@ function mapDatabaseBusinessToConfig(databaseBusiness: BusinessRecord): Business
 }
 
 export async function getBusinessBySlugFromDatabase(slug: string) {
+  const storefrontLookup = await getStorefrontBusinessLookupBySlug(slug);
+
+  return storefrontLookup.business;
+}
+
+export async function getStorefrontBusinessLookupBySlug(
+  slug: string,
+): Promise<StorefrontBusinessLookupResult> {
   const normalizedSlug = normalizeBusinessSlug(slug);
   debugLog("[businesses] Resolving business by slug", { slug });
 
@@ -106,21 +122,57 @@ export async function getBusinessBySlugFromDatabase(slug: string) {
     requested_slug: normalizedSlug,
   });
 
-  if (error) {
-    debugError("[businesses] Failed to resolve business", { slug });
-    throw new Error(`Supabase businesses query failed: ${error.message}`);
+  if (!error) {
+    const storefrontBusiness = Array.isArray(data)
+      ? ((data[0] as PublicSupabaseBusinessRow | undefined) ?? null)
+      : null;
+
+    if (storefrontBusiness) {
+      debugLog("[businesses] Business resolved through storefront rpc", {
+        slug: normalizedSlug,
+        found: true,
+      });
+
+      const ownershipVerified =
+        "created_by_user_id" in storefrontBusiness
+          ? hasVerifiedBusinessOwner(storefrontBusiness.created_by_user_id ?? null)
+          : true;
+
+      return {
+        business: mapSupabaseBusinessRow(storefrontBusiness),
+        ownershipVerified,
+      };
+    }
+  } else {
+    debugError("[businesses] Storefront rpc lookup failed; using public table fallback", {
+      slug: normalizedSlug,
+      message: error.message,
+    });
   }
 
-  const storefrontBusiness = Array.isArray(data)
-    ? ((data[0] as PublicSupabaseBusinessRow | undefined) ?? null)
-    : null;
+  const fallbackResult = await supabase
+    .from("businesses")
+    .select("id, slug, name, created_at, updated_at, created_by_user_id")
+    .eq("slug", normalizedSlug)
+    .maybeSingle<PublicSupabaseBusinessRow>();
 
-  debugLog("[businesses] Business resolved", {
+  if (fallbackResult.error) {
+    debugError("[businesses] Failed to resolve business through public table fallback", {
+      slug: normalizedSlug,
+      message: fallbackResult.error.message,
+    });
+    throw new Error(`Supabase businesses query failed: ${fallbackResult.error.message}`);
+  }
+
+  debugLog("[businesses] Business resolved through public table fallback", {
     slug: normalizedSlug,
-    found: Boolean(storefrontBusiness),
+    found: Boolean(fallbackResult.data),
   });
 
-  return storefrontBusiness ? mapSupabaseBusinessRow(storefrontBusiness) : null;
+  return {
+    business: fallbackResult.data ? mapSupabaseBusinessRow(fallbackResult.data) : null,
+    ownershipVerified: hasVerifiedBusinessOwner(fallbackResult.data?.created_by_user_id ?? null),
+  };
 }
 
 interface BusinessProductsLookupDependencies {
@@ -228,13 +280,18 @@ async function buildBusinessProductsLookupResult(
   databaseBusiness: BusinessRecord | null,
   lookupValue: string,
   dependencies?: Partial<BusinessProductsLookupDependencies>,
+  options?: { ownershipVerified?: boolean },
 ): Promise<BusinessProductsLookupResult> {
   (dependencies?.debugLog ?? debugLog)("[businesses] Received business lookup", {
     lookupValue,
     resolved: Boolean(databaseBusiness),
   });
 
-  if (!databaseBusiness || !hasVerifiedBusinessOwner(databaseBusiness.createdByUserId)) {
+  const isOwnershipVerified =
+    options?.ownershipVerified === true ||
+    hasVerifiedBusinessOwner(databaseBusiness?.createdByUserId ?? null);
+
+  if (!databaseBusiness || !isOwnershipVerified) {
     return { status: "not_found" };
   }
 
@@ -280,11 +337,20 @@ export function createGetBusinessBySlugWithProducts(
   return async function getBusinessBySlugWithProducts(
     slug: string,
   ): Promise<BusinessProductsLookupResult> {
-    const databaseBusiness = await (
-      dependencies?.getBusinessBySlugFromDatabase ?? getBusinessBySlugFromDatabase
-    )(slug);
+    if (dependencies?.getBusinessBySlugFromDatabase) {
+      const databaseBusiness = await dependencies.getBusinessBySlugFromDatabase(slug);
 
-    return buildBusinessProductsLookupResult(databaseBusiness, slug, dependencies);
+      return buildBusinessProductsLookupResult(databaseBusiness, slug, dependencies);
+    }
+
+    const storefrontLookup = await getStorefrontBusinessLookupBySlug(slug);
+
+    return buildBusinessProductsLookupResult(
+      storefrontLookup.business,
+      slug,
+      dependencies,
+      { ownershipVerified: storefrontLookup.ownershipVerified },
+    );
   };
 }
 

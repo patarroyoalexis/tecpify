@@ -11,7 +11,7 @@ function readFile(relativePath) {
 }
 
 const migrationSource = readFile(
-  "supabase/migrations/20260326_enforce_order_payment_rules_in_db.sql",
+  "supabase/migrations/20260326002_enforce_order_payment_rules_in_db.sql",
 );
 const stateRulesSource = readFile("lib/orders/state-rules.ts");
 const ordersServerSource = readFile("lib/data/orders-server.ts");

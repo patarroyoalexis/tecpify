@@ -636,7 +636,7 @@ export function StorefrontOrderWizard({
                   </div>
                 ) : null}
 
-                <div className="grid gap-3">
+                <div className="grid gap-3" data-testid="storefront-inline-products">
                   {inlineProducts.length > 0 ? (
                     inlineProducts.map((product) => (
                       <ProductRow

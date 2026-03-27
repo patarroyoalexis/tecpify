@@ -61,7 +61,8 @@ export function createBusinessesRouteHandlers(
 ) {
   return {
     async POST(request: Request) {
-      const authResult = await dependencies.requireAuthenticatedApiUser();
+      const supabase = await dependencies.createServerSupabaseAuthClient();
+      const authResult = await dependencies.requireAuthenticatedApiUser(supabase);
 
       if (!authResult.ok) {
         return authResult.response;
@@ -134,7 +135,6 @@ export function createBusinessesRouteHandlers(
 
       const now = dependencies.getNow();
       const businessId = dependencies.createBusinessId();
-      const supabase = await dependencies.createServerSupabaseAuthClient();
       const { data, error } = await supabase
         .from("businesses")
         .insert({

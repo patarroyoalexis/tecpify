@@ -62,7 +62,39 @@ function getSupabaseAdminClient() {
   });
 }
 
-export async function createConfirmedE2eUser(credentials: {
+async function findUserIdByEmail(email: string) {
+  const supabaseAdmin = getSupabaseAdminClient();
+  let page = 1;
+
+  while (true) {
+    const { data, error } = await supabaseAdmin.auth.admin.listUsers({
+      page,
+      perPage: 200,
+    });
+
+    if (error) {
+      throw new Error(
+        `No fue posible listar usuarios E2E para ${email}: ${error.message}`,
+      );
+    }
+
+    const matchedUser = data.users.find(
+      (user) => user.email?.toLowerCase() === email.toLowerCase(),
+    );
+
+    if (matchedUser) {
+      return matchedUser.id;
+    }
+
+    if (data.users.length < 200) {
+      return null;
+    }
+
+    page += 1;
+  }
+}
+
+export async function ensureConfirmedE2eUser(credentials: {
   email: string;
   password: string;
 }) {
@@ -71,11 +103,47 @@ export async function createConfirmedE2eUser(credentials: {
     email: credentials.email,
     password: credentials.password,
     email_confirm: true,
+    role: "authenticated",
+    app_metadata: {
+      provider: "email",
+      providers: ["email"],
+    },
   });
 
-  if (error && !/already registered|already been registered/i.test(error.message)) {
+  if (!error) {
+    return;
+  }
+
+  if (!/already registered|already been registered/i.test(error.message)) {
     throw new Error(
       `No fue posible crear el usuario E2E ${credentials.email}: ${error.message}`,
+    );
+  }
+
+  const existingUserId = await findUserIdByEmail(credentials.email);
+
+  if (!existingUserId) {
+    throw new Error(
+      `El usuario E2E ${credentials.email} ya existia, pero no pudimos recuperarlo para confirmarlo.`,
+    );
+  }
+
+  const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
+    existingUserId,
+    {
+      password: credentials.password,
+      email_confirm: true,
+      role: "authenticated",
+      app_metadata: {
+        provider: "email",
+        providers: ["email"],
+      },
+    },
+  );
+
+  if (updateError) {
+    throw new Error(
+      `No fue posible confirmar el usuario E2E ${credentials.email}: ${updateError.message}`,
     );
   }
 }
