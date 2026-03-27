@@ -52,6 +52,7 @@ function renderUnauthorizedBusinessAccess() {
         {
           className:
             "w-full rounded-[32px] border border-white/70 bg-white/95 p-8 text-center shadow-[0_24px_80px_rgba(15,23,42,0.12)]",
+          "data-testid": "unauthorized-business-access",
         },
         [
           createElement(

@@ -56,7 +56,7 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+    <form onSubmit={handleSubmit} className="mt-6 space-y-4" data-testid="login-form">
       <label className="block space-y-2">
         <span className="text-sm font-medium text-slate-700">Email</span>
         <input
@@ -65,6 +65,7 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
           onChange={(event) => setEmail(event.target.value)}
           autoComplete="email"
           placeholder="operacion@tu-negocio.com"
+          data-testid="login-email-input"
           className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-950 outline-none transition focus:border-slate-400"
         />
       </label>
@@ -77,6 +78,7 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
           onChange={(event) => setPassword(event.target.value)}
           autoComplete="current-password"
           placeholder="Tu password de Supabase Auth"
+          data-testid="login-password-input"
           className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-950 outline-none transition focus:border-slate-400"
         />
       </label>
@@ -90,6 +92,7 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
       <button
         type="submit"
         disabled={isSubmitting}
+        data-testid="login-submit-button"
         className={`w-full rounded-2xl px-5 py-3 text-sm font-semibold text-white transition ${
           isSubmitting
             ? "cursor-not-allowed bg-slate-400"

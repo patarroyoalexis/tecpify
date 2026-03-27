@@ -82,7 +82,10 @@ export function CreateBusinessPanel() {
   }
 
   return (
-    <section className="rounded-[32px] border border-slate-200/80 bg-white/95 p-6 shadow-[0_24px_80px_rgba(15,23,42,0.08)] sm:p-7">
+    <section
+      className="rounded-[32px] border border-slate-200/80 bg-white/95 p-6 shadow-[0_24px_80px_rgba(15,23,42,0.08)] sm:p-7"
+      data-testid="create-business-panel"
+    >
       <div className="flex flex-col gap-2">
         <p className="text-sm font-semibold uppercase tracking-[0.24em] text-emerald-600">
           Alta basica
@@ -140,6 +143,7 @@ export function CreateBusinessPanel() {
               }
             }}
             placeholder="Ej. Panaderia La Estacion"
+            data-testid="business-name-input"
             className={`w-full rounded-2xl border px-4 py-3 text-sm text-slate-950 outline-none transition ${
               errors.name ? "border-rose-300 bg-rose-50/60" : "border-slate-200 focus:border-slate-400"
             }`}
@@ -166,6 +170,7 @@ export function CreateBusinessPanel() {
             autoCapitalize="none"
             autoCorrect="off"
             spellCheck={false}
+            data-testid="business-slug-input"
             className={`w-full rounded-2xl border px-4 py-3 text-sm text-slate-950 outline-none transition ${
               errors.slug ? "border-rose-300 bg-rose-50/60" : "border-slate-200 focus:border-slate-400"
             }`}
@@ -186,6 +191,7 @@ export function CreateBusinessPanel() {
         <button
           type="submit"
           disabled={isSubmitting}
+          data-testid="create-business-submit-button"
           className={`w-full rounded-2xl px-5 py-3 text-sm font-semibold text-white transition ${
             isSubmitting
               ? "cursor-not-allowed bg-slate-400"

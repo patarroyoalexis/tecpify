@@ -79,6 +79,32 @@ Las garantias activas del MVP hoy no viven solo en UI ni solo en handlers HTTP: 
 
 ## 8. Siguiente etapa del proyecto
 
-1. Migrar `middleware.ts` a `proxy` para cerrar la deuda de runtime pendiente de Next.
-2. Sumar E2E del circuito critico de ownership, storefront, pedidos, pagos e historial.
+1. Extender los E2E hacia transiciones de pedidos, pagos e historial append-only.
+2. Migrar `middleware.ts` a `proxy` para cerrar la deuda de runtime pendiente de Next.
 3. Seguir simplificando el workspace sin abrir excepciones sobre ownership, naming ni source of truth.
+
+## 9. E2E del circuito critico
+
+La suite inicial de Playwright ya cubre el circuito base del MVP:
+
+1. login de owner
+2. creacion de negocio con owner
+3. alta de un producto activo
+4. acceso al storefront publico por `businessSlug`
+5. creacion de pedido desde el formulario publico
+6. verificacion de que el pedido aparece en `pedidos/[businessSlug]`
+7. validacion de que otro usuario autenticado no puede abrir ni operar ese negocio
+
+### Ejecucion
+
+- `npm run test:e2e`
+- `npm run test:e2e:headed`
+
+### Variables opcionales para E2E
+
+- `PLAYWRIGHT_BASE_URL`: por defecto `http://localhost:3000`.
+- `PLAYWRIGHT_OWNER_EMAIL` y `PLAYWRIGHT_OWNER_PASSWORD`: reutilizan un owner ya confirmado.
+- `PLAYWRIGHT_INTRUDER_EMAIL` y `PLAYWRIGHT_INTRUDER_PASSWORD`: reutilizan un usuario autenticado distinto.
+- Si esas credenciales no existen, la suite crea usuarios E2E confirmados en un bootstrap de tests aislado usando `SUPABASE_SERVICE_ROLE_KEY`. Ese uso queda fuera del runtime normal del MVP y solo existe para dejar el login E2E reproducible.
+- `PLAYWRIGHT_SKIP_WEBSERVER=1`: desactiva el `webServer` de Playwright para correr contra una app ya levantada.
+- `CI`: activa el perfil de reporter/retries pensado para runners automatizados.

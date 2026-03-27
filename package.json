@@ -7,6 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
     "typecheck": "tsc --noEmit",
     "test": "node --test --test-isolation=none tests/orders-api.test.cjs tests/order-transitions.test.cjs tests/env-guardrails.test.cjs tests/documentation-guardrails.test.cjs tests/service-role-guardrails.test.cjs tests/ownership-access.test.cjs tests/ownership-direct-surfaces.test.cjs tests/legacy-business-remediation.test.cjs tests/business-naming-guardrails.test.cjs tests/orders-db-guardrails.test.cjs tests/orders-history-db-guardrails.test.cjs && powershell -NoProfile -ExecutionPolicy Bypass -File tests\\orders-history-db-integration.ps1"
   },
@@ -19,6 +21,7 @@
     "react-dom": "19.2.3"
   },
   "devDependencies": {
+    "@playwright/test": "^1.51.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

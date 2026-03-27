@@ -29,6 +29,7 @@ export function LogoutButton({
     <button
       type="button"
       onClick={() => void handleLogout()}
+      data-testid="logout-button"
       className={className}
     >
       {label}

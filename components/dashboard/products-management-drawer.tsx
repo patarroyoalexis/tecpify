@@ -675,7 +675,10 @@ export function ProductsManagementDrawer({
         onClick={onClose}
       />
 
-      <aside className="fixed right-0 top-0 z-50 flex h-screen w-full max-w-3xl flex-col border-l border-slate-200 bg-white shadow-[-24px_0_60px_rgba(15,23,42,0.16)] lg:max-w-5xl">
+      <aside
+        className="fixed right-0 top-0 z-50 flex h-screen w-full max-w-3xl flex-col border-l border-slate-200 bg-white shadow-[-24px_0_60px_rgba(15,23,42,0.16)] lg:max-w-5xl"
+        data-testid="products-management-drawer"
+      >
         <div className="sticky top-0 z-10 border-b border-slate-200 bg-white/96 px-4 py-4 backdrop-blur sm:px-6">
           <div className="flex items-start justify-between gap-4">
             <div className="space-y-1">
@@ -800,7 +803,10 @@ export function ProductsManagementDrawer({
                 </p>
               </section>
 
-              <section className="rounded-[24px] border border-slate-200 bg-white p-5">
+              <section
+                className="rounded-[24px] border border-slate-200 bg-white p-5"
+                data-testid="products-drawer-ready-state"
+              >
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
                   Link publico del negocio
                 </p>
@@ -1283,7 +1289,11 @@ export function ProductsManagementDrawer({
             )}
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+          <form
+            onSubmit={handleSubmit}
+            className="flex min-h-0 flex-1 flex-col"
+            data-testid="product-form"
+          >
             <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
               <div className="space-y-5">
                 {mode === "create" ? (
@@ -1364,6 +1374,7 @@ export function ProductsManagementDrawer({
                       <input
                         value={formState.name}
                         onChange={(event) => updateFormField("name", event.target.value)}
+                        data-testid="product-form-name-input"
                         className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-base leading-6 text-slate-900 outline-none transition focus:border-slate-400 sm:text-sm sm:leading-5"
                         placeholder={isFirstProductFlow ? "Ej. Combo desayuno" : "Ej. Caja de brownies"}
                       />
@@ -1382,6 +1393,7 @@ export function ProductsManagementDrawer({
                         step="100"
                         value={formState.price}
                         onChange={(event) => updateFormField("price", event.target.value)}
+                        data-testid="product-form-price-input"
                         className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-base leading-6 text-slate-900 outline-none transition focus:border-slate-400 sm:text-sm sm:leading-5"
                         placeholder="0"
                       />
@@ -1491,6 +1503,7 @@ export function ProductsManagementDrawer({
                         type="checkbox"
                         checked={formState.isAvailable}
                         onChange={(event) => updateFormField("isAvailable", event.target.checked)}
+                        data-testid="product-form-available-checkbox"
                         className="mt-1 h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-300"
                       />
                     </label>
@@ -1553,6 +1566,7 @@ export function ProductsManagementDrawer({
                 <button
                   type="submit"
                   disabled={isSaving}
+                  data-testid="product-form-submit-button"
                   className={`rounded-full px-5 py-3 text-sm font-medium text-white transition ${
                     isSaving
                       ? "cursor-not-allowed bg-slate-400"

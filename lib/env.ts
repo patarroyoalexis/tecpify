@@ -5,6 +5,10 @@ function normalizeEnvValue(value: string | undefined) {
   return normalizedValue && normalizedValue.length > 0 ? normalizedValue : undefined;
 }
 
+function readOptionalEnv(name: string) {
+  return normalizeEnvValue(process.env[name]);
+}
+
 function readRequiredEnv(name: string, value: string | undefined) {
   const normalizedValue = normalizeEnvValue(value);
 
@@ -42,7 +46,18 @@ export interface OperationalEnv {
   nextPublicSupabaseAnonKey: string;
 }
 
+export interface PlaywrightEnv {
+  baseUrl: string;
+  skipWebServer: boolean;
+  isCi: boolean;
+  ownerEmail?: string;
+  ownerPassword?: string;
+  intruderEmail?: string;
+  intruderPassword?: string;
+}
+
 let cachedOperationalEnv: OperationalEnv | null = null;
+let cachedPlaywrightEnv: PlaywrightEnv | null = null;
 
 export function getOperationalEnv(): OperationalEnv {
   if (cachedOperationalEnv) {
@@ -89,4 +104,24 @@ export function isProductionEnvironment() {
 
 export function isDevelopmentEnvironment() {
   return !isProductionEnvironment();
+}
+
+export function getPlaywrightEnv(): PlaywrightEnv {
+  if (cachedPlaywrightEnv) {
+    return cachedPlaywrightEnv;
+  }
+
+  const configuredBaseUrl = readOptionalEnv("PLAYWRIGHT_BASE_URL");
+
+  cachedPlaywrightEnv = {
+    baseUrl: configuredBaseUrl ? assertValidHttpUrl("PLAYWRIGHT_BASE_URL", configuredBaseUrl) : LOCAL_SITE_URL,
+    skipWebServer: readOptionalEnv("PLAYWRIGHT_SKIP_WEBSERVER") === "1",
+    isCi: Boolean(readOptionalEnv("CI")),
+    ownerEmail: readOptionalEnv("PLAYWRIGHT_OWNER_EMAIL"),
+    ownerPassword: readOptionalEnv("PLAYWRIGHT_OWNER_PASSWORD"),
+    intruderEmail: readOptionalEnv("PLAYWRIGHT_INTRUDER_EMAIL"),
+    intruderPassword: readOptionalEnv("PLAYWRIGHT_INTRUDER_PASSWORD"),
+  };
+
+  return cachedPlaywrightEnv;
 }

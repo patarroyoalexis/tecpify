@@ -448,7 +448,10 @@ export function StorefrontOrderWizard({
 
   if (confirmedOrder) {
     return (
-      <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(14,165,233,0.18),transparent_32%),linear-gradient(180deg,#f8fafc_0%,#eef6ff_100%)] px-4 py-6 sm:px-6">
+      <main
+        className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(14,165,233,0.18),transparent_32%),linear-gradient(180deg,#f8fafc_0%,#eef6ff_100%)] px-4 py-6 sm:px-6"
+        data-testid="storefront-order-confirmation"
+      >
         <div className="mx-auto flex min-h-[calc(100vh-3rem)] w-full max-w-xl items-center">
           <section className="w-full rounded-[32px] border border-white/70 bg-white/95 p-6 shadow-[0_24px_80px_rgba(15,23,42,0.12)] sm:p-8">
             <div className="flex justify-center">
@@ -508,7 +511,10 @@ export function StorefrontOrderWizard({
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(244,114,182,0.14),transparent_22%),radial-gradient(circle_at_bottom_right,_rgba(56,189,248,0.14),transparent_30%),linear-gradient(180deg,#f8fafc_0%,#eff6ff_100%)]">
+    <main
+      className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(244,114,182,0.14),transparent_22%),radial-gradient(circle_at_bottom_right,_rgba(56,189,248,0.14),transparent_30%),linear-gradient(180deg,#f8fafc_0%,#eff6ff_100%)]"
+      data-testid="storefront-order-wizard"
+    >
       <header className="fixed inset-x-0 top-0 z-40 border-b border-white/50 bg-white/88 backdrop-blur-xl">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
           <div className="min-w-0">
@@ -553,6 +559,7 @@ export function StorefrontOrderWizard({
                       placeholder="300 123 4567"
                       inputMode="tel"
                       autoComplete="tel"
+                      data-testid="storefront-customer-phone-input"
                       className={`w-full rounded-2xl border bg-slate-50 py-3 pl-11 pr-4 text-base leading-6 text-slate-900 outline-none transition focus:bg-white sm:text-sm sm:leading-5 ${
                         errors.customerPhone
                           ? "border-rose-300 focus:border-rose-400"
@@ -576,6 +583,7 @@ export function StorefrontOrderWizard({
                       }}
                       placeholder="Tu nombre o el de tu negocio"
                       autoComplete="name"
+                      data-testid="storefront-customer-name-input"
                       className={`w-full rounded-2xl border bg-slate-50 py-3 pl-11 pr-4 text-base leading-6 text-slate-900 outline-none transition focus:bg-white sm:text-sm sm:leading-5 ${
                         errors.customerName
                           ? "border-rose-300 focus:border-rose-400"
@@ -679,6 +687,7 @@ export function StorefrontOrderWizard({
                         clearFieldError("deliveryType");
                         clearFieldError("address");
                       }}
+                      data-testid="storefront-delivery-type-select"
                       className={`w-full rounded-2xl border bg-slate-50 px-4 py-3 text-base leading-6 text-slate-900 outline-none transition focus:bg-white sm:text-sm sm:leading-5 ${
                         errors.deliveryType
                           ? "border-rose-300 focus:border-rose-400"
@@ -703,6 +712,7 @@ export function StorefrontOrderWizard({
                         setPaymentMethod(event.target.value as PaymentMethod | "");
                         clearFieldError("paymentMethod");
                       }}
+                      data-testid="storefront-payment-method-select"
                       className={`w-full rounded-2xl border bg-slate-50 px-4 py-3 text-base leading-6 text-slate-900 outline-none transition focus:bg-white sm:text-sm sm:leading-5 ${
                         errors.paymentMethod
                           ? "border-rose-300 focus:border-rose-400"
@@ -788,6 +798,7 @@ export function StorefrontOrderWizard({
                       setPrivacyAccepted(event.target.checked);
                       clearFieldError("privacyAccepted");
                     }}
+                    data-testid="storefront-privacy-checkbox"
                     className="mt-1 h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-400"
                   />
                   <span className="text-sm leading-5 text-slate-700">
@@ -809,6 +820,7 @@ export function StorefrontOrderWizard({
                 type="button"
                 onClick={() => void handleConfirmOrder()}
                 disabled={isSubmitting}
+                data-testid="storefront-submit-order-button"
                 className="w-full rounded-full bg-emerald-600 px-6 py-4 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:bg-emerald-400"
               >
                 {isSubmitting ? "Enviando pedido..." : "Enviar pedido"}
