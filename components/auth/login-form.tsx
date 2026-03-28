@@ -1,19 +1,29 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 
 interface LoginFormProps {
   redirectTo: string;
+  initialError?: string | null;
+  googleAuthHref?: string | null;
 }
 
-export function LoginForm({ redirectTo }: LoginFormProps) {
+export function LoginForm({
+  redirectTo,
+  initialError = null,
+  googleAuthHref = null,
+}: LoginFormProps) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+  const [error, setError] = useState(initialError ?? "");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    setError(initialError ?? "");
+  }, [initialError]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -57,6 +67,23 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
 
   return (
     <form onSubmit={handleSubmit} className="mt-6 space-y-4" data-testid="login-form">
+      {googleAuthHref ? (
+        <>
+          <a
+            href={googleAuthHref}
+            data-testid="login-google-auth-link"
+            className="inline-flex w-full items-center justify-center rounded-2xl border border-sky-200 bg-sky-50 px-5 py-3 text-sm font-semibold text-sky-900 transition hover:border-sky-300 hover:bg-sky-100"
+          >
+            Continuar con Google
+          </a>
+          <div className="flex items-center gap-3 text-xs uppercase tracking-[0.18em] text-slate-400">
+            <span className="h-px flex-1 bg-slate-200" />
+            <span>o sigue con email</span>
+            <span className="h-px flex-1 bg-slate-200" />
+          </div>
+        </>
+      ) : null}
+
       <label className="block space-y-2">
         <span className="text-sm font-medium text-slate-700">Email</span>
         <input

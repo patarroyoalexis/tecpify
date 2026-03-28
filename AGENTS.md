@@ -41,7 +41,7 @@ Este archivo es el contrato operativo de consistencia del MVP. Su funcion no es 
 - El frente de pedidos/pagos/historial esta reforzado simultaneamente en runtime, funciones SQL/trigger/policies y guardrails automatizados; hoy es el frente con mayor cierre tecnico verificable del repo.
 - El frente de naming canonico (`businessId`, `businessSlug`, `productId`, `orderId`, `orderCode`) tiene guardrails activos en tipos, rutas, helpers y tests; no debe volver a mezclarse con slugs o ids genericos.
 - El frente de service role del runtime normal esta cerrado a nivel operativo: el flujo productivo carga con anon + SSR auth + RLS, y la unica excepcion activa es test-only para bootstrap de fixtures E2E de Auth.
-- El registro existe en runtime, pero el circuito critico automatizado valida login real con fixtures dedicadas; no existe evidencia E2E equivalente para confirmar todo el recorrido manual de registro y confirmacion de correo.
+- El registro existe en runtime, y Google OAuth puede existir como opcion secundaria de login/signup si se habilita por configuracion; aun asi el circuito critico automatizado valida login real con fixtures dedicadas por email/password y no existe evidencia E2E equivalente para confirmar todo el recorrido manual de registro, confirmacion de correo u OAuth social.
 - Las metricas privadas existen en runtime y compilan sobre pedidos persistidos, pero no tienen una validacion E2E dedicada; por eso no deben presentarse como frente cerrado de punta a punta.
 - La gestion de productos existe en runtime para crear, editar, activar, destacar, reordenar y borrar, pero el bloqueo de borrado por uso historico vive hoy en runtime; no hay evidencia de un candado equivalente en DB.
 
@@ -105,7 +105,7 @@ Este archivo es el contrato operativo de consistencia del MVP. Su funcion no es 
 - `SUPABASE_SERVICE_ROLE_KEY` no puede leerse, tiparse ni transportarse desde `lib/env.ts`.
 - El unico helper autorizado para leer `SUPABASE_SERVICE_ROLE_KEY` es `lib/supabase/internal/service-role-client.ts`.
 - Cualquier uso activo de service role en rutas, acciones server o acceso operativo a negocios, productos o pedidos vuelve el cambio `NO APTO TODAVIA`, salvo excepcion documentada y aprobada en `lib/supabase/service-role.ts`.
-- Las variables canonicas del repo son `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_SITE_URL` y `SUPABASE_SERVICE_ROLE_KEY`.
+- Las variables canonicas del repo son `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_GOOGLE_AUTH_ENABLED`, `NEXT_PUBLIC_SITE_URL` y `SUPABASE_SERVICE_ROLE_KEY`.
 - Variables de test-only para Playwright/CI (`PLAYWRIGHT_BASE_URL`, `PLAYWRIGHT_E2E_PASSWORD`, `PLAYWRIGHT_E2E_NAMESPACE`, `PLAYWRIGHT_SKIP_WEBSERVER`, `CI`) no forman parte del runtime normal del MVP ni autorizan acceso operativo; solo parametrizan la ejecucion automatizada de la suite E2E.
 - La suite E2E de Playwright bootstrapea fixtures de Auth dedicadas y no humanas al inicio; usa service role aislada de test solo en `tests/helpers/playwright-global-setup.ts`, confirma esas cuentas sin correo y falla cerrado si faltan prerequisitos o si el login real no queda operativo.
 - `AGENTS.md`, `README.md`, `.env.example` y `lib/env.ts` no pueden divergir sobre variables operativas.
@@ -145,6 +145,6 @@ Este archivo es el contrato operativo de consistencia del MVP. Su funcion no es 
 
 ### Frentes hoy parciales o abiertos
 
-- Registro: existe en runtime, pero no tiene la misma evidencia E2E del login y puede depender de confirmacion de correo segun configuracion real de Auth.
+- Registro y Google OAuth opcional: existen en runtime, pero no tienen la misma evidencia E2E del login por email/password y pueden depender de confirmacion de correo o configuracion real del provider segun el entorno.
 - Metricas privadas: existen en runtime y compilan, pero no tienen cierre E2E dedicado ni una capa propia de guardrails equivalente al frente de pedidos.
 - Borrado seguro de productos: el repo bloquea el borrado cuando detecta referencias en pedidos reales, pero ese candado no esta reforzado por DB.

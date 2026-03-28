@@ -29,7 +29,7 @@ Ese es el circuito hoy validado con mayor evidencia automatizada y usa Supabase 
 
 ## 5. Estado funcional actual
 
-- Registro, login y sesion del operador con Supabase Auth SSR; la evidencia automatizada fuerte hoy valida login real con fixtures, no todo el recorrido manual de registro y confirmacion de correo.
+- Registro, login y sesion del operador con Supabase Auth SSR por email/password, con Google OAuth opcional como carril secundario en login/signup cuando el proveedor esta configurado; la evidencia automatizada fuerte hoy valida login real con fixtures, no todo el recorrido manual de registro, confirmacion de correo ni OAuth social.
 - Proteccion temprana de rutas privadas con `proxy.ts`, conservando `redirectTo` hacia `/login`.
 - Creacion de negocios con ownership persistido en `created_by_user_id` y expuesto en runtime como `createdByUserId`.
 - Catalogo por negocio con alta, edicion, activacion, destacado y reordenamiento.
@@ -79,15 +79,24 @@ Las garantias activas del MVP hoy no viven solo en UI ni solo en handlers HTTP: 
 - El frente con mayor cierre tecnico hoy es pedidos/pagos/historial: runtime, funciones SQL, triggers, policies y tests automatizados coinciden.
 - El frente de naming canonico (`businessId`, `businessSlug`, `productId`, `orderId`, `orderCode`) tiene guardrails activos en tipos, rutas, helpers y tests.
 - El borde privilegiado del runtime normal sigue aislado: `SUPABASE_SERVICE_ROLE_KEY` no participa en el flujo productivo y queda reservada para el helper interno autorizado y el bootstrap test-only de Playwright.
-- Registro, metricas privadas y borrado seguro de productos siguen parciales: existen en runtime, pero no todos tienen el mismo refuerzo de DB + E2E que ya tiene el frente de pedidos.
+- Registro, Google OAuth opcional, metricas privadas y borrado seguro de productos siguen parciales: existen en runtime, pero no todos tienen el mismo refuerzo de DB + E2E que ya tiene el frente de pedidos.
 - El frente ownerless queda cerrado tambien en la definicion final efectiva: runtime, UI, migraciones SQL finales y guardrails automatizados coinciden en retirar `request/grant/claim/list` y mantener bloqueado `ownerless -> owned` dentro del MVP.
 
 ### Variables de entorno vigentes
 
 - `NEXT_PUBLIC_SUPABASE_URL`: obligatoria.
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`: obligatoria.
+- `NEXT_PUBLIC_GOOGLE_AUTH_ENABLED`: opcional. Usa `1` o `true` solo cuando Google OAuth ya esta configurado en Supabase y debe exponerse como opcion secundaria en login/signup.
 - `NEXT_PUBLIC_SITE_URL`: obligatoria en produccion y con fallback local en desarrollo.
 - `SUPABASE_SERVICE_ROLE_KEY`: opcional y aislada del runtime normal; solo puede leerse desde `lib/supabase/internal/service-role-client.ts`.
+
+### Google OAuth opcional
+
+- Google OAuth no reemplaza email/password: ambos formularios siguen siendo el camino base del MVP y el circuito E2E estable sigue entrando por credenciales controladas.
+- Para activarlo en runtime, define `NEXT_PUBLIC_GOOGLE_AUTH_ENABLED=1` solo despues de habilitar Google como provider en Supabase Auth y cargar ahi el client ID/client secret de Google.
+- En Supabase Auth debes permitir los redirects del callback app-level que usa Tecpify: `http://localhost:3000/auth/callback` para desarrollo y `https://tu-dominio/auth/callback` para produccion; `NEXT_PUBLIC_SITE_URL` debe coincidir con el dominio real que vas a usar.
+- En Google Cloud Console, el redirect URI autorizado del provider debe ser el callback de Supabase Auth del proyecto: `https://<project-ref>.supabase.co/auth/v1/callback`.
+- Si la flag no existe o queda en `0`/`false`, el sistema simplemente oculta Google y email/password sigue operativo sin cambiar tests ni ownership.
 
 ## 7. Limites actuales del producto
 
@@ -134,7 +143,7 @@ Ademas, la fase actual de E2E ya protege reglas criticas del dominio de pedidos:
 - La base enlazada debe tener aplicadas las migraciones vigentes de `supabase/migrations`. Si el proyecto remoto queda atrasado respecto del repo, el owner puede quedar bloqueado por RLS al crear negocio o publicar productos y la suite E2E no cerrara el circuito real.
 - Antes de correr specs, Playwright bootstrapea fixtures dedicadas de Auth con `tests/helpers/playwright-global-setup.ts`. Ese bootstrap usa service role aislada de test para crear o corregir dos cuentas no humanas, las confirma sin correo y luego verifica login real con password.
 - La suite E2E falla cerrado si faltan prerequisitos del bootstrap, si Supabase Auth no puede dejar operativas esas fixtures o si el proyecto remoto no acepta login real con ellas.
-- La suite E2E no llama `/api/auth/register`, no usa `signUp`, no dispara correos de confirmacion, OTP, magic link, reset ni resend, y no depende de cuentas humanas ni de estados manuales inciertos.
+- La suite E2E no llama `/api/auth/register`, no usa `signUp`, no dispara correos de confirmacion, OTP, magic link, reset ni resend, no toca Google OAuth real y no depende de cuentas humanas ni de estados manuales inciertos.
 - La suite E2E todavia no cubre metricas privadas ni todo el recorrido manual de registro/confirmacion; esos frentes existen en runtime, pero no deben presentarse como cerrados de punta a punta.
 
 ### Variables para E2E

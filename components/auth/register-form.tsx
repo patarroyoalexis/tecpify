@@ -1,21 +1,32 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 
 interface RegisterFormProps {
   redirectTo: string;
+  initialError?: string | null;
+  googleAuthHref?: string | null;
 }
 
-export function RegisterForm({ redirectTo }: RegisterFormProps) {
+export function RegisterForm({
+  redirectTo,
+  initialError = null,
+  googleAuthHref = null,
+}: RegisterFormProps) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [error, setError] = useState("");
+  const [error, setError] = useState(initialError ?? "");
   const [successMessage, setSuccessMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    setError(initialError ?? "");
+    setSuccessMessage("");
+  }, [initialError]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -76,6 +87,23 @@ export function RegisterForm({ redirectTo }: RegisterFormProps) {
 
   return (
     <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+      {googleAuthHref ? (
+        <>
+          <a
+            href={googleAuthHref}
+            data-testid="register-google-auth-link"
+            className="inline-flex w-full items-center justify-center rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-3 text-sm font-semibold text-emerald-900 transition hover:border-emerald-300 hover:bg-emerald-100"
+          >
+            Crear cuenta con Google
+          </a>
+          <div className="flex items-center gap-3 text-xs uppercase tracking-[0.18em] text-slate-400">
+            <span className="h-px flex-1 bg-slate-200" />
+            <span>o sigue con email</span>
+            <span className="h-px flex-1 bg-slate-200" />
+          </div>
+        </>
+      ) : null}
+
       <label className="block space-y-2">
         <span className="text-sm font-medium text-slate-700">Email</span>
         <input

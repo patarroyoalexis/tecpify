@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { getAuthEntryPath, parseAuthEntryIntent } from "@/lib/auth/google-auth";
 import { sanitizeRedirectPath } from "@/lib/auth/server";
 import { getSiteUrl } from "@/lib/site-url";
 import { createServerSupabaseAuthClient } from "@/lib/supabase/server";
@@ -20,6 +21,7 @@ export async function GET(request: Request) {
   const tokenHash = requestUrl.searchParams.get("token_hash");
   const type = requestUrl.searchParams.get("type");
   const next = sanitizeRedirectPath(requestUrl.searchParams.get("next"));
+  const intent = parseAuthEntryIntent(requestUrl.searchParams.get("intent"));
   const supabase = await createServerSupabaseAuthClient();
 
   try {
@@ -47,7 +49,7 @@ export async function GET(request: Request) {
     }
   } catch {
     return NextResponse.redirect(
-      buildRedirectUrl("/login", {
+      buildRedirectUrl(getAuthEntryPath(intent), {
         redirectTo: next,
         error: "auth_callback_failed",
       }),
@@ -55,7 +57,7 @@ export async function GET(request: Request) {
   }
 
   return NextResponse.redirect(
-    buildRedirectUrl("/login", {
+    buildRedirectUrl(getAuthEntryPath(intent), {
       redirectTo: next,
       error: "auth_callback_missing_code",
     }),

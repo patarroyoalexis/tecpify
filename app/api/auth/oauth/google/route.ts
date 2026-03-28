@@ -1,0 +1,61 @@
+import { NextResponse } from "next/server";
+
+import {
+  getAuthEntryPath,
+  isGoogleAuthEnabled,
+  parseAuthEntryIntent,
+} from "@/lib/auth/google-auth";
+import { sanitizeRedirectPath } from "@/lib/auth/redirect-path";
+import { getAuthCallbackUrl } from "@/lib/site-url";
+import { createServerSupabaseAuthClient } from "@/lib/supabase/server";
+
+function buildAuthEntryRedirect(
+  requestUrl: URL,
+  options: {
+    intent: "login" | "register";
+    redirectTo: string;
+    error: string;
+  },
+) {
+  const redirectUrl = new URL(getAuthEntryPath(options.intent), requestUrl);
+  redirectUrl.searchParams.set("redirectTo", options.redirectTo);
+  redirectUrl.searchParams.set("error", options.error);
+  return redirectUrl;
+}
+
+export async function GET(request: Request) {
+  const requestUrl = new URL(request.url);
+  const intent = parseAuthEntryIntent(requestUrl.searchParams.get("intent"));
+  const redirectTo = sanitizeRedirectPath(requestUrl.searchParams.get("redirectTo"));
+
+  if (!isGoogleAuthEnabled()) {
+    return NextResponse.redirect(
+      buildAuthEntryRedirect(requestUrl, {
+        intent,
+        redirectTo,
+        error: "google_auth_unavailable",
+      }),
+    );
+  }
+
+  const supabase = await createServerSupabaseAuthClient();
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: "google",
+    options: {
+      redirectTo: getAuthCallbackUrl({ next: redirectTo, intent }),
+      skipBrowserRedirect: true,
+    },
+  });
+
+  if (error || !data.url) {
+    return NextResponse.redirect(
+      buildAuthEntryRedirect(requestUrl, {
+        intent,
+        redirectTo,
+        error: "google_auth_start_failed",
+      }),
+    );
+  }
+
+  return NextResponse.redirect(data.url);
+}

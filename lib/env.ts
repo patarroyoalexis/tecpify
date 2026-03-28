@@ -11,6 +11,26 @@ function readOptionalEnv(name: string) {
   return normalizeEnvValue(process.env[name]);
 }
 
+function readBooleanEnv(name: string, value: string | undefined) {
+  const normalizedValue = normalizeEnvValue(value)?.toLowerCase();
+
+  if (!normalizedValue) {
+    return false;
+  }
+
+  if (["1", "true", "yes", "on"].includes(normalizedValue)) {
+    return true;
+  }
+
+  if (["0", "false", "no", "off"].includes(normalizedValue)) {
+    return false;
+  }
+
+  throw new Error(
+    `${name} no es valida. Usa 1/true para habilitarla o 0/false para deshabilitarla.`,
+  );
+}
+
 function readRequiredEnv(name: string, value: string | undefined) {
   const normalizedValue = normalizeEnvValue(value);
 
@@ -129,6 +149,7 @@ function assertValidHttpUrl(name: string, value: string) {
 export interface OperationalEnv {
   nextPublicSupabaseUrl: string;
   nextPublicSupabaseAnonKey: string;
+  nextPublicGoogleAuthEnabled: boolean;
 }
 
 export interface PlaywrightEnv {
@@ -168,6 +189,10 @@ export function getOperationalEnv(): OperationalEnv {
     nextPublicSupabaseAnonKey: readRequiredEnv(
       "NEXT_PUBLIC_SUPABASE_ANON_KEY",
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    ),
+    nextPublicGoogleAuthEnabled: readBooleanEnv(
+      "NEXT_PUBLIC_GOOGLE_AUTH_ENABLED",
+      process.env.NEXT_PUBLIC_GOOGLE_AUTH_ENABLED,
     ),
   };
 

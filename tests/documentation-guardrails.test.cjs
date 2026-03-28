@@ -286,6 +286,16 @@ test("documentacion: las afirmaciones contractuales siguen alineadas con el codi
     "README.md debe documentar el bootstrap seguro de fixtures E2E en lugar de cuentas humanas reutilizadas.",
   );
   assert.match(
+    readmeSource,
+    /Google OAuth opcional.*carril secundario/i,
+    "README.md debe describir Google OAuth como una opcion secundaria y no como reemplazo de email/password.",
+  );
+  assert.match(
+    agentsSource,
+    /Google OAuth puede existir como opcion secundaria/i,
+    "AGENTS.md debe describir Google OAuth como superficie opcional y complementaria.",
+  );
+  assert.match(
     agentsSource,
     /bootstrap(?:ea|ear)?.*fixtures.*Auth/i,
     "AGENTS.md debe reflejar el contrato real del bootstrap E2E aislado de test.",
@@ -728,6 +738,16 @@ test("documentacion: las afirmaciones contractuales siguen alineadas con el codi
     agentsSource,
     /accepts_cash.*accepts_transfer.*accepts_card.*allows_fiado/i,
     "AGENTS.md debe documentar los flags persistidos del negocio para metodos publicos y fiado interno.",
+  );
+  assert.match(
+    readmeSource,
+    /no toca Google OAuth real/i,
+    "README.md debe documentar que el carril E2E estable no depende de Google OAuth.",
+  );
+  assert.match(
+    agentsSource,
+    /fixtures dedicadas por email\/password/i,
+    "AGENTS.md debe fijar que el circuito automatizado estable sigue entrando por email/password.",
   );
   assert.match(
     readmeSource,

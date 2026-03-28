@@ -2,15 +2,27 @@ import { redirect } from "next/navigation";
 
 import { RegisterForm } from "@/components/auth/register-form";
 import { PublicLayoutShell } from "@/components/layout/public-layout-shell";
+import {
+  buildGoogleAuthStartHref,
+  getAuthFlowErrorMessage,
+  isGoogleAuthEnabled,
+} from "@/lib/auth/google-auth";
 import { getCurrentUser, sanitizeRedirectPath } from "@/lib/auth/server";
 
 export default async function RegisterPage({
   searchParams,
 }: {
-  searchParams: Promise<{ redirectTo?: string }>;
+  searchParams: Promise<{ redirectTo?: string; error?: string }>;
 }) {
   const resolvedSearchParams = await searchParams;
   const redirectTo = sanitizeRedirectPath(resolvedSearchParams.redirectTo);
+  const authErrorMessage = getAuthFlowErrorMessage(resolvedSearchParams.error);
+  const googleAuthHref = isGoogleAuthEnabled()
+    ? buildGoogleAuthStartHref({
+        redirectTo,
+        intent: "register",
+      })
+    : null;
   const operator = await getCurrentUser();
 
   if (operator) {
@@ -51,7 +63,11 @@ export default async function RegisterPage({
                 <span className="font-medium text-slate-900">{redirectTo}</span>.
               </p>
 
-              <RegisterForm redirectTo={redirectTo} />
+              <RegisterForm
+                redirectTo={redirectTo}
+                initialError={authErrorMessage}
+                googleAuthHref={googleAuthHref}
+              />
             </div>
           </section>
         </div>
