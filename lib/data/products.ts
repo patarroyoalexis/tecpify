@@ -2,12 +2,22 @@ import {
   createServerSupabaseAuthClient,
   createServerSupabasePublicClient,
 } from "@/lib/supabase/server";
-import type { Product } from "@/types/products";
+import {
+  requireBusinessId,
+  requireOrderCode,
+  requireOrderId,
+  requireProductId,
+  type BusinessId,
+  type OrderCode,
+  type OrderId,
+  type ProductId,
+} from "@/types/identifiers";
+import type { Product, ProductRow } from "@/types/products";
 import type { BusinessProduct } from "@/types/storefront";
-import { getOrderDisplayCode, type OrderProduct } from "@/types/orders";
+import type { OrderProduct } from "@/types/orders";
 
 interface ProductCreatePayload {
-  businessId: string;
+  businessId: BusinessId;
   name: string;
   description?: string;
   price: number;
@@ -17,7 +27,7 @@ interface ProductCreatePayload {
 }
 
 interface ProductUpdatePayload {
-  businessId: string;
+  businessId: BusinessId;
   name?: string;
   description?: string;
   price?: number;
@@ -27,8 +37,8 @@ interface ProductUpdatePayload {
 }
 
 interface ProductUsageOrderReference {
-  id: string;
-  orderCode?: string;
+  orderId: OrderId;
+  orderCode?: OrderCode;
 }
 
 export interface ProductDeleteValidation {
@@ -48,16 +58,32 @@ function isValidStorefrontProduct(product: Product) {
     product.name.trim().length > 0 &&
     Number.isFinite(product.price) &&
     product.price >= 0 &&
-    product.is_available === true
+    product.isAvailable === true
   );
 }
 
-export async function getProductsByBusinessId(businessId: string): Promise<Product[]> {
+function mapProductRow(row: ProductRow): Product {
+  return {
+    productId: requireProductId(row.id),
+    businessId: requireBusinessId(row.business_id),
+    name: row.name,
+    description: row.description,
+    price: row.price,
+    isAvailable: row.is_available,
+    isFeatured: row.is_featured,
+    sortOrder: row.sort_order,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export async function getProductsByBusinessId(businessId: BusinessId): Promise<Product[]> {
+  const normalizedBusinessId = requireBusinessId(businessId);
   const supabase = createServerSupabasePublicClient();
   const { data, error } = await supabase
     .from("products")
     .select("*")
-    .eq("business_id", businessId)
+    .eq("business_id", normalizedBusinessId)
     .eq("is_available", true)
     .order("sort_order", { ascending: true })
     .order("created_at", { ascending: true });
@@ -66,15 +92,16 @@ export async function getProductsByBusinessId(businessId: string): Promise<Produ
     throw new Error(`Supabase products query failed: ${error.message}`);
   }
 
-  return ((data ?? []) as Product[]).filter(isValidStorefrontProduct);
+  return ((data ?? []) as ProductRow[]).map(mapProductRow).filter(isValidStorefrontProduct);
 }
 
-export async function getAdminProductsByBusinessId(businessId: string): Promise<Product[]> {
+export async function getAdminProductsByBusinessId(businessId: BusinessId): Promise<Product[]> {
+  const normalizedBusinessId = requireBusinessId(businessId);
   const supabase = await createServerSupabaseAuthClient();
   const { data, error } = await supabase
     .from("products")
     .select("*")
-    .eq("business_id", businessId)
+    .eq("business_id", normalizedBusinessId)
     .order("sort_order", { ascending: true })
     .order("created_at", { ascending: true });
 
@@ -82,18 +109,18 @@ export async function getAdminProductsByBusinessId(businessId: string): Promise<
     throw new Error(`Supabase products query failed: ${error.message}`);
   }
 
-  return (data ?? []) as Product[];
+  return ((data ?? []) as ProductRow[]).map(mapProductRow);
 }
 
 export function mapProductToBusinessProduct(product: Product): BusinessProduct {
   return {
-    id: product.id,
+    productId: product.productId,
     name: product.name,
     description: product.description ?? "",
     price: product.price,
-    isAvailable: product.is_available,
-    isFeatured: product.is_featured,
-    sortOrder: product.sort_order ?? 0,
+    isAvailable: product.isAvailable,
+    isFeatured: product.isFeatured,
+    sortOrder: product.sortOrder ?? 0,
   };
 }
 
@@ -115,12 +142,6 @@ function assertValidProductName(name: string) {
 
   if (normalizedName.length > 120) {
     throw new Error("Invalid product payload. name no puede superar 120 caracteres.");
-  }
-}
-
-function assertValidBusinessId(businessId: string) {
-  if (typeof businessId !== "string" || businessId.trim().length === 0) {
-    throw new Error("Invalid product payload. businessId es obligatorio.");
   }
 }
 
@@ -165,14 +186,15 @@ function resolveDesiredSortOrder(sortOrder: number | undefined, fallbackCount: n
   return Math.max(1, Math.floor(sortOrder));
 }
 
-function moveProductId(ids: string[], productId: string, desiredSortOrder: number) {
+function moveProductId(ids: ProductId[], productId: ProductId, desiredSortOrder: number) {
   const remainingIds = ids.filter((id) => id !== productId);
   const targetIndex = Math.min(Math.max(desiredSortOrder - 1, 0), remainingIds.length);
   remainingIds.splice(targetIndex, 0, productId);
   return remainingIds;
 }
 
-async function writeNormalizedSortOrders(businessId: string, orderedIds: string[]) {
+async function writeNormalizedSortOrders(businessId: BusinessId, orderedIds: ProductId[]) {
+  const normalizedBusinessId = requireBusinessId(businessId);
   const supabase = await createServerSupabaseAuthClient();
 
   for (let index = 0; index < orderedIds.length; index += 1) {
@@ -184,7 +206,7 @@ async function writeNormalizedSortOrders(businessId: string, orderedIds: string[
         sort_order: temporarySortOrder,
         updated_at: new Date().toISOString(),
       })
-      .eq("business_id", businessId)
+      .eq("business_id", normalizedBusinessId)
       .eq("id", id);
 
     if (error) {
@@ -201,7 +223,7 @@ async function writeNormalizedSortOrders(businessId: string, orderedIds: string[
         sort_order: finalSortOrder,
         updated_at: new Date().toISOString(),
       })
-      .eq("business_id", businessId)
+      .eq("business_id", normalizedBusinessId)
       .eq("id", id);
 
     if (error) {
@@ -222,7 +244,7 @@ function mapSupabaseProductError(error: { code?: string; message: string }) {
   return `Supabase products mutation failed: ${error.message}`;
 }
 
-function readOrderProducts(value: unknown): OrderProduct[] {
+function readPersistedOrderProductsFromDatabase(value: unknown): OrderProduct[] {
   if (!Array.isArray(value)) {
     return [];
   }
@@ -242,9 +264,9 @@ function readOrderProducts(value: unknown): OrderProduct[] {
           : 0;
     const productId =
       typeof candidate.productId === "string"
-        ? candidate.productId
+        ? requireProductId(candidate.productId)
         : typeof candidate.product_id === "string"
-          ? candidate.product_id
+          ? requireProductId(candidate.product_id)
           : undefined;
 
     if (!name || !Number.isFinite(quantity) || quantity <= 0) {
@@ -256,52 +278,56 @@ function readOrderProducts(value: unknown): OrderProduct[] {
 }
 
 async function getProductUsageValidation(
-  businessId: string,
-  productId: string,
+  businessId: BusinessId,
+  productId: ProductId,
 ): Promise<ProductDeleteValidation> {
+  const normalizedBusinessId = requireBusinessId(businessId);
+  const normalizedProductId = requireProductId(productId);
   const supabase = await createServerSupabaseAuthClient();
   const { data, error } = await supabase
     .from("orders")
     .select("id, order_code, products")
-    .eq("business_id", businessId);
+    .eq("business_id", normalizedBusinessId);
 
   if (error) {
     throw new Error(`Supabase product usage lookup failed: ${error.message}`);
   }
 
   const matchingOrders = ((data ?? []) as Record<string, unknown>[]).filter((order) =>
-    readOrderProducts(order.products).some((product) => product.productId === productId),
+    readPersistedOrderProductsFromDatabase(order.products).some(
+      (product) => product.productId === normalizedProductId,
+    ),
   );
 
   return {
     canDelete: matchingOrders.length === 0,
     referencedOrdersCount: matchingOrders.length,
     sampleOrders: matchingOrders.slice(0, 3).map((order) => ({
-      id: typeof order.id === "string" ? order.id : "",
+      orderId: requireOrderId(typeof order.id === "string" ? order.id : ""),
       orderCode:
         typeof order.order_code === "string"
-          ? getOrderDisplayCode({ id: typeof order.id === "string" ? order.id : "", orderCode: order.order_code })
+          ? requireOrderCode(order.order_code)
           : undefined,
     })),
   };
 }
 
 export async function createProductInDatabase(payload: ProductCreatePayload): Promise<Product> {
-  assertValidBusinessId(payload.businessId);
+  const businessId = requireBusinessId(payload.businessId);
   assertValidProductName(payload.name);
   assertValidProductPrice(payload.price);
   assertValidSortOrder(payload.sortOrder);
 
-  const currentProducts = await getAdminProductsByBusinessId(payload.businessId);
+  const currentProducts = await getAdminProductsByBusinessId(businessId);
   const nextSortOrder = resolveDesiredSortOrder(payload.sortOrder, currentProducts.length);
   const now = new Date().toISOString();
-  const productId = crypto.randomUUID();
+  const productId = requireProductId(crypto.randomUUID());
   const supabase = await createServerSupabaseAuthClient();
   const { data, error } = await supabase
     .from("products")
     .insert({
       id: productId,
-      business_id: payload.businessId,
+      business_id: businessId,
       name: normalizeProductName(payload.name),
       description: normalizeDescription(payload.description),
       price: payload.price,
@@ -319,34 +345,35 @@ export async function createProductInDatabase(payload: ProductCreatePayload): Pr
   }
 
   const orderedIds = moveProductId(
-    [...currentProducts.map((product) => product.id), productId],
+    [...currentProducts.map((product) => product.productId), productId],
     productId,
     nextSortOrder,
   );
 
-  await writeNormalizedSortOrders(payload.businessId, orderedIds);
+  await writeNormalizedSortOrders(businessId, orderedIds);
 
-  const updatedProducts = await getAdminProductsByBusinessId(payload.businessId);
-  const createdProduct = updatedProducts.find((product) => product.id === productId);
+  const updatedProducts = await getAdminProductsByBusinessId(businessId);
+  const createdProduct = updatedProducts.find((product) => product.productId === productId);
 
   if (!createdProduct) {
     throw new Error("No fue posible recuperar el producto creado.");
   }
 
-  return createdProduct ?? (data as Product);
+  return createdProduct ?? mapProductRow(data as ProductRow);
 }
 
 export async function updateProductInDatabase(
-  productId: string,
+  productId: ProductId,
   payload: ProductUpdatePayload,
 ): Promise<Product> {
-  assertValidBusinessId(payload.businessId);
+  const normalizedBusinessId = requireBusinessId(payload.businessId);
+  const normalizedProductId = requireProductId(productId);
   assertAtLeastOneProductField(payload);
-  const currentProducts = await getAdminProductsByBusinessId(payload.businessId);
-  const existingProduct = currentProducts.find((product) => product.id === productId);
+  const currentProducts = await getAdminProductsByBusinessId(normalizedBusinessId);
+  const existingProduct = currentProducts.find((product) => product.productId === normalizedProductId);
 
   if (!existingProduct) {
-    throw new Error(`Product not found for id "${productId}".`);
+    throw new Error(`Product not found for id "${normalizedProductId}".`);
   }
 
   if (payload.name !== undefined) {
@@ -361,15 +388,15 @@ export async function updateProductInDatabase(
 
   const desiredSortOrder =
     payload.sortOrder === undefined
-      ? existingProduct.sort_order ?? currentProducts.length
+      ? existingProduct.sortOrder ?? currentProducts.length
       : Math.max(1, Math.floor(payload.sortOrder));
 
-  const currentOrder = currentProducts.map((product) => product.id);
-  const reorderedIds = moveProductId(currentOrder, productId, desiredSortOrder);
+  const currentOrder = currentProducts.map((product) => product.productId);
+  const reorderedIds = moveProductId(currentOrder, normalizedProductId, desiredSortOrder);
   const didReorder = reorderedIds.some((id, index) => id !== currentOrder[index]);
 
   if (didReorder) {
-    await writeNormalizedSortOrders(payload.businessId, reorderedIds);
+    await writeNormalizedSortOrders(normalizedBusinessId, reorderedIds);
   }
 
   const supabase = await createServerSupabaseAuthClient();
@@ -382,13 +409,13 @@ export async function updateProductInDatabase(
           ? existingProduct.description
           : normalizeDescription(payload.description),
       price: payload.price ?? existingProduct.price,
-      is_available: payload.isAvailable ?? existingProduct.is_available,
-      is_featured: payload.isFeatured ?? existingProduct.is_featured,
-      sort_order: reorderedIds.findIndex((id) => id === productId) + 1,
+      is_available: payload.isAvailable ?? existingProduct.isAvailable,
+      is_featured: payload.isFeatured ?? existingProduct.isFeatured,
+      sort_order: reorderedIds.findIndex((id) => id === normalizedProductId) + 1,
       updated_at: new Date().toISOString(),
     })
-    .eq("business_id", payload.businessId)
-    .eq("id", productId)
+    .eq("business_id", normalizedBusinessId)
+    .eq("id", normalizedProductId)
     .select("*")
     .single();
 
@@ -396,22 +423,23 @@ export async function updateProductInDatabase(
     throw new Error(mapSupabaseProductError(error));
   }
 
-  return data as Product;
+  return mapProductRow(data as ProductRow);
 }
 
 export async function deleteProductInDatabase(
-  productId: string,
-  businessId: string,
+  productId: ProductId,
+  businessId: BusinessId,
 ): Promise<ProductDeleteResult> {
-  assertValidBusinessId(businessId);
-  const currentProducts = await getAdminProductsByBusinessId(businessId);
-  const existingProduct = currentProducts.find((product) => product.id === productId);
+  const normalizedBusinessId = requireBusinessId(businessId);
+  const normalizedProductId = requireProductId(productId);
+  const currentProducts = await getAdminProductsByBusinessId(normalizedBusinessId);
+  const existingProduct = currentProducts.find((product) => product.productId === normalizedProductId);
 
   if (!existingProduct) {
-    throw new Error(`Product not found for id "${productId}".`);
+    throw new Error(`Product not found for id "${normalizedProductId}".`);
   }
 
-  const validation = await getProductUsageValidation(businessId, productId);
+  const validation = await getProductUsageValidation(normalizedBusinessId, normalizedProductId);
 
   if (!validation.canDelete) {
     throw new Error(
@@ -423,19 +451,19 @@ export async function deleteProductInDatabase(
   const { error } = await supabase
     .from("products")
     .delete()
-    .eq("business_id", businessId)
-    .eq("id", productId);
+    .eq("business_id", normalizedBusinessId)
+    .eq("id", normalizedProductId);
 
   if (error) {
     throw new Error(mapSupabaseProductError(error));
   }
 
   const remainingIds = currentProducts
-    .filter((product) => product.id !== productId)
-    .map((product) => product.id);
+    .filter((product) => product.productId !== normalizedProductId)
+    .map((product) => product.productId);
 
   if (remainingIds.length > 0) {
-    await writeNormalizedSortOrders(businessId, remainingIds);
+    await writeNormalizedSortOrders(normalizedBusinessId, remainingIds);
   }
 
   return {

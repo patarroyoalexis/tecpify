@@ -4,17 +4,12 @@ import { debugError, debugLog } from "@/lib/debug";
 import { requireOrderApiContext } from "@/lib/auth/server";
 import { updateOrderInDatabase } from "@/lib/data/orders-server";
 import { ORDER_UPDATE_CLIENT_EDITABLE_FIELDS } from "@/lib/orders/state-rules";
+import { parseOrderId } from "@/types/identifiers";
 
 const UPDATE_ORDER_ALLOWED_FIELDS = new Set<string>(ORDER_UPDATE_CLIENT_EDITABLE_FIELDS);
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
-function isUuidLike(value: string) {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-    value,
-  );
 }
 
 interface OrderByIdRouteDependencies {
@@ -34,15 +29,16 @@ export function createOrderByIdRouteHandlers(
       context: { params: Promise<{ orderId: string }> },
     ) {
       const { orderId } = await context.params;
+      const normalizedOrderId = parseOrderId(orderId);
 
-      if (!isUuidLike(orderId)) {
+      if (!normalizedOrderId) {
         return NextResponse.json(
           { error: "El orderId no tiene un formato valido." },
           { status: 400 },
         );
       }
 
-      const orderContextResult = await dependencies.requireOrderApiContext(orderId);
+      const orderContextResult = await dependencies.requireOrderApiContext(normalizedOrderId);
 
       if (!orderContextResult.ok) {
         return orderContextResult.response;
@@ -81,8 +77,11 @@ export function createOrderByIdRouteHandlers(
       }
 
       try {
-        const order = await dependencies.updateOrderInDatabase(orderId, payload);
-        debugLog("[orders-api] Updated order", { orderId, fieldsUpdated });
+        const order = await dependencies.updateOrderInDatabase(normalizedOrderId, payload);
+        debugLog("[orders-api] Updated order", {
+          orderId: normalizedOrderId,
+          fieldsUpdated,
+        });
         return NextResponse.json({ order, persistedRemotely: true }, { status: 200 });
       } catch (error) {
         const message =
@@ -97,7 +96,7 @@ export function createOrderByIdRouteHandlers(
                 : 500;
 
         debugError("[orders-api] Failed to update order", {
-          orderId,
+          orderId: normalizedOrderId,
           statusCode,
           message,
           fieldsUpdated,

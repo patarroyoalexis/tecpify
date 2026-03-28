@@ -34,14 +34,14 @@ const OPERATIONAL_MODULES_TO_LOAD = [
   "app/api/orders/route.ts",
   "app/api/orders/private/route.ts",
   "app/api/orders/[orderId]/route.ts",
-  "middleware.ts",
+  "proxy.ts",
 ];
 const PRIVILEGED_MODULES = new Set([
   "lib/supabase/service-role.ts",
   "lib/supabase/internal/service-role-client.ts",
 ]);
 const OPERATIONAL_IMPORT_ROOT_PREFIXES = ["app/", "data/", "lib/auth/", "lib/data/"];
-const OPERATIONAL_IMPORT_ROOT_FILES = new Set(["lib/supabase/server.ts", "middleware.ts"]);
+const OPERATIONAL_IMPORT_ROOT_FILES = new Set(["lib/supabase/server.ts", "proxy.ts"]);
 const ALLOWED_SERVICE_ROLE_ENV_REFERENCES = new Set([
   ".env.example",
   "AGENTS.md",
@@ -49,7 +49,6 @@ const ALLOWED_SERVICE_ROLE_ENV_REFERENCES = new Set([
   "lib/supabase/service-role.ts",
   "lib/supabase/internal/service-role-client.ts",
   "tests/documentation-guardrails.test.cjs",
-  "tests/e2e/support/supabase-admin-bootstrap.ts",
   "tests/env-guardrails.test.cjs",
   "tests/service-role-guardrails.test.cjs",
 ]);
@@ -251,18 +250,32 @@ function isAllowedPrivilegedDirectImporter(importerPath, privilegedModulePath) {
 }
 
 test("service role: el inventario activo sigue vacio y los restos permanecen aislados", () => {
-  const { SERVICE_ROLE_USAGE_INVENTORY, getActiveServiceRoleUsageIds } = loadTsModule(
-    "lib/supabase/service-role.ts",
-  );
+  const {
+    SERVICE_ROLE_USAGE_INVENTORY,
+    TEST_ONLY_SERVICE_ROLE_USAGE_INVENTORY,
+    getActiveServiceRoleUsageIds,
+    getAllowedTestOnlyServiceRoleUsageIds,
+  } = loadTsModule("lib/supabase/service-role.ts");
 
   assert.ok(
     SERVICE_ROLE_USAGE_INVENTORY.length > 0,
     "El inventario historico de service role no debe desaparecer; documenta los reemplazos hechos.",
   );
+  assert.ok(
+    TEST_ONLY_SERVICE_ROLE_USAGE_INVENTORY.some(
+      (entry) => entry.id === "playwright_auth_fixture_bootstrap",
+    ),
+    "El bootstrap E2E privilegiado debe quedar documentado como excepcion test-only y fuera del runtime productivo.",
+  );
   assert.deepEqual(
     getActiveServiceRoleUsageIds(),
     [],
     "El MVP no debe tener usos activos de service role en runtime normal.",
+  );
+  assert.deepEqual(
+    getAllowedTestOnlyServiceRoleUsageIds(),
+    ["playwright_auth_fixture_bootstrap"],
+    "El inventario test-only de service role debe permanecer acotado al bootstrap E2E aprobado.",
   );
 });
 

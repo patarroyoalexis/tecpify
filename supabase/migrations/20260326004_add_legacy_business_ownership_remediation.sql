@@ -196,7 +196,7 @@ begin
     new.created_by_user_id,
     jsonb_build_object(
       'business_slug', new.slug,
-      'owner_user_id', new.created_by_user_id
+      'created_by_user_id', new.created_by_user_id
     )
   );
 

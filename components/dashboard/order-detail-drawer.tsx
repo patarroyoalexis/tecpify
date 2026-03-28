@@ -27,13 +27,19 @@ import {
   PAYMENT_STATUS_LABELS,
 } from "@/lib/orders/transitions";
 import { resolveAuthoritativeOrderStatePatch } from "@/lib/orders/state-rules";
-import { buildWhatsAppUrl } from "@/lib/whatsapp";
+import {
+  buildPaymentProofWhatsAppMessage,
+  buildWhatsAppUrl,
+} from "@/lib/whatsapp";
 import {
   DELIVERY_TYPES,
+  getFiadoStatusLabel,
   getOrderDisplayCode,
+  isPendingFiadoOrder,
   ORDER_STATUSES,
   PAYMENT_STATUSES,
   type DeliveryType,
+  type FiadoStatus,
   type Order,
   type OrderProduct,
   type OrderStatus,
@@ -45,13 +51,19 @@ import type { Product } from "@/types/products";
 interface OrderDetailDrawerProps {
   businessSlug: string;
   businessName: string;
+  transferInstructions: string | null;
+  availablePaymentMethods: PaymentMethod[];
+  allowsFiado: boolean;
   order: Order | null;
   isOpen: boolean;
   onClose: () => void;
-  onRequestPaymentProof: (orderId: string) => Promise<boolean>;
-  onUpdatePaymentStatus: (orderId: string, paymentStatus: PaymentStatus) => Promise<Order>;
+  onRequestPaymentProof: (orderId: Order["orderId"]) => Promise<boolean>;
+  onUpdatePaymentStatus: (
+    orderId: Order["orderId"],
+    paymentStatus: PaymentStatus,
+  ) => Promise<Order>;
   onEditOrder: (
-    orderId: string,
+    orderId: Order["orderId"],
     payload: Pick<
       OrderApiUpdatePayload,
       | "status"
@@ -64,11 +76,14 @@ interface OrderDetailDrawerProps {
       | "products"
       | "notes"
       | "total"
+      | "isFiado"
+      | "fiadoStatus"
+      | "fiadoObservation"
     >,
   ) => Promise<Order>;
-  onConfirmOrder: (orderId: string) => Promise<Order>;
-  onAdvanceOrderStatus: (orderId: string) => Promise<Order | undefined>;
-  onCancelOrder: (orderId: string) => Promise<Order>;
+  onConfirmOrder: (orderId: Order["orderId"]) => Promise<Order>;
+  onAdvanceOrderStatus: (orderId: Order["orderId"]) => Promise<Order | undefined>;
+  onCancelOrder: (orderId: Order["orderId"]) => Promise<Order>;
 }
 
 interface EditOrderFormState {
@@ -102,6 +117,11 @@ interface RecommendedDrawerAction {
     | { kind: "payment"; value: PaymentStatus }
     | { kind: "order"; value: OrderStatus };
 }
+
+const fiadoToneStyles: Record<FiadoStatus, string> = {
+  pending: "border-amber-200 bg-amber-50 text-amber-800",
+  paid: "border-emerald-200 bg-emerald-50 text-emerald-800",
+};
 
 const historyFormatter = new Intl.DateTimeFormat("es-CO", {
   dateStyle: "medium",
@@ -241,6 +261,9 @@ function getRecommendedDrawerAction(
 export function OrderDetailDrawer({
   businessSlug,
   businessName,
+  transferInstructions,
+  availablePaymentMethods: businessAvailablePaymentMethods,
+  allowsFiado,
   order,
   isOpen,
   onClose,
@@ -257,6 +280,9 @@ export function OrderDetailDrawer({
   const [editSuccess, setEditSuccess] = useState("");
   const [actionError, setActionError] = useState("");
   const [whatsAppFeedback, setWhatsAppFeedback] = useState("");
+  const [fiadoObservationDraft, setFiadoObservationDraft] = useState("");
+  const [fiadoError, setFiadoError] = useState("");
+  const [fiadoFeedback, setFiadoFeedback] = useState("");
   const [catalogProducts, setCatalogProducts] = useState<Product[]>([]);
   const [catalogError, setCatalogError] = useState("");
   const [isLoadingCatalog, setIsLoadingCatalog] = useState(false);
@@ -273,12 +299,12 @@ export function OrderDetailDrawer({
       return;
     }
 
-    if (renderedOrder?.id !== order.id) {
+    if (renderedOrder?.orderId !== order.orderId) {
       setIsVisible(false);
     }
 
     setRenderedOrder(order);
-  }, [order, renderedOrder?.id]);
+  }, [order, renderedOrder?.orderId]);
 
   useEffect(() => {
     if (isOpen) {
@@ -319,7 +345,7 @@ export function OrderDetailDrawer({
       return;
     }
 
-    const isDifferentOrder = previousRenderedOrderIdRef.current !== renderedOrder.id;
+    const isDifferentOrder = previousRenderedOrderIdRef.current !== renderedOrder.orderId;
 
     if (isDifferentOrder) {
       setIsEditing(false);
@@ -330,6 +356,9 @@ export function OrderDetailDrawer({
       setShowSecondaryPaymentActions(false);
       setShowSecondaryOrderActions(false);
       setWhatsAppFeedback("");
+      setFiadoError("");
+      setFiadoFeedback("");
+      setFiadoObservationDraft(renderedOrder.fiadoObservation ?? "");
     }
 
     if (!isEditing || isDifferentOrder) {
@@ -342,7 +371,7 @@ export function OrderDetailDrawer({
       );
     }
 
-    previousRenderedOrderIdRef.current = renderedOrder.id;
+    previousRenderedOrderIdRef.current = renderedOrder.orderId;
   }, [isEditing, renderedOrder]);
 
   useEffect(() => {
@@ -393,31 +422,31 @@ export function OrderDetailDrawer({
   const currentEditForm = editForm ?? getInitialEditOrderFormState(currentOrder);
   const selectableCatalogProducts = catalogProducts.filter(
     (product) =>
-      product.is_available ||
-      editableProducts.some((editableProduct) => editableProduct.productId === product.id),
+      product.isAvailable ||
+      editableProducts.some((editableProduct) => editableProduct.productId === product.productId),
   );
   const selectedCatalogProductIds = editableProducts
     .map((product) => product.productId ?? "")
     .filter(Boolean);
   const normalizedProducts = editableProducts
-    .map((product) => ({
-      ...(product.productId ? { productId: product.productId } : {}),
-      name:
-        product.productId
-          ? selectableCatalogProducts.find((catalogProduct) => catalogProduct.id === product.productId)
-              ?.name ?? product.name.trim()
-          : product.name.trim(),
-      quantity: Number(product.quantity),
-      ...(product.productId
-        ? {
-            unitPrice:
-              selectableCatalogProducts.find((catalogProduct) => catalogProduct.id === product.productId)
-                ?.price ?? product.unitPrice,
-          }
-        : product.unitPrice !== undefined
-          ? { unitPrice: product.unitPrice }
-          : {}),
-    }))
+    .map((product) => {
+      const selectedCatalogProduct = product.productId
+        ? selectableCatalogProducts.find(
+            (catalogProduct) => catalogProduct.productId === product.productId,
+          )
+        : undefined;
+
+      return {
+        ...(selectedCatalogProduct ? { productId: selectedCatalogProduct.productId } : {}),
+        name: selectedCatalogProduct?.name ?? product.name.trim(),
+        quantity: Number(product.quantity),
+        ...(selectedCatalogProduct
+          ? { unitPrice: selectedCatalogProduct.price }
+          : product.unitPrice !== undefined
+            ? { unitPrice: product.unitPrice }
+            : {}),
+      };
+    })
     .filter(
       (product) =>
         product.name.length > 0 && Number.isFinite(product.quantity) && product.quantity > 0,
@@ -426,7 +455,16 @@ export function OrderDetailDrawer({
     (left, right) =>
       new Date(right.occurredAt).getTime() - new Date(left.occurredAt).getTime(),
   );
-  const availablePaymentMethods = getAvailablePaymentMethods(currentEditForm.deliveryType);
+  const availablePaymentMethods = (() => {
+    const nextAvailablePaymentMethods = getAvailablePaymentMethods(
+      currentEditForm.deliveryType,
+      businessAvailablePaymentMethods,
+    );
+
+    return nextAvailablePaymentMethods.includes(currentEditForm.paymentMethod)
+      ? nextAvailablePaymentMethods
+      : [currentEditForm.paymentMethod, ...nextAvailablePaymentMethods];
+  })();
   const effectivePaymentMethod = availablePaymentMethods.includes(currentEditForm.paymentMethod)
     ? currentEditForm.paymentMethod
     : availablePaymentMethods[0];
@@ -464,9 +502,17 @@ export function OrderDetailDrawer({
   const canEditOrderStatus =
     canManageOrderStatus({ paymentStatus: currentEditForm.paymentStatus }) && !isOrderFlowClosed;
   const { totalUnits, visibleProducts, hiddenProductsCount } = getProductSummary(currentOrder);
-  const whatsappMessage = `Hola, te escribimos de ${businessName}. Te compartimos este mensaje por tu pedido ${getOrderDisplayCode(currentOrder)}. ¿Nos puedes enviar por favor el comprobante de pago?`;
+  const whatsappMessage = buildPaymentProofWhatsAppMessage({
+    businessName,
+    customerName: currentOrder.client,
+    orderCode: currentOrder.orderCode ?? null,
+    total: currentOrder.total,
+    transferInstructions,
+  });
   const whatsappUrl = buildWhatsAppUrl(currentOrder.customerPhone ?? "", whatsappMessage);
   const hasValidWhatsApp = Boolean(whatsappUrl);
+  const isPendingFiado = isPendingFiadoOrder(currentOrder);
+  const showFiadoActions = allowsFiado || currentOrder.isFiado;
   const recommendedAction = getRecommendedDrawerAction(currentOrder, {
     nextQuickStatus,
     canQuickConfirm,
@@ -515,7 +561,10 @@ export function OrderDetailDrawer({
         nextValue.deliveryAddress = "";
       }
 
-      const nextPaymentMethods = getAvailablePaymentMethods(nextValue.deliveryType);
+      const nextPaymentMethods = getAvailablePaymentMethods(
+        nextValue.deliveryType,
+        businessAvailablePaymentMethods,
+      );
 
       if (!nextPaymentMethods.includes(nextValue.paymentMethod)) {
         nextValue.paymentMethod = nextPaymentMethods[0];
@@ -547,11 +596,13 @@ export function OrderDetailDrawer({
               ...(field === "productId"
                 ? {
                     name:
-                      selectableCatalogProducts.find((catalogProduct) => catalogProduct.id === value)
-                        ?.name ?? "",
+                      selectableCatalogProducts.find(
+                        (catalogProduct) => catalogProduct.productId === value,
+                      )?.name ?? "",
                     unitPrice:
-                      selectableCatalogProducts.find((catalogProduct) => catalogProduct.id === value)
-                        ?.price,
+                      selectableCatalogProducts.find(
+                        (catalogProduct) => catalogProduct.productId === value,
+                      )?.price,
                   }
                 : {}),
             }
@@ -675,7 +726,7 @@ export function OrderDetailDrawer({
     setEditSuccess("");
 
     try {
-      const persistedOrder = await onEditOrder(currentOrder.id, {
+      const persistedOrder = await onEditOrder(currentOrder.orderId, {
         status: currentEditForm.status,
         paymentStatus: currentEditForm.paymentStatus,
         customerName: currentEditForm.customerName.trim(),
@@ -712,7 +763,7 @@ export function OrderDetailDrawer({
 
     window.open(whatsappUrl, "_blank", "noopener,noreferrer");
     try {
-      await onRequestPaymentProof(currentOrder.id);
+      await onRequestPaymentProof(currentOrder.orderId);
       setWhatsAppFeedback("Se abrio WhatsApp con el mensaje listo para enviar.");
     } catch (error) {
       setActionError(
@@ -756,7 +807,7 @@ export function OrderDetailDrawer({
     setActionError("");
 
     if (nextStatus === "confirmado") {
-      void onConfirmOrder(currentOrder.id).catch((error) => {
+      void onConfirmOrder(currentOrder.orderId).catch((error) => {
         setActionError(
           error instanceof Error ? error.message : "No fue posible actualizar el pedido.",
         );
@@ -765,7 +816,7 @@ export function OrderDetailDrawer({
     }
 
     if (nextStatus === "cancelado") {
-      void onCancelOrder(currentOrder.id).catch((error) => {
+      void onCancelOrder(currentOrder.orderId).catch((error) => {
         setActionError(
           error instanceof Error ? error.message : "No fue posible actualizar el pedido.",
         );
@@ -774,7 +825,7 @@ export function OrderDetailDrawer({
     }
 
     if (nextQuickStatus === nextStatus) {
-      void onAdvanceOrderStatus(currentOrder.id).catch((error) => {
+      void onAdvanceOrderStatus(currentOrder.orderId).catch((error) => {
         setActionError(
           error instanceof Error ? error.message : "No fue posible actualizar el pedido.",
         );
@@ -782,7 +833,7 @@ export function OrderDetailDrawer({
       return;
     }
 
-    void onEditOrder(currentOrder.id, { status: nextStatus }).catch((error) => {
+    void onEditOrder(currentOrder.orderId, { status: nextStatus }).catch((error) => {
       setActionError(
         error instanceof Error ? error.message : "No fue posible actualizar el pedido.",
       );
@@ -802,9 +853,61 @@ export function OrderDetailDrawer({
     }
 
     setActionError("");
-    void onUpdatePaymentStatus(currentOrder.id, nextStatus).catch((error) => {
+    void onUpdatePaymentStatus(currentOrder.orderId, nextStatus).catch((error) => {
       setActionError(
         error instanceof Error ? error.message : "No fue posible actualizar el pago.",
+      );
+    });
+  }
+
+  function runMarkAsFiado() {
+    if (!allowsFiado) {
+      setFiadoError("Este negocio no tiene habilitado el fiado interno.");
+      return;
+    }
+
+    const normalizedFiadoObservation = fiadoObservationDraft.trim();
+
+    if (!normalizedFiadoObservation) {
+      setFiadoError("La observación de fiado es obligatoria.");
+      return;
+    }
+
+    setFiadoError("");
+    setFiadoFeedback("");
+    void onEditOrder(currentOrder.orderId, {
+      isFiado: true,
+      fiadoStatus: "pending",
+      fiadoObservation: normalizedFiadoObservation,
+    }).then(() => {
+      setFiadoObservationDraft(normalizedFiadoObservation);
+      setFiadoFeedback("El pedido quedó marcado como fiado pendiente.");
+    }).catch((error) => {
+      setFiadoError(
+        error instanceof Error
+          ? error.message
+          : "No fue posible marcar el pedido como fiado.",
+      );
+    });
+  }
+
+  function runMarkFiadoAsPaid() {
+    if (!isPendingFiado) {
+      setFiadoError("Solo puedes marcar como pagado un fiado pendiente.");
+      return;
+    }
+
+    setFiadoError("");
+    setFiadoFeedback("");
+    void onEditOrder(currentOrder.orderId, {
+      fiadoStatus: "paid",
+    }).then(() => {
+      setFiadoFeedback("El fiado quedó marcado como pagado.");
+    }).catch((error) => {
+      setFiadoError(
+        error instanceof Error
+          ? error.message
+          : "No fue posible marcar el fiado como pagado.",
       );
     });
   }
@@ -880,6 +983,23 @@ export function OrderDetailDrawer({
                       </span>
                     </div>
                   </div>
+                  {currentOrder.isFiado ? (
+                    <div
+                      className={`rounded-2xl border px-4 py-3 ${
+                        fiadoToneStyles[currentOrder.fiadoStatus ?? "pending"]
+                      }`}
+                    >
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-70">
+                        Estado de fiado
+                      </p>
+                      <div className="mt-2 flex items-center gap-2">
+                        <OrdersUiIcon icon="clipboard-check" className="h-4 w-4" />
+                        <span className="text-sm font-semibold">
+                          {getFiadoStatusLabel(currentOrder.fiadoStatus)}
+                        </span>
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
                 <div className={`rounded-2xl border px-4 py-3 ${recommendedAction.tone}`}>
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -1185,11 +1305,16 @@ export function OrderDetailDrawer({
                                   {selectableCatalogProducts
                                     .filter(
                                       (catalogProduct) =>
-                                        catalogProduct.id === product.productId ||
-                                        !selectedCatalogProductIds.includes(catalogProduct.id),
+                                        catalogProduct.productId === product.productId ||
+                                        !selectedCatalogProductIds.includes(
+                                          catalogProduct.productId,
+                                        ),
                                     )
                                     .map((catalogProduct) => (
-                                      <option key={catalogProduct.id} value={catalogProduct.id}>
+                                      <option
+                                        key={catalogProduct.productId}
+                                        value={catalogProduct.productId}
+                                      >
                                         {catalogProduct.name}
                                       </option>
                                     ))}
@@ -1200,7 +1325,7 @@ export function OrderDetailDrawer({
                                     {formatCurrency(
                                       selectableCatalogProducts.find(
                                         (catalogProduct) =>
-                                          catalogProduct.id === product.productId,
+                                          catalogProduct.productId === product.productId,
                                       )?.price ?? 0,
                                     )}
                                   </p>
@@ -1367,6 +1492,21 @@ export function OrderDetailDrawer({
                     </p>
                   </div>
                 ) : null}
+                {currentOrder.isFiado ? (
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 sm:col-span-2">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-700">
+                        Observacion de fiado
+                      </p>
+                      <span className="rounded-full border border-amber-200 bg-white px-3 py-1 text-xs font-semibold text-amber-700">
+                        {getFiadoStatusLabel(currentOrder.fiadoStatus)}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-sm font-medium text-slate-900">
+                      {currentOrder.fiadoObservation ?? "Sin observacion registrada."}
+                    </p>
+                  </div>
+                ) : null}
               </div>
             )}
           </section>
@@ -1375,6 +1515,16 @@ export function OrderDetailDrawer({
             {actionError ? (
               <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                 {actionError}
+              </div>
+            ) : null}
+            {fiadoError ? (
+              <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                {fiadoError}
+              </div>
+            ) : null}
+            {fiadoFeedback ? (
+              <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                {fiadoFeedback}
               </div>
             ) : null}
             <div className="mt-4 grid gap-4 lg:grid-cols-2">
@@ -1519,6 +1669,72 @@ export function OrderDetailDrawer({
                 )}
               </div>
             </div>
+
+            {showFiadoActions ? (
+              <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50/70 p-4">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">Fiado interno</p>
+                    <p className="mt-1 text-sm text-slate-600">
+                      Operacion privada del negocio. Nunca se expone como metodo de pago al cliente.
+                    </p>
+                  </div>
+                  <span className="inline-flex rounded-full border border-amber-200 bg-white px-3 py-1 text-xs font-semibold text-amber-700">
+                    {currentOrder.isFiado
+                      ? `Fiado ${getFiadoStatusLabel(currentOrder.fiadoStatus)}`
+                      : "No marcado"}
+                  </span>
+                </div>
+
+                <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_auto]">
+                  <label className="space-y-2">
+                    <span className="text-sm font-medium text-slate-700">
+                      Observacion de fiado
+                    </span>
+                    <textarea
+                      rows={3}
+                      value={fiadoObservationDraft}
+                      onChange={(event) => {
+                        setFiadoObservationDraft(event.target.value);
+                        setFiadoError("");
+                        setFiadoFeedback("");
+                      }}
+                      placeholder="No pago, dijo que paga manana."
+                      className="w-full rounded-2xl border border-amber-200 bg-white px-4 py-3 text-sm text-slate-900"
+                    />
+                  </label>
+
+                  <div className="grid gap-3 self-end">
+                    {!currentOrder.isFiado ? (
+                      <button
+                        type="button"
+                        onClick={runMarkAsFiado}
+                        disabled={!allowsFiado}
+                        className={`inline-flex items-center justify-center gap-1.5 rounded-full px-4 py-3 text-sm font-medium ${
+                          allowsFiado
+                            ? "border border-amber-300 bg-white text-amber-800"
+                            : "cursor-not-allowed border border-slate-200 bg-slate-100 text-slate-400"
+                        }`}
+                      >
+                        <OrdersUiIcon icon="clipboard" className="h-4 w-4" />
+                        Marcar como fiado
+                      </button>
+                    ) : null}
+
+                    {isPendingFiado ? (
+                      <button
+                        type="button"
+                        onClick={runMarkFiadoAsPaid}
+                        className="inline-flex items-center justify-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700"
+                      >
+                        <OrdersUiIcon icon="save" className="h-4 w-4" />
+                        Marcar fiado como pagado
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+            ) : null}
 
             {ORDER_STATUSES.some(
               (statusOption) =>

@@ -1,6 +1,10 @@
-import type { BusinessRecord, CreateBusinessPayload } from "@/types/businesses";
+import type {
+  BusinessRecord,
+  CreateBusinessPayload,
+  UpdateBusinessSettingsPayload,
+} from "@/types/businesses";
 
-interface CreateBusinessResponse {
+interface BusinessResponse {
   business: BusinessRecord;
 }
 
@@ -34,6 +38,38 @@ export async function createBusinessViaApi(payload: CreateBusinessPayload) {
     throw new Error(await parseApiError(response, "No fue posible crear el negocio."));
   }
 
-  const result = (await response.json()) as CreateBusinessResponse;
+  const result = (await response.json()) as BusinessResponse;
+  return result.business;
+}
+
+export async function updateBusinessSettingsViaApi(
+  payload: UpdateBusinessSettingsPayload,
+) {
+  let response: Response;
+
+  try {
+    response = await fetch("/api/businesses", {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+  } catch {
+    throw new Error(
+      "No pudimos conectar con el servidor para guardar la configuracion del negocio.",
+    );
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      await parseApiError(
+        response,
+        "No fue posible guardar la configuracion del negocio.",
+      ),
+    );
+  }
+
+  const result = (await response.json()) as BusinessResponse;
   return result.business;
 }

@@ -43,6 +43,14 @@ export function MetricsOverview() {
         </section>
       ) : null}
 
+      {summary.pendingFiadoCount > 0 ? (
+        <section className="rounded-[22px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          Los ingresos efectivos excluyen {summary.pendingFiadoCount} fiado
+          {summary.pendingFiadoCount === 1 ? "" : "s"} pendiente
+          {summary.pendingFiadoCount === 1 ? "" : "s"} hasta marcarlos como pagados.
+        </section>
+      ) : null}
+
       <MetricsCards metrics={snapshot.metrics} />
 
       <section className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
@@ -138,8 +146,8 @@ export function MetricsOverview() {
               {formatCurrency(summary.averageTicket)}
             </p>
             <p className="mt-2 text-sm leading-6 text-slate-600">
-              Ticket promedio actual sobre pedidos no cancelados. Sirve para validar si el
-              volumen viene acompanado de buen valor por pedido.
+              Ticket promedio actual sobre pedidos no cancelados que ya cuentan como venta
+              efectiva. Sirve para validar si el volumen viene acompanado de buen valor por pedido.
             </p>
           </div>
         </article>

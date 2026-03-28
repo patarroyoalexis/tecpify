@@ -13,7 +13,6 @@ export const allPaymentMethods: PaymentMethod[] = [
   "Efectivo",
   "Transferencia",
   "Tarjeta",
-  "Nequi",
   "Contra entrega",
 ];
 
@@ -27,12 +26,13 @@ export function isCashPayment(method: PaymentMethod): boolean {
 
 export function getAvailablePaymentMethods(
   deliveryType: DeliveryType | "",
+  allowedPaymentMethods: PaymentMethod[] = allPaymentMethods,
 ): PaymentMethod[] {
   if (!deliveryType) {
-    return allPaymentMethods;
+    return allowedPaymentMethods;
   }
 
-  return allPaymentMethods.filter((method) =>
+  return allowedPaymentMethods.filter((method) =>
     isPaymentMethodAllowedForDeliveryType(method, deliveryType),
   );
 }

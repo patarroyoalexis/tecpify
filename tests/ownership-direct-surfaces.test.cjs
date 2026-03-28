@@ -22,14 +22,20 @@ const { createStorefrontOrderPage } = loadTsModule(
 const { createGetBusinessBySlugWithProducts } = loadTsModule("data/businesses.ts");
 
 const OWNER_ID = "user-owner";
-const PRODUCT_ID = "prod-1";
+const BUSINESS_ID = "0f9f5d8d-1234-4f6b-8f16-6e16b14ac101";
+const PRODUCT_ID = "0f9f5d8d-1234-4f6b-8f16-6e16b14ac002";
 
 function createOwnedBusinessContext(overrides = {}) {
   return {
-    businessId: "biz-1",
+    businessId: BUSINESS_ID,
     businessSlug: "mi-tienda",
     businessName: "Mi tienda",
-    ownerUserId: OWNER_ID,
+    transferInstructions: null,
+    acceptsCash: true,
+    acceptsTransfer: true,
+    acceptsCard: true,
+    allowsFiado: false,
+    createdByUserId: OWNER_ID,
     accessLevel: "owned",
     user: {
       userId: OWNER_ID,
@@ -42,16 +48,16 @@ function createOwnedBusinessContext(overrides = {}) {
 
 function createProductFixture(overrides = {}) {
   return {
-    id: PRODUCT_ID,
-    business_id: "biz-1",
+    productId: PRODUCT_ID,
+    businessId: BUSINESS_ID,
     name: "Hamburguesa",
     description: "Doble carne",
     price: 15000,
-    is_available: true,
-    is_featured: false,
-    sort_order: 1,
-    created_at: "2026-03-25T21:00:00.000Z",
-    updated_at: "2026-03-25T21:00:00.000Z",
+    isAvailable: true,
+    isFeatured: false,
+    sortOrder: 1,
+    createdAt: "2026-03-25T21:00:00.000Z",
+    updatedAt: "2026-03-25T21:00:00.000Z",
     ...overrides,
   };
 }
@@ -177,7 +183,7 @@ test("ownership directo: owner puede leer GET /api/products", async () => {
   const body = await response.json();
 
   assert.equal(response.status, 200);
-  assert.equal(receivedBusinessId, "biz-1");
+  assert.equal(receivedBusinessId, BUSINESS_ID);
   assert.equal(body.products.length, 1);
 });
 
@@ -260,14 +266,14 @@ test("ownership directo: owner puede borrar producto", async () => {
   });
 
   const response = await handlers.DELETE(
-    new Request("http://localhost/api/products/prod-1?businessSlug=mi-tienda"),
+    new Request(`http://localhost/api/products/${PRODUCT_ID}?businessSlug=mi-tienda`),
     { params: Promise.resolve({ productId: PRODUCT_ID }) },
   );
   const body = await response.json();
 
   assert.equal(response.status, 200);
-  assert.deepEqual(deleted, { productId: PRODUCT_ID, businessId: "biz-1" });
-  assert.equal(body.deletedProduct.id, PRODUCT_ID);
+  assert.deepEqual(deleted, { productId: PRODUCT_ID, businessId: BUSINESS_ID });
+  assert.equal(body.deletedProduct.productId, PRODUCT_ID);
 });
 
 test("ownership directo: DELETE /api/products/[productId] exige sesion o contexto valido", async () => {
@@ -290,7 +296,7 @@ test("ownership directo: DELETE /api/products/[productId] exige sesion o context
   });
 
   const response = await handlers.DELETE(
-    new Request("http://localhost/api/products/prod-1?businessSlug=mi-tienda"),
+    new Request(`http://localhost/api/products/${PRODUCT_ID}?businessSlug=mi-tienda`),
     { params: Promise.resolve({ productId: PRODUCT_ID }) },
   );
   const body = await response.json();
@@ -317,7 +323,7 @@ test("ownership directo: DELETE /api/products/[productId] rechaza no-owner y no 
   });
 
   const response = await handlers.DELETE(
-    new Request("http://localhost/api/products/prod-1?businessSlug=mi-tienda"),
+    new Request(`http://localhost/api/products/${PRODUCT_ID}?businessSlug=mi-tienda`),
     { params: Promise.resolve({ productId: PRODUCT_ID }) },
   );
   const body = await response.json();
@@ -375,18 +381,32 @@ test("ownership directo: storefront owner correcto renderiza wizard", async () =
     getBusinessBySlugWithProducts: async () => ({
       status: "ok",
       business: {
-        slug: "mi-tienda",
-        databaseId: "biz-1",
+        businessSlug: "mi-tienda",
+        businessId: BUSINESS_ID,
         name: "Mi tienda",
         tagline: "",
         accent: "",
         availablePaymentMethods: [],
         availableDeliveryTypes: [],
-        products: [{ id: PRODUCT_ID, name: "Hamburguesa", description: "", price: 15000, isAvailable: true, isFeatured: false, sortOrder: 1 }],
+        products: [
+          {
+            productId: PRODUCT_ID,
+            name: "Hamburguesa",
+            description: "",
+            price: 15000,
+            isAvailable: true,
+            isFeatured: false,
+            sortOrder: 1,
+          },
+        ],
       },
     }),
     StorefrontOrderWizard({ business }) {
-      return React.createElement("div", { "data-marker": "storefront-wizard" }, business.slug);
+      return React.createElement(
+        "div",
+        { "data-marker": "storefront-wizard" },
+        business.businessSlug,
+      );
     },
   });
 
@@ -401,9 +421,14 @@ test("ownership directo: storefront owner correcto renderiza wizard", async () =
 test("ownership directo: storefront bloquea negocio legacy sin owner y no lo vuelve operativo", async () => {
   const getBusinessBySlugWithProducts = createGetBusinessBySlugWithProducts({
     getBusinessBySlugFromDatabase: async () => ({
-      id: "biz-legacy",
-      slug: "legacy-shop",
+      businessId: "0f9f5d8d-1234-4f6b-8f16-6e16b14ac199",
+      businessSlug: "legacy-shop",
       name: "Legacy Shop",
+      transferInstructions: null,
+      acceptsCash: true,
+      acceptsTransfer: true,
+      acceptsCard: true,
+      allowsFiado: false,
       createdAt: "2026-03-25T21:00:00.000Z",
       updatedAt: "2026-03-25T21:00:00.000Z",
       createdByUserId: null,
@@ -411,13 +436,13 @@ test("ownership directo: storefront bloquea negocio legacy sin owner y no lo vue
     getProductsByBusinessId: async () => [createProductFixture()],
     mapProductToBusinessProduct(product) {
       return {
-        id: product.id,
+        productId: product.productId,
         name: product.name,
         description: product.description ?? "",
         price: product.price,
-        isAvailable: product.is_available,
-        isFeatured: product.is_featured,
-        sortOrder: product.sort_order ?? 0,
+        isAvailable: product.isAvailable,
+        isFeatured: product.isFeatured,
+        sortOrder: product.sortOrder ?? 0,
       };
     },
     debugLog: () => {},

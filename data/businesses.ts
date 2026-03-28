@@ -1,11 +1,14 @@
 import { debugError, debugLog } from "@/lib/debug";
 import { hasVerifiedBusinessOwner } from "@/lib/auth/business-access";
-import { normalizeBusinessSlug } from "@/lib/businesses/slug";
+import { requireBusinessSlug } from "@/lib/businesses/slug";
+import { getPublicPaymentMethodsForBusiness } from "@/lib/businesses/payment-settings";
+import type { BusinessId } from "@/types/identifiers";
 import {
   createServerSupabaseAuthClient,
   createServerSupabasePublicClient,
 } from "@/lib/supabase/server";
-import { DELIVERY_TYPES, PAYMENT_METHODS } from "@/types/orders";
+import { DELIVERY_TYPES } from "@/types/orders";
+import { requireBusinessId } from "@/types/identifiers";
 import type {
   BusinessRecord,
 } from "@/types/businesses";
@@ -15,6 +18,10 @@ type PublicSupabaseBusinessRow = {
   id: string;
   slug: string;
   name: string;
+  transfer_instructions?: string | null;
+  accepts_cash?: boolean | null;
+  accepts_transfer?: boolean | null;
+  accepts_card?: boolean | null;
   created_at: string;
   updated_at: string;
   created_by_user_id?: string | null;
@@ -24,6 +31,11 @@ type AuthenticatedSupabaseBusinessRow = {
   id: string;
   slug: string;
   name: string;
+  transfer_instructions: string | null;
+  accepts_cash: boolean | null;
+  accepts_transfer: boolean | null;
+  accepts_card: boolean | null;
+  allows_fiado: boolean | null;
   created_at: string;
   updated_at: string;
   created_by_user_id: string | null;
@@ -56,9 +68,29 @@ function mapSupabaseBusinessRow(
   row: PublicSupabaseBusinessRow | AuthenticatedSupabaseBusinessRow,
 ): BusinessRecord {
   return {
-    id: row.id,
-    slug: row.slug,
+    businessId: requireBusinessId(row.id),
+    businessSlug: requireBusinessSlug(row.slug),
     name: row.name,
+    transferInstructions:
+      "transfer_instructions" in row && typeof row.transfer_instructions === "string"
+        ? row.transfer_instructions
+        : null,
+    acceptsCash:
+      "accepts_cash" in row && typeof row.accepts_cash === "boolean"
+        ? row.accepts_cash
+        : true,
+    acceptsTransfer:
+      "accepts_transfer" in row && typeof row.accepts_transfer === "boolean"
+        ? row.accepts_transfer
+        : true,
+    acceptsCard:
+      "accepts_card" in row && typeof row.accepts_card === "boolean"
+        ? row.accepts_card
+        : true,
+    allowsFiado:
+      "allows_fiado" in row && typeof row.allows_fiado === "boolean"
+        ? row.allows_fiado
+        : false,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     createdByUserId:
@@ -69,18 +101,18 @@ function mapSupabaseBusinessRow(
 }
 
 function createBaseBusinessConfig(
-  slug: string,
+  businessSlug: BusinessConfig["businessSlug"],
   overrides?: Partial<BusinessConfig>,
 ): BusinessConfig {
   return {
-    slug,
-    databaseId: overrides?.databaseId ?? null,
-    name: overrides?.name ?? humanizeSlug(slug),
+    businessSlug,
+    businessId: overrides?.businessId ?? null,
+    name: overrides?.name ?? humanizeSlug(businessSlug),
     tagline:
       overrides?.tagline ??
       "Negocio operativo conectado a la base principal de Tecpify.",
     accent: overrides?.accent ?? "from-slate-200 via-slate-100 to-white",
-    availablePaymentMethods: overrides?.availablePaymentMethods ?? [...PAYMENT_METHODS],
+    availablePaymentMethods: overrides?.availablePaymentMethods ?? [],
     availableDeliveryTypes: overrides?.availableDeliveryTypes ?? [...DELIVERY_TYPES],
     products: overrides?.products ?? [],
   };
@@ -88,38 +120,39 @@ function createBaseBusinessConfig(
 
 function withDatabaseId(
   business: BusinessConfig,
-  databaseId: string | null,
+  businessId: BusinessConfig["businessId"],
 ): BusinessConfig {
   return {
     ...business,
-    databaseId,
+    businessId,
   };
 }
 
 function mapDatabaseBusinessToConfig(databaseBusiness: BusinessRecord): BusinessConfig {
   return withDatabaseId(
-    createBaseBusinessConfig(databaseBusiness.slug, {
+    createBaseBusinessConfig(databaseBusiness.businessSlug, {
       name: databaseBusiness.name,
+      availablePaymentMethods: getPublicPaymentMethodsForBusiness(databaseBusiness),
     }),
-    databaseBusiness.id,
+    databaseBusiness.businessId,
   );
 }
 
-export async function getBusinessBySlugFromDatabase(slug: string) {
-  const storefrontLookup = await getStorefrontBusinessLookupBySlug(slug);
+export async function getBusinessBySlugFromDatabase(businessSlug: string) {
+  const storefrontLookup = await getStorefrontBusinessLookupBySlug(businessSlug);
 
   return storefrontLookup.business;
 }
 
 export async function getStorefrontBusinessLookupBySlug(
-  slug: string,
+  businessSlug: string,
 ): Promise<StorefrontBusinessLookupResult> {
-  const normalizedSlug = normalizeBusinessSlug(slug);
-  debugLog("[businesses] Resolving business by slug", { slug });
+  const normalizedBusinessSlug = requireBusinessSlug(businessSlug);
+  debugLog("[businesses] Resolving business by slug", { businessSlug: normalizedBusinessSlug });
 
   const supabase = createServerSupabasePublicClient();
   const { data, error } = await supabase.rpc("get_storefront_business_by_slug", {
-    requested_slug: normalizedSlug,
+    requested_slug: normalizedBusinessSlug,
   });
 
   if (!error) {
@@ -129,7 +162,7 @@ export async function getStorefrontBusinessLookupBySlug(
 
     if (storefrontBusiness) {
       debugLog("[businesses] Business resolved through storefront rpc", {
-        slug: normalizedSlug,
+        businessSlug: normalizedBusinessSlug,
         found: true,
       });
 
@@ -145,27 +178,29 @@ export async function getStorefrontBusinessLookupBySlug(
     }
   } else {
     debugError("[businesses] Storefront rpc lookup failed; using public table fallback", {
-      slug: normalizedSlug,
+      businessSlug: normalizedBusinessSlug,
       message: error.message,
     });
   }
 
   const fallbackResult = await supabase
     .from("businesses")
-    .select("id, slug, name, created_at, updated_at, created_by_user_id")
-    .eq("slug", normalizedSlug)
+    .select(
+      "id, slug, name, transfer_instructions, accepts_cash, accepts_transfer, accepts_card, created_at, updated_at, created_by_user_id",
+    )
+    .eq("slug", normalizedBusinessSlug)
     .maybeSingle<PublicSupabaseBusinessRow>();
 
   if (fallbackResult.error) {
     debugError("[businesses] Failed to resolve business through public table fallback", {
-      slug: normalizedSlug,
+      businessSlug: normalizedBusinessSlug,
       message: fallbackResult.error.message,
     });
     throw new Error(`Supabase businesses query failed: ${fallbackResult.error.message}`);
   }
 
   debugLog("[businesses] Business resolved through public table fallback", {
-    slug: normalizedSlug,
+    businessSlug: normalizedBusinessSlug,
     found: Boolean(fallbackResult.data),
   });
 
@@ -178,7 +213,7 @@ export async function getStorefrontBusinessLookupBySlug(
 interface BusinessProductsLookupDependencies {
   getBusinessBySlugFromDatabase: typeof getBusinessBySlugFromDatabase;
   getBusinessByIdFromDatabase: typeof getBusinessByIdFromDatabase;
-  getProductsByBusinessId: (businessId: string) => Promise<
+  getProductsByBusinessId: (businessId: BusinessId) => Promise<
     Awaited<ReturnType<typeof import("@/lib/data/products").getProductsByBusinessId>>
   >;
   mapProductToBusinessProduct: typeof import("@/lib/data/products").mapProductToBusinessProduct;
@@ -186,26 +221,30 @@ interface BusinessProductsLookupDependencies {
 }
 
 export async function getBusinessByIdFromDatabase(businessId: string) {
-  if (typeof businessId !== "string" || businessId.trim().length === 0) {
-    return null;
-  }
+  const normalizedBusinessId = requireBusinessId(businessId);
 
-  debugLog("[businesses] Resolving business by database id", { businessId });
+  debugLog("[businesses] Resolving business by database id", {
+    businessId: normalizedBusinessId,
+  });
 
   const supabase = await createServerSupabaseAuthClient();
   const { data, error } = await supabase
     .from("businesses")
-    .select("id, slug, name, created_at, updated_at, created_by_user_id")
-    .eq("id", businessId.trim())
+    .select(
+      "id, slug, name, transfer_instructions, accepts_cash, accepts_transfer, accepts_card, allows_fiado, created_at, updated_at, created_by_user_id",
+    )
+    .eq("id", normalizedBusinessId)
     .maybeSingle<AuthenticatedSupabaseBusinessRow>();
 
   if (error) {
-    debugError("[businesses] Failed to resolve business by database id", { businessId });
+    debugError("[businesses] Failed to resolve business by database id", {
+      businessId: normalizedBusinessId,
+    });
     throw new Error(`Supabase businesses query failed: ${error.message}`);
   }
 
   debugLog("[businesses] Business resolved by database id", {
-    businessId: businessId.trim(),
+    businessId: normalizedBusinessId,
     found: Boolean(data),
   });
 
@@ -216,7 +255,9 @@ async function getBusinessesFromDatabase() {
   const supabase = await createServerSupabaseAuthClient();
   const { data, error } = await supabase
     .from("businesses")
-    .select("id, slug, name, created_at, updated_at, created_by_user_id")
+    .select(
+      "id, slug, name, transfer_instructions, accepts_cash, accepts_transfer, accepts_card, allows_fiado, created_at, updated_at, created_by_user_id",
+    )
     .order("slug", { ascending: true });
 
   if (error) {
@@ -305,7 +346,9 @@ async function buildBusinessProductsLookupResult(
     mapProductToBusinessProduct ??= productsModule.mapProductToBusinessProduct;
   }
 
-  const products = await getProductsByBusinessId(databaseBusiness.id);
+  const resolveProductsByBusinessId = getProductsByBusinessId!;
+  const toBusinessProduct = mapProductToBusinessProduct!;
+  const products = await resolveProductsByBusinessId(databaseBusiness.businessId);
 
   (dependencies?.debugLog ?? debugLog)("[businesses] Products query completed", {
     lookupValue,
@@ -323,31 +366,31 @@ async function buildBusinessProductsLookupResult(
   }
 
   return {
-    status: "ok",
-    business: {
-      ...business,
-      products: products.map(mapProductToBusinessProduct),
-    },
-  };
+      status: "ok",
+      business: {
+        ...business,
+        products: products.map(toBusinessProduct),
+      },
+    };
 }
 
 export function createGetBusinessBySlugWithProducts(
   dependencies?: Partial<BusinessProductsLookupDependencies>,
 ) {
   return async function getBusinessBySlugWithProducts(
-    slug: string,
+    businessSlug: string,
   ): Promise<BusinessProductsLookupResult> {
     if (dependencies?.getBusinessBySlugFromDatabase) {
-      const databaseBusiness = await dependencies.getBusinessBySlugFromDatabase(slug);
+      const databaseBusiness = await dependencies.getBusinessBySlugFromDatabase(businessSlug);
 
-      return buildBusinessProductsLookupResult(databaseBusiness, slug, dependencies);
+      return buildBusinessProductsLookupResult(databaseBusiness, businessSlug, dependencies);
     }
 
-    const storefrontLookup = await getStorefrontBusinessLookupBySlug(slug);
+    const storefrontLookup = await getStorefrontBusinessLookupBySlug(businessSlug);
 
     return buildBusinessProductsLookupResult(
       storefrontLookup.business,
-      slug,
+      businessSlug,
       dependencies,
       { ownershipVerified: storefrontLookup.ownershipVerified },
     );

@@ -17,12 +17,23 @@ import { NewOrderDrawer } from "@/components/dashboard/new-order-drawer";
 import { OrderDetailDrawer } from "@/components/dashboard/order-detail-drawer";
 import { ProductsManagementDrawer } from "@/components/dashboard/products-management-drawer";
 import { useBusinessOrders } from "@/components/dashboard/use-business-orders";
-import type { Order, PaymentStatus } from "@/types/orders";
+import { updateBusinessSettingsViaApi } from "@/lib/businesses/api";
+import { getPublicPaymentMethodsForBusiness } from "@/lib/businesses/payment-settings";
+import type {
+  BusinessPaymentSettings,
+  UpdateBusinessSettingsPayload,
+} from "@/types/businesses";
+import type { Order, PaymentMethod, PaymentStatus } from "@/types/orders";
 import type { OrderApiUpdatePayload } from "@/lib/orders/mappers";
 
 interface BusinessWorkspaceProviderProps {
   businessName: string;
   businessSlug: string;
+  transferInstructions: string | null;
+  acceptsCash: boolean;
+  acceptsTransfer: boolean;
+  acceptsCard: boolean;
+  allowsFiado: boolean;
   initialOrders: Order[];
   initialOrdersError?: string | null;
   children: ReactNode;
@@ -33,16 +44,33 @@ interface BusinessWorkspaceContextValue {
   newOrders: Order[];
   ordersState: Order[];
   ordersError: string | null;
+  transferInstructions: string | null;
+  acceptsCash: boolean;
+  acceptsTransfer: boolean;
+  acceptsCard: boolean;
+  allowsFiado: boolean;
+  availablePaymentMethods: PaymentMethod[];
+  isSavingBusinessSettings: boolean;
   openGlobalSearch: () => void;
   openNewOrder: () => void;
   openNewProduct: () => void;
-  openOrderDetails: (orderId: string) => void;
+  openOrderDetails: (orderId: Order["orderId"]) => void;
   openProductsManager: () => void;
+  saveBusinessSettings: (
+    payload: Pick<
+      UpdateBusinessSettingsPayload,
+      | "transferInstructions"
+      | "acceptsCash"
+      | "acceptsTransfer"
+      | "acceptsCard"
+      | "allowsFiado"
+    >,
+  ) => Promise<void>;
   handleMarkAllAsReviewed: () => void;
-  handleMarkAsReviewed: (orderId: string) => void;
+  handleMarkAsReviewed: (orderId: Order["orderId"]) => void;
   handleCreateOrder: (input: NewOrderFormValue) => Promise<Order>;
   handleEditOrder: (
-    orderId: string,
+    orderId: Order["orderId"],
     payload: Pick<
       OrderApiUpdatePayload,
       | "status"
@@ -55,30 +83,42 @@ interface BusinessWorkspaceContextValue {
       | "products"
       | "notes"
       | "total"
+      | "isFiado"
+      | "fiadoStatus"
+      | "fiadoObservation"
     >,
   ) => Promise<Order>;
-  quickUpdateOrderStatus: (orderId: string, status: Order["status"]) => Promise<void>;
+  quickUpdateOrderStatus: (orderId: Order["orderId"], status: Order["status"]) => Promise<void>;
   quickUpdatePaymentStatus: (
-    orderId: string,
+    orderId: Order["orderId"],
     paymentStatus: PaymentStatus,
   ) => Promise<void>;
-  handleAdvanceOrderStatus: (orderId: string) => Promise<Order | undefined>;
-  handleCancelOrder: (orderId: string) => Promise<Order>;
-  handleConfirmOrder: (orderId: string) => Promise<Order>;
+  handleAdvanceOrderStatus: (orderId: Order["orderId"]) => Promise<Order | undefined>;
+  handleCancelOrder: (orderId: Order["orderId"]) => Promise<Order>;
+  handleConfirmOrder: (orderId: Order["orderId"]) => Promise<Order>;
   handleHydrateOrder: (order: Order) => void;
-  handleRequestPaymentProof: (orderId: string) => Promise<boolean>;
+  handleRequestPaymentProof: (orderId: Order["orderId"]) => Promise<boolean>;
   handleResetOrders: () => void;
   handleUpdatePaymentStatus: (
-    orderId: string,
+    orderId: Order["orderId"],
     paymentStatus: PaymentStatus,
   ) => Promise<Order>;
 }
 
 const BusinessWorkspaceContext = createContext<BusinessWorkspaceContextValue | null>(null);
 
+interface BusinessWorkspaceSettingsState extends BusinessPaymentSettings {
+  transferInstructions: string | null;
+}
+
 export function BusinessWorkspaceProvider({
   businessName,
   businessSlug,
+  transferInstructions,
+  acceptsCash,
+  acceptsTransfer,
+  acceptsCard,
+  allowsFiado,
   initialOrders,
   initialOrdersError,
   children,
@@ -89,13 +129,21 @@ export function BusinessWorkspaceProvider({
   const shouldStartProductOnboarding = searchParams.get("onboarding") === "create-product";
   const [isGlobalSearchOpen, setIsGlobalSearchOpen] = useState(false);
   const [isNewOrderDrawerOpen, setIsNewOrderDrawerOpen] = useState(false);
+  const [businessSettings, setBusinessSettings] = useState<BusinessWorkspaceSettingsState>({
+    transferInstructions,
+    acceptsCash,
+    acceptsTransfer,
+    acceptsCard,
+    allowsFiado,
+  });
+  const [isSavingBusinessSettings, setIsSavingBusinessSettings] = useState(false);
   const [isProductsDrawerOpen, setIsProductsDrawerOpen] = useState(
     () => shouldStartProductOnboarding,
   );
   const [productsDrawerMode, setProductsDrawerMode] = useState<"list" | "create">(() =>
     shouldStartProductOnboarding ? "create" : "list",
   );
-  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [selectedOrderId, setSelectedOrderId] = useState<Order["orderId"] | null>(null);
   const hasHandledOnboardingIntentRef = useRef(false);
   const {
     hasHydrated,
@@ -118,8 +166,19 @@ export function BusinessWorkspaceProvider({
     orders: initialOrders,
     initialOrdersError,
   });
+  const businessAvailablePaymentMethods = getPublicPaymentMethodsForBusiness(businessSettings);
 
-  const selectedOrder = ordersState.find((order) => order.id === selectedOrderId) ?? null;
+  const selectedOrder = ordersState.find((order) => order.orderId === selectedOrderId) ?? null;
+
+  useEffect(() => {
+    setBusinessSettings({
+      transferInstructions,
+      acceptsCash,
+      acceptsTransfer,
+      acceptsCard,
+      allowsFiado,
+    });
+  }, [acceptsCard, acceptsCash, acceptsTransfer, allowsFiado, transferInstructions]);
 
   useEffect(() => {
     const onboardingIntent = searchParams.get("onboarding");
@@ -138,19 +197,49 @@ export function BusinessWorkspaceProvider({
       newOrders,
       ordersState,
       ordersError,
+      transferInstructions: businessSettings.transferInstructions,
+      acceptsCash: businessSettings.acceptsCash,
+      acceptsTransfer: businessSettings.acceptsTransfer,
+      acceptsCard: businessSettings.acceptsCard,
+      allowsFiado: businessSettings.allowsFiado,
+      availablePaymentMethods: businessAvailablePaymentMethods,
+      isSavingBusinessSettings,
       openGlobalSearch: () => setIsGlobalSearchOpen(true),
       openNewOrder: () => setIsNewOrderDrawerOpen(true),
       openNewProduct: () => {
         setProductsDrawerMode("create");
         setIsProductsDrawerOpen(true);
       },
-      openOrderDetails: (orderId: string) => {
+      openOrderDetails: (orderId: Order["orderId"]) => {
         handleMarkAsReviewed(orderId);
         setSelectedOrderId(orderId);
       },
       openProductsManager: () => {
         setProductsDrawerMode("list");
         setIsProductsDrawerOpen(true);
+      },
+      saveBusinessSettings: async (payload) => {
+        setIsSavingBusinessSettings(true);
+
+        try {
+          const updatedBusiness = await updateBusinessSettingsViaApi({
+            businessSlug,
+            transferInstructions: payload.transferInstructions,
+            acceptsCash: payload.acceptsCash,
+            acceptsTransfer: payload.acceptsTransfer,
+            acceptsCard: payload.acceptsCard,
+            allowsFiado: payload.allowsFiado,
+          });
+          setBusinessSettings({
+            transferInstructions: updatedBusiness.transferInstructions,
+            acceptsCash: updatedBusiness.acceptsCash,
+            acceptsTransfer: updatedBusiness.acceptsTransfer,
+            acceptsCard: updatedBusiness.acceptsCard,
+            allowsFiado: updatedBusiness.allowsFiado,
+          });
+        } finally {
+          setIsSavingBusinessSettings(false);
+        }
       },
       handleMarkAllAsReviewed,
       handleMarkAsReviewed,
@@ -182,7 +271,11 @@ export function BusinessWorkspaceProvider({
       handleRequestPaymentProof,
       handleResetOrders,
       handleUpdatePaymentStatus,
+      businessSlug,
+      businessAvailablePaymentMethods,
+      businessSettings,
       hasHydrated,
+      isSavingBusinessSettings,
       newOrders,
       ordersError,
       ordersState,
@@ -199,6 +292,9 @@ export function BusinessWorkspaceProvider({
       <OrderDetailDrawer
         businessSlug={businessSlug}
         businessName={businessName}
+        transferInstructions={businessSettings.transferInstructions}
+        availablePaymentMethods={businessAvailablePaymentMethods}
+        allowsFiado={businessSettings.allowsFiado}
         order={selectedOrder}
         isOpen={selectedOrder !== null}
         onClose={() => setSelectedOrderId(null)}
@@ -212,6 +308,7 @@ export function BusinessWorkspaceProvider({
 
       <NewOrderDrawer
         businessSlug={businessSlug}
+        availablePaymentMethods={businessAvailablePaymentMethods}
         isOpen={isNewOrderDrawerOpen}
         onClose={() => setIsNewOrderDrawerOpen(false)}
         onCreateOrder={handleCreateOrder}
@@ -237,7 +334,7 @@ export function BusinessWorkspaceProvider({
         onClose={() => setIsGlobalSearchOpen(false)}
         onSelectOrder={(order) => {
           handleHydrateOrder(order);
-          setSelectedOrderId(order.id);
+          setSelectedOrderId(order.orderId);
         }}
       />
     </BusinessWorkspaceContext.Provider>

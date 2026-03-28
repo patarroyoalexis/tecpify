@@ -95,7 +95,7 @@ function matchesSearch(order: Order, searchQuery: string) {
 
   const searchableValues = [
     getOrderDisplayCode(order),
-    order.id,
+    order.orderId,
     order.client,
     order.customerPhone ?? "",
     ...order.products.map((product) => product.name),

@@ -1,5 +1,5 @@
 export interface LegacyBusinessOwnershipStateInput {
-  ownerUserId: string | null;
+  createdByUserId: string | null;
 }
 
 export type LegacyBusinessRuntimeStatus = "owned" | "ownerless_unsupported";
@@ -16,14 +16,16 @@ export const LEGACY_BUSINESS_OWNERSHIP_STRATEGY = {
   mode: "unsupported_ownerless_blocked",
 } as const;
 
-export function hasLegacyBusinessOwner(ownerUserId: string | null): ownerUserId is string {
-  return typeof ownerUserId === "string" && ownerUserId.trim().length > 0;
+export function hasLegacyBusinessOwner(
+  createdByUserId: string | null,
+): createdByUserId is string {
+  return typeof createdByUserId === "string" && createdByUserId.trim().length > 0;
 }
 
 export function resolveLegacyBusinessOwnershipState(
   input: LegacyBusinessOwnershipStateInput,
 ): LegacyBusinessOwnershipState {
-  if (hasLegacyBusinessOwner(input.ownerUserId)) {
+  if (hasLegacyBusinessOwner(input.createdByUserId)) {
     return {
       runtimeStatus: "owned",
       accessStatus: "accessible",
@@ -40,6 +42,6 @@ export function resolveLegacyBusinessOwnershipState(
   };
 }
 
-export function isLegacyBusinessBlocked(ownerUserId: string | null) {
-  return !resolveLegacyBusinessOwnershipState({ ownerUserId }).isAccessible;
+export function isLegacyBusinessBlocked(createdByUserId: string | null) {
+  return !resolveLegacyBusinessOwnershipState({ createdByUserId }).isAccessible;
 }

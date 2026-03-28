@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { debugError, debugLog } from "@/lib/debug";
-import { normalizeBusinessSlug } from "@/lib/businesses/slug";
+import { requireBusinessSlug } from "@/lib/businesses/slug";
 import { requireBusinessApiContext } from "@/lib/auth/server";
 import { createOrderInDatabase } from "@/lib/data/orders-server";
 import { sanitizeClientCreateOrderPayload } from "@/lib/orders/state-rules";
@@ -11,14 +11,14 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 }
 
 interface WorkspaceOrdersRouteDependencies {
-  normalizeBusinessSlug: typeof normalizeBusinessSlug;
+  requireBusinessSlug: typeof requireBusinessSlug;
   requireBusinessApiContext: typeof requireBusinessApiContext;
   createOrderInDatabase: typeof createOrderInDatabase;
 }
 
 export function createWorkspaceOrdersRouteHandlers(
   dependencies: WorkspaceOrdersRouteDependencies = {
-    normalizeBusinessSlug,
+    requireBusinessSlug,
     requireBusinessApiContext,
     createOrderInDatabase,
   },
@@ -59,10 +59,16 @@ export function createWorkspaceOrdersRouteHandlers(
         );
       }
 
-      const normalizedBusinessSlug =
-        typeof sanitizedPayload.businessSlug === "string"
-          ? dependencies.normalizeBusinessSlug(sanitizedPayload.businessSlug)
-          : "";
+      let normalizedBusinessSlug = "";
+
+      try {
+        normalizedBusinessSlug =
+          typeof sanitizedPayload.businessSlug === "string"
+            ? dependencies.requireBusinessSlug(sanitizedPayload.businessSlug)
+            : "";
+      } catch {
+        normalizedBusinessSlug = "";
+      }
 
       if (!normalizedBusinessSlug) {
         return NextResponse.json(
@@ -90,7 +96,7 @@ export function createWorkspaceOrdersRouteHandlers(
           },
         );
         debugLog("[workspace-orders-api] Created manual order", {
-          orderId: order.id,
+          orderId: order.orderId,
           businessSlug: businessContextResult.context.businessSlug,
           persistedRemotely: true,
           ignoredDerivedFields,

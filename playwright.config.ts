@@ -1,6 +1,9 @@
+import { loadEnvConfig } from "@next/env";
 import { defineConfig } from "@playwright/test";
 
 import { getPlaywrightEnv } from "./lib/env";
+
+loadEnvConfig(process.cwd());
 
 const playwrightEnv = getPlaywrightEnv();
 const baseUrl = new URL(playwrightEnv.baseUrl);
@@ -11,6 +14,7 @@ export default defineConfig({
   testDir: "./tests/e2e",
   fullyParallel: false,
   workers: 1,
+  globalSetup: "./tests/helpers/playwright-global-setup.ts",
   reporter: playwrightEnv.isCi ? [["list"], ["html", { open: "never" }]] : "list",
   retries: playwrightEnv.isCi ? 2 : 0,
   use: {

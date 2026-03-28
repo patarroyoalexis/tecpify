@@ -1,3 +1,4 @@
+import type { Order } from "@/types/orders";
 import type { Product } from "@/types/products";
 
 interface ProductsApiListResponse {
@@ -12,8 +13,8 @@ interface ProductDeleteValidation {
   canDelete: boolean;
   referencedOrdersCount: number;
   sampleOrders: Array<{
-    id: string;
-    orderCode?: string;
+    orderId: Order["orderId"];
+    orderCode?: Order["orderCode"];
   }>;
 }
 
@@ -99,7 +100,7 @@ export async function createProductViaApi(payload: ProductApiCreatePayload) {
 }
 
 export async function updateProductViaApi(
-  productId: string,
+  productId: Product["productId"],
   payload: ProductApiUpdatePayload,
 ) {
   let response: Response;
@@ -126,7 +127,10 @@ export async function updateProductViaApi(
   return result.product;
 }
 
-export async function deleteProductViaApi(productId: string, businessSlug: string) {
+export async function deleteProductViaApi(
+  productId: Product["productId"],
+  businessSlug: string,
+) {
   let response: Response;
 
   try {

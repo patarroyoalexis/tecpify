@@ -1,8 +1,7 @@
 $ErrorActionPreference = "Stop"
 
 $RepoRoot = Split-Path -Parent $PSScriptRoot
-$PaymentMigrationPath = Join-Path $RepoRoot "supabase\migrations\20260326002_enforce_order_payment_rules_in_db.sql"
-$HistoryMigrationPath = Join-Path $RepoRoot "supabase\migrations\20260326003_enforce_order_history_in_db.sql"
+$MigrationsDir = Join-Path $RepoRoot "supabase\migrations"
 $OwnerId = "11111111-1111-4111-8111-111111111111"
 $OtherUserId = "22222222-2222-4222-8222-222222222222"
 $BusinessId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
@@ -140,6 +139,25 @@ function Write-Utf8File {
 
   $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
   [System.IO.File]::WriteAllText($Path, $Content, $utf8NoBom)
+}
+
+function Get-LatestMigrationPathByPattern {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$Pattern
+  )
+
+  $candidates = Get-ChildItem -Path $MigrationsDir -Filter *.sql |
+    Sort-Object Name |
+    Where-Object {
+      (Get-Content -Raw -Path $_.FullName) -match $Pattern
+    }
+
+  $latest = $candidates | Select-Object -Last 1
+
+  Assert-True -Condition ([bool]$latest) -Message "No se encontro una migracion para el patron: $Pattern"
+
+  return $latest.FullName
 }
 
 function Invoke-NativeCommand {
@@ -298,8 +316,8 @@ $stdoutPath = Join-Path $clusterRoot "postgres.out.log"
 $stderrPath = Join-Path $clusterRoot "postgres.err.log"
 $serverProcess = $null
 
-$paymentMigrationSource = Get-Content -Raw -Path $PaymentMigrationPath
-$historyMigrationSource = Get-Content -Raw -Path $HistoryMigrationPath
+$paymentMigrationSource = Get-Content -Raw -Path (Get-LatestMigrationPathByPattern -Pattern "create\s+(?:or\s+replace\s+)?function\s+public\.orders_payment_method_is_valid")
+$historyMigrationSource = Get-Content -Raw -Path (Get-LatestMigrationPathByPattern -Pattern "create\s+(?:or\s+replace\s+)?function\s+public\.update_order_with_server_history")
 $productsJsonb = ConvertTo-SqlJsonb @(
   @{
     productId = "prod-1"
@@ -423,6 +441,9 @@ grant execute on function auth.role() to public, anon, authenticated;
 create table if not exists public.businesses (
   id uuid primary key,
   slug text not null unique,
+  name text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
   created_by_user_id uuid null
 );
 
@@ -497,10 +518,10 @@ create policy "authenticated can read accessible orders"
     $paymentMigrationSource,
     $historyMigrationSource,
 @"
-insert into public.businesses (id, slug, created_by_user_id)
+insert into public.businesses (id, slug, name, created_by_user_id)
 values
-  ($(ConvertTo-SqlText $BusinessId)::uuid, 'mi-tienda', $(ConvertTo-SqlText $OwnerId)::uuid),
-  ($(ConvertTo-SqlText $OtherBusinessId)::uuid, 'otra-tienda', $(ConvertTo-SqlText $OtherUserId)::uuid);
+  ($(ConvertTo-SqlText $BusinessId)::uuid, 'mi-tienda', 'Mi tienda', $(ConvertTo-SqlText $OwnerId)::uuid),
+  ($(ConvertTo-SqlText $OtherBusinessId)::uuid, 'otra-tienda', 'Otra tienda', $(ConvertTo-SqlText $OtherUserId)::uuid);
 "@
   ) -join "`n"
 
@@ -534,7 +555,7 @@ values (
   '3001234567',
   'domicilio',
   'Calle 1 # 2-3',
-  'Nequi',
+  'Transferencia',
   'Sin cebolla',
   15000,
   $productsJsonb,
@@ -577,7 +598,7 @@ values (
   '3001234567',
   'domicilio',
   'Calle 1 # 2-3',
-  'Nequi',
+  'Transferencia',
   'Sin cebolla',
   15000,
   $productsJsonb,

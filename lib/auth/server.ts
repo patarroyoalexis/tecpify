@@ -7,10 +7,14 @@ import {
   getBusinessAccessBySlug,
   type BusinessAccessResult,
 } from "@/lib/auth/business-access";
+import { buildLoginHref } from "@/lib/auth/redirect-path";
 import {
   createServerSupabaseAuthClient,
   type ServerSupabaseAuthClient,
 } from "@/lib/supabase/server";
+import type { OrderId } from "@/types/identifiers";
+
+export { buildLoginHref, sanitizeRedirectPath } from "@/lib/auth/redirect-path";
 
 export interface WorkspaceUser {
   userId: string;
@@ -48,20 +52,6 @@ function mapWorkspaceUser(user: User): WorkspaceUser {
     email: user.email ?? "",
     user,
   };
-}
-
-export function sanitizeRedirectPath(redirectTo: string | null | undefined) {
-  if (!redirectTo || !redirectTo.startsWith("/") || redirectTo.startsWith("//")) {
-    return "/";
-  }
-
-  return redirectTo;
-}
-
-export function buildLoginHref(redirectTo: string) {
-  const safeRedirectPath = sanitizeRedirectPath(redirectTo);
-  const searchParams = new URLSearchParams({ redirectTo: safeRedirectPath });
-  return `/login?${searchParams.toString()}`;
 }
 
 function buildUnauthenticatedApiResponse() {
@@ -193,7 +183,7 @@ export async function requireBusinessApiContext(
 }
 
 export async function requireOrderApiContext(
-  orderId: string,
+  orderId: OrderId,
 ): Promise<BusinessApiContextResult> {
   const authResult = await requireAuthenticatedApiUser();
 

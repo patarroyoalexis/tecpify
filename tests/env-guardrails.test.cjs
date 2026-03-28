@@ -15,8 +15,9 @@ const privilegedEnvModulePath = path.join(
   "service-role-client.ts",
 );
 
-const DOC_PREFIX_PATTERN = /\b(?:NEXT_PUBLIC|SUPABASE)_[A-Z0-9_]+\b/g;
+const DOC_PREFIX_PATTERN = /\b((?:NEXT_PUBLIC|SUPABASE|PLAYWRIGHT)_[A-Z0-9_]+|CI)\b/g;
 const PROCESS_ENV_PATTERN = /process\.env\.([A-Z0-9_]+)/g;
+const ENV_ACCESSOR_PATTERN = /(?:readOptionalEnv|readRequiredEnv)\(\s*"([A-Z0-9_]+)"/g;
 
 const ENV_USAGE_EXCEPTIONS = new Map([
   [
@@ -38,6 +39,10 @@ const PROCESS_ENV_READ_EXCEPTIONS = new Map([
     normalizeRelativePath(path.join("tests", "service-role-guardrails.test.cjs")),
     "Guardrail que verifica de forma explicita que los modulos operativos siguen cargando sin SUPABASE_SERVICE_ROLE_KEY.",
   ],
+  [
+    normalizeRelativePath(path.join("tests", "env-guardrails.test.cjs")),
+    "Guardrail que muta process.env de forma controlada para verificar la resolucion centralizada del entorno E2E.",
+  ],
 ]);
 
 function normalizeRelativePath(relativePath) {
@@ -58,7 +63,10 @@ function formatSet(values) {
 
 function getOperationalEnvUsage() {
   const envSource = fs.readFileSync(envModulePath, "utf8");
-  const usedNames = extractEnvNames(envSource, PROCESS_ENV_PATTERN);
+  const usedNames = new Set([
+    ...extractEnvNames(envSource, PROCESS_ENV_PATTERN),
+    ...extractEnvNames(envSource, ENV_ACCESSOR_PATTERN),
+  ]);
   const canonicalNames = new Set(
     [...usedNames].filter((name) => !ENV_USAGE_EXCEPTIONS.has(name)),
   );
@@ -157,6 +165,55 @@ test("entorno: el env operativo no contiene service role ni getter compartido", 
     false,
     "No debe existir un getter compartido que remezcle el env privilegiado con el runtime normal.",
   );
+  assert.doesNotMatch(
+    envSource,
+    /\bPLAYWRIGHT_OWNER_EMAIL\b|\bPLAYWRIGHT_OWNER_PASSWORD\b|\bPLAYWRIGHT_INTRUDER_EMAIL\b|\bPLAYWRIGHT_INTRUDER_PASSWORD\b/,
+    "lib/env.ts no debe volver al contrato fragil de cuatro credenciales humanas para E2E.",
+  );
+});
+
+test("entorno: Playwright deriva fixtures dedicadas y no humanas desde un unico secreto", () => {
+  const previousEnv = {
+    NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
+    NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    PLAYWRIGHT_E2E_PASSWORD: process.env.PLAYWRIGHT_E2E_PASSWORD,
+    PLAYWRIGHT_E2E_NAMESPACE: process.env.PLAYWRIGHT_E2E_NAMESPACE,
+  };
+
+  process.env.NEXT_PUBLIC_SUPABASE_URL = "https://fixture-project.supabase.co";
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "anon-test-key";
+  process.env.PLAYWRIGHT_E2E_PASSWORD = "fixture-password-123";
+  delete process.env.PLAYWRIGHT_E2E_NAMESPACE;
+
+  try {
+    const envModule = loadTsModule("lib/env.ts");
+    const playwrightEnv = envModule.getPlaywrightEnv();
+
+    assert.equal(playwrightEnv.authFixtures.namespace, "fixture-project");
+    assert.equal(
+      playwrightEnv.authFixtures.owner.email,
+      "playwright-owner+fixture-project@example.com",
+    );
+    assert.equal(
+      playwrightEnv.authFixtures.intruder.email,
+      "playwright-intruder+fixture-project@example.com",
+    );
+    assert.equal(playwrightEnv.authFixtures.owner.password, "fixture-password-123");
+    assert.equal(playwrightEnv.authFixtures.intruder.password, "fixture-password-123");
+    assert.notEqual(
+      playwrightEnv.authFixtures.owner.email,
+      playwrightEnv.authFixtures.intruder.email,
+      "Owner e intruder deben resolverse como identidades distintas aunque compartan el secreto de test.",
+    );
+  } finally {
+    for (const [name, value] of Object.entries(previousEnv)) {
+      if (value === undefined) {
+        delete process.env[name];
+      } else {
+        process.env[name] = value;
+      }
+    }
+  }
 });
 
 test("entorno: no hay lecturas directas de process.env fuera de lib/env.ts salvo excepciones justificadas", () => {

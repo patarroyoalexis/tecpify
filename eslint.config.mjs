@@ -11,7 +11,7 @@ const eslintConfig = defineConfig([
       "data/**/*.{js,jsx,ts,tsx}",
       "lib/auth/**/*.{js,jsx,ts,tsx}",
       "lib/data/**/*.{js,jsx,ts,tsx}",
-      "middleware.ts",
+      "proxy.ts",
       "lib/supabase/server.ts",
     ],
     rules: {

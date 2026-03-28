@@ -58,10 +58,13 @@ const priorityStyles: Record<OperationalPriority, { accent: string }> = {
 
 interface OrderCardProps {
   order: Order;
-  onOpenDetails: (orderId: string) => void;
-  onQuickUpdateOrderStatus: (orderId: string, status: OrderStatus) => Promise<void>;
+  onOpenDetails: (orderId: Order["orderId"]) => void;
+  onQuickUpdateOrderStatus: (
+    orderId: Order["orderId"],
+    status: OrderStatus,
+  ) => Promise<void>;
   onQuickUpdatePaymentStatus: (
-    orderId: string,
+    orderId: Order["orderId"],
     paymentStatus: PaymentStatus,
   ) => Promise<void>;
   compact?: boolean;
@@ -218,7 +221,7 @@ export function OrderCard({
   const detailsButton = (
     <button
       type="button"
-      onClick={() => onOpenDetails(order.id)}
+      onClick={() => onOpenDetails(order.orderId)}
       className="inline-flex items-center justify-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
       aria-label={`Ver detalles del pedido ${getOrderDisplayCode(order)}`}
       title="Ver detalles"
@@ -233,20 +236,20 @@ export function OrderCard({
 
     try {
       if (nextStepAction.action.kind === "payment") {
-        await onQuickUpdatePaymentStatus(order.id, nextStepAction.action.value);
+        await onQuickUpdatePaymentStatus(order.orderId, nextStepAction.action.value);
         setFeedbackKind("payment");
         setFeedbackMessage("Pago actualizado.");
         return;
       }
 
       if (nextStepAction.action.kind === "order") {
-        await onQuickUpdateOrderStatus(order.id, nextStepAction.action.value);
+        await onQuickUpdateOrderStatus(order.orderId, nextStepAction.action.value);
         setFeedbackKind("order");
         setFeedbackMessage("Pedido actualizado.");
         return;
       }
 
-      onOpenDetails(order.id);
+      onOpenDetails(order.orderId);
     } catch (error) {
       setFeedbackKind(nextStepAction.action.kind === "payment" ? "payment" : "order");
       setFeedbackMessage(
@@ -263,7 +266,7 @@ export function OrderCard({
 
   return (
     <article
-      data-testid={`order-card-${order.id}`}
+      data-testid={`order-card-${order.orderId}`}
       className={`relative h-full rounded-[22px] border bg-white ${compact ? baseCardPadding : "px-4 py-4 sm:px-4 sm:py-3.5"} shadow-[0_14px_34px_rgba(15,23,42,0.05)] transition-colors ${
         order.isReviewed ? "border-slate-200/80" : "border-rose-200 bg-rose-50/30"
       } ${priorityStyles[operationalPriority].accent} hover:border-slate-300/90`}
@@ -332,7 +335,7 @@ export function OrderCard({
 
         <div className="grid gap-2 sm:grid-cols-2 sm:gap-2.5">
           <div
-            data-testid={`order-card-status-${order.id}`}
+            data-testid={`order-card-status-${order.orderId}`}
             className={`rounded-2xl border px-3.5 py-3 ${statusStyles[order.status]}`}
           >
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-70">
@@ -344,7 +347,7 @@ export function OrderCard({
             </div>
           </div>
           <div
-            data-testid={`order-card-payment-status-${order.id}`}
+            data-testid={`order-card-payment-status-${order.orderId}`}
             className={`rounded-2xl border px-3.5 py-3 ${paymentStatusStyles[order.paymentStatus]}`}
           >
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-70">
@@ -372,7 +375,7 @@ export function OrderCard({
                 type="button"
                 onClick={() => void handlePrimaryAction()}
                 disabled={isRunningPrimaryAction}
-                data-testid={`order-card-primary-action-${order.id}`}
+                data-testid={`order-card-primary-action-${order.orderId}`}
                 className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-full border border-current/15 bg-white/80 px-3.5 py-2 text-xs font-semibold text-inherit transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <OrdersUiIcon

@@ -36,6 +36,9 @@ type EditableOrderPayload = Pick<
   | "products"
   | "notes"
   | "total"
+  | "isFiado"
+  | "fiadoStatus"
+  | "fiadoObservation"
 >;
 
 function isValidDeliveryType(value: unknown): value is DeliveryType {
@@ -176,8 +179,8 @@ export function useBusinessOrders({
     [ordersState],
   );
 
-  function getCurrentOrderById(orderId: string) {
-    return ordersStateRef.current.find((order) => order.id === orderId) ?? null;
+  function getCurrentOrderById(orderId: Order["orderId"]) {
+    return ordersStateRef.current.find((order) => order.orderId === orderId) ?? null;
   }
 
   function hydrateOrdersLocally(nextOrders: Order[]) {
@@ -186,12 +189,12 @@ export function useBusinessOrders({
     }
 
     setOrdersState((currentOrders) => {
-      const nextOrdersById = new Map(nextOrders.map((order) => [order.id, order]));
+      const nextOrdersById = new Map(nextOrders.map((order) => [order.orderId, order]));
       const updatedOrders = currentOrders.map(
-        (order) => nextOrdersById.get(order.id) ?? order,
+        (order) => nextOrdersById.get(order.orderId) ?? order,
       );
       const insertedOrders = nextOrders.filter(
-        (nextOrder) => !currentOrders.some((order) => order.id === nextOrder.id),
+        (nextOrder) => !currentOrders.some((order) => order.orderId === nextOrder.orderId),
       );
 
       return [...insertedOrders, ...updatedOrders];
@@ -212,7 +215,7 @@ export function useBusinessOrders({
     }
   }
 
-  async function handleEditOrder(orderId: string, payload: EditableOrderPayload) {
+  async function handleEditOrder(orderId: Order["orderId"], payload: EditableOrderPayload) {
     const currentOrder = getCurrentOrderById(orderId);
 
     if (!currentOrder) {
@@ -280,7 +283,7 @@ export function useBusinessOrders({
   }
 
   async function synchronizeOrderMutation(
-    orderId: string,
+    orderId: Order["orderId"],
     buildPayload: (order: Order) => OrderApiUpdatePayload | null,
   ) {
     const currentOrder = getCurrentOrderById(orderId);
@@ -309,7 +312,7 @@ export function useBusinessOrders({
   }
 
   async function synchronizeBulkOrderMutation(
-    orderIds: string[],
+    orderIds: Array<Order["orderId"]>,
     buildPayload: (order: Order) => OrderApiUpdatePayload | null,
   ) {
     if (orderIds.length === 0) {
@@ -318,7 +321,7 @@ export function useBusinessOrders({
 
     const currentOrders = ordersStateRef.current;
     const orderMutations = currentOrders
-      .filter((order) => orderIds.includes(order.id))
+      .filter((order) => orderIds.includes(order.orderId))
       .map((order) => ({ order, payload: buildPayload(order) }))
       .filter(
         (
@@ -331,7 +334,7 @@ export function useBusinessOrders({
     try {
       const persistedOrders = await Promise.all(
         orderMutations.map(({ order, payload }) =>
-          updateOrderViaApi(order.id, payload),
+          updateOrderViaApi(order.orderId, payload),
         ),
       );
       await resyncAfterMutation(persistedOrders);
@@ -345,7 +348,7 @@ export function useBusinessOrders({
     }
   }
 
-  function handleMarkAsReviewed(orderId: string) {
+  function handleMarkAsReviewed(orderId: Order["orderId"]) {
     void synchronizeOrderMutation(orderId, (order) =>
       order.isReviewed
         ? null
@@ -358,7 +361,7 @@ export function useBusinessOrders({
   function handleMarkAllAsReviewed() {
     const pendingOrderIds = ordersStateRef.current
       .filter((order) => !order.isReviewed)
-      .map((order) => order.id);
+      .map((order) => order.orderId);
 
     void synchronizeBulkOrderMutation(pendingOrderIds, (order) =>
       order.isReviewed
@@ -369,7 +372,7 @@ export function useBusinessOrders({
     });
   }
 
-  async function handleRequestPaymentProof(orderId: string) {
+  async function handleRequestPaymentProof(orderId: Order["orderId"]) {
     const currentOrder = getCurrentOrderById(orderId);
 
     if (!currentOrder) {
@@ -393,15 +396,18 @@ export function useBusinessOrders({
     }
   }
 
-  async function handleUpdatePaymentStatus(orderId: string, paymentStatus: PaymentStatus) {
+  async function handleUpdatePaymentStatus(
+    orderId: Order["orderId"],
+    paymentStatus: PaymentStatus,
+  ) {
     return handleEditOrder(orderId, { paymentStatus });
   }
 
-  async function handleConfirmOrder(orderId: string) {
+  async function handleConfirmOrder(orderId: Order["orderId"]) {
     return handleEditOrder(orderId, { status: "confirmado" });
   }
 
-  async function handleAdvanceOrderStatus(orderId: string) {
+  async function handleAdvanceOrderStatus(orderId: Order["orderId"]) {
     const currentOrder = getCurrentOrderById(orderId);
 
     if (!currentOrder) {
@@ -420,7 +426,7 @@ export function useBusinessOrders({
     return handleEditOrder(orderId, { status: nextStatus });
   }
 
-  async function handleCancelOrder(orderId: string) {
+  async function handleCancelOrder(orderId: Order["orderId"]) {
     return handleEditOrder(orderId, { status: "cancelado" });
   }
 

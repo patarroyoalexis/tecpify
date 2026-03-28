@@ -1,5 +1,6 @@
 import type {
   DeliveryType,
+  FiadoStatus,
   OrderStatus,
   PaymentMethod,
   PaymentStatus,
@@ -47,6 +48,9 @@ export const ORDER_UPDATE_CLIENT_EDITABLE_FIELDS = [
   "notes",
   "total",
   "isReviewed",
+  "isFiado",
+  "fiadoStatus",
+  "fiadoObservation",
   "eventIntent",
 ] as const;
 
@@ -60,7 +64,6 @@ const ORDER_CREATE_SERVER_DERIVED_FIELD_SET = new Set<string>(
 const DIGITAL_PAYMENT_METHODS = new Set<PaymentMethod>([
   "Transferencia",
   "Tarjeta",
-  "Nequi",
 ]);
 const CASH_PAYMENT_METHODS = new Set<PaymentMethod>(["Efectivo", "Contra entrega"]);
 const OPERATIONAL_ORDER_STATUSES_REQUIRING_CONFIRMED_PAYMENT = new Set<OrderStatus>([
@@ -102,12 +105,46 @@ export interface OrderStateTransitionRuleResult {
   reason?: string;
 }
 
+export interface OrderFiadoSnapshot {
+  isFiado: boolean;
+  fiadoStatus: FiadoStatus | null;
+  fiadoObservation: string | null;
+}
+
+export interface AuthoritativeOrderFiadoPatchInput {
+  isFiado?: boolean;
+  fiadoStatus?: FiadoStatus | null;
+  fiadoObservation?: string | null;
+}
+
+export interface AuthoritativeOrderFiadoPatchResult {
+  nextState: OrderFiadoSnapshot;
+  changedFields: Array<keyof OrderFiadoSnapshot>;
+}
+
 function isPendingPaymentStatus(paymentStatus: PaymentStatus) {
   return (
     paymentStatus === "pendiente" ||
     paymentStatus === "con novedad" ||
     paymentStatus === "no verificado"
   );
+}
+
+function collectLegacyOrderProductAliasFields(
+  products: unknown,
+  pathPrefix = "products",
+): string[] {
+  if (!Array.isArray(products)) {
+    return [];
+  }
+
+  return products.flatMap((product, index) => {
+    if (!product || typeof product !== "object" || Array.isArray(product)) {
+      return [];
+    }
+
+    return "product_id" in product ? [`${pathPrefix}[${index}].product_id`] : [];
+  });
 }
 
 export function isPaymentMethodAllowedForDeliveryType(
@@ -168,11 +205,22 @@ export function sanitizeClientCreateOrderPayload(
     invalidFields.push(field);
   }
 
+  invalidFields.push(...collectLegacyOrderProductAliasFields(payload.products));
+
   return {
     sanitizedPayload,
     ignoredDerivedFields,
     invalidFields,
   };
+}
+
+function normalizeFiadoObservation(value: string | null | undefined) {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const normalizedValue = value.trim().replace(/\s+/g, " ");
+  return normalizedValue.length > 0 ? normalizedValue : null;
 }
 
 export function deriveInitialOrderStateFromPaymentMethod(
@@ -226,6 +274,26 @@ export function getOrderStateConsistencyError(state: OrderStateSnapshot) {
 
   if (state.status === "pendiente de pago" && isPaymentConfirmed(state.paymentStatus)) {
     return "Un pago verificado no puede quedar en pendiente de pago.";
+  }
+
+  return null;
+}
+
+export function getOrderFiadoConsistencyError(state: OrderFiadoSnapshot) {
+  if (!state.isFiado) {
+    if (state.fiadoStatus !== null || state.fiadoObservation !== null) {
+      return "Cuando el pedido no esta marcado como fiado, fiadoStatus y fiadoObservation deben quedar en null.";
+    }
+
+    return null;
+  }
+
+  if (state.fiadoStatus !== "pending" && state.fiadoStatus !== "paid") {
+    return "Los pedidos fiados deben tener fiadoStatus en pending o paid.";
+  }
+
+  if (!normalizeFiadoObservation(state.fiadoObservation)) {
+    return "La observacion de fiado es obligatoria.";
   }
 
   return null;
@@ -388,6 +456,111 @@ export function getOrderStateUpdateError(
   } catch (error) {
     return error instanceof Error ? error.message : "Invalid order update payload.";
   }
+}
+
+export function getOrderFiadoUpdateError(
+  currentState: OrderFiadoSnapshot,
+  patch: AuthoritativeOrderFiadoPatchInput,
+  options?: { allowsFiado?: boolean },
+) {
+  try {
+    resolveAuthoritativeOrderFiadoPatch(currentState, patch, options);
+    return null;
+  } catch (error) {
+    return error instanceof Error ? error.message : "Invalid order update payload.";
+  }
+}
+
+export function resolveAuthoritativeOrderFiadoPatch(
+  currentState: OrderFiadoSnapshot,
+  patch: AuthoritativeOrderFiadoPatchInput,
+  options?: { allowsFiado?: boolean },
+): AuthoritativeOrderFiadoPatchResult {
+  const nextIsFiado = patch.isFiado ?? currentState.isFiado;
+  const nextFiadoStatus =
+    patch.fiadoStatus !== undefined ? patch.fiadoStatus : currentState.fiadoStatus;
+  const nextFiadoObservation =
+    patch.fiadoObservation !== undefined
+      ? normalizeFiadoObservation(patch.fiadoObservation)
+      : currentState.fiadoObservation;
+  const nextState: OrderFiadoSnapshot = {
+    isFiado: nextIsFiado,
+    fiadoStatus: nextFiadoStatus,
+    fiadoObservation: nextFiadoObservation,
+  };
+  const isCreatingNewFiado = !currentState.isFiado && nextState.isFiado;
+  const isTryingToEditFiado =
+    patch.isFiado !== undefined ||
+    patch.fiadoStatus !== undefined ||
+    patch.fiadoObservation !== undefined;
+
+  if (
+    isTryingToEditFiado &&
+    !currentState.isFiado &&
+    !options?.allowsFiado &&
+    nextState.isFiado
+  ) {
+    throw new Error(
+      "Invalid order update payload. Este negocio no tiene habilitado el fiado interno.",
+    );
+  }
+
+  if (currentState.isFiado && patch.isFiado === false) {
+    throw new Error(
+      "Invalid order update payload. Un pedido fiado no puede desmarcarse; debes marcarlo como pagado.",
+    );
+  }
+
+  if (isCreatingNewFiado && nextState.fiadoStatus !== "pending") {
+    throw new Error(
+      "Invalid order update payload. Un fiado nuevo solo puede activarse con fiadoStatus pending.",
+    );
+  }
+
+  if (currentState.isFiado && currentState.fiadoStatus === "pending") {
+    const isValidPendingTransition =
+      nextState.fiadoStatus === "pending" || nextState.fiadoStatus === "paid";
+
+    if (!isValidPendingTransition) {
+      throw new Error(
+        "Invalid order update payload. Un fiado pendiente solo puede mantenerse pendiente o marcarse como paid.",
+      );
+    }
+  }
+
+  if (currentState.isFiado && currentState.fiadoStatus === "paid") {
+    const onlyObservationChanged =
+      nextState.isFiado === true &&
+      nextState.fiadoStatus === "paid" &&
+      nextState.fiadoObservation !== null;
+
+    if (!onlyObservationChanged) {
+      throw new Error(
+        "Invalid order update payload. Un fiado pagado no puede volver a estado pendiente ni desactivarse.",
+      );
+    }
+  }
+
+  const consistencyError = getOrderFiadoConsistencyError(nextState);
+
+  if (consistencyError) {
+    throw new Error(`Invalid order update payload. ${consistencyError}`);
+  }
+
+  const changedFields = (
+    [
+      currentState.isFiado !== nextState.isFiado ? "isFiado" : null,
+      currentState.fiadoStatus !== nextState.fiadoStatus ? "fiadoStatus" : null,
+      currentState.fiadoObservation !== nextState.fiadoObservation
+        ? "fiadoObservation"
+        : null,
+    ] as Array<keyof OrderFiadoSnapshot | null>
+  ).filter((field): field is keyof OrderFiadoSnapshot => field !== null);
+
+  return {
+    nextState,
+    changedFields,
+  };
 }
 
 export function resolveAuthoritativeOrderStatePatch(

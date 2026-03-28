@@ -5,13 +5,47 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const repoRoot = process.cwd();
+const migrationsDir = path.join(repoRoot, "supabase", "migrations");
 
 function readFile(relativePath) {
   return fs.readFileSync(path.join(repoRoot, relativePath), "utf8");
 }
 
-const migrationSource = readFile(
-  "supabase/migrations/20260326002_enforce_order_payment_rules_in_db.sql",
+function getLatestOrdersPaymentMigrationSource() {
+  const migrationFilenames = fs
+    .readdirSync(migrationsDir)
+    .filter((filename) => filename.endsWith(".sql"))
+    .filter((filename) => {
+      const source = fs.readFileSync(path.join(migrationsDir, filename), "utf8");
+      return /create(?:\s+or\s+replace)?\s+function\s+public\.orders_payment_method_is_valid/i.test(
+        source,
+      );
+    })
+    .sort();
+
+  if (migrationFilenames.length === 0) {
+    throw new Error("No se encontro una migracion efectiva para orders_payment_method_is_valid.");
+  }
+
+  return fs.readFileSync(path.join(migrationsDir, migrationFilenames.at(-1)), "utf8");
+}
+
+function extractSqlFunctionBlock(source, functionName) {
+  const escapedFunctionName = functionName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = source.match(
+    new RegExp(
+      `create(?:\\s+or\\s+replace)?\\s+function\\s+${escapedFunctionName}\\([\\s\\S]*?\\n\\$\\$;`,
+      "i",
+    ),
+  );
+
+  return match?.[0] ?? "";
+}
+
+const migrationSource = getLatestOrdersPaymentMigrationSource();
+const paymentMethodValidationFunctionSource = extractSqlFunctionBlock(
+  migrationSource,
+  "public.orders_payment_method_is_valid",
 );
 const stateRulesSource = readFile("lib/orders/state-rules.ts");
 const ordersServerSource = readFile("lib/data/orders-server.ts");
@@ -32,6 +66,16 @@ test("db guardrails: Supabase deriva el estado inicial de pago en inserts direct
     migrationSource,
     /new\.payment_status := 'pendiente';[\s\S]*new\.status := 'pendiente de pago';/i,
     "Los pagos digitales deben quedar derivados como pendientes desde DB.",
+  );
+  assert.match(
+    paymentMethodValidationFunctionSource,
+    /'Transferencia'/,
+    "La definicion efectiva de DB debe aceptar Transferencia como metodo generico.",
+  );
+  assert.doesNotMatch(
+    paymentMethodValidationFunctionSource,
+    /'Nequi'|'Daviplata'|'Bre-B'/,
+    "La definicion efectiva de DB ya no debe exponer aliases separados para transferencias.",
   );
   assert.match(
     migrationSource,
@@ -106,5 +150,43 @@ test("regresion: Contra entrega ya no vive solo en helpers de UI", () => {
     ordersServerSource,
     /getOrderPaymentMethodDeliveryTypeError/,
     "La creacion de pedidos debe validar Contra entrega tambien en servidor.",
+  );
+});
+
+test("db guardrails: la definicion efectiva tambien blinda flags publicos y fiado interno", () => {
+  assert.match(
+    migrationSource,
+    /add column if not exists accepts_cash boolean not null default true/i,
+    "La migracion efectiva debe persistir flags publicos por negocio.",
+  );
+  assert.match(
+    migrationSource,
+    /add column if not exists allows_fiado boolean not null default false/i,
+    "La migracion efectiva debe persistir allows_fiado por negocio.",
+  );
+  assert.match(
+    migrationSource,
+    /add column if not exists is_fiado boolean not null default false/i,
+    "La migracion efectiva debe persistir el estado interno de fiado en pedidos.",
+  );
+  assert.match(
+    migrationSource,
+    /create or replace function public\.business_payment_method_is_enabled/i,
+    "La base debe poder validar metodos publicos por negocio tambien en DB.",
+  );
+  assert.match(
+    migrationSource,
+    /create or replace function public\.orders_fiado_write_is_valid/i,
+    "La base debe exponer una validacion reutilizable para el contrato de fiado.",
+  );
+  assert.match(
+    migrationSource,
+    /fiado interno solo puede activarse sobre pedidos existentes desde la operacion privada/i,
+    "La base debe bloquear inserts directos que intenten crear pedidos ya marcados como fiado.",
+  );
+  assert.match(
+    migrationSource,
+    /Este negocio no tiene habilitado el fiado interno/i,
+    "La base debe impedir activar fiado si el negocio no lo habilito.",
   );
 });

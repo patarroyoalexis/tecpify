@@ -224,7 +224,7 @@ export function GlobalOrderSearch({
               <div className="space-y-2.5">
                 {visibleResults.map((order) => (
                   <button
-                    key={order.id}
+                    key={order.orderId}
                     type="button"
                     onClick={() => {
                       onSelectOrder(order);

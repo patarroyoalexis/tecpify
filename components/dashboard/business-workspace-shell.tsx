@@ -14,6 +14,11 @@ import type { Order } from "@/types/orders";
 interface BusinessWorkspaceShellProps {
   businessName: string;
   businessSlug: string;
+  transferInstructions: string | null;
+  acceptsCash: boolean;
+  acceptsTransfer: boolean;
+  acceptsCard: boolean;
+  allowsFiado: boolean;
   operatorEmail: string | null;
   initialOrders: Order[];
   initialOrdersError?: string | null;
@@ -78,6 +83,11 @@ export function BusinessWorkspaceShell(props: BusinessWorkspaceShellProps) {
     <BusinessWorkspaceProvider
       businessName={props.businessName}
       businessSlug={businessSlug}
+      transferInstructions={props.transferInstructions}
+      acceptsCash={props.acceptsCash}
+      acceptsTransfer={props.acceptsTransfer}
+      acceptsCard={props.acceptsCard}
+      allowsFiado={props.allowsFiado}
       initialOrders={initialOrders}
       initialOrdersError={initialOrdersError}
     >

@@ -18,6 +18,7 @@ import type {
 
 interface NewOrderDrawerProps {
   businessSlug: string;
+  availablePaymentMethods: PaymentMethod[];
   isOpen: boolean;
   onClose: () => void;
   onCreateOrder: (input: NewOrderFormValue) => Promise<Order>;
@@ -53,6 +54,7 @@ function createEmptyProduct(): ProductField {
 
 export function NewOrderDrawer({
   businessSlug,
+  availablePaymentMethods: businessAvailablePaymentMethods,
   isOpen,
   onClose,
   onCreateOrder,
@@ -72,19 +74,23 @@ export function NewOrderDrawer({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const availablePaymentMethods = useMemo(
-    () => getAvailablePaymentMethods(deliveryType),
-    [deliveryType],
+    () =>
+      getAvailablePaymentMethods(
+        deliveryType,
+        businessAvailablePaymentMethods,
+      ),
+    [businessAvailablePaymentMethods, deliveryType],
   );
 
   const activeProducts = useMemo(
-    () => catalogProducts.filter((product) => product.is_available),
+    () => catalogProducts.filter((product) => product.isAvailable),
     [catalogProducts],
   );
   const normalizedProducts = useMemo(
     () =>
       products.map((product) => {
         const selectedProduct = activeProducts.find(
-          (catalogProduct) => catalogProduct.id === product.productId,
+          (catalogProduct) => catalogProduct.productId === product.productId,
         );
 
         return {
@@ -142,7 +148,9 @@ export function NewOrderDrawer({
 
           if (currentProducts.length > 0) {
             const nextProducts = currentProducts.filter((product) =>
-              fetchedProducts.some((catalogProduct) => catalogProduct.id === product.productId),
+              fetchedProducts.some(
+                (catalogProduct) => catalogProduct.productId === product.productId,
+              ),
             );
 
             return nextProducts.length > 0 ? nextProducts : [createEmptyProduct()];
@@ -233,7 +241,10 @@ export function NewOrderDrawer({
       setDeliveryAddress("");
     }
 
-    if (paymentMethod && !getAvailablePaymentMethods(value).includes(paymentMethod)) {
+    if (
+      paymentMethod &&
+      !getAvailablePaymentMethods(value, businessAvailablePaymentMethods).includes(paymentMethod)
+    ) {
       setPaymentMethod("");
     }
   }
@@ -276,7 +287,7 @@ export function NewOrderDrawer({
     }
 
     const uniqueProductIds = new Set(
-      normalizedProducts.map((product) => product.selectedProduct?.id ?? ""),
+      normalizedProducts.map((product) => product.selectedProduct?.productId ?? ""),
     );
 
     if (uniqueProductIds.size !== normalizedProducts.length) {
@@ -304,7 +315,11 @@ export function NewOrderDrawer({
       return;
     }
 
-    if (!getAvailablePaymentMethods(deliveryType).includes(paymentMethod)) {
+    if (
+      !getAvailablePaymentMethods(deliveryType, businessAvailablePaymentMethods).includes(
+        paymentMethod,
+      )
+    ) {
       setError("Selecciona un método de pago válido para este tipo de entrega.");
       return;
     }
@@ -317,7 +332,7 @@ export function NewOrderDrawer({
         client: client.trim(),
         customerWhatsApp: customerWhatsApp.trim(),
         products: normalizedProducts.map(({ selectedProduct, quantity }) => ({
-          productId: selectedProduct!.id,
+          productId: selectedProduct!.productId,
           name: selectedProduct!.name,
           quantity,
           unitPrice: selectedProduct!.price,
@@ -551,11 +566,11 @@ export function NewOrderDrawer({
                     {products.map((product, index) => {
                       const availableOptions = activeProducts.filter(
                         (catalogProduct) =>
-                          catalogProduct.id === product.productId ||
-                          !selectedProductIds.includes(catalogProduct.id),
+                          catalogProduct.productId === product.productId ||
+                          !selectedProductIds.includes(catalogProduct.productId),
                       );
                       const selectedProduct = activeProducts.find(
-                        (catalogProduct) => catalogProduct.id === product.productId,
+                        (catalogProduct) => catalogProduct.productId === product.productId,
                       );
 
                       return (
@@ -580,7 +595,10 @@ export function NewOrderDrawer({
                             >
                               <option value="">Selecciona un producto</option>
                               {availableOptions.map((catalogProduct) => (
-                                <option key={catalogProduct.id} value={catalogProduct.id}>
+                                <option
+                                  key={catalogProduct.productId}
+                                  value={catalogProduct.productId}
+                                >
                                   {catalogProduct.name}
                                 </option>
                               ))}

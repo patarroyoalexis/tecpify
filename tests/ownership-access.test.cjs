@@ -25,8 +25,10 @@ const { createProductByIdRouteHandlers } = loadTsModule(
 
 const OWNER_ID = "user-owner";
 const NON_OWNER_ID = "user-other";
+const BUSINESS_ID = "0f9f5d8d-1234-4f6b-8f16-6e16b14ac101";
+const LEGACY_BUSINESS_ID = "0f9f5d8d-1234-4f6b-8f16-6e16b14ac199";
 const ORDER_ID = "0f9f5d8d-1234-4f6b-8f16-6e16b14ac001";
-const PRODUCT_ID = "prod-1";
+const PRODUCT_ID = "0f9f5d8d-1234-4f6b-8f16-6e16b14ac002";
 
 function createJsonRequest(url, method, body) {
   return new Request(url, {
@@ -40,10 +42,15 @@ function createJsonRequest(url, method, body) {
 
 function createOwnedBusinessContext(overrides = {}) {
   return {
-    businessId: "biz-1",
+    businessId: BUSINESS_ID,
     businessSlug: "mi-tienda",
     businessName: "Mi tienda",
-    ownerUserId: OWNER_ID,
+    transferInstructions: null,
+    acceptsCash: true,
+    acceptsTransfer: true,
+    acceptsCard: true,
+    allowsFiado: false,
+    createdByUserId: OWNER_ID,
     accessLevel: "owned",
     user: {
       userId: OWNER_ID,
@@ -56,15 +63,18 @@ function createOwnedBusinessContext(overrides = {}) {
 
 function createOrderFixture(overrides = {}) {
   return {
-    id: ORDER_ID,
+    orderId: ORDER_ID,
     orderCode: "WEB-123456",
     businessSlug: "mi-tienda",
     client: "Ana Perez",
     customerPhone: "3001234567",
-    products: [{ productId: "prod-1", name: "Hamburguesa", quantity: 2, unitPrice: 15000 }],
+    products: [{ productId: PRODUCT_ID, name: "Hamburguesa", quantity: 2, unitPrice: 15000 }],
     total: 30000,
-    paymentMethod: "Nequi",
+    paymentMethod: "Transferencia",
     paymentStatus: "pendiente",
+    isFiado: false,
+    fiadoStatus: null,
+    fiadoObservation: null,
     deliveryType: "domicilio",
     address: "Calle 1 # 2-3",
     status: "pendiente de pago",
@@ -86,16 +96,16 @@ function createOrderFixture(overrides = {}) {
 
 function createProductFixture(overrides = {}) {
   return {
-    id: PRODUCT_ID,
-    business_id: "biz-1",
+    productId: PRODUCT_ID,
+    businessId: BUSINESS_ID,
     name: "Hamburguesa",
     description: "Doble carne",
     price: 15000,
-    is_available: true,
-    is_featured: false,
-    sort_order: 1,
-    created_at: "2026-03-25T21:00:00.000Z",
-    updated_at: "2026-03-25T21:00:00.000Z",
+    isAvailable: true,
+    isFeatured: false,
+    sortOrder: 1,
+    createdAt: "2026-03-25T21:00:00.000Z",
+    updatedAt: "2026-03-25T21:00:00.000Z",
     ...overrides,
   };
 }
@@ -106,9 +116,9 @@ test("ownership: un negocio sin created_by_user_id verificable no obtiene acceso
   assert.equal(
     getBusinessAccessLevel(
       {
-        businessId: "biz-1",
+        businessId: BUSINESS_ID,
         businessSlug: "mi-tienda",
-        ownerUserId: OWNER_ID,
+        createdByUserId: OWNER_ID,
       },
       OWNER_ID,
     ),
@@ -117,9 +127,9 @@ test("ownership: un negocio sin created_by_user_id verificable no obtiene acceso
   assert.equal(
     getBusinessAccessLevel(
       {
-        businessId: "biz-legacy",
+        businessId: LEGACY_BUSINESS_ID,
         businessSlug: "legacy",
-        ownerUserId: null,
+        createdByUserId: null,
       },
       OWNER_ID,
     ),
@@ -127,17 +137,17 @@ test("ownership: un negocio sin created_by_user_id verificable no obtiene acceso
   );
   assert.equal(
     canAccessBusiness(OWNER_ID, {
-      businessId: "biz-legacy",
+      businessId: LEGACY_BUSINESS_ID,
       businessSlug: "legacy",
-      ownerUserId: null,
+      createdByUserId: null,
     }),
     false,
   );
   assert.equal(
     canAccessBusiness(NON_OWNER_ID, {
-      businessId: "biz-1",
+      businessId: BUSINESS_ID,
       businessSlug: "mi-tienda",
-      ownerUserId: OWNER_ID,
+      createdByUserId: OWNER_ID,
     }),
     false,
   );
@@ -146,7 +156,7 @@ test("ownership: un negocio sin created_by_user_id verificable no obtiene acceso
 test("ownership: crear negocio exige sesion valida", async () => {
   let insertWasCalled = false;
   const handlers = createBusinessesRouteHandlers({
-    normalizeBusinessSlug: (value) => value.trim().toLowerCase(),
+    requireBusinessSlug: (value) => value.trim().toLowerCase(),
     requireAuthenticatedApiUser: async () => ({
       ok: false,
       response: NextResponse.json(
@@ -162,14 +172,14 @@ test("ownership: crear negocio exige sesion valida", async () => {
     }),
     debugError: () => {},
     debugLog: () => {},
-    createBusinessId: () => "biz-1",
+    createBusinessId: () => BUSINESS_ID,
     getNow: () => "2026-03-25T21:00:00.000Z",
   });
 
   const response = await handlers.POST(
     createJsonRequest("http://localhost/api/businesses", "POST", {
       name: "Mi tienda",
-      slug: "mi-tienda",
+      businessSlug: "mi-tienda",
     }),
   );
   const body = await response.json();
@@ -179,10 +189,10 @@ test("ownership: crear negocio exige sesion valida", async () => {
   assert.equal(insertWasCalled, false);
 });
 
-test("ownership: crear negocio rechaza owner enviado por cliente", async () => {
+test("ownership: crear negocio rechaza aliases de ownership enviados por cliente", async () => {
   let insertWasCalled = false;
   const handlers = createBusinessesRouteHandlers({
-    normalizeBusinessSlug: (value) => value.trim().toLowerCase(),
+    requireBusinessSlug: (value) => value.trim().toLowerCase(),
     requireAuthenticatedApiUser: async () => ({
       ok: true,
       user: {
@@ -199,15 +209,16 @@ test("ownership: crear negocio rechaza owner enviado por cliente", async () => {
     }),
     debugError: () => {},
     debugLog: () => {},
-    createBusinessId: () => "biz-1",
+    createBusinessId: () => BUSINESS_ID,
     getNow: () => "2026-03-25T21:00:00.000Z",
   });
 
   const response = await handlers.POST(
     createJsonRequest("http://localhost/api/businesses", "POST", {
       name: "Mi tienda",
-      slug: "mi-tienda",
+      businessSlug: "mi-tienda",
       createdByUserId: NON_OWNER_ID,
+      created_by_user_id: NON_OWNER_ID,
     }),
   );
   const body = await response.json();
@@ -215,21 +226,23 @@ test("ownership: crear negocio rechaza owner enviado por cliente", async () => {
   assert.equal(response.status, 400);
   assert.match(body.error, /campos no permitidos/i);
   assert.match(body.error, /createdByUserId/);
+  assert.match(body.error, /created_by_user_id/);
   assert.equal(insertWasCalled, false);
 });
 
 test("ownership: crear negocio persiste created_by_user_id desde la sesion y no desde el cliente", async () => {
   let insertedPayload = null;
   const expectedRow = {
-    id: "biz-1",
+    id: BUSINESS_ID,
     slug: "mi-tienda",
     name: "Mi tienda",
+    transfer_instructions: null,
     created_at: "2026-03-25T21:00:00.000Z",
     updated_at: "2026-03-25T21:00:00.000Z",
     created_by_user_id: OWNER_ID,
   };
   const handlers = createBusinessesRouteHandlers({
-    normalizeBusinessSlug: (value) => value.trim().toLowerCase(),
+    requireBusinessSlug: (value) => value.trim().toLowerCase(),
     requireAuthenticatedApiUser: async () => ({
       ok: true,
       user: {
@@ -259,14 +272,14 @@ test("ownership: crear negocio persiste created_by_user_id desde la sesion y no 
     }),
     debugError: () => {},
     debugLog: () => {},
-    createBusinessId: () => "biz-1",
+    createBusinessId: () => BUSINESS_ID,
     getNow: () => "2026-03-25T21:00:00.000Z",
   });
 
   const response = await handlers.POST(
     createJsonRequest("http://localhost/api/businesses", "POST", {
       name: " Mi tienda ",
-      slug: "Mi-Tienda",
+      businessSlug: "Mi-Tienda",
     }),
   );
   const body = await response.json();
@@ -274,12 +287,14 @@ test("ownership: crear negocio persiste created_by_user_id desde la sesion y no 
   assert.equal(response.status, 201);
   assert.equal(insertedPayload.created_by_user_id, OWNER_ID);
   assert.equal(insertedPayload.slug, "mi-tienda");
+  assert.equal(body.business.businessId, BUSINESS_ID);
+  assert.equal(body.business.businessSlug, "mi-tienda");
   assert.equal(body.business.createdByUserId, OWNER_ID);
 });
 
 test("ownership: la lectura privada de pedidos exige sesion o contexto valido", async () => {
   const handlers = createOrdersRouteHandlers({
-    normalizeBusinessSlug: (value) => value.trim().toLowerCase(),
+    requireBusinessSlug: (value) => value.trim().toLowerCase(),
     requireBusinessApiContext: async () => ({
       ok: false,
       response: NextResponse.json(
@@ -307,7 +322,7 @@ test("ownership: la lectura privada de pedidos exige sesion o contexto valido", 
 test("ownership: owner puede leer pedidos de su negocio", async () => {
   const expectedOrders = [createOrderFixture()];
   const handlers = createOrdersRouteHandlers({
-    normalizeBusinessSlug: (value) => value.trim().toLowerCase(),
+    requireBusinessSlug: (value) => value.trim().toLowerCase(),
     requireBusinessApiContext: async () => ({
       ok: true,
       context: createOwnedBusinessContext(),
@@ -325,12 +340,12 @@ test("ownership: owner puede leer pedidos de su negocio", async () => {
 
   assert.equal(response.status, 200);
   assert.equal(body.orders.length, 1);
-  assert.equal(body.orders[0].id, ORDER_ID);
+  assert.equal(body.orders[0].orderId, ORDER_ID);
 });
 
 test("ownership: no-owner no puede leer pedidos de un negocio ajeno", async () => {
   const handlers = createOrdersRouteHandlers({
-    normalizeBusinessSlug: (value) => value.trim().toLowerCase(),
+    requireBusinessSlug: (value) => value.trim().toLowerCase(),
     requireBusinessApiContext: async () => ({
       ok: false,
       response: NextResponse.json({ error: "No tienes acceso a este negocio." }, { status: 403 }),
@@ -353,7 +368,7 @@ test("ownership: no-owner no puede leer pedidos de un negocio ajeno", async () =
 test("ownership: crear pedidos publicos rechaza campos de ownership enviados por cliente", async () => {
   let createOrderWasCalled = false;
   const handlers = createOrdersRouteHandlers({
-    normalizeBusinessSlug: (value) => value.trim().toLowerCase(),
+    requireBusinessSlug: (value) => value.trim().toLowerCase(),
     requireBusinessApiContext: async () => {
       throw new Error("requireBusinessApiContext no debe usarse en POST");
     },
@@ -372,7 +387,7 @@ test("ownership: crear pedidos publicos rechaza campos de ownership enviados por
       customerWhatsApp: "3001234567",
       deliveryType: "domicilio",
       deliveryAddress: "Calle 1 # 2-3",
-      paymentMethod: "Nequi",
+      paymentMethod: "Transferencia",
       products: [{ productId: PRODUCT_ID, name: "Hamburguesa", quantity: 2, unitPrice: 15000 }],
       total: 30000,
     }),
@@ -388,7 +403,7 @@ test("ownership: crear pedidos publicos rechaza campos de ownership enviados por
 test("ownership: crear pedidos manuales exige sesion valida", async () => {
   let createOrderWasCalled = false;
   const handlers = createWorkspaceOrdersRouteHandlers({
-    normalizeBusinessSlug: (value) => value.trim().toLowerCase(),
+    requireBusinessSlug: (value) => value.trim().toLowerCase(),
     requireBusinessApiContext: async () => ({
       ok: false,
       response: NextResponse.json(
@@ -409,7 +424,7 @@ test("ownership: crear pedidos manuales exige sesion valida", async () => {
       customerWhatsApp: "3001234567",
       deliveryType: "domicilio",
       deliveryAddress: "Calle 1 # 2-3",
-      paymentMethod: "Nequi",
+      paymentMethod: "Transferencia",
       products: [{ productId: PRODUCT_ID, name: "Hamburguesa", quantity: 2, unitPrice: 15000 }],
       total: 30000,
     }),
@@ -425,7 +440,7 @@ test("ownership: owner puede crear pedidos manuales solo dentro de su negocio", 
   let receivedPayload = null;
   let receivedOptions = null;
   const handlers = createWorkspaceOrdersRouteHandlers({
-    normalizeBusinessSlug: (value) => value.trim().toLowerCase(),
+    requireBusinessSlug: (value) => value.trim().toLowerCase(),
     requireBusinessApiContext: async (businessSlug) => ({
       ok: true,
       context: createOwnedBusinessContext({ businessSlug }),
@@ -444,7 +459,7 @@ test("ownership: owner puede crear pedidos manuales solo dentro de su negocio", 
       customerWhatsApp: "3001234567",
       deliveryType: "domicilio",
       deliveryAddress: "Calle 1 # 2-3",
-      paymentMethod: "Nequi",
+      paymentMethod: "Transferencia",
       products: [{ productId: PRODUCT_ID, name: "Hamburguesa", quantity: 2, unitPrice: 15000 }],
       total: 30000,
     }),
@@ -455,15 +470,15 @@ test("ownership: owner puede crear pedidos manuales solo dentro de su negocio", 
   assert.equal(receivedPayload.businessSlug, "mi-tienda");
   assert.deepEqual(receivedOptions, {
     origin: "workspace_manual",
-    businessId: "biz-1",
+    businessId: BUSINESS_ID,
   });
-  assert.equal(body.order.id, ORDER_ID);
+  assert.equal(body.order.orderId, ORDER_ID);
 });
 
 test("ownership: no-owner no puede crear pedidos manuales en negocio ajeno", async () => {
   let createOrderWasCalled = false;
   const handlers = createWorkspaceOrdersRouteHandlers({
-    normalizeBusinessSlug: (value) => value.trim().toLowerCase(),
+    requireBusinessSlug: (value) => value.trim().toLowerCase(),
     requireBusinessApiContext: async () => ({
       ok: false,
       response: NextResponse.json({ error: "No tienes acceso a este negocio." }, { status: 403 }),
@@ -481,7 +496,7 @@ test("ownership: no-owner no puede crear pedidos manuales en negocio ajeno", asy
       customerWhatsApp: "3001234567",
       deliveryType: "domicilio",
       deliveryAddress: "Calle 1 # 2-3",
-      paymentMethod: "Nequi",
+      paymentMethod: "Transferencia",
       products: [{ productId: PRODUCT_ID, name: "Hamburguesa", quantity: 2, unitPrice: 15000 }],
       total: 30000,
     }),
@@ -601,8 +616,8 @@ test("ownership: crear producto usa businessId resuelto desde contexto server-si
   const body = await response.json();
 
   assert.equal(response.status, 201);
-  assert.equal(receivedPayload.businessId, "biz-1");
-  assert.equal(body.product.id, PRODUCT_ID);
+  assert.equal(receivedPayload.businessId, BUSINESS_ID);
+  assert.equal(body.product.productId, PRODUCT_ID);
 });
 
 test("ownership: actualizar producto rechaza businessId enviado por cliente", async () => {
@@ -640,7 +655,10 @@ test("ownership: actualizar producto rechaza businessId enviado por cliente", as
 test("ownership: actualizar producto usa businessId resuelto desde contexto server-side", async () => {
   let receivedProductId = null;
   let receivedPayload = null;
-  const updatedProduct = createProductFixture({ price: 17000, updated_at: "2026-03-25T21:05:00.000Z" });
+  const updatedProduct = createProductFixture({
+    price: 17000,
+    updatedAt: "2026-03-25T21:05:00.000Z",
+  });
   const handlers = createProductByIdRouteHandlers({
     requireBusinessApiContext: async () => ({
       ok: true,
@@ -667,13 +685,13 @@ test("ownership: actualizar producto usa businessId resuelto desde contexto serv
 
   assert.equal(response.status, 200);
   assert.equal(receivedProductId, PRODUCT_ID);
-  assert.equal(receivedPayload.businessId, "biz-1");
+  assert.equal(receivedPayload.businessId, BUSINESS_ID);
   assert.equal(body.product.price, 17000);
 });
 
 test("ownership: un negocio legacy sin owner queda bloqueado para crear pedidos publicos", async () => {
   const handlers = createOrdersRouteHandlers({
-    normalizeBusinessSlug: (value) => value.trim().toLowerCase(),
+    requireBusinessSlug: (value) => value.trim().toLowerCase(),
     requireBusinessApiContext: async () => {
       throw new Error("requireBusinessApiContext no debe usarse en POST");
     },
@@ -692,8 +710,8 @@ test("ownership: un negocio legacy sin owner queda bloqueado para crear pedidos 
       customerWhatsApp: "3001234567",
       deliveryType: "domicilio",
       deliveryAddress: "Calle 1 # 2-3",
-      paymentMethod: "Nequi",
-      products: [{ productId: "prod-1", name: "Hamburguesa", quantity: 2, unitPrice: 15000 }],
+      paymentMethod: "Transferencia",
+      products: [{ productId: PRODUCT_ID, name: "Hamburguesa", quantity: 2, unitPrice: 15000 }],
       total: 30000,
     }),
   );

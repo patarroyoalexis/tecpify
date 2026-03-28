@@ -1,10 +1,10 @@
 import { createClient } from "@supabase/supabase-js";
 
-import { getOperationalEnv } from "@/lib/env";
+import { getOperationalEnv } from "../../env";
 import {
   assertServiceRoleUsageAllowed,
   type ServiceRoleUsageId,
-} from "@/lib/supabase/service-role";
+} from "../service-role";
 
 function readPrivilegedServiceRoleKey() {
   const normalizedValue = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();

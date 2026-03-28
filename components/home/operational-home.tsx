@@ -89,26 +89,26 @@ export function OperationalHome({
           <div className="grid gap-4 lg:grid-cols-2">
             {realBusinesses.map((business) => (
               <BusinessCard
-                key={business.slug}
+                key={business.businessSlug}
                 business={business}
                 badge="Real"
                 actions={[
                   {
-                    href: `/dashboard/${business.slug}`,
+                    href: `/dashboard/${business.businessSlug}`,
                     label: "Abrir dashboard",
                   },
                   {
-                    href: `/pedidos/${business.slug}`,
+                    href: `/pedidos/${business.businessSlug}`,
                     label: "Ir a pedidos",
                     variant: "secondary",
                   },
                   {
-                    href: `/metricas/${business.slug}`,
+                    href: `/metricas/${business.businessSlug}`,
                     label: "Ver metricas",
                     variant: "secondary",
                   },
                   {
-                    href: `/pedido/${business.slug}`,
+                    href: `/pedido/${business.businessSlug}`,
                     label: "Abrir formulario publico",
                     variant: "secondary",
                   },

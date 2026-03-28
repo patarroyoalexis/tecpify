@@ -1,4 +1,4 @@
-import { test } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 
 import {
   assertOrderVisibleInWorkspace,
@@ -6,17 +6,14 @@ import {
   createBusinessFromWorkspace,
   createCriticalFlowScenario,
   createOrderFromPublicStorefront,
-  ensureUserExists,
+  listOrdersFromPrivateApi,
   loginThroughUi,
   resolveTestUsers,
+  waitForOrderInPrivateApi,
+  waitForProductInPrivateApi,
 } from "./support/mvp-critical-flow";
 
 const testUsers = resolveTestUsers();
-
-test.beforeAll(async ({ request }) => {
-  await ensureUserExists(request, testUsers.owner);
-  await ensureUserExists(request, testUsers.intruder);
-});
 
 test.describe("MVP critical flow", () => {
   test("owner can create a business, publish a product, receive a public order and see it in the correct workspace", async ({
@@ -25,7 +22,10 @@ test.describe("MVP critical flow", () => {
   }, testInfo) => {
     test.setTimeout(120_000);
     const scenario = createCriticalFlowScenario();
+    const secondBusinessScenario = createCriticalFlowScenario();
     const baseURL = testInfo.project.use.baseURL;
+    let ownedProductId: string | null = null;
+    let ownedOrderId: string | null = null;
 
     if (typeof baseURL !== "string" || baseURL.length === 0) {
       throw new Error("Playwright baseURL debe estar configurada para abrir el storefront publico.");
@@ -53,6 +53,58 @@ test.describe("MVP critical flow", () => {
 
     await test.step("private workspace order visibility for the owner", async () => {
       await assertOrderVisibleInWorkspace(page, scenario);
+    });
+
+    await test.step("the persisted order is linked to the correct businessSlug and productId", async () => {
+      const ownedProduct = await waitForProductInPrivateApi(
+        page,
+        scenario.businessSlug,
+        scenario.productName,
+      );
+      const ownedOrder = await waitForOrderInPrivateApi(page, scenario.businessSlug, {
+        customerName: scenario.customerName,
+        productName: scenario.productName,
+      });
+
+      ownedProductId = ownedProduct.productId ?? null;
+      ownedOrderId = ownedOrder.orderId ?? null;
+      expect("productId" in ownedProduct).toBe(true);
+      expect("id" in ownedProduct).toBe(false);
+      expect("orderId" in ownedOrder).toBe(true);
+      expect("id" in ownedOrder).toBe(false);
+      expect(ownedOrder.businessSlug).toBe(scenario.businessSlug);
+      expect(ownedOrder.products).toEqual([
+        expect.objectContaining({
+          productId: ownedProduct.productId,
+          name: scenario.productName,
+          quantity: 1,
+        }),
+      ]);
+    });
+
+    await test.step("the order does not appear in a second business of the same owner", async () => {
+      if (!ownedProductId || !ownedOrderId) {
+        throw new Error("No fue posible resolver el productId y orderId reales del flujo critico.");
+      }
+
+      await page.goto("/dashboard");
+      await createBusinessFromWorkspace(page, secondBusinessScenario);
+
+      const secondBusinessOrders = await listOrdersFromPrivateApi(
+        page,
+        secondBusinessScenario.businessSlug,
+      );
+
+      expect(secondBusinessOrders).toHaveLength(0);
+      expect(
+        secondBusinessOrders.some(
+          (order) =>
+            order.orderId === ownedOrderId ||
+            order.client === scenario.customerName ||
+            order.businessSlug === scenario.businessSlug ||
+            order.products?.some((product) => product.productId === ownedProductId),
+        ),
+      ).toBe(false);
     });
   });
 });

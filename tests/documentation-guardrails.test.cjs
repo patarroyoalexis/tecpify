@@ -4,7 +4,13 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 
+const {
+  formatTransitions,
+  getLegacyOwnerlessSqlClosureState,
+} = require("./helpers/sql-migration-state.cjs");
+
 const repoRoot = process.cwd();
+const migrationsDir = path.join(repoRoot, "supabase", "migrations");
 
 const README_REQUIRED_HEADINGS = [
   "## 1. Que es Tecpify hoy",
@@ -35,6 +41,8 @@ const AGENTS_DEFINITIONS_HEADING = "### Definiciones canonicas del MVP";
 const CANONICAL_DEFINITION_ITEMS = [
   "Supabase es la fuente de verdad de negocios, productos y pedidos del MVP.",
   "`businessId` significa UUID de base de datos y `businessSlug` significa slug de URL; rutas, params y helpers deben respetar esa frontera.",
+  "`productId` significa UUID interno de producto; no existe un alias publico alterno para ese identificador.",
+  "`orderId` significa UUID interno del pedido y `orderCode` significa identificador visible/operativo del pedido.",
   "Los negocios legacy sin owner son casos invalidos/no soportados del MVP: permanecen inaccesibles en workspace, storefront y pedidos operativos, y cualquier saneamiento debe ocurrir fuera del runtime antes de persistir `businesses.created_by_user_id`.",
   "`status`, `paymentStatus`, `history` y cualquier metadato derivable del pedido no son verdad cruda confiable del cliente; el server y la DB los derivan, validan o bloquean.",
   "El runtime normal del MVP usa solo cliente publico/anon acotado, cliente autenticado SSR y RLS; `SUPABASE_SERVICE_ROLE_KEY` queda aislada fuera de esa frontera.",
@@ -42,8 +50,48 @@ const CANONICAL_DEFINITION_ITEMS = [
   "`README.md` y `AGENTS.md` no pueden declarar mas de lo que garantizan runtime + DB + tests.",
 ];
 
+const FORBIDDEN_OWNERSHIP_ALIAS_PATTERN = new RegExp(
+  [
+    ["owner", "_id"].join(""),
+    ["owner", "_user", "_id"].join(""),
+    ["owner", "UserId"].join(""),
+  ]
+    .map((alias) => `\\b${alias}\\b`)
+    .join("|"),
+);
+
+const FORBIDDEN_RUNTIME_OWNERSHIP_ALIAS_PATTERN = new RegExp(
+  `\\b${["owner", "UserId"].join("")}\\b`,
+);
+
 function readFile(relativePath) {
   return fs.readFileSync(path.join(repoRoot, relativePath), "utf8");
+}
+
+function getLatestMigrationSourceByPattern(pattern) {
+  const migrationFilenames = fs
+    .readdirSync(migrationsDir)
+    .filter((filename) => filename.endsWith(".sql"))
+    .filter((filename) => pattern.test(fs.readFileSync(path.join(migrationsDir, filename), "utf8")))
+    .sort();
+
+  if (migrationFilenames.length === 0) {
+    throw new Error(`No se encontro una migracion que coincida con ${pattern}.`);
+  }
+
+  return fs.readFileSync(path.join(migrationsDir, migrationFilenames.at(-1)), "utf8");
+}
+
+function extractSqlFunctionBlock(source, functionName) {
+  const escapedFunctionName = functionName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = source.match(
+    new RegExp(
+      `create(?:\\s+or\\s+replace)?\\s+function\\s+${escapedFunctionName}\\([\\s\\S]*?\\n\\$\\$;`,
+      "i",
+    ),
+  );
+
+  return match?.[0] ?? "";
 }
 
 function getSectionBulletItems(relativePath, heading) {
@@ -143,6 +191,7 @@ test("documentacion: las afirmaciones contractuales siguen alineadas con el codi
   const supabaseClientSource = readFile("lib/supabase/client.ts");
   const serviceRoleClientSource = readFile("lib/supabase/internal/service-role-client.ts");
   const businessesDataSource = readFile("data/businesses.ts");
+  const businessAccessSource = readFile("lib/auth/business-access.ts");
   const operationalHomeSource = readFile("components/home/operational-home.tsx");
   const legacyBusinessAccessSource = readFile("lib/auth/legacy-business-access.ts");
   const privateBusinessPagesSource = readFile("lib/page-contracts/private-business-pages.ts");
@@ -159,15 +208,17 @@ test("documentacion: las afirmaciones contractuales siguen alineadas con el codi
   const ordersUpdatePayloadBlock = ordersDataSource.match(
     /const updatePayload = \{(?<block>[\s\S]*?)\n\s*};/,
   );
-  const legacyRemediationRetirementMigrationSource = readFile(
-    "supabase/migrations/20260326001_retire_legacy_business_runtime_remediation.sql",
+  const orderPaymentMigrationSource = getLatestMigrationSourceByPattern(
+    /create(?:\s+or\s+replace)?\s+function\s+public\.orders_payment_method_is_valid/i,
   );
-  const orderPaymentMigrationSource = readFile(
-    "supabase/migrations/20260326002_enforce_order_payment_rules_in_db.sql",
+  const orderPaymentMethodValidationSource = extractSqlFunctionBlock(
+    orderPaymentMigrationSource,
+    "public.orders_payment_method_is_valid",
   );
-  const orderHistoryMigrationSource = readFile(
-    "supabase/migrations/20260326003_enforce_order_history_in_db.sql",
+  const orderHistoryMigrationSource = getLatestMigrationSourceByPattern(
+    /create(?:\s+or\s+replace)?\s+function\s+public\.update_order_with_server_history/i,
   );
+  const legacyOwnerlessSqlClosureState = getLegacyOwnerlessSqlClosureState();
 
   assert.match(
     readmeSource,
@@ -179,6 +230,36 @@ test("documentacion: las afirmaciones contractuales siguen alineadas con el codi
     /cualquier saneamiento debe ocurrir fuera del runtime/i,
     "AGENTS.md debe describir honestamente la estrategia final para negocios ownerless.",
   );
+  assert.match(
+    readmeSource,
+    /definicion final efectiva/i,
+    "README.md debe documentar que la estrategia ownerless tambien queda cerrada en la definicion final efectiva.",
+  );
+  assert.match(
+    agentsSource,
+    /definicion final efectiva/i,
+    "AGENTS.md debe documentar que la estrategia ownerless tambien queda cerrada en la definicion final efectiva.",
+  );
+  assert.match(
+    readmeSource,
+    /public\.businesses\.created_by_user_id[\s\S]*createdByUserId/i,
+    "README.md debe fijar la frontera entre el detalle SQL created_by_user_id y el contrato TypeScript createdByUserId.",
+  );
+  assert.match(
+    agentsSource,
+    /public\.businesses\.created_by_user_id[\s\S]*createdByUserId/i,
+    "AGENTS.md debe fijar la frontera entre el detalle SQL created_by_user_id y el contrato TypeScript createdByUserId.",
+  );
+  assert.doesNotMatch(
+    readmeSource,
+    FORBIDDEN_OWNERSHIP_ALIAS_PATTERN,
+    "README.md no debe reintroducir aliases falsos de ownership.",
+  );
+  assert.doesNotMatch(
+    agentsSource,
+    FORBIDDEN_OWNERSHIP_ALIAS_PATTERN,
+    "AGENTS.md no debe reintroducir aliases falsos de ownership.",
+  );
   assert.doesNotMatch(
     readmeSource,
     /remediacion auditable|claim controlado/i,
@@ -189,11 +270,56 @@ test("documentacion: las afirmaciones contractuales siguen alineadas con el codi
     /remediacion auditable|claim controlado/i,
     "AGENTS.md no debe prometer una remediacion legacy que el guardian ya no respalda.",
   );
+  assert.doesNotMatch(
+    readmeSource,
+    /20260326004_add_legacy_business_ownership_remediation|sigue inconsistente|no puede declararse cerrado/i,
+    "README.md no puede seguir describiendo ownerless como un frente abierto despues del cierre SQL efectivo.",
+  );
+  assert.doesNotMatch(
+    agentsSource,
+    /20260326004_add_legacy_business_ownership_remediation|contradiccion estructural|no puede declararse cerrado todavia/i,
+    "AGENTS.md no puede seguir describiendo ownerless como una contradiccion abierta despues del cierre SQL efectivo.",
+  );
+  assert.match(
+    readmeSource,
+    /bootstrap(?:ea|ear)?.*fixtures.*Auth/i,
+    "README.md debe documentar el bootstrap seguro de fixtures E2E en lugar de cuentas humanas reutilizadas.",
+  );
+  assert.match(
+    agentsSource,
+    /bootstrap(?:ea|ear)?.*fixtures.*Auth/i,
+    "AGENTS.md debe reflejar el contrato real del bootstrap E2E aislado de test.",
+  );
+  assert.doesNotMatch(
+    readmeSource,
+    /\bPLAYWRIGHT_OWNER_EMAIL\b|\bPLAYWRIGHT_OWNER_PASSWORD\b|\bPLAYWRIGHT_INTRUDER_EMAIL\b|\bPLAYWRIGHT_INTRUDER_PASSWORD\b/,
+    "README.md no debe seguir documentando credenciales humanas reutilizables para E2E.",
+  );
+  assert.doesNotMatch(
+    agentsSource,
+    /\bPLAYWRIGHT_OWNER_EMAIL\b|\bPLAYWRIGHT_OWNER_PASSWORD\b|\bPLAYWRIGHT_INTRUDER_EMAIL\b|\bPLAYWRIGHT_INTRUDER_PASSWORD\b/,
+    "AGENTS.md no debe seguir documentando credenciales humanas reutilizables para E2E.",
+  );
 
   assert.match(
     businessesApiSource,
     /created_by_user_id:\s*authResult\.user\.userId/,
     "La creacion de negocios debe resolver ownership desde la sesion autenticada.",
+  );
+  assert.match(
+    businessesApiSource,
+    /createdByUserId:\s*row\.created_by_user_id/,
+    "La respuesta de negocios debe mapear created_by_user_id hacia createdByUserId sin aliases paralelos.",
+  );
+  assert.match(
+    businessAccessSource,
+    /\bcreatedByUserId\b/,
+    "La capa de acceso debe usar createdByUserId como contrato TypeScript de ownership.",
+  );
+  assert.doesNotMatch(
+    businessAccessSource,
+    FORBIDDEN_RUNTIME_OWNERSHIP_ALIAS_PATTERN,
+    "La capa de acceso no debe conservar aliases paralelos de ownership.",
   );
   assert.match(
     businessesApiSource,
@@ -209,6 +335,11 @@ test("documentacion: las afirmaciones contractuales siguen alineadas con el codi
     productByIdApiSource,
     /PRODUCT_MUTATION_ALLOWED_FIELDS/,
     "La ruta de productos por id debe vetar campos sensibles enviados por cliente.",
+  );
+  assert.match(
+    productByIdApiSource,
+    /parseProductId/,
+    "La ruta privada de productos debe validar server-side que productId sea un UUID interno.",
   );
   assert.match(
     productsApiSource,
@@ -340,9 +471,23 @@ test("documentacion: las afirmaciones contractuales siguen alineadas con el codi
     /unsupported_ownerless_blocked|ownerless_unsupported/,
     "La estrategia de ownership debe declarar que ownerless es un caso bloqueado y no soportado.",
   );
+  assert.match(
+    legacyBusinessAccessSource,
+    /\bcreatedByUserId\b/,
+    "La estrategia legacy debe usar createdByUserId como contrato TypeScript de ownership.",
+  );
   assert.doesNotMatch(
     legacyBusinessAccessSource,
-    /ownerless_requested|ownerless_claimable|remediated/,
+    new RegExp(
+      [
+        "ownerless_requested",
+        "ownerless_claimable",
+        "remediated",
+        ["owner", "UserId"].join(""),
+      ]
+        .map((pattern) => (pattern.includes("_") || pattern === "remediated" ? pattern : `\\b${pattern}\\b`))
+        .join("|"),
+    ),
     "La capa de acceso no debe seguir modelando estados de remediacion runtime.",
   );
   assert.match(
@@ -440,6 +585,11 @@ test("documentacion: las afirmaciones contractuales siguen alineadas con el codi
   );
   assert.match(
     orderStateRulesSource,
+    /collectLegacyOrderProductAliasFields|"product_id" in product/,
+    "El POST debe bloquear aliases legacy dentro de products y exigir productId canónico.",
+  );
+  assert.match(
+    orderStateRulesSource,
     /deriveInitialOrderStateFromPaymentMethod/,
     "El nucleo de reglas debe derivar el estado inicial segun el metodo de pago.",
   );
@@ -487,43 +637,55 @@ test("documentacion: las afirmaciones contractuales siguen alineadas con el codi
   );
   assert.equal(
     fs.existsSync(
+      path.join(repoRoot, "app", "api", "businesses", "legacy-remediation", "grant", "route.ts"),
+    ),
+    false,
+    "El repo no debe conservar una ruta runtime para habilitar claim legacy.",
+  );
+  assert.equal(
+    fs.existsSync(
       path.join(repoRoot, "app", "api", "businesses", "legacy-remediation", "claim", "route.ts"),
     ),
     false,
     "El repo no debe conservar una ruta runtime para reclamar ownership legacy.",
   );
-  assert.match(
-    legacyRemediationRetirementMigrationSource,
-    /drop function if exists public\.request_legacy_business_ownership_remediation\(text\) cascade/i,
-    "La migracion final debe retirar la solicitud runtime legacy.",
+  assert.equal(
+    fs.existsSync(
+      path.join(repoRoot, "app", "api", "businesses", "legacy-remediation", "list", "route.ts"),
+    ),
+    false,
+    "El repo no debe conservar una ruta runtime para listar remediaciones legacy.",
+  );
+  for (const retiredSurface of [
+    ...legacyOwnerlessSqlClosureState.forbiddenTables,
+    ...legacyOwnerlessSqlClosureState.forbiddenFunctions,
+    ...legacyOwnerlessSqlClosureState.forbiddenTriggers,
+  ]) {
+    assert.equal(
+      retiredSurface.state,
+      "absent",
+      `${retiredSurface.name} debe quedar retirado en la definicion final efectiva. Transiciones: ${formatTransitions(retiredSurface.transitions)}`,
+    );
+  }
+  for (const grantState of legacyOwnerlessSqlClosureState.authenticatedGrantStates) {
+    assert.equal(
+      grantState.granted,
+      false,
+      `${grantState.name} no puede quedar concedido a authenticated. Transiciones: ${formatTransitions(grantState.transitions)}`,
+    );
+  }
+  assert.equal(
+    legacyOwnerlessSqlClosureState.blockerFunction.state,
+    "present",
+    `La base debe conservar la funcion veto ownerless -> owned. Transiciones: ${formatTransitions(legacyOwnerlessSqlClosureState.blockerFunction.transitions)}`,
+  );
+  assert.equal(
+    legacyOwnerlessSqlClosureState.blockerTrigger.state,
+    "present",
+    `La base debe conservar el trigger veto ownerless -> owned. Transiciones: ${formatTransitions(legacyOwnerlessSqlClosureState.blockerTrigger.transitions)}`,
   );
   assert.match(
-    legacyRemediationRetirementMigrationSource,
-    /drop function if exists public\.grant_legacy_business_owner_claim\(text, text\) cascade/i,
-    "La migracion final debe retirar la habilitacion runtime de claim legacy.",
-  );
-  assert.match(
-    legacyRemediationRetirementMigrationSource,
-    /drop function if exists public\.claim_legacy_business_ownership\(text\) cascade/i,
-    "La migracion final debe retirar el claim runtime legacy.",
-  );
-  assert.match(
-    legacyRemediationRetirementMigrationSource,
-    /drop table if exists public\.legacy_business_ownership_remediation_events cascade/i,
-    "La migracion final no debe dejar la remediacion solo en tablas SQL aisladas.",
-  );
-  assert.match(
-    legacyRemediationRetirementMigrationSource,
-    /drop table if exists public\.legacy_business_ownership_remediations cascade/i,
-    "La migracion final debe retirar el estado persistido de remediacion runtime.",
-  );
-  assert.match(
-    legacyRemediationRetirementMigrationSource,
-    /prevent_unsupported_legacy_business_owner_assignment/i,
-    "La base debe bloquear ownerless -> owned dentro del runtime del MVP.",
-  );
-  assert.match(
-    legacyRemediationRetirementMigrationSource,
+    legacyOwnerlessSqlClosureState.blockerFunction.latestMigration?.source ?? "",
     /cannot be claimed or reassigned in runtime/i,
     "La base debe declarar de forma explicita que ownerless no es remediable en runtime.",
   );
@@ -546,6 +708,36 @@ test("documentacion: las afirmaciones contractuales siguen alineadas con el codi
     orderPaymentMigrationSource,
     /orders_payment_write_is_valid/i,
     "Supabase debe exponer una validacion reutilizable para blindar writes directos de orders.",
+  );
+  assert.match(
+    orderPaymentMethodValidationSource,
+    /'Transferencia'/,
+    "La definicion efectiva de metodos de pago en DB debe aceptar Transferencia como metodo generico.",
+  );
+  assert.doesNotMatch(
+    orderPaymentMethodValidationSource,
+    /'Nequi'|'Daviplata'|'Bre-B'/,
+    "La definicion efectiva de metodos de pago en DB no debe conservar aliases separados para transferencias.",
+  );
+  assert.match(
+    readmeSource,
+    /flags publicos[\s\S]*acceptsCash[\s\S]*acceptsTransfer[\s\S]*acceptsCard[\s\S]*allowsFiado/i,
+    "README.md debe documentar los flags operativos del negocio y el caracter interno de allowsFiado.",
+  );
+  assert.match(
+    agentsSource,
+    /accepts_cash.*accepts_transfer.*accepts_card.*allows_fiado/i,
+    "AGENTS.md debe documentar los flags persistidos del negocio para metodos publicos y fiado interno.",
+  );
+  assert.match(
+    readmeSource,
+    /Fiado .*nunca aparece en checkout ni formularios del cliente/i,
+    "README.md debe describir que Fiado es interno y no publico.",
+  );
+  assert.match(
+    agentsSource,
+    /Fiado .*solo puede activarse en superficie privada autorizada/i,
+    "AGENTS.md debe describir que Fiado es una operacion privada autorizada.",
   );
   assert.match(
     orderPaymentMigrationSource,

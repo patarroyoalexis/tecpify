@@ -12,7 +12,7 @@ interface OrdersApiListResponse {
 
 interface OrdersApiCreateResponse {
   order: Order;
-  orderCode?: string | null;
+  orderCode?: Order["orderCode"] | null;
   persistedRemotely?: boolean;
 }
 
@@ -120,7 +120,10 @@ interface OrdersApiUpdateResponse {
   persistedRemotely?: boolean;
 }
 
-export async function updateOrderViaApi(orderId: string, payload: OrderApiUpdatePayload) {
+export async function updateOrderViaApi(
+  orderId: Order["orderId"],
+  payload: OrderApiUpdatePayload,
+) {
   debugLog("[dashboard] Updating order via API", {
     orderId,
     fieldsUpdated: Object.keys(payload ?? {}),

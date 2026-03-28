@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { debugError, debugLog } from "@/lib/debug";
-import { normalizeBusinessSlug } from "@/lib/businesses/slug";
+import { requireBusinessSlug } from "@/lib/businesses/slug";
 import { requireBusinessApiContext } from "@/lib/auth/server";
 import { sanitizeClientCreateOrderPayload } from "@/lib/orders/state-rules";
 import {
@@ -14,7 +14,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 }
 
 interface OrdersRouteDependencies {
-  normalizeBusinessSlug: typeof normalizeBusinessSlug;
+  requireBusinessSlug: typeof requireBusinessSlug;
   requireBusinessApiContext: typeof requireBusinessApiContext;
   getOrdersByBusinessIdFromDatabase: typeof getOrdersByBusinessIdFromDatabase;
   createOrderInDatabase: typeof createOrderInDatabase;
@@ -22,7 +22,7 @@ interface OrdersRouteDependencies {
 
 export function createOrdersRouteHandlers(
   dependencies: OrdersRouteDependencies = {
-    normalizeBusinessSlug,
+    requireBusinessSlug,
     requireBusinessApiContext,
     getOrdersByBusinessIdFromDatabase,
     createOrderInDatabase,
@@ -32,9 +32,13 @@ export function createOrdersRouteHandlers(
     async GET(request: Request) {
       const { searchParams } = new URL(request.url);
       const rawBusinessSlug = searchParams.get("businessSlug");
-      const businessSlug = rawBusinessSlug
-        ? dependencies.normalizeBusinessSlug(rawBusinessSlug)
-        : "";
+      let businessSlug = "";
+
+      try {
+        businessSlug = rawBusinessSlug ? dependencies.requireBusinessSlug(rawBusinessSlug) : "";
+      } catch {
+        businessSlug = "";
+      }
 
       if (!businessSlug) {
         return NextResponse.json(
@@ -104,10 +108,16 @@ export function createOrdersRouteHandlers(
         );
       }
 
-      const normalizedBusinessSlug =
-        typeof sanitizedPayload.businessSlug === "string"
-          ? dependencies.normalizeBusinessSlug(sanitizedPayload.businessSlug)
-          : "";
+      let normalizedBusinessSlug = "";
+
+      try {
+        normalizedBusinessSlug =
+          typeof sanitizedPayload.businessSlug === "string"
+            ? dependencies.requireBusinessSlug(sanitizedPayload.businessSlug)
+            : "";
+      } catch {
+        normalizedBusinessSlug = "";
+      }
 
       if (!normalizedBusinessSlug) {
         return NextResponse.json(
@@ -127,7 +137,7 @@ export function createOrdersRouteHandlers(
           persistedRemotely: true,
         };
         debugLog("[orders-api] Created order", {
-          orderId: order.id,
+          orderId: order.orderId,
           hasOrderCode: Boolean(order.orderCode),
           persistedRemotely: true,
           ignoredDerivedFields,

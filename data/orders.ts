@@ -11,6 +11,7 @@ import type {
   OperationalPriority,
   Order,
 } from "@/types/orders";
+import { isPendingFiadoOrder } from "@/types/orders";
 
 function getOperationalReferenceDate() {
   return getCurrentDate();
@@ -27,6 +28,10 @@ function isPendingPayment(order: Order) {
       order.paymentStatus === "con novedad" ||
       order.paymentStatus === "no verificado")
   );
+}
+
+function isEffectiveRevenueOrder(order: Order) {
+  return isActiveOrder(order) && !isPendingFiadoOrder(order);
 }
 
 const currencyFormatter = new Intl.NumberFormat("es-CO", {
@@ -127,8 +132,10 @@ export interface MetricsOverviewSnapshot {
 export interface OrdersMetricsSummary {
   totalOrders: number;
   activeOrders: Order[];
+  effectiveRevenueOrders: Order[];
   referenceDayOrders: Order[];
   recentOrders: Order[];
+  pendingFiadoOrders: Order[];
   topProducts: ProductPerformance[];
   featuredProduct: ProductPerformance | null;
   deliveredRevenue: number;
@@ -141,6 +148,7 @@ export interface OrdersMetricsSummary {
   deliveredCount: number;
   cancelledCount: number;
   unreviewedCount: number;
+  pendingFiadoCount: number;
   referenceDateLabel: string;
   hasOrders: boolean;
 }
@@ -202,7 +210,7 @@ export function getTopProducts(orders: Order[], limit = 3): ProductPerformance[]
 export function getRevenueSeries(orders: Order[], limit = 5): RevenuePoint[] {
   const revenueByDay = new Map<string, RevenuePoint>();
 
-  for (const order of orders.filter(isActiveOrder)) {
+  for (const order of orders.filter(isEffectiveRevenueOrder)) {
     const date = new Date(order.createdAt);
     const key = date.toISOString().slice(0, 10);
     const label = new Intl.DateTimeFormat("es-CO", {
@@ -226,14 +234,15 @@ export function getRevenueSeries(orders: Order[], limit = 5): RevenuePoint[] {
 }
 
 export function getAverageTicket(orders: Order[]) {
-  const activeOrders = orders.filter(isActiveOrder);
+  const effectiveRevenueOrders = orders.filter(isEffectiveRevenueOrder);
 
-  if (activeOrders.length === 0) {
+  if (effectiveRevenueOrders.length === 0) {
     return 0;
   }
 
   return (
-    activeOrders.reduce((total, order) => total + order.total, 0) / activeOrders.length
+    effectiveRevenueOrders.reduce((total, order) => total + order.total, 0) /
+    effectiveRevenueOrders.length
   );
 }
 
@@ -241,6 +250,8 @@ export function getOrdersMetricsSummary(orders: Order[]): OrdersMetricsSummary {
   const referenceDate = getOperationalReferenceDate();
   const referenceDayOrders = getOrdersForReferenceDay(orders);
   const activeOrders = orders.filter(isActiveOrder);
+  const effectiveRevenueOrders = orders.filter(isEffectiveRevenueOrder);
+  const pendingFiadoOrders = orders.filter(isPendingFiadoOrder);
   const topProducts = getTopProducts(orders, 3);
   const featuredProduct = getTopProducts(referenceDayOrders, 1)[0] ?? topProducts[0] ?? null;
   const recentOrders = [...orders]
@@ -253,27 +264,27 @@ export function getOrdersMetricsSummary(orders: Order[]): OrdersMetricsSummary {
   return {
     totalOrders: orders.length,
     activeOrders,
+    effectiveRevenueOrders,
     referenceDayOrders,
     recentOrders,
+    pendingFiadoOrders,
     topProducts,
     featuredProduct,
     deliveredRevenue: orders
-      .filter((order) => order.status === "entregado")
+      .filter((order) => order.status === "entregado" && !isPendingFiadoOrder(order))
       .reduce((total, order) => total + order.total, 0),
-    activeRevenue: activeOrders.reduce((total, order) => total + order.total, 0),
+    activeRevenue: effectiveRevenueOrders.reduce((total, order) => total + order.total, 0),
     referenceDayRevenue: referenceDayOrders
-      .filter(isActiveOrder)
+      .filter(isEffectiveRevenueOrder)
       .reduce((total, order) => total + order.total, 0),
-    averageTicket:
-      activeOrders.length > 0
-        ? activeOrders.reduce((total, order) => total + order.total, 0) / activeOrders.length
-        : 0,
+    averageTicket: getAverageTicket(orders),
     pendingActionsCount: orders.filter((order) => isActionableOrderStatus(order.status)).length,
     pendingPaymentsCount: orders.filter(isPendingPayment).length,
     inProgressCount: orders.filter((order) => isProductionOrderStatus(order.status)).length,
     deliveredCount: orders.filter((order) => order.status === "entregado").length,
     cancelledCount: orders.filter((order) => order.status === "cancelado").length,
     unreviewedCount: orders.filter((order) => !order.isReviewed).length,
+    pendingFiadoCount: pendingFiadoOrders.length,
     referenceDateLabel: formatReferenceDateLabel(referenceDate),
     hasOrders: orders.length > 0,
   };
@@ -322,6 +333,12 @@ export function getBusinessInsights(orders: Order[]) {
   if (summary.pendingPaymentsCount > 0) {
     insights.push(
       `Tienes ${summary.pendingPaymentsCount} pago${summary.pendingPaymentsCount > 1 ? "s" : ""} pendiente${summary.pendingPaymentsCount > 1 ? "s" : ""} por validar para no frenar la operacion.`,
+    );
+  }
+
+  if (metricsSummary.pendingFiadoCount > 0) {
+    insights.push(
+      `Hay ${metricsSummary.pendingFiadoCount} fiado${metricsSummary.pendingFiadoCount === 1 ? "" : "s"} pendiente${metricsSummary.pendingFiadoCount === 1 ? "" : "s"} fuera de ingresos efectivos hasta marcarlos como pagados.`,
     );
   }
 

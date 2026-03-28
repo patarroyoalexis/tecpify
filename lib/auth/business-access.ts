@@ -1,4 +1,11 @@
-import { normalizeBusinessSlug } from "@/lib/businesses/slug";
+import { requireBusinessSlug } from "@/lib/businesses/slug";
+import {
+  requireBusinessId,
+  requireOrderId,
+  type BusinessId,
+  type BusinessSlug,
+  type OrderId,
+} from "@/types/identifiers";
 import {
   hasLegacyBusinessOwner,
   isLegacyBusinessBlocked,
@@ -9,6 +16,11 @@ interface BusinessOwnershipRow {
   id: string;
   slug: string;
   name: string;
+  transfer_instructions: string | null;
+  accepts_cash: boolean | null;
+  accepts_transfer: boolean | null;
+  accepts_card: boolean | null;
+  allows_fiado: boolean | null;
   created_by_user_id: string | null;
 }
 
@@ -20,33 +32,38 @@ interface OrderOwnershipRow {
 export type BusinessAccessLevel = "owned";
 
 export interface BusinessAccessResult {
-  businessId: string;
-  businessSlug: string;
+  businessId: BusinessId;
+  businessSlug: BusinessSlug;
   businessName: string;
-  ownerUserId: string;
+  transferInstructions: string | null;
+  acceptsCash: boolean;
+  acceptsTransfer: boolean;
+  acceptsCard: boolean;
+  allowsFiado: boolean;
+  createdByUserId: string;
   accessLevel: BusinessAccessLevel;
 }
 
 interface BusinessAccessInput {
-  businessId: string;
-  businessSlug: string;
-  ownerUserId: string | null;
+  businessId: BusinessId;
+  businessSlug: BusinessSlug;
+  createdByUserId: string | null;
 }
 
 export const hasVerifiedBusinessOwner = hasLegacyBusinessOwner;
 
 export function getBusinessAccessLevel(
-  { businessId, businessSlug, ownerUserId }: BusinessAccessInput,
+  { businessId, businessSlug, createdByUserId }: BusinessAccessInput,
   userId: string,
 ): BusinessAccessLevel | null {
   void businessId;
   void businessSlug;
 
-  if (isLegacyBusinessBlocked(ownerUserId) || !hasVerifiedBusinessOwner(ownerUserId)) {
+  if (isLegacyBusinessBlocked(createdByUserId) || !hasVerifiedBusinessOwner(createdByUserId)) {
     return null;
   }
 
-  if (ownerUserId === userId) {
+  if (createdByUserId === userId) {
     return "owned";
   }
 
@@ -58,11 +75,13 @@ function mapBusinessAccessResult(row: BusinessOwnershipRow, userId: string): Bus
     return null;
   }
 
+  const businessId = requireBusinessId(row.id);
+  const businessSlug = requireBusinessSlug(row.slug);
   const accessLevel = getBusinessAccessLevel(
     {
-      businessId: row.id,
-      businessSlug: row.slug,
-      ownerUserId: row.created_by_user_id,
+      businessId,
+      businessSlug,
+      createdByUserId: row.created_by_user_id,
     },
     userId,
   );
@@ -72,20 +91,27 @@ function mapBusinessAccessResult(row: BusinessOwnershipRow, userId: string): Bus
   }
 
   return {
-    businessId: row.id,
-    businessSlug: row.slug,
+    businessId,
+    businessSlug,
     businessName: row.name,
-    ownerUserId: row.created_by_user_id,
+    transferInstructions: row.transfer_instructions,
+    acceptsCash: row.accepts_cash ?? true,
+    acceptsTransfer: row.accepts_transfer ?? true,
+    acceptsCard: row.accepts_card ?? true,
+    allowsFiado: row.allows_fiado ?? false,
+    createdByUserId: row.created_by_user_id,
     accessLevel,
   };
 }
 
-async function getOwnedBusinessRowBySlug(slug: string) {
+async function getOwnedBusinessRowBySlug(businessSlug: BusinessSlug) {
   const supabase = await createServerSupabaseAuthClient();
   const { data, error } = await supabase
     .from("businesses")
-    .select("id, slug, name, created_by_user_id")
-    .eq("slug", slug)
+    .select(
+      "id, slug, name, transfer_instructions, accepts_cash, accepts_transfer, accepts_card, allows_fiado, created_by_user_id",
+    )
+    .eq("slug", businessSlug)
     .maybeSingle<BusinessOwnershipRow>();
 
   if (error) {
@@ -95,12 +121,15 @@ async function getOwnedBusinessRowBySlug(slug: string) {
   return data;
 }
 
-async function getOwnedBusinessRowById(businessId: string) {
+async function getOwnedBusinessRowById(businessId: BusinessId | string) {
+  const normalizedBusinessId = requireBusinessId(businessId);
   const supabase = await createServerSupabaseAuthClient();
   const { data, error } = await supabase
     .from("businesses")
-    .select("id, slug, name, created_by_user_id")
-    .eq("id", businessId)
+    .select(
+      "id, slug, name, transfer_instructions, accepts_cash, accepts_transfer, accepts_card, allows_fiado, created_by_user_id",
+    )
+    .eq("id", normalizedBusinessId)
     .maybeSingle<BusinessOwnershipRow>();
 
   if (error) {
@@ -110,12 +139,13 @@ async function getOwnedBusinessRowById(businessId: string) {
   return data;
 }
 
-async function getOwnedOrderRowById(orderId: string) {
+async function getOwnedOrderRowById(orderId: OrderId | string) {
+  const normalizedOrderId = requireOrderId(orderId);
   const supabase = await createServerSupabaseAuthClient();
   const { data, error } = await supabase
     .from("orders")
     .select("id, business_id")
-    .eq("id", orderId)
+    .eq("id", normalizedOrderId)
     .maybeSingle<OrderOwnershipRow>();
 
   if (error) {
@@ -129,13 +159,14 @@ export async function getBusinessAccessBySlug(
   slug: string,
   userId: string,
 ): Promise<BusinessAccessResult | null> {
-  const normalizedSlug = normalizeBusinessSlug(slug);
-
-  if (!normalizedSlug) {
+  let normalizedBusinessSlug;
+  try {
+    normalizedBusinessSlug = requireBusinessSlug(slug);
+  } catch {
     return null;
   }
 
-  const ownedBusiness = await getOwnedBusinessRowBySlug(normalizedSlug);
+  const ownedBusiness = await getOwnedBusinessRowBySlug(normalizedBusinessSlug);
 
   if (!ownedBusiness) {
     return null;
@@ -145,7 +176,7 @@ export async function getBusinessAccessBySlug(
 }
 
 export async function getBusinessAccessById(
-  businessId: string,
+  businessId: BusinessId | string,
   userId: string,
 ): Promise<BusinessAccessResult | null> {
   const ownedBusiness = await getOwnedBusinessRowById(businessId);
@@ -158,7 +189,7 @@ export async function getBusinessAccessById(
 }
 
 export async function getBusinessAccessByOrderId(
-  orderId: string,
+  orderId: OrderId | string,
   userId: string,
 ): Promise<BusinessAccessResult | null> {
   const ownedOrder = await getOwnedOrderRowById(orderId);
@@ -173,9 +204,9 @@ export async function getBusinessAccessByOrderId(
 export function canAccessBusiness(
   userId: string,
   business: {
-    businessId: string;
-    businessSlug: string;
-    ownerUserId: string | null;
+    businessId: BusinessId;
+    businessSlug: BusinessSlug;
+    createdByUserId: string | null;
   },
 ) {
   return getBusinessAccessLevel(business, userId) !== null;

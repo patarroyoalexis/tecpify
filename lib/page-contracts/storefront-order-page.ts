@@ -73,7 +73,7 @@ function StorefrontMessage({
 
 interface StorefrontOrderPageDependencies {
   getBusinessBySlugWithProducts: (
-    slug: string,
+    businessSlug: string,
   ) => Promise<BusinessProductsLookupResult>;
   StorefrontOrderWizard: ComponentType<{ business: BusinessConfig }>;
 }

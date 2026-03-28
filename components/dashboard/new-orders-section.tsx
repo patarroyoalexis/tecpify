@@ -3,10 +3,13 @@ import type { Order, OrderStatus, PaymentStatus } from "@/types/orders";
 
 interface NewOrdersSectionProps {
   orders: Order[];
-  onOpenDetails: (orderId: string) => void;
-  onQuickUpdateOrderStatus: (orderId: string, status: OrderStatus) => Promise<void>;
+  onOpenDetails: (orderId: Order["orderId"]) => void;
+  onQuickUpdateOrderStatus: (
+    orderId: Order["orderId"],
+    status: OrderStatus,
+  ) => Promise<void>;
   onQuickUpdatePaymentStatus: (
-    orderId: string,
+    orderId: Order["orderId"],
     paymentStatus: PaymentStatus,
   ) => Promise<void>;
   onMarkAllAsReviewed: () => void;
@@ -63,7 +66,7 @@ export function NewOrdersSection({
         <div className="space-y-4">
           {orders.map((order) => (
             <OrderCard
-              key={order.id}
+              key={order.orderId}
               order={order}
               onOpenDetails={onOpenDetails}
               onQuickUpdateOrderStatus={onQuickUpdateOrderStatus}

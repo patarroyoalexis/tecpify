@@ -3,9 +3,10 @@ import type {
   OrderProduct,
   PaymentMethod,
 } from "@/types/orders";
+import type { BusinessId, BusinessSlug, OrderId, ProductId } from "@/types/identifiers";
 
 export interface BusinessProduct {
-  id: string;
+  productId: ProductId;
   name: string;
   description: string;
   price: number;
@@ -15,8 +16,8 @@ export interface BusinessProduct {
 }
 
 export interface BusinessConfig {
-  slug: string;
-  databaseId?: string | null;
+  businessSlug: BusinessSlug;
+  businessId?: BusinessId | null;
   name: string;
   tagline: string;
   accent: string;
@@ -26,8 +27,8 @@ export interface BusinessConfig {
 }
 
 export interface StorefrontOrder {
-  id: string;
-  businessId: string;
+  orderId: OrderId;
+  businessId: BusinessId;
   businessName: string;
   customerName: string;
   customerPhone: string;

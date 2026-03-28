@@ -22,18 +22,22 @@ const {
 } = loadTsModule("lib/orders/state-rules.ts");
 
 const ORDER_ID = "0f9f5d8d-1234-4f6b-8f16-6e16b14ac001";
+const PRODUCT_ID = "0f9f5d8d-1234-4f6b-8f16-6e16b14ac002";
 
 function createOrderFixture(overrides = {}) {
   return {
-    id: ORDER_ID,
+    orderId: ORDER_ID,
     orderCode: "WEB-123456",
     businessSlug: "mi-tienda",
     client: "Ana Perez",
     customerPhone: "3001234567",
-    products: [{ productId: "prod-1", name: "Hamburguesa", quantity: 2, unitPrice: 15000 }],
+    products: [{ productId: PRODUCT_ID, name: "Hamburguesa", quantity: 2, unitPrice: 15000 }],
     total: 30000,
-    paymentMethod: "Nequi",
+    paymentMethod: "Transferencia",
     paymentStatus: "pendiente",
+    isFiado: false,
+    fiadoStatus: null,
+    fiadoObservation: null,
     deliveryType: "domicilio",
     address: "Calle 1 # 2-3",
     status: "pendiente de pago",
@@ -69,7 +73,7 @@ test("POST publico genera historial inicial server-side", () => {
     businessSlug: "mi-tienda",
     createdAt: "2026-03-25T21:00:00.000Z",
     deliveryType: "domicilio",
-    paymentMethod: "Nequi",
+    paymentMethod: "Transferencia",
     origin: "public_form",
   });
 
@@ -84,7 +88,7 @@ test("POST manual genera historial inicial server-side", () => {
     businessSlug: "mi-tienda",
     createdAt: "2026-03-25T21:00:00.000Z",
     deliveryType: "domicilio",
-    paymentMethod: "Nequi",
+    paymentMethod: "Transferencia",
     origin: "workspace_manual",
   });
 
@@ -99,7 +103,7 @@ test("dominio: el primer evento del historial difiere segun el origen real", () 
     businessSlug: "mi-tienda",
     createdAt: "2026-03-25T21:00:00.000Z",
     deliveryType: "domicilio",
-    paymentMethod: "Nequi",
+    paymentMethod: "Transferencia",
     origin: "public_form",
   });
   const workspaceState = buildInitialOrderServerState({
@@ -107,7 +111,7 @@ test("dominio: el primer evento del historial difiere segun el origen real", () 
     businessSlug: "mi-tienda",
     createdAt: "2026-03-25T21:00:00.000Z",
     deliveryType: "domicilio",
-    paymentMethod: "Nequi",
+    paymentMethod: "Transferencia",
     origin: "workspace_manual",
   });
 
@@ -119,7 +123,7 @@ test("dominio: el primer evento del historial difiere segun el origen real", () 
 });
 
 test("dominio: el estado inicial se deriva en servidor segun la regla de pago real", () => {
-  assert.deepEqual(deriveInitialOrderStateFromPaymentMethod("Nequi"), {
+  assert.deepEqual(deriveInitialOrderStateFromPaymentMethod("Transferencia"), {
     status: "pendiente de pago",
     paymentStatus: "pendiente",
   });
@@ -163,7 +167,7 @@ test("POST /api/orders crea un pedido valido desde storefront", async () => {
   let receivedOptions = null;
   const expectedOrder = createOrderFixture();
   const handlers = createOrdersRouteHandlers({
-    normalizeBusinessSlug: (value) => value.trim().toLowerCase(),
+    requireBusinessSlug: (value) => value.trim().toLowerCase(),
     requireBusinessApiContext: async () => {
       throw new Error("requireBusinessApiContext no debe usarse en POST");
     },
@@ -184,8 +188,8 @@ test("POST /api/orders crea un pedido valido desde storefront", async () => {
       customerWhatsApp: "3001234567",
       deliveryType: "domicilio",
       deliveryAddress: "Calle 1 # 2-3",
-      paymentMethod: "Nequi",
-      products: [{ productId: "prod-1", name: "Hamburguesa", quantity: 2, unitPrice: 15000 }],
+      paymentMethod: "Transferencia",
+      products: [{ productId: PRODUCT_ID, name: "Hamburguesa", quantity: 2, unitPrice: 15000 }],
       total: 30000,
       notes: "Sin cebolla",
     }),
@@ -197,13 +201,48 @@ test("POST /api/orders crea un pedido valido desde storefront", async () => {
   assert.equal(body.orderCode, expectedOrder.orderCode);
   assert.equal(receivedPayload.businessSlug, "mi-tienda");
   assert.deepEqual(receivedOptions, { origin: "public_form" });
-  assert.equal(body.order.id, expectedOrder.id);
+  assert.equal(body.order.orderId, expectedOrder.orderId);
+});
+
+test("POST /api/orders rechaza product_id legacy dentro de products", async () => {
+  let createOrderWasCalled = false;
+  const handlers = createOrdersRouteHandlers({
+    requireBusinessSlug: (value) => value.trim().toLowerCase(),
+    requireBusinessApiContext: async () => {
+      throw new Error("requireBusinessApiContext no debe usarse en POST");
+    },
+    getOrdersByBusinessIdFromDatabase: async () => {
+      throw new Error("getOrdersByBusinessIdFromDatabase no debe usarse en POST");
+    },
+    createOrderInDatabase: async () => {
+      createOrderWasCalled = true;
+      return createOrderFixture();
+    },
+  });
+
+  const response = await handlers.POST(
+    createJsonRequest("http://localhost/api/orders", "POST", {
+      businessSlug: "mi-tienda",
+      customerName: "Ana Perez",
+      customerWhatsApp: "3001234567",
+      deliveryType: "domicilio",
+      deliveryAddress: "Calle 1 # 2-3",
+      paymentMethod: "Transferencia",
+      products: [{ product_id: PRODUCT_ID, name: "Hamburguesa", quantity: 2, unitPrice: 15000 }],
+      total: 30000,
+    }),
+  );
+  const body = await response.json();
+
+  assert.equal(response.status, 400);
+  assert.match(body.error, /products\[0\]\.product_id/i);
+  assert.equal(createOrderWasCalled, false);
 });
 
 test("POST /api/orders ignora status enviado por cliente", async () => {
   let receivedPayload = null;
   const handlers = createOrdersRouteHandlers({
-    normalizeBusinessSlug: (value) => value.trim().toLowerCase(),
+    requireBusinessSlug: (value) => value.trim().toLowerCase(),
     requireBusinessApiContext: async () => {
       throw new Error("requireBusinessApiContext no debe usarse en POST");
     },
@@ -223,8 +262,8 @@ test("POST /api/orders ignora status enviado por cliente", async () => {
       customerWhatsApp: "3001234567",
       deliveryType: "domicilio",
       deliveryAddress: "Calle 1 # 2-3",
-      paymentMethod: "Nequi",
-      products: [{ productId: "prod-1", name: "Hamburguesa", quantity: 2, unitPrice: 15000 }],
+      paymentMethod: "Transferencia",
+      products: [{ productId: PRODUCT_ID, name: "Hamburguesa", quantity: 2, unitPrice: 15000 }],
       total: 30000,
       status: "confirmado",
       history: [{ id: "fake", title: "Fake", description: "Fake", occurredAt: "2026-03-25T21:00:00.000Z" }],
@@ -239,7 +278,7 @@ test("POST /api/orders ignora status enviado por cliente", async () => {
 test("POST /api/orders ignora history enviado por cliente", async () => {
   let receivedPayload = null;
   const handlers = createOrdersRouteHandlers({
-    normalizeBusinessSlug: (value) => value.trim().toLowerCase(),
+    requireBusinessSlug: (value) => value.trim().toLowerCase(),
     requireBusinessApiContext: async () => {
       throw new Error("requireBusinessApiContext no debe usarse en POST");
     },
@@ -259,8 +298,8 @@ test("POST /api/orders ignora history enviado por cliente", async () => {
       customerWhatsApp: "3001234567",
       deliveryType: "domicilio",
       deliveryAddress: "Calle 1 # 2-3",
-      paymentMethod: "Nequi",
-      products: [{ productId: "prod-1", name: "Hamburguesa", quantity: 2, unitPrice: 15000 }],
+      paymentMethod: "Transferencia",
+      products: [{ productId: PRODUCT_ID, name: "Hamburguesa", quantity: 2, unitPrice: 15000 }],
       total: 30000,
       history: [{ id: "fake", title: "Fake", description: "Fake", occurredAt: "2026-03-25T21:00:00.000Z" }],
     }),
@@ -273,7 +312,7 @@ test("POST /api/orders ignora history enviado por cliente", async () => {
 test("POST /api/orders ignora paymentStatus enviado por cliente", async () => {
   let receivedPayload = null;
   const handlers = createOrdersRouteHandlers({
-    normalizeBusinessSlug: (value) => value.trim().toLowerCase(),
+    requireBusinessSlug: (value) => value.trim().toLowerCase(),
     requireBusinessApiContext: async () => {
       throw new Error("requireBusinessApiContext no debe usarse en POST");
     },
@@ -293,8 +332,8 @@ test("POST /api/orders ignora paymentStatus enviado por cliente", async () => {
       customerWhatsApp: "3001234567",
       deliveryType: "domicilio",
       deliveryAddress: "Calle 1 # 2-3",
-      paymentMethod: "Nequi",
-      products: [{ productId: "prod-1", name: "Hamburguesa", quantity: 2, unitPrice: 15000 }],
+      paymentMethod: "Transferencia",
+      products: [{ productId: PRODUCT_ID, name: "Hamburguesa", quantity: 2, unitPrice: 15000 }],
       total: 30000,
       paymentStatus: "verificado",
       isReviewed: true,
@@ -311,14 +350,14 @@ test("POST /api/orders/private crea un pedido manual autenticado", async () => {
   let receivedOptions = null;
   const expectedOrder = createOrderFixture();
   const handlers = createWorkspaceOrdersRouteHandlers({
-    normalizeBusinessSlug: (value) => value.trim().toLowerCase(),
+    requireBusinessSlug: (value) => value.trim().toLowerCase(),
     requireBusinessApiContext: async (businessSlug) => ({
       ok: true,
       context: {
-        businessId: "biz-1",
+        businessId: "0f9f5d8d-1234-4f6b-8f16-6e16b14ac101",
         businessSlug,
         businessName: "Mi tienda",
-        ownerUserId: "user-1",
+        createdByUserId: "user-1",
         accessLevel: "owned",
         user: {
           userId: "user-1",
@@ -341,8 +380,8 @@ test("POST /api/orders/private crea un pedido manual autenticado", async () => {
       customerWhatsApp: "3001234567",
       deliveryType: "domicilio",
       deliveryAddress: "Calle 1 # 2-3",
-      paymentMethod: "Nequi",
-      products: [{ productId: "prod-1", name: "Hamburguesa", quantity: 2, unitPrice: 15000 }],
+      paymentMethod: "Transferencia",
+      products: [{ productId: PRODUCT_ID, name: "Hamburguesa", quantity: 2, unitPrice: 15000 }],
       total: 30000,
       notes: "Sin cebolla",
     }),
@@ -354,22 +393,66 @@ test("POST /api/orders/private crea un pedido manual autenticado", async () => {
   assert.equal(receivedPayload.businessSlug, "mi-tienda");
   assert.deepEqual(receivedOptions, {
     origin: "workspace_manual",
-    businessId: "biz-1",
+    businessId: "0f9f5d8d-1234-4f6b-8f16-6e16b14ac101",
   });
-  assert.equal(body.order.id, expectedOrder.id);
+  assert.equal(body.order.orderId, expectedOrder.orderId);
+});
+
+test("POST /api/orders/private rechaza product_id legacy dentro de products", async () => {
+  let createOrderWasCalled = false;
+  const handlers = createWorkspaceOrdersRouteHandlers({
+    requireBusinessSlug: (value) => value.trim().toLowerCase(),
+    requireBusinessApiContext: async (businessSlug) => ({
+      ok: true,
+      context: {
+        businessId: "0f9f5d8d-1234-4f6b-8f16-6e16b14ac101",
+        businessSlug,
+        businessName: "Mi tienda",
+        createdByUserId: "user-1",
+        accessLevel: "owned",
+        user: {
+          userId: "user-1",
+          email: "owner@example.com",
+          user: { id: "user-1", email: "owner@example.com" },
+        },
+      },
+    }),
+    createOrderInDatabase: async () => {
+      createOrderWasCalled = true;
+      return createOrderFixture();
+    },
+  });
+
+  const response = await handlers.POST(
+    createJsonRequest("http://localhost/api/orders/private", "POST", {
+      businessSlug: "mi-tienda",
+      customerName: "Ana Perez",
+      customerWhatsApp: "3001234567",
+      deliveryType: "domicilio",
+      deliveryAddress: "Calle 1 # 2-3",
+      paymentMethod: "Transferencia",
+      products: [{ product_id: PRODUCT_ID, name: "Hamburguesa", quantity: 2, unitPrice: 15000 }],
+      total: 30000,
+    }),
+  );
+  const body = await response.json();
+
+  assert.equal(response.status, 400);
+  assert.match(body.error, /products\[0\]\.product_id/i);
+  assert.equal(createOrderWasCalled, false);
 });
 
 test("POST /api/orders/private ignora history enviado por cliente", async () => {
   let receivedPayload = null;
   const handlers = createWorkspaceOrdersRouteHandlers({
-    normalizeBusinessSlug: (value) => value.trim().toLowerCase(),
+    requireBusinessSlug: (value) => value.trim().toLowerCase(),
     requireBusinessApiContext: async (businessSlug) => ({
       ok: true,
       context: {
-        businessId: "biz-1",
+        businessId: "0f9f5d8d-1234-4f6b-8f16-6e16b14ac101",
         businessSlug,
         businessName: "Mi tienda",
-        ownerUserId: "user-1",
+        createdByUserId: "user-1",
         accessLevel: "owned",
         user: {
           userId: "user-1",
@@ -391,8 +474,8 @@ test("POST /api/orders/private ignora history enviado por cliente", async () => 
       customerWhatsApp: "3001234567",
       deliveryType: "domicilio",
       deliveryAddress: "Calle 1 # 2-3",
-      paymentMethod: "Nequi",
-      products: [{ productId: "prod-1", name: "Hamburguesa", quantity: 2, unitPrice: 15000 }],
+      paymentMethod: "Transferencia",
+      products: [{ productId: PRODUCT_ID, name: "Hamburguesa", quantity: 2, unitPrice: 15000 }],
       total: 30000,
       history: [{ id: "fake", title: "Fake", description: "Fake", occurredAt: "2026-03-25T21:00:00.000Z" }],
     }),
@@ -407,14 +490,14 @@ test("GET /api/orders lee pedidos por negocio autenticado", async () => {
   let receivedOptions = null;
   const expectedOrders = [createOrderFixture()];
   const handlers = createOrdersRouteHandlers({
-    normalizeBusinessSlug: (value) => value.trim().toLowerCase(),
+    requireBusinessSlug: (value) => value.trim().toLowerCase(),
     requireBusinessApiContext: async (businessSlug) => ({
       ok: true,
       context: {
-        businessId: "biz-1",
+        businessId: "0f9f5d8d-1234-4f6b-8f16-6e16b14ac101",
         businessSlug,
         businessName: "Mi tienda",
-        ownerUserId: "user-1",
+        createdByUserId: "user-1",
         accessLevel: "owned",
         user: {
           userId: "user-1",
@@ -439,14 +522,14 @@ test("GET /api/orders lee pedidos por negocio autenticado", async () => {
   const body = await response.json();
 
   assert.equal(response.status, 200);
-  assert.equal(receivedBusinessId, "biz-1");
+  assert.equal(receivedBusinessId, "0f9f5d8d-1234-4f6b-8f16-6e16b14ac101");
   assert.deepEqual(receivedOptions, { businessSlug: "mi-tienda" });
   assert.equal(body.orders.length, 1);
 });
 
 test("GET /api/orders bloquea ownership incorrecto en ruta privada", async () => {
   const handlers = createOrdersRouteHandlers({
-    normalizeBusinessSlug: (value) => value.trim().toLowerCase(),
+    requireBusinessSlug: (value) => value.trim().toLowerCase(),
     requireBusinessApiContext: async () => ({
       ok: false,
       response: NextResponse.json({ error: "No tienes acceso a este negocio." }, { status: 403 }),
@@ -486,10 +569,10 @@ test("PATCH /api/orders/[orderId] actualiza solo cambios editables e intents con
     requireOrderApiContext: async () => ({
       ok: true,
       context: {
-        businessId: "biz-1",
+        businessId: "0f9f5d8d-1234-4f6b-8f16-6e16b14ac101",
         businessSlug: "mi-tienda",
         businessName: "Mi tienda",
-        ownerUserId: "user-1",
+        createdByUserId: "user-1",
         accessLevel: "owned",
         user: {
           userId: "user-1",
@@ -534,10 +617,10 @@ test("PATCH /api/orders/[orderId] falla si intenta reemplazar historial completo
     requireOrderApiContext: async () => ({
       ok: true,
       context: {
-        businessId: "biz-1",
+        businessId: "0f9f5d8d-1234-4f6b-8f16-6e16b14ac101",
         businessSlug: "mi-tienda",
         businessName: "Mi tienda",
-        ownerUserId: "user-1",
+        createdByUserId: "user-1",
         accessLevel: "owned",
         user: {
           userId: "user-1",
@@ -572,7 +655,7 @@ test("dominio: PATCH rechaza combinaciones incoherentes entre estado y pago", ()
       resolveAuthoritativeOrderStatePatch(
         {
           deliveryType: "domicilio",
-          paymentMethod: "Nequi",
+          paymentMethod: "Transferencia",
           paymentStatus: "verificado",
           status: "confirmado",
         },
@@ -593,7 +676,7 @@ test("dominio: PATCH acepta transicion valida y deriva status complementario des
   const resolvedStatePatch = resolveAuthoritativeOrderStatePatch(
     {
       deliveryType: "domicilio",
-      paymentMethod: "Nequi",
+      paymentMethod: "Transferencia",
       paymentStatus: "pendiente",
       status: "pendiente de pago",
     },
@@ -604,7 +687,7 @@ test("dominio: PATCH acepta transicion valida y deriva status complementario des
 
   assert.deepEqual(resolvedStatePatch.nextState, {
     deliveryType: "domicilio",
-    paymentMethod: "Nequi",
+    paymentMethod: "Transferencia",
     paymentStatus: "verificado",
     status: "pago por verificar",
   });
@@ -626,29 +709,29 @@ test("dominio: los cambios posteriores al historial quedan controlados por servi
     occurredAt: "2026-03-25T21:05:00.000Z",
     currentHistory,
     currentOrder: {
-      id: ORDER_ID,
+      orderId: ORDER_ID,
       status: "pendiente de pago",
       paymentStatus: "pendiente",
       customerName: "Ana Perez",
       customerWhatsApp: "3001234567",
       deliveryType: "domicilio",
       deliveryAddress: "Calle 1 # 2-3",
-      paymentMethod: "Nequi",
-      products: [{ productId: "prod-1", name: "Hamburguesa", quantity: 2, unitPrice: 15000 }],
+      paymentMethod: "Transferencia",
+      products: [{ productId: PRODUCT_ID, name: "Hamburguesa", quantity: 2, unitPrice: 15000 }],
       notes: "Sin cebolla",
       total: 30000,
       isReviewed: false,
     },
     nextOrder: {
-      id: ORDER_ID,
+      orderId: ORDER_ID,
       status: "pendiente de pago",
       paymentStatus: "pendiente",
       customerName: "Ana Perez",
       customerWhatsApp: "3001234567",
       deliveryType: "domicilio",
       deliveryAddress: "Calle 1 # 2-3",
-      paymentMethod: "Nequi",
-      products: [{ productId: "prod-1", name: "Hamburguesa", quantity: 2, unitPrice: 15000 }],
+      paymentMethod: "Transferencia",
+      products: [{ productId: PRODUCT_ID, name: "Hamburguesa", quantity: 2, unitPrice: 15000 }],
       notes: "Sin cebolla",
       total: 30000,
       isReviewed: false,

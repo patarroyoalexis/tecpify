@@ -14,9 +14,14 @@ const {
 
 function createBusinessRecord(overrides = {}) {
   return {
-    id: "biz-1",
-    slug: "mi-tienda",
+    businessId: "0f9f5d8d-1234-4f6b-8f16-6e16b14ac101",
+    businessSlug: "mi-tienda",
     name: "Mi tienda",
+    transferInstructions: null,
+    acceptsCash: true,
+    acceptsTransfer: true,
+    acceptsCard: true,
+    allowsFiado: false,
     createdAt: "2026-03-25T21:00:00.000Z",
     updatedAt: "2026-03-25T21:00:00.000Z",
     createdByUserId: "user-owner",
@@ -26,29 +31,29 @@ function createBusinessRecord(overrides = {}) {
 
 function createProductRow(overrides = {}) {
   return {
-    id: "prod-1",
-    business_id: "biz-1",
+    productId: "0f9f5d8d-1234-4f6b-8f16-6e16b14ac002",
+    businessId: "0f9f5d8d-1234-4f6b-8f16-6e16b14ac101",
     name: "Hamburguesa",
     description: "Doble carne",
     price: 15000,
-    is_available: true,
-    is_featured: false,
-    sort_order: 1,
-    created_at: "2026-03-25T21:00:00.000Z",
-    updated_at: "2026-03-25T21:00:00.000Z",
+    isAvailable: true,
+    isFeatured: false,
+    sortOrder: 1,
+    createdAt: "2026-03-25T21:00:00.000Z",
+    updatedAt: "2026-03-25T21:00:00.000Z",
     ...overrides,
   };
 }
 
 function mapProductToBusinessProduct(product) {
   return {
-    id: product.id,
+    productId: product.productId,
     name: product.name,
     description: product.description ?? "",
     price: product.price,
-    isAvailable: product.is_available,
-    isFeatured: product.is_featured,
-    sortOrder: product.sort_order ?? 0,
+    isAvailable: product.isAvailable,
+    isFeatured: product.isFeatured,
+    sortOrder: product.sortOrder ?? 0,
   };
 }
 
@@ -129,14 +134,14 @@ test("naming: helper verdaderamente byId consulta por businessId real de BD", as
     debugLog: () => {},
   });
 
-  const result = await getBusinessByIdWithProducts("biz-1");
+  const result = await getBusinessByIdWithProducts("0f9f5d8d-1234-4f6b-8f16-6e16b14ac101");
 
-  assert.equal(receivedBusinessId, "biz-1");
-  assert.equal(productsLookupBusinessId, "biz-1");
+  assert.equal(receivedBusinessId, "0f9f5d8d-1234-4f6b-8f16-6e16b14ac101");
+  assert.equal(productsLookupBusinessId, "0f9f5d8d-1234-4f6b-8f16-6e16b14ac101");
   assert.equal(slugLookupWasCalled, false);
   assert.equal(result.status, "ok");
-  assert.equal(result.business.databaseId, "biz-1");
-  assert.equal(result.business.slug, "mi-tienda");
+  assert.equal(result.business.businessId, "0f9f5d8d-1234-4f6b-8f16-6e16b14ac101");
+  assert.equal(result.business.businessSlug, "mi-tienda");
 });
 
 test("naming: helper por slug consulta por businessSlug real de URL", async () => {
@@ -163,15 +168,23 @@ test("naming: helper por slug consulta por businessSlug real de URL", async () =
   const result = await getBusinessBySlugWithProducts("mi-tienda");
 
   assert.equal(receivedBusinessSlug, "mi-tienda");
-  assert.equal(productsLookupBusinessId, "biz-1");
+  assert.equal(productsLookupBusinessId, "0f9f5d8d-1234-4f6b-8f16-6e16b14ac101");
   assert.equal(idLookupWasCalled, false);
   assert.equal(result.status, "ok");
-  assert.equal(result.business.databaseId, "biz-1");
-  assert.equal(result.business.slug, "mi-tienda");
+  assert.equal(result.business.businessId, "0f9f5d8d-1234-4f6b-8f16-6e16b14ac101");
+  assert.equal(result.business.businessSlug, "mi-tienda");
 });
 
 test("naming: guardrail bloquea reintroducir helper byId falso o naming legado en codigo publico", () => {
   const businessesSource = fs.readFileSync(path.join(repoRoot, "data", "businesses.ts"), "utf8");
+  const createBusinessPanelSource = fs.readFileSync(
+    path.join(repoRoot, "components", "home", "create-business-panel.tsx"),
+    "utf8",
+  );
+  const workspaceHeaderSource = fs.readFileSync(
+    path.join(repoRoot, "components", "dashboard", "workspace-header.tsx"),
+    "utf8",
+  );
   const publicSources = getAllRepoFiles(repoRoot)
     .map((absolutePath) => normalizeRelativePath(path.relative(repoRoot, absolutePath)))
     .filter((relativePath) =>
@@ -197,9 +210,68 @@ test("naming: guardrail bloquea reintroducir helper byId falso o naming legado e
     /return\s+getBusinessBySlugWithProducts\(businessId\)/,
     "Un helper byId no puede delegar encubiertamente al lookup por slug.",
   );
+  assert.doesNotMatch(
+    createBusinessPanelSource,
+    /\bconst \[slug,|\berrors\.slug\b|validateForm\(name,\s*slug\)|`\/dashboard\/\[slug\]`/,
+    "La UI no debe volver a usar slug generico cuando el contrato real es businessSlug.",
+  );
+  assert.match(
+    createBusinessPanelSource,
+    /\bbusinessSlug\b/,
+    "La UI de alta debe nombrar explicitamente businessSlug en su contrato local.",
+  );
+  assert.doesNotMatch(
+    workspaceHeaderSource,
+    /getHref:\s*\(slug:\s*string\)/,
+    "La navegacion privada no debe volver a usar slug generico en helpers locales.",
+  );
   assert.deepEqual(
     offendingLegacyNames,
     [],
     `No debe reaparecer negocioId en codigo o documentacion publica: ${offendingLegacyNames.join(", ")}`,
+  );
+});
+
+test("naming: ownership usa solo created_by_user_id en SQL y createdByUserId en TypeScript", () => {
+  const forbiddenOwnershipAliases = [
+    ["owner", "_id"].join(""),
+    ["owner", "_user", "_id"].join(""),
+    ["owner", "UserId"].join(""),
+  ];
+  const relevantSources = getAllRepoFiles(repoRoot)
+    .map((absolutePath) => normalizeRelativePath(path.relative(repoRoot, absolutePath)))
+    .filter((relativePath) =>
+      /^(?:app|components|data|lib|supabase\/migrations|tests|types|README\.md|AGENTS\.md)/.test(
+        relativePath,
+      ),
+    );
+  const offendingAliases = relevantSources.filter((relativePath) => {
+    const source = fs.readFileSync(path.join(repoRoot, relativePath), "utf8");
+
+    return forbiddenOwnershipAliases.some((alias) => new RegExp(`\\b${alias}\\b`).test(source));
+  });
+  const businessAccessSource = fs.readFileSync(
+    path.join(repoRoot, "lib", "auth", "business-access.ts"),
+    "utf8",
+  );
+  const legacyBusinessAccessSource = fs.readFileSync(
+    path.join(repoRoot, "lib", "auth", "legacy-business-access.ts"),
+    "utf8",
+  );
+
+  assert.deepEqual(
+    offendingAliases,
+    [],
+    `No deben reaparecer aliases falsos de ownership: ${offendingAliases.join(", ")}`,
+  );
+  assert.match(
+    businessAccessSource,
+    /\bcreatedByUserId\b/,
+    "La capa de acceso debe usar createdByUserId como contrato TypeScript canonico.",
+  );
+  assert.match(
+    legacyBusinessAccessSource,
+    /\bcreatedByUserId\b/,
+    "La estrategia legacy debe usar createdByUserId como contrato TypeScript canonico.",
   );
 });

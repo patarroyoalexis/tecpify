@@ -103,7 +103,7 @@ test("dominio: cambiar a efectivo deriva confirmacion server-side sin dejar el p
   const resolvedStatePatch = resolveAuthoritativeOrderStatePatch(
     {
       deliveryType: "domicilio",
-      paymentMethod: "Nequi",
+      paymentMethod: "Transferencia",
       paymentStatus: "pendiente",
       status: "pendiente de pago",
     },

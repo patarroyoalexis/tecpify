@@ -6,6 +6,7 @@ import {
 import {
   calculateOrderProductsTotal,
   buildInitialOrderServerState,
+  isValidNullableFiadoStatus,
   isValidOrderStatus,
   isValidPaymentMethod,
   isValidPaymentStatus,
@@ -21,42 +22,61 @@ import { hasVerifiedBusinessOwner } from "@/lib/auth/business-access";
 import {
   ORDER_UPDATE_CLIENT_EDITABLE_FIELDS,
   getOrderPaymentMethodDeliveryTypeError,
+  resolveAuthoritativeOrderFiadoPatch,
   resolveAuthoritativeOrderStatePatch,
 } from "@/lib/orders/state-rules";
+import {
+  getBusinessPaymentMethodAvailabilityError,
+  readBusinessPaymentSettings,
+} from "@/lib/businesses/payment-settings";
 import { getStorefrontBusinessLookupBySlug } from "@/data/businesses";
-import { normalizeBusinessSlug } from "@/lib/businesses/slug";
+import { requireBusinessSlug } from "@/lib/businesses/slug";
 import {
   createServerSupabaseAuthClient,
   createServerSupabasePublicClient,
   getSupabaseServerAuthMode,
 } from "@/lib/supabase/server";
-import type { Order } from "@/types/orders";
+import {
+  requireBusinessId,
+  requireOrderCode,
+  requireOrderId,
+  requireProductId,
+  type BusinessId,
+  type BusinessSlug,
+  type OrderId,
+  type ProductId,
+} from "@/types/identifiers";
+import type { Order, PaymentMethod } from "@/types/orders";
 
 const ORDER_UPDATE_CLIENT_EDITABLE_FIELD_SET = new Set<string>(
   ORDER_UPDATE_CLIENT_EDITABLE_FIELDS,
 );
 
 interface BusinessLookupRow {
-  id: string;
-  slug: string;
+  id: BusinessId;
+  slug: BusinessSlug;
   created_by_user_id: string | null;
+  accepts_cash?: boolean | null;
+  accepts_transfer?: boolean | null;
+  accepts_card?: boolean | null;
+  allows_fiado?: boolean | null;
   ownership_verified?: boolean;
 }
 
 interface BusinessSlugRow {
-  slug: string;
+  slug: BusinessSlug;
 }
 
 interface OrderProductLookupRow {
-  id: string;
+  id: ProductId;
   name: string;
   price: number;
   is_available: boolean;
 }
 
 interface OrderLookupRow {
-  id: string;
-  business_id: string;
+  id: OrderId;
+  business_id: BusinessId;
   customer_name: string;
   customer_whatsapp: string | null;
   delivery_type: Order["deliveryType"];
@@ -68,6 +88,31 @@ interface OrderLookupRow {
   status: Order["status"];
   payment_status: Order["paymentStatus"];
   is_reviewed: boolean;
+  is_fiado: boolean;
+  fiado_status: Order["fiadoStatus"];
+  fiado_observation: string | null;
+}
+
+function assertBusinessPaymentMethodIsEnabled(
+  paymentMethod: PaymentMethod,
+  business: Pick<
+    BusinessLookupRow,
+    "accepts_cash" | "accepts_transfer" | "accepts_card" | "allows_fiado"
+  >,
+) {
+  const availabilityError = getBusinessPaymentMethodAvailabilityError(
+    readBusinessPaymentSettings({
+      acceptsCash: business.accepts_cash ?? true,
+      acceptsTransfer: business.accepts_transfer ?? true,
+      acceptsCard: business.accepts_card ?? true,
+      allowsFiado: business.allows_fiado ?? false,
+    }),
+    paymentMethod,
+  );
+
+  if (availabilityError) {
+    throw new Error(`Invalid order payload. ${availabilityError}`);
+  }
 }
 
 function buildPersistedInsertedOrder(
@@ -88,9 +133,12 @@ function buildPersistedInsertedOrder(
     payment_status: Order["paymentStatus"];
     date_label: string | null;
     is_reviewed: boolean;
+    is_fiado: boolean;
+    fiado_status: Order["fiadoStatus"];
+    fiado_observation: string | null;
     history: Order["history"];
   },
-  businessSlug: string,
+  businessSlug: BusinessSlug,
 ) {
   return mapSupabaseRowToOrder(insertPayload as Record<string, unknown>, {
     businessSlug,
@@ -195,8 +243,8 @@ function describePayloadProblems(payload: unknown) {
   return problems;
 }
 
-export async function getBusinessDatabaseRecordBySlug(slug: string) {
-  const storefrontLookup = await getStorefrontBusinessLookupBySlug(slug);
+export async function getBusinessDatabaseRecordBySlug(businessSlug: string) {
+  const storefrontLookup = await getStorefrontBusinessLookupBySlug(businessSlug);
   const business = storefrontLookup.business;
 
   if (!business) {
@@ -204,20 +252,26 @@ export async function getBusinessDatabaseRecordBySlug(slug: string) {
   }
 
   return {
-    id: business.id,
-    slug: business.slug,
+    id: business.businessId,
+    slug: business.businessSlug,
     created_by_user_id: business.createdByUserId,
+    accepts_cash: business.acceptsCash,
+    accepts_transfer: business.acceptsTransfer,
+    accepts_card: business.acceptsCard,
+    allows_fiado: business.allowsFiado,
     ownership_verified: storefrontLookup.ownershipVerified,
   } satisfies BusinessLookupRow;
 }
 
-async function getAuthenticatedBusinessDatabaseRecordBySlug(slug: string) {
-  const normalizedSlug = normalizeBusinessSlug(slug);
+async function getAuthenticatedBusinessDatabaseRecordBySlug(businessSlug: string) {
+  const normalizedBusinessSlug = requireBusinessSlug(businessSlug);
   const supabase = await createServerSupabaseAuthClient();
   const { data, error } = await supabase
     .from("businesses")
-    .select("id, slug, created_by_user_id")
-    .eq("slug", normalizedSlug)
+    .select(
+      "id, slug, created_by_user_id, accepts_cash, accepts_transfer, accepts_card, allows_fiado",
+    )
+    .eq("slug", normalizedBusinessSlug)
     .maybeSingle<BusinessLookupRow>();
 
   if (error) {
@@ -229,7 +283,7 @@ async function getAuthenticatedBusinessDatabaseRecordBySlug(slug: string) {
 
 function assertBusinessHasVerifiedOwner(
   business: BusinessLookupRow | null,
-  options: { businessSlug: string },
+  options: { businessSlug: BusinessSlug },
 ): asserts business is BusinessLookupRow {
   if (!business) {
     throw new Error(`Business not found for slug "${options.businessSlug}".`);
@@ -246,25 +300,47 @@ function assertBusinessHasVerifiedOwner(
   }
 }
 
-async function getBusinessSlugByDatabaseId(businessDatabaseId: string) {
+async function getBusinessSlugByDatabaseId(businessDatabaseId: BusinessId) {
+  const normalizedBusinessId = requireBusinessId(businessDatabaseId);
   const supabase = await createServerSupabaseAuthClient();
   const { data, error } = await supabase
     .from("businesses")
     .select("slug")
-    .eq("id", businessDatabaseId)
+    .eq("id", normalizedBusinessId)
     .maybeSingle<BusinessSlugRow>();
 
   if (error) {
     throw new Error(`Supabase businesses slug query failed: ${error.message}`);
   }
 
-  return data?.slug ?? null;
+  return data?.slug ? requireBusinessSlug(data.slug) : null;
+}
+
+async function getBusinessPaymentSettingsByDatabaseId(businessDatabaseId: BusinessId) {
+  const normalizedBusinessId = requireBusinessId(businessDatabaseId);
+  const supabase = await createServerSupabaseAuthClient();
+  const { data, error } = await supabase
+    .from("businesses")
+    .select("accepts_cash, accepts_transfer, accepts_card, allows_fiado")
+    .eq("id", normalizedBusinessId)
+    .maybeSingle<BusinessLookupRow>();
+
+  if (error) {
+    throw new Error(`Supabase businesses payment settings query failed: ${error.message}`);
+  }
+
+  if (!data) {
+    throw new Error(`Business not found for id "${normalizedBusinessId}".`);
+  }
+
+  return data;
 }
 
 async function getBusinessProductsForOrder(
-  businessDatabaseId: string,
+  businessDatabaseId: BusinessId,
   options?: { mode?: "public" | "auth" },
 ): Promise<OrderProductLookupRow[]> {
+  const normalizedBusinessId = requireBusinessId(businessDatabaseId);
   const supabase =
     options?.mode === "auth"
       ? await createServerSupabaseAuthClient()
@@ -272,7 +348,7 @@ async function getBusinessProductsForOrder(
   let query = supabase
     .from("products")
     .select("id, name, price, is_available")
-    .eq("business_id", businessDatabaseId);
+    .eq("business_id", normalizedBusinessId);
 
   if (options?.mode !== "auth") {
     query = query.eq("is_available", true);
@@ -292,8 +368,10 @@ function normalizeOrderProductsForPersistence(
   availableProducts: OrderProductLookupRow[],
   options?: { requireActiveLinkedProducts?: boolean },
 ) {
-  const productsById = new Map(availableProducts.map((product) => [product.id, product]));
-  const linkedProductIds = new Set<string>();
+  const productsById = new Map(
+    availableProducts.map((product) => [requireProductId(product.id), product]),
+  );
+  const linkedProductIds = new Set<ProductId>();
 
   return products.map((product) => {
     const normalizedName = product.name.trim();
@@ -306,28 +384,29 @@ function normalizeOrderProductsForPersistence(
       };
     }
 
-    const catalogProduct = productsById.get(product.productId);
+    const normalizedProductId = requireProductId(product.productId);
+    const catalogProduct = productsById.get(normalizedProductId);
 
     if (!catalogProduct) {
-      throw new Error(`Invalid order payload. productId "${product.productId}" no existe.`);
+      throw new Error(`Invalid order payload. productId "${normalizedProductId}" no existe.`);
     }
 
-    if (linkedProductIds.has(product.productId)) {
+    if (linkedProductIds.has(normalizedProductId)) {
       throw new Error(
-        `Invalid order payload. productId "${product.productId}" esta repetido dentro del mismo pedido.`,
+        `Invalid order payload. productId "${normalizedProductId}" esta repetido dentro del mismo pedido.`,
       );
     }
 
     if (options?.requireActiveLinkedProducts && !catalogProduct.is_available) {
       throw new Error(
-        `Invalid order payload. productId "${product.productId}" no esta activo para nuevos pedidos.`,
+        `Invalid order payload. productId "${normalizedProductId}" no esta activo para nuevos pedidos.`,
       );
     }
 
-    linkedProductIds.add(product.productId);
+    linkedProductIds.add(normalizedProductId);
 
     return {
-      productId: catalogProduct.id,
+      productId: requireProductId(catalogProduct.id),
       name: normalizedName || catalogProduct.name,
       quantity: product.quantity,
       unitPrice:
@@ -362,25 +441,26 @@ function assertOrderTotalMatchesProducts(
 export async function getOrdersByBusinessSlugFromDatabase(
   businessSlug: string,
 ): Promise<Order[]> {
-  const business = await getAuthenticatedBusinessDatabaseRecordBySlug(businessSlug);
-  assertBusinessHasVerifiedOwner(business, { businessSlug });
+  const normalizedBusinessSlug = requireBusinessSlug(businessSlug);
+  const business = await getAuthenticatedBusinessDatabaseRecordBySlug(normalizedBusinessSlug);
+  assertBusinessHasVerifiedOwner(business, { businessSlug: normalizedBusinessSlug });
 
-  return getOrdersByBusinessIdFromDatabase(business.id, { businessSlug });
+  return getOrdersByBusinessIdFromDatabase(business.id, {
+    businessSlug: normalizedBusinessSlug,
+  });
 }
 
 export async function getOrdersByBusinessIdFromDatabase(
-  businessId: string,
-  options?: { businessSlug?: string },
+  businessId: BusinessId,
+  options?: { businessSlug?: BusinessSlug },
 ): Promise<Order[]> {
-  if (typeof businessId !== "string" || businessId.trim().length === 0) {
-    throw new Error("Business id is required to load orders.");
-  }
+  const normalizedBusinessId = requireBusinessId(businessId);
 
   const supabase = await createServerSupabaseAuthClient();
   const { data, error } = await supabase
     .from("orders")
     .select("*")
-    .eq("business_id", businessId)
+    .eq("business_id", normalizedBusinessId)
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -396,7 +476,7 @@ export async function getOrdersByBusinessIdFromDatabase(
 
 export async function createOrderInDatabase(
   payload: unknown,
-  options?: { origin?: OrderOrigin; businessId?: string },
+  options?: { origin?: OrderOrigin; businessId?: BusinessId },
 ): Promise<Order> {
   if (!validateCreateOrderPayload(payload)) {
     throw new Error(`Invalid order payload. ${describePayloadProblems(payload).join(" ")}`);
@@ -422,13 +502,20 @@ export async function createOrderInDatabase(
 
   const orderOrigin = options?.origin ?? "public_form";
   const orderCreationMode = resolveOrderPersistenceMode(orderOrigin);
-  let businessId = options?.businessId;
+  const normalizedBusinessSlug = requireBusinessSlug(payload.businessSlug);
+  let businessId = options?.businessId ? requireBusinessId(options.businessId) : null;
+  let businessPaymentSettings: BusinessLookupRow | null = null;
 
   if (!businessId) {
-    const business = await getBusinessDatabaseRecordBySlug(payload.businessSlug);
-    assertBusinessHasVerifiedOwner(business, { businessSlug: payload.businessSlug });
+    const business = await getBusinessDatabaseRecordBySlug(normalizedBusinessSlug);
+    assertBusinessHasVerifiedOwner(business, { businessSlug: normalizedBusinessSlug });
     businessId = business.id;
+    businessPaymentSettings = business;
+  } else {
+    businessPaymentSettings = await getBusinessPaymentSettingsByDatabaseId(businessId);
   }
+
+  assertBusinessPaymentMethodIsEnabled(payload.paymentMethod, businessPaymentSettings);
 
   const normalizedProducts = normalizeOrderProductsForPersistence(
     payload.products,
@@ -437,10 +524,10 @@ export async function createOrderInDatabase(
   );
 
   const now = new Date().toISOString();
-  const orderId = crypto.randomUUID();
+  const orderId = requireOrderId(crypto.randomUUID());
   const initialServerState = buildInitialOrderServerState({
     orderId,
-    businessSlug: payload.businessSlug,
+    businessSlug: normalizedBusinessSlug,
     createdAt: now,
     deliveryType: payload.deliveryType,
     paymentMethod: payload.paymentMethod,
@@ -450,7 +537,7 @@ export async function createOrderInDatabase(
 
   debugLog("[orders-api] Preparing order insert", {
     authMode: getSupabaseServerAuthMode(orderCreationMode),
-    businessSlug: payload.businessSlug,
+    businessSlug: normalizedBusinessSlug,
     orderOrigin,
     productsCount: normalizedProducts.length,
   });
@@ -460,7 +547,7 @@ export async function createOrderInDatabase(
       ? await createServerSupabaseAuthClient()
       : createServerSupabasePublicClient();
   for (let attempt = 0; attempt < 8; attempt += 1) {
-    const orderCode = generateUniqueOrderCode();
+    const orderCode = requireOrderCode(generateUniqueOrderCode());
     const insertPayload = {
       id: orderId,
       order_code: orderCode,
@@ -478,6 +565,9 @@ export async function createOrderInDatabase(
       products: normalizedProducts,
       date_label: null,
       is_reviewed: false,
+      is_fiado: false,
+      fiado_status: null,
+      fiado_observation: null,
       inserted_at: now,
     };
     const insertQuery = supabase.from("orders").insert(insertPayload);
@@ -489,7 +579,7 @@ export async function createOrderInDatabase(
     if (!error) {
       if (orderCreationMode === "auth" && data) {
         return mapSupabaseRowToOrder(data as Record<string, unknown>, {
-          businessSlug: payload.businessSlug,
+          businessSlug: normalizedBusinessSlug,
         });
       }
 
@@ -498,9 +588,12 @@ export async function createOrderInDatabase(
           ...insertPayload,
           status: initialServerState.status,
           payment_status: initialServerState.paymentStatus,
+          is_fiado: initialServerState.isFiado,
+          fiado_status: initialServerState.fiadoStatus,
+          fiado_observation: initialServerState.fiadoObservation,
           history: initialServerState.history,
         },
-        payload.businessSlug,
+        normalizedBusinessSlug,
       );
     }
 
@@ -510,7 +603,7 @@ export async function createOrderInDatabase(
 
     debugError("[orders-api] Supabase insert failed", {
       authMode: getSupabaseServerAuthMode(orderCreationMode),
-      businessSlug: payload.businessSlug,
+      businessSlug: normalizedBusinessSlug,
       code: error.code ?? null,
     });
     throw new Error(
@@ -553,6 +646,12 @@ function validateUpdateOrderPayload(payload: unknown): payload is OrderApiUpdate
         Number.isFinite(candidate.total) &&
         candidate.total >= 0)) &&
     (candidate.isReviewed === undefined || typeof candidate.isReviewed === "boolean") &&
+    (candidate.isFiado === undefined || typeof candidate.isFiado === "boolean") &&
+    (candidate.fiadoStatus === undefined ||
+      isValidNullableFiadoStatus(candidate.fiadoStatus)) &&
+    (candidate.fiadoObservation === undefined ||
+      candidate.fiadoObservation === null ||
+      typeof candidate.fiadoObservation === "string") &&
     (candidate.eventIntent === undefined ||
       isValidOrderUpdateEventIntent(candidate.eventIntent)) &&
     Object.keys(candidate).length > 0 &&
@@ -640,6 +739,27 @@ function describeUpdatePayloadProblems(payload: unknown) {
     problems.push("isReviewed debe ser booleano.");
   }
 
+  if (candidate.isFiado !== undefined && typeof candidate.isFiado !== "boolean") {
+    problems.push("isFiado debe ser booleano.");
+  }
+
+  if (
+    candidate.fiadoStatus !== undefined &&
+    !isValidNullableFiadoStatus(candidate.fiadoStatus)
+  ) {
+    problems.push(
+      'fiadoStatus debe ser "pending", "paid" o null.',
+    );
+  }
+
+  if (
+    candidate.fiadoObservation !== undefined &&
+    candidate.fiadoObservation !== null &&
+    typeof candidate.fiadoObservation !== "string"
+  ) {
+    problems.push("fiadoObservation debe ser texto o null.");
+  }
+
   if (candidate.eventIntent !== undefined && !isValidOrderUpdateEventIntent(candidate.eventIntent)) {
     problems.push("eventIntent no es valido para public.orders.");
   }
@@ -654,9 +774,10 @@ function describeUpdatePayloadProblems(payload: unknown) {
 }
 
 export async function updateOrderInDatabase(
-  orderId: string,
+  orderId: OrderId,
   payload: unknown,
 ): Promise<Order> {
+  const normalizedOrderId = requireOrderId(orderId);
   const normalizedPayload = normalizeOrderApiUpdatePayload(payload);
 
   if (!validateUpdateOrderPayload(normalizedPayload)) {
@@ -669,9 +790,9 @@ export async function updateOrderInDatabase(
   const { data: existingOrder, error: lookupError } = await supabase
     .from("orders")
     .select(
-      "id, business_id, customer_name, customer_whatsapp, delivery_type, delivery_address, payment_method, products, total, notes, status, payment_status, is_reviewed",
+      "id, business_id, customer_name, customer_whatsapp, delivery_type, delivery_address, payment_method, products, total, notes, status, payment_status, is_reviewed, is_fiado, fiado_status, fiado_observation",
     )
-    .eq("id", orderId)
+    .eq("id", normalizedOrderId)
     .maybeSingle<OrderLookupRow>();
 
   if (lookupError) {
@@ -679,8 +800,12 @@ export async function updateOrderInDatabase(
   }
 
   if (!existingOrder) {
-    throw new Error(`Order not found for id "${orderId}".`);
+    throw new Error(`Order not found for id "${normalizedOrderId}".`);
   }
+
+  const businessPaymentSettings = await getBusinessPaymentSettingsByDatabaseId(
+    existingOrder.business_id,
+  );
 
   const resolvedStatePatch = resolveAuthoritativeOrderStatePatch(
     {
@@ -697,6 +822,29 @@ export async function updateOrderInDatabase(
     },
   );
   const nextOrderState = resolvedStatePatch.nextState;
+  const resolvedFiadoPatch = resolveAuthoritativeOrderFiadoPatch(
+    {
+      isFiado: existingOrder.is_fiado,
+      fiadoStatus: existingOrder.fiado_status,
+      fiadoObservation: existingOrder.fiado_observation,
+    },
+    {
+      isFiado: normalizedPayload.isFiado,
+      fiadoStatus: normalizedPayload.fiadoStatus,
+      fiadoObservation: normalizedPayload.fiadoObservation,
+    },
+    {
+      allowsFiado: businessPaymentSettings.allows_fiado ?? false,
+    },
+  );
+  const nextFiadoState = resolvedFiadoPatch.nextState;
+
+  if (
+    normalizedPayload.paymentMethod !== undefined ||
+    resolvedStatePatch.changedFields.includes("paymentMethod")
+  ) {
+    assertBusinessPaymentMethodIsEnabled(nextOrderState.paymentMethod, businessPaymentSettings);
+  }
 
   const nextCustomerName =
     normalizedPayload.customerName !== undefined
@@ -794,21 +942,30 @@ export async function updateOrderInDatabase(
     ...(nextIsReviewed !== existingOrder.is_reviewed
       ? { isReviewed: nextIsReviewed }
       : {}),
+    ...(resolvedFiadoPatch.changedFields.includes("isFiado")
+      ? { isFiado: nextFiadoState.isFiado }
+      : {}),
+    ...(resolvedFiadoPatch.changedFields.includes("fiadoStatus")
+      ? { fiadoStatus: nextFiadoState.fiadoStatus }
+      : {}),
+    ...(resolvedFiadoPatch.changedFields.includes("fiadoObservation")
+      ? { fiadoObservation: nextFiadoState.fiadoObservation }
+      : {}),
   };
 
   debugLog("[orders-api] Preparing order patch", {
-    orderId,
+    orderId: normalizedOrderId,
     fieldsUpdated: Object.keys(updatePayload),
   });
 
   const { data, error } = await supabase.rpc("update_order_with_server_history", {
-    target_order_id: orderId,
+    target_order_id: normalizedOrderId,
     patch: updatePayload,
   });
 
   if (error) {
     debugError("[orders-api] Supabase patch failed", {
-      orderId,
+      orderId: normalizedOrderId,
       code: error.code ?? null,
       authMode: getSupabaseServerAuthMode("auth"),
     });

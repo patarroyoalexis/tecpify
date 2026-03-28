@@ -6,7 +6,6 @@ import {
   createCriticalFlowScenario,
   createOrderFromPublicStorefront,
   createOrderThroughPublicApi,
-  ensureUserExists,
   loginThroughUi,
   openPublicStorefront,
   resolveTestUsers,
@@ -16,10 +15,6 @@ import {
 } from "./support/mvp-critical-flow";
 
 const domainUsers = resolveTestUsers();
-
-test.beforeAll(async ({ request }) => {
-  await ensureUserExists(request, domainUsers.owner);
-});
 
 function readHistoryTitles(order: PrivateOrderApiRecord) {
   return (order.history ?? []).map((event) => event.title);
@@ -78,7 +73,7 @@ test.describe("Order domain rules", () => {
       await test.step("a customer creates a digital-payment order from the public storefront", async () => {
         await createOrderFromPublicStorefront(storefrontPage, scenario, {
           deliveryType: "recogida en tienda",
-          paymentMethod: "Nequi",
+          paymentMethod: "Transferencia",
         });
       });
 
@@ -88,8 +83,10 @@ test.describe("Order domain rules", () => {
           productName: scenario.productName,
         });
 
-        expect(order.products?.some((product) => product.productId === ownedProduct.id)).toBe(true);
-        expect(order.paymentMethod).toBe("Nequi");
+        expect(order.products?.some((product) => product.productId === ownedProduct.productId)).toBe(
+          true,
+        );
+        expect(order.paymentMethod).toBe("Transferencia");
         expect(order.deliveryType).toBe("recogida en tienda");
         expect(order.paymentStatus).toBe("pendiente");
         expect(order.status).toBe("pendiente de pago");
@@ -101,11 +98,13 @@ test.describe("Order domain rules", () => {
 
         await page.goto(`/pedidos/${scenario.businessSlug}`);
         await expect(page).toHaveURL(new RegExp(`/pedidos/${scenario.businessSlug}$`));
-        await expect(page.getByTestId(`order-card-${order.id}`)).toBeVisible();
-        await expect(page.getByTestId(`order-card-status-${order.id}`)).toContainText(
+        await expect(page.getByTestId(`order-card-${order.orderId}`)).toBeVisible();
+        await expect(page.getByTestId(`order-card-status-${order.orderId}`)).toContainText(
           "Pendiente de pago",
         );
-        await expect(page.getByTestId(`order-card-payment-status-${order.id}`)).toContainText(
+        await expect(
+          page.getByTestId(`order-card-payment-status-${order.orderId}`),
+        ).toContainText(
           "Pendiente",
         );
 
@@ -118,11 +117,11 @@ test.describe("Order domain rules", () => {
           customerName: forgedCustomerName,
           customerWhatsApp: scenario.customerPhone,
           deliveryType: "recogida en tienda",
-          paymentMethod: "Nequi",
+          paymentMethod: "Transferencia",
           total: ownedProduct.price,
           products: [
             {
-              productId: ownedProduct.id,
+              productId: ownedProduct.productId,
               name: scenario.productName,
               quantity: 1,
               unitPrice: ownedProduct.price,
@@ -161,18 +160,19 @@ test.describe("Order domain rules", () => {
       await test.step("a valid workspace action appends new history events without replacing the original snapshot", async () => {
         const initialHistoryIds = (initialOrder.history ?? []).map((event) => event.id);
 
-        await page.getByTestId(`order-card-primary-action-${initialOrder.id}`).click();
+        await page.getByTestId(`order-card-primary-action-${initialOrder.orderId}`).click();
+        const updatedOrder = await waitForOrderInPrivateApi(page, scenario.businessSlug, {
+          orderId: initialOrder.orderId,
+          status: "pago por verificar",
+          paymentStatus: "verificado",
+        });
 
-        await expect(page.getByTestId(`order-card-status-${initialOrder.id}`)).toContainText(
+        await expect(page.getByTestId(`order-card-status-${initialOrder.orderId}`)).toContainText(
           "Pago por verificar",
         );
-        await expect(page.getByTestId(`order-card-payment-status-${initialOrder.id}`)).toContainText(
-          "Verificado",
-        );
-
-        const updatedOrder = await waitForOrderInPrivateApi(page, scenario.businessSlug, {
-          orderId: initialOrder.id,
-        });
+        await expect(
+          page.getByTestId(`order-card-payment-status-${initialOrder.orderId}`),
+        ).toContainText("Verificado");
         const updatedHistory = updatedOrder.history ?? [];
 
         expect(updatedOrder.paymentStatus).toBe("verificado");
@@ -192,7 +192,7 @@ test.describe("Order domain rules", () => {
           initialHistoryIds,
         );
 
-        const orderCard = page.getByTestId(`order-card-${initialOrder.id}`);
+        const orderCard = page.getByTestId(`order-card-${initialOrder.orderId}`);
         await orderCard.getByRole("button", { name: /Ver detalles del pedido/i }).click();
         await expect(page.getByTestId("order-detail-drawer")).toBeVisible();
         await expect(page.getByTestId("order-history-section")).toBeVisible();
@@ -256,7 +256,7 @@ test.describe("Order domain rules", () => {
           total: ownedProduct.price,
           products: [
             {
-              productId: ownedProduct.id,
+              productId: ownedProduct.productId,
               name: scenario.productName,
               quantity: 1,
               unitPrice: ownedProduct.price,
@@ -292,9 +292,11 @@ test.describe("Order domain rules", () => {
           productName: scenario.productName,
         });
 
-        expect(domicilioOrder.products?.some((product) => product.productId === ownedProduct.id)).toBe(
-          true,
-        );
+        expect(
+          domicilioOrder.products?.some(
+            (product) => product.productId === ownedProduct.productId,
+          ),
+        ).toBe(true);
         expect(domicilioOrder.paymentMethod).toBe("Contra entrega");
         expect(domicilioOrder.deliveryType).toBe("domicilio");
         expect(domicilioOrder.paymentStatus).toBe("verificado");
@@ -306,12 +308,14 @@ test.describe("Order domain rules", () => {
 
         await page.goto(`/pedidos/${scenario.businessSlug}`);
         await expandCollapsedOrderGroups(page);
-        await expect(page.getByTestId(`order-card-${domicilioOrder.id}`)).toBeVisible();
-        await expect(page.getByTestId(`order-card-status-${domicilioOrder.id}`)).toContainText(
+        await expect(page.getByTestId(`order-card-${domicilioOrder.orderId}`)).toBeVisible();
+        await expect(
+          page.getByTestId(`order-card-status-${domicilioOrder.orderId}`),
+        ).toContainText(
           "Confirmado",
         );
         await expect(
-          page.getByTestId(`order-card-payment-status-${domicilioOrder.id}`),
+          page.getByTestId(`order-card-payment-status-${domicilioOrder.orderId}`),
         ).toContainText("Verificado");
       });
     } finally {

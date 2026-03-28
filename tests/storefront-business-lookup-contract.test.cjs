@@ -33,18 +33,49 @@ function getLatestStorefrontLookupMigration() {
   };
 }
 
+function extractSqlFunctionBlock(source, functionName) {
+  const escapedFunctionName = functionName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = source.match(
+    new RegExp(
+      `create(?:\\s+or\\s+replace)?\\s+function\\s+${escapedFunctionName}\\([\\s\\S]*?\\n\\$\\$;`,
+      "i",
+    ),
+  );
+
+  return match?.[0] ?? "";
+}
+
 test("storefront business lookup: la ultima migracion mantiene el owner en el contrato publico controlado", () => {
   const latestMigration = getLatestStorefrontLookupMigration();
+  const functionSource = extractSqlFunctionBlock(
+    latestMigration.source,
+    "public.get_storefront_business_by_slug",
+  );
 
   assert.match(
-    latestMigration.source,
+    functionSource,
     /returns table\s*\([\s\S]*created_by_user_id\s+uuid[\s\S]*\)/i,
     `La ultima definicion de get_storefront_business_by_slug debe exponer created_by_user_id. Revision requerida en ${latestMigration.filename}.`,
   );
   assert.match(
-    latestMigration.source,
+    functionSource,
     /select[\s\S]*businesses\.created_by_user_id/i,
     `La ultima definicion de get_storefront_business_by_slug debe seleccionar created_by_user_id. Revision requerida en ${latestMigration.filename}.`,
+  );
+  assert.match(
+    functionSource,
+    /returns table\s*\([\s\S]*accepts_cash\s+boolean[\s\S]*accepts_transfer\s+boolean[\s\S]*accepts_card\s+boolean[\s\S]*\)/i,
+    `La ultima definicion de get_storefront_business_by_slug debe exponer los flags publicos de pago. Revision requerida en ${latestMigration.filename}.`,
+  );
+  assert.match(
+    functionSource,
+    /select[\s\S]*businesses\.transfer_instructions[\s\S]*businesses\.accepts_cash[\s\S]*businesses\.accepts_transfer[\s\S]*businesses\.accepts_card/i,
+    `La ultima definicion de get_storefront_business_by_slug debe seleccionar transfer_instructions y los flags publicos. Revision requerida en ${latestMigration.filename}.`,
+  );
+  assert.doesNotMatch(
+    functionSource,
+    /allows_fiado/i,
+    `La ultima definicion publica de get_storefront_business_by_slug no debe exponer allows_fiado. Revision requerida en ${latestMigration.filename}.`,
   );
   assert.match(
     latestMigration.source,

@@ -12,11 +12,11 @@ export function mergeOrdersForGlobalSearch(localOrders: Order[], remoteOrders: O
   // Remote orders are the source of truth and the current in-memory state only fills the
   // most recent UI changes until the next server refresh completes.
   for (const order of localOrders) {
-    merged.set(order.id, order);
+    merged.set(order.orderId, order);
   }
 
   for (const order of remoteOrders) {
-    merged.set(order.id, order);
+    merged.set(order.orderId, order);
   }
 
   return [...merged.values()].sort(
@@ -36,7 +36,7 @@ export function matchesGlobalOrderSearch(order: Order, query: string) {
     order.client,
     order.customerPhone ?? "",
     order.orderCode ?? "",
-    order.id,
+    order.orderId,
     order.address ?? "",
     order.observations ?? "",
     order.paymentMethod,

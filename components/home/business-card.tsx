@@ -2,7 +2,7 @@ import Link from "next/link";
 
 interface BusinessCardProps {
   business: {
-    slug: string;
+    businessSlug: string;
     name: string;
     tagline: string;
     accent: string;
@@ -25,7 +25,7 @@ export function BusinessCard({
       <div className={`rounded-[24px] bg-gradient-to-r ${business.accent} p-5`}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm font-semibold uppercase tracking-[0.22em] text-slate-600">
-            {business.slug}
+            {business.businessSlug}
           </p>
           <span className="rounded-full border border-white/60 bg-white/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-600">
             {badge}

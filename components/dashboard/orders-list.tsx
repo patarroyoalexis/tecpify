@@ -10,10 +10,13 @@ interface OrdersListProps {
   hasActiveFilters: boolean;
   expandedGroups: Record<GroupKey, boolean>;
   onToggleGroup: (groupKey: GroupKey) => void;
-  onOpenDetails: (orderId: string) => void;
-  onQuickUpdateOrderStatus: (orderId: string, status: OrderStatus) => Promise<void>;
+  onOpenDetails: (orderId: Order["orderId"]) => void;
+  onQuickUpdateOrderStatus: (
+    orderId: Order["orderId"],
+    status: OrderStatus,
+  ) => Promise<void>;
   onQuickUpdatePaymentStatus: (
-    orderId: string,
+    orderId: Order["orderId"],
     paymentStatus: PaymentStatus,
   ) => Promise<void>;
 }
@@ -130,7 +133,7 @@ export function OrdersList({
               <div className="mt-3 grid items-stretch gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {group.orders.map((order) => (
                   <OrderCard
-                    key={order.id}
+                    key={order.orderId}
                     order={order}
                     onOpenDetails={onOpenDetails}
                     onQuickUpdateOrderStatus={onQuickUpdateOrderStatus}

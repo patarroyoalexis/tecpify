@@ -1,6 +1,8 @@
 import { ORDER_STATUS_LABELS, PAYMENT_STATUS_LABELS } from "@/lib/orders/transitions";
+import type { BusinessSlug, OrderId } from "@/types/identifiers";
 import type {
   DeliveryType,
+  FiadoStatus,
   Order,
   OrderHistoryEvent,
   OrderProduct,
@@ -22,14 +24,14 @@ export const ORDER_UPDATE_EVENT_INTENTS = [
 export type OrderUpdateEventIntent = (typeof ORDER_UPDATE_EVENT_INTENTS)[number];
 
 interface InitialOrderHistoryOptions {
-  orderId: string;
-  businessSlug: string;
+  orderId: OrderId;
+  businessSlug: BusinessSlug;
   createdAt: string;
   origin: OrderOrigin;
 }
 
 interface OrderHistoryComparableSnapshot {
-  id: string;
+  orderId: OrderId;
   status: OrderStatus;
   paymentStatus: PaymentStatus;
   customerName: string;
@@ -41,10 +43,13 @@ interface OrderHistoryComparableSnapshot {
   notes: string | null;
   total: number;
   isReviewed: boolean;
+  isFiado: boolean;
+  fiadoStatus: FiadoStatus | null;
+  fiadoObservation: string | null;
 }
 
 interface AppendOrderHistoryOptions {
-  orderId: string;
+  orderId: OrderId;
   occurredAt: string;
   currentHistory: Order["history"];
   currentOrder: OrderHistoryComparableSnapshot;
@@ -71,6 +76,9 @@ const UPDATE_EVENT_DESCRIPTORS: Array<{
     | "products"
     | "notes"
     | "total"
+    | "isFiado"
+    | "fiadoStatus"
+    | "fiadoObservation"
   >;
   title: string;
   label: string;
@@ -125,10 +133,25 @@ const UPDATE_EVENT_DESCRIPTORS: Array<{
     title: "Dato principal del pedido actualizado",
     label: "Total",
   },
+  {
+    field: "isFiado",
+    title: "Estado interno de fiado actualizado",
+    label: "Fiado",
+  },
+  {
+    field: "fiadoStatus",
+    title: "Estado interno de fiado actualizado",
+    label: "Estado de fiado",
+  },
+  {
+    field: "fiadoObservation",
+    title: "Estado interno de fiado actualizado",
+    label: "Observacion de fiado",
+  },
 ];
 
 function createOrderHistoryEvent(
-  orderId: string,
+  orderId: OrderId,
   occurredAt: string,
   title: string,
   description: string,
@@ -176,6 +199,10 @@ function formatComparableFieldValue(
       return formatProducts(value as OrderProduct[]);
     case "total":
       return currencyFormatter.format(value as number);
+    case "isFiado":
+      return value ? "Si" : "No";
+    case "fiadoStatus":
+      return value === "pending" ? "Pendiente" : value === "paid" ? "Pagado" : "No aplica";
     default:
       return String(value);
   }

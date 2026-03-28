@@ -7,6 +7,10 @@ const React = require("react");
 const { renderToStaticMarkup } = require("react-dom/server");
 
 const { loadTsModule } = require("./helpers/test-runtime.cjs");
+const {
+  formatTransitions,
+  getLegacyOwnerlessSqlClosureState,
+} = require("./helpers/sql-migration-state.cjs");
 
 const {
   getBusinessAccessLevel,
@@ -24,6 +28,9 @@ const { createGetBusinessBySlugWithProducts } = loadTsModule("data/businesses.ts
 
 const OWNER_ID = "user-owner";
 const NON_OWNER_ID = "user-other";
+const LEGACY_BUSINESS_ID = "0f9f5d8d-1234-4f6b-8f16-6e16b14ac199";
+const OWNED_BUSINESS_ID = "0f9f5d8d-1234-4f6b-8f16-6e16b14ac101";
+const PRODUCT_ID = "0f9f5d8d-1234-4f6b-8f16-6e16b14ac002";
 
 function createJsonRequest(url, method, body) {
   return new Request(url, {
@@ -37,16 +44,16 @@ function createJsonRequest(url, method, body) {
 
 function createProductFixture(overrides = {}) {
   return {
-    id: "prod-1",
-    business_id: "biz-1",
+    productId: PRODUCT_ID,
+    businessId: "0f9f5d8d-1234-4f6b-8f16-6e16b14ac101",
     name: "Hamburguesa",
     description: "Doble carne",
     price: 15000,
-    is_available: true,
-    is_featured: false,
-    sort_order: 1,
-    created_at: "2026-03-25T21:00:00.000Z",
-    updated_at: "2026-03-25T21:00:00.000Z",
+    isAvailable: true,
+    isFeatured: false,
+    sortOrder: 1,
+    createdAt: "2026-03-25T21:00:00.000Z",
+    updatedAt: "2026-03-25T21:00:00.000Z",
     ...overrides,
   };
 }
@@ -59,7 +66,7 @@ test("legacy ownerless: negocio sin owner queda bloqueado en acceso privado y ma
   assert.equal(LEGACY_BUSINESS_OWNERSHIP_STRATEGY.mode, "unsupported_ownerless_blocked");
 
   assert.deepEqual(
-    resolveLegacyBusinessOwnershipState({ ownerUserId: null }),
+    resolveLegacyBusinessOwnershipState({ createdByUserId: null }),
     {
       runtimeStatus: "ownerless_unsupported",
       accessStatus: "inaccessible",
@@ -70,9 +77,9 @@ test("legacy ownerless: negocio sin owner queda bloqueado en acceso privado y ma
   assert.equal(
     getBusinessAccessLevel(
       {
-        businessId: "biz-legacy",
+        businessId: LEGACY_BUSINESS_ID,
         businessSlug: "legacy-shop",
-        ownerUserId: null,
+        createdByUserId: null,
       },
       OWNER_ID,
     ),
@@ -80,9 +87,9 @@ test("legacy ownerless: negocio sin owner queda bloqueado en acceso privado y ma
   );
   assert.equal(
     canAccessBusiness(OWNER_ID, {
-      businessId: "biz-legacy",
+      businessId: LEGACY_BUSINESS_ID,
       businessSlug: "legacy-shop",
-      ownerUserId: null,
+      createdByUserId: null,
     }),
     false,
   );
@@ -90,7 +97,7 @@ test("legacy ownerless: negocio sin owner queda bloqueado en acceso privado y ma
 
 test("legacy ownerless: negocio sin owner sigue bloqueado para recibir pedidos operativos", async () => {
   const handlers = createOrdersRouteHandlers({
-    normalizeBusinessSlug: (value) => value.trim().toLowerCase(),
+    requireBusinessSlug: (value) => value.trim().toLowerCase(),
     requireBusinessApiContext: async () => {
       throw new Error("requireBusinessApiContext no debe usarse en POST");
     },
@@ -109,8 +116,8 @@ test("legacy ownerless: negocio sin owner sigue bloqueado para recibir pedidos o
       customerWhatsApp: "3001234567",
       deliveryType: "domicilio",
       deliveryAddress: "Calle 1 # 2-3",
-      paymentMethod: "Nequi",
-      products: [{ productId: "prod-1", name: "Hamburguesa", quantity: 1, unitPrice: 15000 }],
+      paymentMethod: "Transferencia",
+      products: [{ productId: PRODUCT_ID, name: "Hamburguesa", quantity: 1, unitPrice: 15000 }],
       total: 15000,
     }),
   );
@@ -123,8 +130,8 @@ test("legacy ownerless: negocio sin owner sigue bloqueado para recibir pedidos o
 test("legacy ownerless: storefront sigue bloqueado y no vuelve operativo un negocio sin owner", async () => {
   const getBusinessBySlugWithProducts = createGetBusinessBySlugWithProducts({
     getBusinessBySlugFromDatabase: async () => ({
-      id: "biz-legacy",
-      slug: "legacy-shop",
+      businessId: LEGACY_BUSINESS_ID,
+      businessSlug: "legacy-shop",
       name: "Legacy Shop",
       createdAt: "2026-03-25T21:00:00.000Z",
       updatedAt: "2026-03-25T21:00:00.000Z",
@@ -133,13 +140,13 @@ test("legacy ownerless: storefront sigue bloqueado y no vuelve operativo un nego
     getProductsByBusinessId: async () => [createProductFixture()],
     mapProductToBusinessProduct(product) {
       return {
-        id: product.id,
+        productId: product.productId,
         name: product.name,
         description: product.description ?? "",
         price: product.price,
-        isAvailable: product.is_available,
-        isFeatured: product.is_featured,
-        sortOrder: product.sort_order ?? 0,
+        isAvailable: product.isAvailable,
+        isFeatured: product.isFeatured,
+        sortOrder: product.sortOrder ?? 0,
       };
     },
     debugLog: () => {},
@@ -175,83 +182,77 @@ test("legacy ownerless: la home operativa muestra la estrategia final sin promet
 });
 
 test("legacy ownerless: el repo ya no expone panel ni rutas runtime de remediacion", () => {
-  assert.equal(
-    fs.existsSync(
-      path.join(process.cwd(), "components", "home", "legacy-business-remediation-panel.tsx"),
-    ),
-    false,
-  );
-  assert.equal(
-    fs.existsSync(
-      path.join(
-        process.cwd(),
-        "app",
-        "api",
-        "businesses",
-        "legacy-remediation",
-        "request",
-        "route.ts",
-      ),
-    ),
-    false,
-  );
-  assert.equal(
-    fs.existsSync(
-      path.join(
-        process.cwd(),
-        "app",
-        "api",
-        "businesses",
-        "legacy-remediation",
-        "claim",
-        "route.ts",
-      ),
-    ),
-    false,
-  );
+  for (const relativePath of [
+    path.join("components", "home", "legacy-business-remediation-panel.tsx"),
+    path.join("app", "api", "businesses", "legacy-remediation", "request", "route.ts"),
+    path.join("app", "api", "businesses", "legacy-remediation", "grant", "route.ts"),
+    path.join("app", "api", "businesses", "legacy-remediation", "claim", "route.ts"),
+    path.join("app", "api", "businesses", "legacy-remediation", "list", "route.ts"),
+  ]) {
+    assert.equal(fs.existsSync(path.join(process.cwd(), relativePath)), false, relativePath);
+  }
 });
 
-test("legacy ownerless: la migracion final elimina la remediacion SQL y bloquea ownerless -> owned", () => {
-  const migrationSource = fs.readFileSync(
-    path.join(
-      process.cwd(),
-      "supabase",
-      "migrations",
-      "20260326001_retire_legacy_business_runtime_remediation.sql",
-    ),
-    "utf8",
-  );
+test("legacy ownerless: la definicion final efectiva retira la superficie SQL request/grant/claim/list", () => {
+  const sqlClosureState = getLegacyOwnerlessSqlClosureState();
 
-  assert.match(
-    migrationSource,
-    /drop function if exists public\.request_legacy_business_ownership_remediation\(text\)/i,
-    "La estrategia final debe retirar la solicitud runtime de remediacion.",
+  for (const retiredSurface of [
+    ...sqlClosureState.forbiddenTables,
+    ...sqlClosureState.forbiddenFunctions,
+    ...sqlClosureState.forbiddenTriggers,
+  ]) {
+    assert.equal(
+      retiredSurface.state,
+      "absent",
+      `${retiredSurface.name} debe quedar ausente en la definicion final efectiva. Transiciones: ${formatTransitions(retiredSurface.transitions)}`,
+    );
+  }
+
+  for (const grantState of sqlClosureState.authenticatedGrantStates) {
+    assert.equal(
+      grantState.granted,
+      false,
+      `${grantState.name} no puede quedar otorgado a authenticated. Transiciones: ${formatTransitions(grantState.transitions)}`,
+    );
+  }
+});
+
+test("legacy ownerless: la definicion final efectiva conserva el veto ownerless -> owned", () => {
+  const sqlClosureState = getLegacyOwnerlessSqlClosureState();
+
+  assert.equal(
+    sqlClosureState.blockerFunction.state,
+    "present",
+    `La funcion veto final debe seguir presente. Transiciones: ${formatTransitions(sqlClosureState.blockerFunction.transitions)}`,
+  );
+  assert.equal(
+    sqlClosureState.blockerTrigger.state,
+    "present",
+    `El trigger veto final debe seguir presente. Transiciones: ${formatTransitions(sqlClosureState.blockerTrigger.transitions)}`,
+  );
+  assert.ok(
+    sqlClosureState.blockerFunction.latestMigration,
+    "Debe existir una migracion efectiva que defina el veto final ownerless -> owned.",
+  );
+  assert.ok(
+    sqlClosureState.blockerTrigger.latestMigration,
+    "Debe existir una migracion efectiva que conecte el trigger veto ownerless -> owned.",
   );
   assert.match(
-    migrationSource,
-    /drop function if exists public\.claim_legacy_business_ownership\(text\)/i,
-    "La estrategia final debe retirar el claim runtime legacy.",
-  );
-  assert.match(
-    migrationSource,
-    /drop table if exists public\.legacy_business_ownership_remediations cascade/i,
-    "La estrategia final no debe dejar la remediacion solo en SQL.",
-  );
-  assert.match(
-    migrationSource,
+    sqlClosureState.blockerFunction.latestMigration.source,
     /legacy businesses without owner are unsupported in the MVP and cannot be claimed or reassigned in runtime/i,
-    "La base debe bloquear definitivamente ownerless -> owned dentro del MVP.",
+    "La base debe declarar de forma explicita que ownerless no es remediable en runtime.",
   );
   assert.match(
-    migrationSource,
+    sqlClosureState.blockerTrigger.latestMigration.source,
     /create trigger businesses_block_unsupported_legacy_owner_assignment/i,
-    "La base debe cablear el veto definitivo de ownerless -> owned.",
+    "La base debe cablear el trigger veto definitivo de ownerless -> owned.",
   );
 });
 
 test("legacy ownerless: negocio con owner real sigue accesible para owner correcto y bloqueado para usuario ajeno", () => {
   assert.deepEqual(
-    resolveLegacyBusinessOwnershipState({ ownerUserId: OWNER_ID }),
+    resolveLegacyBusinessOwnershipState({ createdByUserId: OWNER_ID }),
     {
       runtimeStatus: "owned",
       accessStatus: "accessible",
@@ -262,9 +263,9 @@ test("legacy ownerless: negocio con owner real sigue accesible para owner correc
   assert.equal(
     getBusinessAccessLevel(
       {
-        businessId: "biz-owned",
+        businessId: OWNED_BUSINESS_ID,
         businessSlug: "mi-tienda",
-        ownerUserId: OWNER_ID,
+        createdByUserId: OWNER_ID,
       },
       OWNER_ID,
     ),
@@ -273,9 +274,9 @@ test("legacy ownerless: negocio con owner real sigue accesible para owner correc
   assert.equal(
     getBusinessAccessLevel(
       {
-        businessId: "biz-owned",
+        businessId: OWNED_BUSINESS_ID,
         businessSlug: "mi-tienda",
-        ownerUserId: OWNER_ID,
+        createdByUserId: OWNER_ID,
       },
       NON_OWNER_ID,
     ),

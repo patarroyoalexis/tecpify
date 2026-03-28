@@ -1,3 +1,5 @@
+import { resolveTransferInstructions } from "@/lib/businesses/transfer-instructions";
+
 export function normalizePhoneForWhatsApp(
   phone: string,
   defaultCountryCode = "57",
@@ -47,4 +49,51 @@ export function buildWhatsAppUrl(
   }
 
   return `https://wa.me/${normalizedPhone}?text=${encodeURIComponent(message)}`;
+}
+
+function normalizeMessageSegment(value: string | null | undefined) {
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  return value.trim().replace(/\s+/g, " ");
+}
+
+function formatOrderTotalForWhatsApp(total: number | null | undefined) {
+  if (!Number.isFinite(total) || typeof total !== "number" || total <= 0) {
+    return "";
+  }
+
+  return new Intl.NumberFormat("es-CO", {
+    style: "currency",
+    currency: "COP",
+    maximumFractionDigits: 0,
+  }).format(total);
+}
+
+export function buildPaymentProofWhatsAppMessage(options: {
+  businessName: string | null | undefined;
+  customerName?: string | null;
+  orderCode?: string | null;
+  total?: number | null;
+  transferInstructions?: string | null;
+}) {
+  const customerName = normalizeMessageSegment(options.customerName);
+  const businessName = normalizeMessageSegment(options.businessName);
+  const orderCode = normalizeMessageSegment(options.orderCode);
+  const formattedTotal = formatOrderTotalForWhatsApp(options.total);
+  const resolvedTransferInstructions = resolveTransferInstructions(
+    options.transferInstructions,
+  );
+  const lines = [
+    customerName ? `Hola ${customerName}.` : "Hola.",
+    businessName ? `Te escribimos de ${businessName}.` : "",
+    orderCode ? `Codigo del pedido: ${orderCode}.` : "",
+    formattedTotal ? `Total del pedido: ${formattedTotal}.` : "",
+    "Instrucciones de transferencia:",
+    resolvedTransferInstructions,
+    "Cuando realices el pago, por favor envianos el comprobante por este medio.",
+  ].filter((line) => line.length > 0);
+
+  return lines.join("\n\n");
 }

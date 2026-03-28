@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { requireBusinessApiContext } from "@/lib/auth/server";
 import { deleteProductInDatabase, updateProductInDatabase } from "@/lib/data/products";
+import { parseProductId } from "@/types/identifiers";
 
 const PRODUCT_MUTATION_ALLOWED_FIELDS = new Set([
   "businessSlug",
@@ -32,6 +33,14 @@ export function createProductByIdRouteHandlers(
       context: { params: Promise<{ productId: string }> },
     ) {
       const { productId } = await context.params;
+      const normalizedProductId = parseProductId(productId);
+
+      if (!normalizedProductId) {
+        return NextResponse.json(
+          { error: "El productId no tiene un formato valido." },
+          { status: 400 },
+        );
+      }
       let payload: unknown;
 
       try {
@@ -74,7 +83,7 @@ export function createProductByIdRouteHandlers(
           return businessContextResult.response;
         }
 
-        const product = await dependencies.updateProductInDatabase(productId, {
+        const product = await dependencies.updateProductInDatabase(normalizedProductId, {
           ...(payload as Omit<Parameters<typeof updateProductInDatabase>[1], "businessId">),
           businessId: businessContextResult.context.businessId,
         });
@@ -101,8 +110,16 @@ export function createProductByIdRouteHandlers(
       context: { params: Promise<{ productId: string }> },
     ) {
       const { productId } = await context.params;
+      const normalizedProductId = parseProductId(productId);
       const { searchParams } = new URL(request.url);
       const businessSlug = searchParams.get("businessSlug")?.trim();
+
+      if (!normalizedProductId) {
+        return NextResponse.json(
+          { error: "El productId no tiene un formato valido." },
+          { status: 400 },
+        );
+      }
 
       if (!businessSlug) {
         return NextResponse.json(
@@ -119,7 +136,7 @@ export function createProductByIdRouteHandlers(
 
       try {
         const result = await dependencies.deleteProductInDatabase(
-          productId,
+          normalizedProductId,
           businessContextResult.context.businessId,
         );
         return NextResponse.json(result, { status: 200 });

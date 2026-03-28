@@ -5,14 +5,32 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const repoRoot = process.cwd();
+const migrationsDir = path.join(repoRoot, "supabase", "migrations");
 
 function readFile(relativePath) {
   return fs.readFileSync(path.join(repoRoot, relativePath), "utf8");
 }
 
-const historyMigrationSource = readFile(
-  "supabase/migrations/20260326003_enforce_order_history_in_db.sql",
-);
+function getLatestHistoryMigrationSource() {
+  const migrationFilenames = fs
+    .readdirSync(migrationsDir)
+    .filter((filename) => filename.endsWith(".sql"))
+    .filter((filename) => {
+      const source = fs.readFileSync(path.join(migrationsDir, filename), "utf8");
+      return /create(?:\s+or\s+replace)?\s+function\s+public\.update_order_with_server_history/i.test(
+        source,
+      );
+    })
+    .sort();
+
+  if (migrationFilenames.length === 0) {
+    throw new Error("No se encontro una migracion efectiva para update_order_with_server_history.");
+  }
+
+  return fs.readFileSync(path.join(migrationsDir, migrationFilenames.at(-1)), "utf8");
+}
+
+const historyMigrationSource = getLatestHistoryMigrationSource();
 const ordersServerSource = readFile("lib/data/orders-server.ts");
 const publicOrdersRouteSource = readFile("app/api/orders/route.ts");
 const privateOrdersRouteSource = readFile("app/api/orders/private/route.ts");
@@ -107,5 +125,23 @@ test("regresion: rutas y capa de datos no reintroducen snapshots directos de his
     updatePayloadBlock.groups.block,
     /\bhistory:/,
     "El update persistido no debe volver a incluir history como payload directo.",
+  );
+});
+
+test("db history guardrails: la definicion efectiva incluye trazabilidad de fiado", () => {
+  assert.match(
+    historyMigrationSource,
+    /or previous_order\.is_fiado is distinct from next_order\.is_fiado/i,
+    "La definicion efectiva del historial debe tratar fiado como campo trazable.",
+  );
+  assert.match(
+    historyMigrationSource,
+    /'isFiado'|'fiadoStatus'|'fiadoObservation'/i,
+    "La funcion controlada debe aceptar y registrar los campos internos de fiado.",
+  );
+  assert.match(
+    historyMigrationSource,
+    /Estado interno de fiado actualizado/i,
+    "La DB debe anexar eventos claros cuando cambia el estado interno de fiado.",
   );
 });

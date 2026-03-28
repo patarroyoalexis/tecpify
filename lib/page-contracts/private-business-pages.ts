@@ -2,6 +2,7 @@ import { createElement, type ComponentType, type ReactNode } from "react";
 
 import type { BusinessContext } from "@/lib/auth/server";
 import type { BusinessReadinessSnapshot } from "@/lib/businesses/readiness";
+import type { BusinessId, BusinessSlug } from "@/types/identifiers";
 import type { Order } from "@/types/orders";
 import type { Product } from "@/types/products";
 
@@ -12,6 +13,11 @@ interface BusinessPageParams {
 export interface BusinessWorkspaceShellContractProps {
   businessName: string;
   businessSlug: string;
+  transferInstructions: string | null;
+  acceptsCash: boolean;
+  acceptsTransfer: boolean;
+  acceptsCard: boolean;
+  allowsFiado: boolean;
   operatorEmail: string | null;
   initialOrders: Order[];
   initialOrdersError?: string | null;
@@ -92,8 +98,8 @@ interface CommonPageDependencies {
     redirectTo: string,
   ) => Promise<BusinessContext | null>;
   getOrdersByBusinessIdFromDatabase: (
-    businessId: string,
-    options?: { businessSlug?: string },
+    businessId: BusinessId,
+    options?: { businessSlug?: BusinessSlug },
   ) => Promise<Order[]>;
   BusinessWorkspaceShell: ComponentType<BusinessWorkspaceShellContractProps>;
 }
@@ -103,7 +109,7 @@ interface DashboardPageDependencies extends CommonPageDependencies {
     totalProducts: number,
     activeProducts: number,
   ) => BusinessReadinessSnapshot;
-  getAdminProductsByBusinessId: (businessId: string) => Promise<Product[]>;
+  getAdminProductsByBusinessId: (businessId: BusinessId) => Promise<Product[]>;
   DashboardOverview: ComponentType<DashboardOverviewContractProps>;
 }
 
@@ -129,9 +135,9 @@ export function createBusinessDashboardPage(dependencies: DashboardPageDependenc
     }
 
     const business = {
-      slug: businessContext.businessSlug,
+      businessSlug: businessContext.businessSlug,
       name: businessContext.businessName,
-      databaseId: businessContext.businessId,
+      businessId: businessContext.businessId,
     };
     let initialOrders: Order[] = [];
     let initialOrdersError: string | null = null;
@@ -139,8 +145,8 @@ export function createBusinessDashboardPage(dependencies: DashboardPageDependenc
 
     try {
       initialOrders = await dependencies.getOrdersByBusinessIdFromDatabase(
-        business.databaseId,
-        { businessSlug: business.slug },
+        business.businessId,
+        { businessSlug: business.businessSlug },
       );
     } catch (error) {
       initialOrdersError =
@@ -150,10 +156,10 @@ export function createBusinessDashboardPage(dependencies: DashboardPageDependenc
     }
 
     try {
-      const products = await dependencies.getAdminProductsByBusinessId(business.databaseId);
+      const products = await dependencies.getAdminProductsByBusinessId(business.businessId);
       businessReadiness = dependencies.getBusinessReadinessSnapshot(
         products.length,
-        products.filter((product) => product.is_available).length,
+        products.filter((product) => product.isAvailable).length,
       );
     } catch {
       businessReadiness = dependencies.getBusinessReadinessSnapshot(0, 0);
@@ -163,7 +169,12 @@ export function createBusinessDashboardPage(dependencies: DashboardPageDependenc
       dependencies.BusinessWorkspaceShell,
       {
         businessName: business.name,
-        businessSlug: business.slug,
+        businessSlug: business.businessSlug,
+        transferInstructions: businessContext.transferInstructions,
+        acceptsCash: businessContext.acceptsCash,
+        acceptsTransfer: businessContext.acceptsTransfer,
+        acceptsCard: businessContext.acceptsCard,
+        allowsFiado: businessContext.allowsFiado,
         operatorEmail: businessContext.user.email || null,
         initialOrders,
         initialOrdersError,
@@ -171,7 +182,7 @@ export function createBusinessDashboardPage(dependencies: DashboardPageDependenc
         description: "Resumen rapido del negocio para priorizar el dia.",
       },
       createElement(dependencies.DashboardOverview, {
-        businessSlug: business.slug,
+        businessSlug: business.businessSlug,
         businessName: business.name,
         businessReadiness,
       }),
@@ -192,7 +203,7 @@ export function createOrdersPage(dependencies: OrdersPageDependencies) {
     }
 
     const business = {
-      slug: businessContext.businessSlug,
+      businessSlug: businessContext.businessSlug,
       name: businessContext.businessName,
     };
     let initialOrders: Order[] = [];
@@ -201,7 +212,7 @@ export function createOrdersPage(dependencies: OrdersPageDependencies) {
     try {
       initialOrders = await dependencies.getOrdersByBusinessIdFromDatabase(
         businessContext.businessId,
-        { businessSlug: business.slug },
+        { businessSlug: business.businessSlug },
       );
     } catch (error) {
       initialOrdersError =
@@ -214,7 +225,12 @@ export function createOrdersPage(dependencies: OrdersPageDependencies) {
       dependencies.BusinessWorkspaceShell,
       {
         businessName: business.name,
-        businessSlug: business.slug,
+        businessSlug: business.businessSlug,
+        transferInstructions: businessContext.transferInstructions,
+        acceptsCash: businessContext.acceptsCash,
+        acceptsTransfer: businessContext.acceptsTransfer,
+        acceptsCard: businessContext.acceptsCard,
+        allowsFiado: businessContext.allowsFiado,
         operatorEmail: businessContext.user.email || null,
         initialOrders,
         initialOrdersError,
@@ -222,7 +238,7 @@ export function createOrdersPage(dependencies: OrdersPageDependencies) {
         description: "Operacion diaria para revisar, cobrar, preparar y entregar.",
         headerActions: createElement(dependencies.OrdersHeaderActions),
       },
-      createElement(dependencies.OrdersWorkspace, { businessSlug: business.slug }),
+      createElement(dependencies.OrdersWorkspace, { businessSlug: business.businessSlug }),
     );
   };
 }
@@ -240,7 +256,7 @@ export function createMetricsPage(dependencies: MetricsPageDependencies) {
     }
 
     const business = {
-      slug: businessContext.businessSlug,
+      businessSlug: businessContext.businessSlug,
       name: businessContext.businessName,
     };
     let initialOrders: Order[] = [];
@@ -249,7 +265,7 @@ export function createMetricsPage(dependencies: MetricsPageDependencies) {
     try {
       initialOrders = await dependencies.getOrdersByBusinessIdFromDatabase(
         businessContext.businessId,
-        { businessSlug: business.slug },
+        { businessSlug: business.businessSlug },
       );
     } catch (error) {
       initialOrdersError =
@@ -262,7 +278,12 @@ export function createMetricsPage(dependencies: MetricsPageDependencies) {
       dependencies.BusinessWorkspaceShell,
       {
         businessName: business.name,
-        businessSlug: business.slug,
+        businessSlug: business.businessSlug,
+        transferInstructions: businessContext.transferInstructions,
+        acceptsCash: businessContext.acceptsCash,
+        acceptsTransfer: businessContext.acceptsTransfer,
+        acceptsCard: businessContext.acceptsCard,
+        allowsFiado: businessContext.allowsFiado,
         operatorEmail: businessContext.user.email || null,
         initialOrders,
         initialOrdersError,

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 
 import { BusinessActivationChecklist } from "@/components/dashboard/business-activation-checklist";
 import { MetricsCards } from "@/components/dashboard/metrics-cards";
@@ -12,7 +13,11 @@ import {
   getDashboardSummary,
   getOperationalPriority,
 } from "@/data/orders";
-import { getOrderDisplayCode } from "@/types/orders";
+import {
+  getFiadoStatusLabel,
+  getOrderDisplayCode,
+  isPendingFiadoOrder,
+} from "@/types/orders";
 import { useBusinessWorkspace } from "./business-workspace-context";
 
 interface DashboardOverviewProps {
@@ -28,16 +33,39 @@ export function DashboardOverview({
 }: DashboardOverviewProps) {
   const {
     openNewProduct,
+    openOrderDetails,
     openProductsManager,
     ordersError,
     ordersState,
+    transferInstructions,
+    acceptsCash,
+    acceptsTransfer,
+    acceptsCard,
+    allowsFiado,
+    isSavingBusinessSettings,
+    saveBusinessSettings,
   } = useBusinessWorkspace();
+  const [businessSettingsDraft, setBusinessSettingsDraft] = useState({
+    transferInstructions: transferInstructions ?? "",
+    acceptsCash,
+    acceptsTransfer,
+    acceptsCard,
+    allowsFiado,
+  });
+  const [businessSettingsError, setBusinessSettingsError] = useState("");
+  const [businessSettingsFeedback, setBusinessSettingsFeedback] = useState("");
   const metricsSummary = getOrdersMetricsSummary(ordersState);
   const summary = getDashboardSummary(ordersState);
   const insights = getBusinessInsights(ordersState).slice(0, 2);
   const unreviewedOrders = ordersState.filter((order) => !order.isReviewed);
+  const pendingFiadoOrders = [...ordersState]
+    .filter(isPendingFiadoOrder)
+    .sort(
+      (left, right) =>
+        new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
+    );
   const newOrdersToday = unreviewedOrders.filter((order) =>
-    summary.recentOrders.some((recentOrder) => recentOrder.id === order.id),
+    summary.recentOrders.some((recentOrder) => recentOrder.orderId === order.orderId),
   );
   const urgentOrders = ordersState.filter((order) => getOperationalPriority(order) === "alta");
   const hasOrders = ordersState.length > 0;
@@ -67,7 +95,29 @@ export function DashboardOverview({
             description: "Ya llego el primer pedido. Desde aqui conviene priorizar seguimiento, pagos y estados.",
             actionLabel: "Ir a pedidos",
             href: `/pedidos/${businessSlug}`,
-          };
+        };
+  const hasBusinessSettingsChanges =
+    businessSettingsDraft.transferInstructions !== (transferInstructions ?? "") ||
+    businessSettingsDraft.acceptsCash !== acceptsCash ||
+    businessSettingsDraft.acceptsTransfer !== acceptsTransfer ||
+    businessSettingsDraft.acceptsCard !== acceptsCard ||
+    businessSettingsDraft.allowsFiado !== allowsFiado;
+
+  async function handleSaveBusinessSettings() {
+    setBusinessSettingsError("");
+    setBusinessSettingsFeedback("");
+
+    try {
+      await saveBusinessSettings(businessSettingsDraft);
+      setBusinessSettingsFeedback("La configuracion operativa del negocio quedo guardada.");
+    } catch (error) {
+      setBusinessSettingsError(
+        error instanceof Error
+          ? error.message
+          : "No fue posible guardar la configuracion del negocio.",
+      );
+    }
+  }
 
   const executiveMetrics = [
     {
@@ -112,6 +162,242 @@ export function DashboardOverview({
         onOpenCreateProduct={openNewProduct}
         onOpenProductsManager={openProductsManager}
       />
+
+      <section className="rounded-[28px] border border-slate-200/80 bg-white p-6 shadow-[0_18px_45px_rgba(15,23,42,0.05)]">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">
+              Configuracion operativa
+            </p>
+            <h2 className="mt-1 text-2xl font-semibold text-slate-950">
+              Metodos de pago e instrucciones
+            </h2>
+            <p className="mt-1 text-sm text-slate-600">
+              Escribe aqui los datos o indicaciones que recibira el cliente para transferir y
+              enviar su comprobante. Los flags publicos controlan lo que el cliente puede ver.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void handleSaveBusinessSettings()}
+            disabled={!hasBusinessSettingsChanges || isSavingBusinessSettings}
+            className={`inline-flex items-center justify-center rounded-full px-4 py-2.5 text-sm font-semibold transition ${
+              !hasBusinessSettingsChanges || isSavingBusinessSettings
+                ? "cursor-not-allowed border border-slate-200 bg-slate-100 text-slate-400"
+                : "border border-slate-900 bg-slate-900 text-white hover:bg-slate-800"
+            }`}
+          >
+            {isSavingBusinessSettings ? "Guardando..." : "Guardar configuracion"}
+          </button>
+        </div>
+
+        <div className="mt-5 grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+          <div className="space-y-3">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="flex items-start gap-3 rounded-[22px] border border-slate-200 bg-slate-50 px-4 py-4">
+                <input
+                  type="checkbox"
+                  checked={businessSettingsDraft.acceptsCash}
+                  onChange={(event) => {
+                    setBusinessSettingsDraft((currentValue) => ({
+                      ...currentValue,
+                      acceptsCash: event.target.checked,
+                    }));
+                    setBusinessSettingsError("");
+                    setBusinessSettingsFeedback("");
+                  }}
+                  className="mt-1 h-4 w-4 rounded border-slate-300 text-slate-900"
+                />
+                <span>
+                  <span className="block text-sm font-semibold text-slate-900">Efectivo</span>
+                  <span className="mt-1 block text-xs leading-5 text-slate-500">
+                    Habilita efectivo y contra entrega en las opciones visibles al cliente.
+                  </span>
+                </span>
+              </label>
+
+              <label className="flex items-start gap-3 rounded-[22px] border border-slate-200 bg-slate-50 px-4 py-4">
+                <input
+                  type="checkbox"
+                  checked={businessSettingsDraft.acceptsTransfer}
+                  onChange={(event) => {
+                    setBusinessSettingsDraft((currentValue) => ({
+                      ...currentValue,
+                      acceptsTransfer: event.target.checked,
+                    }));
+                    setBusinessSettingsError("");
+                    setBusinessSettingsFeedback("");
+                  }}
+                  className="mt-1 h-4 w-4 rounded border-slate-300 text-slate-900"
+                />
+                <span>
+                  <span className="block text-sm font-semibold text-slate-900">
+                    Transferencia
+                  </span>
+                  <span className="mt-1 block text-xs leading-5 text-slate-500">
+                    Mantiene el metodo digital unificado sin reabrir Nequi ni variantes.
+                  </span>
+                </span>
+              </label>
+
+              <label className="flex items-start gap-3 rounded-[22px] border border-slate-200 bg-slate-50 px-4 py-4">
+                <input
+                  type="checkbox"
+                  checked={businessSettingsDraft.acceptsCard}
+                  onChange={(event) => {
+                    setBusinessSettingsDraft((currentValue) => ({
+                      ...currentValue,
+                      acceptsCard: event.target.checked,
+                    }));
+                    setBusinessSettingsError("");
+                    setBusinessSettingsFeedback("");
+                  }}
+                  className="mt-1 h-4 w-4 rounded border-slate-300 text-slate-900"
+                />
+                <span>
+                  <span className="block text-sm font-semibold text-slate-900">Tarjeta</span>
+                  <span className="mt-1 block text-xs leading-5 text-slate-500">
+                    Expone tarjeta en checkout y en creacion manual del pedido.
+                  </span>
+                </span>
+              </label>
+
+              <label className="flex items-start gap-3 rounded-[22px] border border-amber-200 bg-amber-50 px-4 py-4">
+                <input
+                  type="checkbox"
+                  checked={businessSettingsDraft.allowsFiado}
+                  onChange={(event) => {
+                    setBusinessSettingsDraft((currentValue) => ({
+                      ...currentValue,
+                      allowsFiado: event.target.checked,
+                    }));
+                    setBusinessSettingsError("");
+                    setBusinessSettingsFeedback("");
+                  }}
+                  className="mt-1 h-4 w-4 rounded border-slate-300 text-slate-900"
+                />
+                <span>
+                  <span className="block text-sm font-semibold text-slate-900">
+                    Fiado interno
+                  </span>
+                  <span className="mt-1 block text-xs leading-5 text-slate-600">
+                    Solo habilita acciones privadas del dashboard. Nunca aparece al cliente.
+                  </span>
+                </span>
+              </label>
+            </div>
+
+            <label className="space-y-2">
+              <span className="text-sm font-medium text-slate-700">
+                Instrucciones de transferencia
+              </span>
+              <textarea
+                rows={4}
+                value={businessSettingsDraft.transferInstructions}
+                onChange={(event) => {
+                  setBusinessSettingsDraft((currentValue) => ({
+                    ...currentValue,
+                    transferInstructions: event.target.value,
+                  }));
+                  setBusinessSettingsError("");
+                  setBusinessSettingsFeedback("");
+                }}
+                placeholder="Transferir a Nequi 3001234567 a nombre de Tecpify Demo y enviar comprobante por WhatsApp"
+                data-testid="business-transfer-instructions-input"
+                className="w-full rounded-[24px] border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400 focus:bg-white"
+              />
+            </label>
+          </div>
+
+          <div className="rounded-[24px] border border-slate-200 bg-slate-50/70 px-4 py-4">
+            <p className="text-sm font-semibold text-slate-900">Ayuda rapida</p>
+            <div className="mt-3 space-y-3 text-sm leading-6 text-slate-600">
+              <p>
+                Los flags publicos definen las opciones de pago visibles en el checkout y en el
+                flujo manual del negocio.
+              </p>
+              <p>
+                Si dejas vacias las instrucciones, el sistema conserva el fallback actual para el
+                mensaje de comprobante por WhatsApp.
+              </p>
+              <p>
+                El fiado de esta fase es manual: observacion obligatoria, sin saldos ni calculos
+                financieros.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-4 space-y-3">
+          <p className="text-xs leading-5 text-slate-500">
+            Si lo dejas vacio, usaremos un mensaje base claro para pedir el comprobante por
+            WhatsApp.
+          </p>
+          {businessSettingsError ? (
+            <p className="text-sm text-rose-700">{businessSettingsError}</p>
+          ) : null}
+          {businessSettingsFeedback ? (
+            <p className="text-sm text-emerald-700">{businessSettingsFeedback}</p>
+          ) : null}
+        </div>
+      </section>
+
+      {pendingFiadoOrders.length > 0 ? (
+        <section className="rounded-[28px] border border-amber-200 bg-[linear-gradient(135deg,rgba(255,251,235,0.98),rgba(255,255,255,0.98))] p-6 shadow-[0_18px_45px_rgba(15,23,42,0.05)]">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-700">
+                Seguimiento interno
+              </p>
+              <h2 className="mt-1 text-2xl font-semibold text-slate-950">
+                Fiados pendientes
+              </h2>
+              <p className="mt-1 text-sm text-slate-600">
+                Estos pedidos siguen operativos, pero no entran a ventas efectivas hasta marcarlos
+                manualmente como pagados.
+              </p>
+            </div>
+            <span className="inline-flex rounded-full border border-amber-200 bg-white px-3 py-1 text-xs font-semibold text-amber-700">
+              {pendingFiadoOrders.length} pendiente
+              {pendingFiadoOrders.length === 1 ? "" : "s"}
+            </span>
+          </div>
+
+          <div className="mt-5 space-y-3">
+            {pendingFiadoOrders.map((order) => (
+              <button
+                key={order.orderId}
+                type="button"
+                onClick={() => openOrderDetails(order.orderId)}
+                className="block w-full rounded-[22px] border border-amber-200 bg-white px-4 py-4 text-left transition hover:border-amber-300 hover:bg-amber-50/60"
+              >
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-base font-semibold text-slate-950">{order.client}</p>
+                      <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
+                        {getOrderDisplayCode(order)}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-sm text-slate-600">
+                      Estado del pedido: {order.status}
+                    </p>
+                    <p className="mt-2 text-sm text-slate-700">
+                      {order.fiadoObservation ?? "Sin observacion registrada."}
+                    </p>
+                  </div>
+                  <div className="space-y-2 text-right">
+                    <span className="inline-flex rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
+                      Fiado {getFiadoStatusLabel(order.fiadoStatus)}
+                    </span>
+                    <p className="text-xs text-slate-500">Abrir detalle</p>
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       {insights.length > 0 ? (
         <section className="rounded-[24px] border border-sky-200 bg-[linear-gradient(135deg,rgba(224,242,254,0.9),rgba(255,255,255,0.98))] px-4 py-3.5 shadow-[0_16px_36px_rgba(15,23,42,0.05)] sm:px-5 sm:py-4">
@@ -162,7 +448,7 @@ export function DashboardOverview({
             {summary.recentOrders.length > 0 ? (
               summary.recentOrders.map((order) => (
                 <div
-                  key={order.id}
+                  key={order.orderId}
                   className="rounded-[22px] border border-slate-200 bg-slate-50/70 p-4"
                 >
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

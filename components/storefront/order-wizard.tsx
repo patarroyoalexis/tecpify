@@ -167,11 +167,11 @@ function getSelectedProducts(
   quantities: Record<string, number>,
 ): OrderProduct[] {
   return business.products
-    .filter((product) => (quantities[product.id] ?? 0) > 0)
+    .filter((product) => (quantities[product.productId] ?? 0) > 0)
     .map((product) => ({
-      productId: product.id,
+      productId: product.productId,
       name: product.name,
-      quantity: quantities[product.id],
+      quantity: quantities[product.productId],
       unitPrice: product.price,
     }));
 }
@@ -322,9 +322,9 @@ export function StorefrontOrderWizard({
   const showAddressField = deliveryType === "domicilio";
 
   const availablePaymentMethods = useMemo(() => {
-    const allowedByDelivery = getAvailablePaymentMethods(deliveryType);
-    return business.availablePaymentMethods.filter((method) =>
-      allowedByDelivery.includes(method),
+    return getAvailablePaymentMethods(
+      deliveryType,
+      business.availablePaymentMethods,
     );
   }, [business.availablePaymentMethods, deliveryType]);
 
@@ -335,7 +335,7 @@ export function StorefrontOrderWizard({
   const total = useMemo(
     () =>
       business.products.reduce(
-        (sum, product) => sum + (quantities[product.id] ?? 0) * product.price,
+        (sum, product) => sum + (quantities[product.productId] ?? 0) * product.price,
         0,
       ),
     [business.products, quantities],
@@ -420,7 +420,7 @@ export function StorefrontOrderWizard({
 
     try {
       const persistedOrder = await createStorefrontOrderViaApi({
-        businessSlug: business.slug,
+        businessSlug: business.businessSlug,
         customerName: customerName.trim(),
         customerWhatsApp: customerPhone.trim(),
         deliveryType,
@@ -434,7 +434,7 @@ export function StorefrontOrderWizard({
       setConfirmedOrder(persistedOrder);
     } catch (remoteError) {
       debugError("[storefront] Remote order persistence failed", {
-        businessSlug: business.slug,
+        businessSlug: business.businessSlug,
       });
       setSubmitError(
         remoteError instanceof Error
@@ -640,11 +640,11 @@ export function StorefrontOrderWizard({
                   {inlineProducts.length > 0 ? (
                     inlineProducts.map((product) => (
                       <ProductRow
-                        key={product.id}
+                        key={product.productId}
                         product={product}
-                        quantity={quantities[product.id] ?? 0}
-                        onDecrease={() => updateQuantity(product.id, -1)}
-                        onIncrease={() => updateQuantity(product.id, 1)}
+                        quantity={quantities[product.productId] ?? 0}
+                        onDecrease={() => updateQuantity(product.productId, -1)}
+                        onIncrease={() => updateQuantity(product.productId, 1)}
                         compact
                       />
                     ))
@@ -676,11 +676,10 @@ export function StorefrontOrderWizard({
                         }
                         if (
                           paymentMethod &&
-                          !business.availablePaymentMethods
-                            .filter((method) =>
-                              getAvailablePaymentMethods(nextDeliveryType).includes(method),
-                            )
-                            .includes(paymentMethod)
+                          !getAvailablePaymentMethods(
+                            nextDeliveryType,
+                            business.availablePaymentMethods,
+                          ).includes(paymentMethod)
                         ) {
                           setPaymentMethod("");
                         }
@@ -942,11 +941,11 @@ export function StorefrontOrderWizard({
           {filteredProducts.length > 0 ? (
             filteredProducts.map((product) => (
               <ProductRow
-                key={`drawer-${product.id}`}
+                key={`drawer-${product.productId}`}
                 product={product}
-                quantity={quantities[product.id] ?? 0}
-                onDecrease={() => updateQuantity(product.id, -1)}
-                onIncrease={() => updateQuantity(product.id, 1)}
+                quantity={quantities[product.productId] ?? 0}
+                onDecrease={() => updateQuantity(product.productId, -1)}
+                onIncrease={() => updateQuantity(product.productId, 1)}
               />
             ))
           ) : (

@@ -8,11 +8,11 @@ import { createSlugFromBusinessName, normalizeBusinessSlug } from "@/lib/busines
 
 interface FormErrors {
   name?: string;
-  slug?: string;
+  businessSlug?: string;
   form?: string;
 }
 
-function validateForm(name: string, slug: string): FormErrors {
+function validateForm(name: string, businessSlug: string): FormErrors {
   const errors: FormErrors = {};
 
   if (!name.trim()) {
@@ -21,10 +21,10 @@ function validateForm(name: string, slug: string): FormErrors {
     errors.name = "El nombre no puede superar 80 caracteres.";
   }
 
-  if (!normalizeBusinessSlug(slug)) {
-    errors.slug = "Ingresa un slug valido con letras o numeros.";
-  } else if (normalizeBusinessSlug(slug).length > 60) {
-    errors.slug = "El slug no puede superar 60 caracteres.";
+  if (!normalizeBusinessSlug(businessSlug)) {
+    errors.businessSlug = "Ingresa un slug publico valido con letras o numeros.";
+  } else if (normalizeBusinessSlug(businessSlug).length > 60) {
+    errors.businessSlug = "El slug publico no puede superar 60 caracteres.";
   }
 
   return errors;
@@ -33,24 +33,24 @@ function validateForm(name: string, slug: string): FormErrors {
 export function CreateBusinessPanel() {
   const router = useRouter();
   const [name, setName] = useState("");
-  const [slug, setSlug] = useState("");
-  const [hasEditedSlugManually, setHasEditedSlugManually] = useState(false);
+  const [businessSlug, setBusinessSlug] = useState("");
+  const [hasEditedBusinessSlugManually, setHasEditedBusinessSlugManually] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    if (hasEditedSlugManually) {
+    if (hasEditedBusinessSlugManually) {
       return;
     }
 
-    setSlug(createSlugFromBusinessName(name));
-  }, [hasEditedSlugManually, name]);
+    setBusinessSlug(createSlugFromBusinessName(name));
+  }, [hasEditedBusinessSlugManually, name]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    const normalizedSlug = normalizeBusinessSlug(slug);
-    const nextErrors = validateForm(name, normalizedSlug);
+    const normalizedBusinessSlug = normalizeBusinessSlug(businessSlug);
+    const nextErrors = validateForm(name, normalizedBusinessSlug);
 
     if (Object.keys(nextErrors).length > 0) {
       setErrors(nextErrors);
@@ -63,10 +63,10 @@ export function CreateBusinessPanel() {
     try {
       const business = await createBusinessViaApi({
         name: name.trim(),
-        slug: normalizedSlug,
+        businessSlug: normalizedBusinessSlug,
       });
 
-      router.push(`/dashboard/${business.slug}?onboarding=create-product`);
+      router.push(`/dashboard/${business.businessSlug}?onboarding=create-product`);
       router.refresh();
     } catch (error) {
       const message =
@@ -74,7 +74,7 @@ export function CreateBusinessPanel() {
 
       setErrors({
         form: message,
-        slug: message.toLowerCase().includes("slug") ? message : undefined,
+        businessSlug: message.toLowerCase().includes("slug") ? message : undefined,
       });
     } finally {
       setIsSubmitting(false);
@@ -104,7 +104,7 @@ export function CreateBusinessPanel() {
           </p>
           <p className="mt-2 text-sm font-semibold text-slate-950">Crear negocio</p>
           <p className="mt-1 text-xs leading-5 text-slate-600">
-            Nombre y slug para abrir el espacio operativo.
+            Nombre y slug publico para abrir el espacio operativo.
           </p>
         </article>
         <article className="rounded-[18px] border border-white/80 bg-white/90 p-3">
@@ -152,16 +152,16 @@ export function CreateBusinessPanel() {
         </label>
 
         <label className="block space-y-2">
-          <span className="text-sm font-medium text-slate-700">Slug</span>
+          <span className="text-sm font-medium text-slate-700">Slug publico</span>
           <input
-            value={slug}
+            value={businessSlug}
             onChange={(event) => {
-              setHasEditedSlugManually(true);
-              setSlug(event.target.value);
-              if (errors.slug || errors.form) {
+              setHasEditedBusinessSlugManually(true);
+              setBusinessSlug(event.target.value);
+              if (errors.businessSlug || errors.form) {
                 setErrors((currentErrors) => ({
                   ...currentErrors,
-                  slug: undefined,
+                  businessSlug: undefined,
                   form: undefined,
                 }));
               }
@@ -172,17 +172,21 @@ export function CreateBusinessPanel() {
             spellCheck={false}
             data-testid="business-slug-input"
             className={`w-full rounded-2xl border px-4 py-3 text-sm text-slate-950 outline-none transition ${
-              errors.slug ? "border-rose-300 bg-rose-50/60" : "border-slate-200 focus:border-slate-400"
+              errors.businessSlug
+                ? "border-rose-300 bg-rose-50/60"
+                : "border-slate-200 focus:border-slate-400"
             }`}
           />
           <p className="text-xs leading-5 text-slate-500">
             Se normaliza en minusculas, con guiones y sin caracteres invalidos. Si no lo editas,
             se genera automaticamente desde el nombre.
           </p>
-          {errors.slug ? <p className="text-sm text-rose-600">{errors.slug}</p> : null}
+          {errors.businessSlug ? (
+            <p className="text-sm text-rose-600">{errors.businessSlug}</p>
+          ) : null}
         </label>
 
-        {errors.form && !errors.slug ? (
+        {errors.form && !errors.businessSlug ? (
           <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
             {errors.form}
           </div>
@@ -202,8 +206,8 @@ export function CreateBusinessPanel() {
         </button>
 
         <p className="text-xs leading-5 text-slate-500">
-          Despues de crear el negocio te llevamos a `/dashboard/[slug]` con el drawer listo para
-          cargar el primer producto.
+          Despues de crear el negocio te llevamos a `/dashboard/[businessSlug]` con el drawer
+          listo para cargar el primer producto.
         </p>
       </form>
     </section>

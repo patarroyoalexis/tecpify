@@ -28,7 +28,7 @@ export function getOrderUpdateTransitionError(
   return getOrderStateUpdateError(
     {
       deliveryType: order.deliveryType ?? "domicilio",
-      paymentMethod: order.paymentMethod ?? "Nequi",
+      paymentMethod: order.paymentMethod ?? "Transferencia",
       paymentStatus: order.paymentStatus,
       status: order.status,
     },

@@ -1,5 +1,6 @@
 import type {
   DeliveryType,
+  FiadoStatus,
   Order,
   OrderHistoryEvent,
   OrderProduct,
@@ -12,6 +13,7 @@ import {
   ORDER_STATUSES,
   PAYMENT_METHODS,
   PAYMENT_STATUSES,
+  isValidFiadoStatus,
 } from "@/types/orders";
 import {
   createInitialOrderHistory,
@@ -22,6 +24,14 @@ import {
   deriveInitialOrderStateFromPaymentMethod,
   getOrderPaymentMethodDeliveryTypeError,
 } from "@/lib/orders/state-rules";
+import { requireBusinessSlug } from "@/lib/businesses/slug";
+import {
+  requireOrderCode,
+  requireOrderId,
+  requireProductId,
+  type BusinessSlug,
+  type OrderId,
+} from "@/types/identifiers";
 
 export type SupabaseOrderRow = Record<string, unknown>;
 
@@ -55,6 +65,9 @@ export interface OrderApiUpdatePayload {
   notes?: string | null;
   total?: number;
   isReviewed?: boolean;
+  isFiado?: boolean;
+  fiadoStatus?: FiadoStatus | null;
+  fiadoObservation?: string | null;
   eventIntent?: OrderUpdateEventIntent;
 }
 
@@ -98,7 +111,7 @@ function readBoolean(row: SupabaseOrderRow, ...keys: string[]) {
   return false;
 }
 
-function mapProducts(value: unknown): OrderProduct[] {
+function mapRawPersistedOrderProducts(value: unknown): OrderProduct[] {
   if (!Array.isArray(value)) {
     return [];
   }
@@ -111,9 +124,9 @@ function mapProducts(value: unknown): OrderProduct[] {
     const candidate = item as Record<string, unknown>;
     const productId =
       typeof candidate.productId === "string"
-        ? candidate.productId
+        ? requireProductId(candidate.productId)
         : typeof candidate.product_id === "string"
-          ? candidate.product_id
+          ? requireProductId(candidate.product_id)
           : undefined;
     const name = typeof candidate.name === "string" ? candidate.name : "";
     const quantity =
@@ -219,8 +232,8 @@ function buildDateLabel(createdAt: string, fallback: string) {
 }
 
 export function buildInitialOrderServerState(options: {
-  orderId: string;
-  businessSlug: string;
+  orderId: OrderId;
+  businessSlug: BusinessSlug;
   createdAt: string;
   deliveryType: DeliveryType;
   paymentMethod: PaymentMethod;
@@ -240,24 +253,31 @@ export function buildInitialOrderServerState(options: {
   return {
     ...initialState,
     isReviewed: false,
+    isFiado: false,
+    fiadoStatus: null,
+    fiadoObservation: null,
     history: createInitialOrderHistory(options),
   };
 }
 
 export function mapSupabaseRowToOrder(
   row: SupabaseOrderRow,
-  options?: { businessSlug?: string },
+  options?: { businessSlug?: BusinessSlug },
 ): Order {
   const createdAt = readString(row, "created_at", "createdAt");
+  const resolvedBusinessSlug = options?.businessSlug ?? readString(row, "business_slug", "businessSlug");
 
   return {
-    id: readString(row, "id"),
-    orderCode: readString(row, "order_code", "orderCode") || undefined,
-    businessSlug: options?.businessSlug ?? readString(row, "business_slug", "businessSlug"),
+    orderId: requireOrderId(readString(row, "id")),
+    orderCode: (() => {
+      const rawOrderCode = readString(row, "order_code", "orderCode");
+      return rawOrderCode ? requireOrderCode(rawOrderCode) : undefined;
+    })(),
+    businessSlug: requireBusinessSlug(resolvedBusinessSlug),
     client: readString(row, "customer_name", "client"),
     customerPhone:
       readString(row, "customer_whatsapp", "customer_phone", "customerPhone") || undefined,
-    products: mapProducts(row.products),
+    products: mapRawPersistedOrderProducts(row.products),
     total: readNumber(row, "total"),
     paymentMethod: readString(
       row,
@@ -269,6 +289,14 @@ export function mapSupabaseRowToOrder(
       "payment_status",
       "paymentStatus",
     ) as PaymentStatus,
+    isFiado: readBoolean(row, "is_fiado", "isFiado"),
+    fiadoStatus: (() => {
+      const fiadoStatus = readString(row, "fiado_status", "fiadoStatus");
+
+      return fiadoStatus && isValidFiadoStatus(fiadoStatus) ? fiadoStatus : null;
+    })(),
+    fiadoObservation:
+      readString(row, "fiado_observation", "fiadoObservation") || null,
     deliveryType: readString(row, "delivery_type", "deliveryType") as DeliveryType,
     address: readString(row, "delivery_address", "address") || undefined,
     status: readString(row, "status") as OrderStatus,
@@ -294,6 +322,12 @@ export function isValidPaymentStatus(value: unknown): value is PaymentStatus {
 
 export function isValidPaymentMethod(value: unknown): value is PaymentMethod {
   return typeof value === "string" && PAYMENT_METHODS.includes(value as PaymentMethod);
+}
+
+export function isValidNullableFiadoStatus(
+  value: unknown,
+): value is FiadoStatus | null {
+  return value === null || isValidFiadoStatus(value);
 }
 
 export function normalizeOrderApiUpdatePayload(payload: unknown): unknown {
@@ -328,7 +362,7 @@ export function isValidOrderProducts(value: unknown): value is OrderProduct[] {
         typeof product.quantity === "number" &&
         Number.isFinite(product.quantity) &&
         product.quantity > 0 &&
-        (product.unitPrice === undefined ||
+      (product.unitPrice === undefined ||
           (typeof product.unitPrice === "number" &&
             Number.isFinite(product.unitPrice) &&
             product.unitPrice >= 0)),

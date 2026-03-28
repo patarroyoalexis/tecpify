@@ -14,9 +14,9 @@ interface WorkspaceHeaderProps {
 }
 
 const tabs = [
-  { label: "Dashboard", getHref: (slug: string) => `/dashboard/${slug}` },
-  { label: "Pedidos", getHref: (slug: string) => `/pedidos/${slug}` },
-  { label: "Metricas", getHref: (slug: string) => `/metricas/${slug}` },
+  { label: "Dashboard", getHref: (businessSlug: string) => `/dashboard/${businessSlug}` },
+  { label: "Pedidos", getHref: (businessSlug: string) => `/pedidos/${businessSlug}` },
+  { label: "Metricas", getHref: (businessSlug: string) => `/metricas/${businessSlug}` },
 ];
 
 export function WorkspaceHeader({

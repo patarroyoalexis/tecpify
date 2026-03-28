@@ -49,13 +49,34 @@ export const SERVICE_ROLE_USAGE_INVENTORY = [
   },
 ] as const satisfies readonly ServiceRoleUsageInventoryEntry[];
 
-export type ServiceRoleUsageId = (typeof SERVICE_ROLE_USAGE_INVENTORY)[number]["id"];
+export const TEST_ONLY_SERVICE_ROLE_USAGE_INVENTORY = [
+  {
+    id: "playwright_auth_fixture_bootstrap",
+    status: "active",
+    classification: "indispensable",
+    location: "tests/helpers/playwright-global-setup.ts",
+    summary:
+      "Bootstrap aislado de fixtures E2E de Auth para Playwright; no forma parte del runtime productivo.",
+  },
+] as const satisfies readonly ServiceRoleUsageInventoryEntry[];
+
+export type RuntimeServiceRoleUsageId = (typeof SERVICE_ROLE_USAGE_INVENTORY)[number]["id"];
+export type TestOnlyServiceRoleUsageId =
+  (typeof TEST_ONLY_SERVICE_ROLE_USAGE_INVENTORY)[number]["id"];
+export type ServiceRoleUsageId = RuntimeServiceRoleUsageId | TestOnlyServiceRoleUsageId;
 
 // Guardrail canonico del repo: el flujo normal del MVP no tiene usos activos de service role.
-const ACTIVE_SERVICE_ROLE_USAGE_IDS = new Set<ServiceRoleUsageId>();
+const ACTIVE_SERVICE_ROLE_USAGE_IDS = new Set<RuntimeServiceRoleUsageId>();
+const TEST_ONLY_ALLOWED_SERVICE_ROLE_USAGE_IDS = new Set<TestOnlyServiceRoleUsageId>([
+  "playwright_auth_fixture_bootstrap",
+]);
 
 export function assertServiceRoleUsageAllowed(usageId: ServiceRoleUsageId) {
-  if (!ACTIVE_SERVICE_ROLE_USAGE_IDS.has(usageId)) {
+  if (TEST_ONLY_ALLOWED_SERVICE_ROLE_USAGE_IDS.has(usageId as TestOnlyServiceRoleUsageId)) {
+    return;
+  }
+
+  if (!ACTIVE_SERVICE_ROLE_USAGE_IDS.has(usageId as RuntimeServiceRoleUsageId)) {
     throw new Error(
       `SUPABASE_SERVICE_ROLE_KEY no esta habilitada para "${usageId}" en este MVP. Revisa lib/supabase/service-role.ts antes de reintroducir privilegios.`,
     );
@@ -64,4 +85,8 @@ export function assertServiceRoleUsageAllowed(usageId: ServiceRoleUsageId) {
 
 export function getActiveServiceRoleUsageIds() {
   return [...ACTIVE_SERVICE_ROLE_USAGE_IDS];
+}
+
+export function getAllowedTestOnlyServiceRoleUsageIds() {
+  return [...TEST_ONLY_ALLOWED_SERVICE_ROLE_USAGE_IDS];
 }

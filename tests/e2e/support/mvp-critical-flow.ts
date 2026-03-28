@@ -1,10 +1,9 @@
 import {
   expect,
-  type APIRequestContext,
   type Page,
 } from "@playwright/test";
 
-import { getPlaywrightEnv } from "../../../lib/env";
+import { getPlaywrightAuthFixtures } from "../../../lib/env";
 import type {
   DeliveryType,
   OrderHistoryEvent,
@@ -12,15 +11,10 @@ import type {
   PaymentMethod,
   PaymentStatus,
 } from "../../../types/orders";
-import { buildE2eTestEmail } from "./e2e-email";
-import { ensureConfirmedE2eUser } from "./supabase-admin-bootstrap";
-
-type UserSource = "env" | "generated";
 
 export interface TestUserCredentials {
   email: string;
   password: string;
-  source: UserSource;
 }
 
 export interface TestUsers {
@@ -42,17 +36,20 @@ interface SessionApiAttempt<TPayload = unknown> {
   payload: TPayload | string | null;
 }
 
+export interface PrivateProductApiRecord {
+  productId?: string;
+  name?: string;
+  price?: number;
+}
+
 interface PrivateProductsApiPayload {
-  products?: Array<{
-    id?: string;
-    name?: string;
-    price?: number;
-  }>;
+  products?: PrivateProductApiRecord[];
   error?: string;
 }
 
 export interface PrivateOrderApiRecord {
-  id?: string;
+  orderId?: string;
+  businessSlug?: string;
   client?: string;
   customerPhone?: string;
   status?: OrderStatus;
@@ -80,6 +77,17 @@ interface PublicOrdersApiCreatePayload {
   error?: string;
 }
 
+interface PrivateProductsApiCreatePayload {
+  product?: PrivateProductApiRecord;
+  error?: string;
+}
+
+interface PrivateWorkspaceOrdersApiCreatePayload {
+  order?: PrivateOrderApiRecord;
+  orderCode?: string | null;
+  error?: string;
+}
+
 export interface StorefrontOrderCreationOptions {
   customerName?: string;
   customerPhone?: string;
@@ -93,6 +101,8 @@ export interface OrderLookupOptions {
   orderId?: string;
   customerName?: string;
   productName?: string;
+  status?: OrderStatus;
+  paymentStatus?: PaymentStatus;
   timeoutMs?: number;
 }
 
@@ -122,6 +132,8 @@ function buildOrderLookupDescription(options: OrderLookupOptions) {
     options.orderId ? `orderId=${options.orderId}` : null,
     options.customerName ? `customerName=${options.customerName}` : null,
     options.productName ? `productName=${options.productName}` : null,
+    options.status ? `status=${options.status}` : null,
+    options.paymentStatus ? `paymentStatus=${options.paymentStatus}` : null,
   ]
     .filter(Boolean)
     .join(", ");
@@ -135,7 +147,7 @@ function orderMatchesLookup(
     return false;
   }
 
-  if (options.orderId && order.id !== options.orderId) {
+  if (options.orderId && order.orderId !== options.orderId) {
     return false;
   }
 
@@ -151,47 +163,29 @@ function orderMatchesLookup(
     return false;
   }
 
-  return Boolean(order.id);
-}
-
-function readConfiguredUser(role: "OWNER" | "INTRUDER"): TestUserCredentials | null {
-  const playwrightEnv = getPlaywrightEnv();
-  const email =
-    role === "OWNER" ? playwrightEnv.ownerEmail : playwrightEnv.intruderEmail;
-  const password =
-    role === "OWNER" ? playwrightEnv.ownerPassword : playwrightEnv.intruderPassword;
-
-  if (!email && !password) {
-    return null;
+  if (options.status && order.status !== options.status) {
+    return false;
   }
 
-  if (!email || !password) {
-    throw new Error(
-      `Configura ambas variables PLAYWRIGHT_${role}_EMAIL y PLAYWRIGHT_${role}_PASSWORD, o deja ambas vacias.`,
-    );
+  if (options.paymentStatus && order.paymentStatus !== options.paymentStatus) {
+    return false;
   }
 
-  return {
-    email,
-    password,
-    source: "env",
-  };
-}
-
-function createGeneratedUser(role: "owner" | "intruder"): TestUserCredentials {
-  const suffix = buildGeneratedSuffix();
-
-  return {
-    email: buildE2eTestEmail(role, { uniqueToken: suffix }),
-    password: `Tecpify!${suffix}`,
-    source: "generated",
-  };
+  return Boolean(order.orderId);
 }
 
 export function resolveTestUsers(): TestUsers {
+  const fixtures = getPlaywrightAuthFixtures();
+
   return {
-    owner: readConfiguredUser("OWNER") ?? createGeneratedUser("owner"),
-    intruder: readConfiguredUser("INTRUDER") ?? createGeneratedUser("intruder"),
+    owner: {
+      email: fixtures.owner.email,
+      password: fixtures.owner.password,
+    },
+    intruder: {
+      email: fixtures.intruder.email,
+      password: fixtures.intruder.password,
+    },
   };
 }
 
@@ -206,77 +200,6 @@ export function createCriticalFlowScenario(): CriticalFlowScenario {
     customerName: `Cliente E2E ${suffix}`,
     customerPhone: "3001234567",
   };
-}
-
-async function registerUserThroughRuntime(
-  request: APIRequestContext,
-  credentials: TestUserCredentials,
-) {
-  const response = await request.post("/api/auth/register", {
-    data: {
-      email: credentials.email,
-      password: credentials.password,
-      redirectTo: "/dashboard",
-    },
-  });
-
-  if (response.ok()) {
-    return;
-  }
-
-  let errorMessage = "No fue posible registrar el usuario E2E por el flujo normal.";
-  let responsePayload: unknown = null;
-
-  try {
-    responsePayload = (await response.json()) as { error?: string };
-    if (
-      responsePayload &&
-      typeof responsePayload === "object" &&
-      "error" in responsePayload &&
-      typeof responsePayload.error === "string"
-    ) {
-      errorMessage = responsePayload.error;
-    }
-  } catch {
-    responsePayload = await response.text().catch(() => null);
-  }
-
-  if (/already registered|already been registered/i.test(errorMessage)) {
-    return;
-  }
-
-  if (/email rate limit exceeded/i.test(errorMessage)) {
-    return;
-  }
-
-  const payloadSummary =
-    responsePayload === null
-      ? "<sin payload>"
-      : typeof responsePayload === "string"
-        ? responsePayload
-        : JSON.stringify(responsePayload);
-
-  throw new Error(
-    [
-      "No fue posible registrar el usuario E2E por el flujo normal.",
-      `email=${credentials.email}`,
-      `status=${response.status()}`,
-      `error=${errorMessage}`,
-      `payload=${payloadSummary}`,
-    ].join(" | "),
-  );
-}
-
-export async function ensureUserExists(
-  request: APIRequestContext,
-  credentials: TestUserCredentials,
-) {
-  if (credentials.source !== "generated") {
-    return;
-  }
-
-  await registerUserThroughRuntime(request, credentials);
-  await ensureConfirmedE2eUser(credentials);
 }
 
 export async function loginThroughUi(page: Page, credentials: TestUserCredentials) {
@@ -326,10 +249,7 @@ export async function createActiveProductFromDrawer(
   }
 
   await page.getByTestId("product-form-submit-button").click();
-
-  await expect(page.getByTestId("products-management-drawer")).toContainText(
-    `/pedido/${scenario.businessSlug}`,
-  );
+  await waitForProductInPrivateApi(page, scenario.businessSlug, scenario.productName);
 }
 
 export async function openPublicStorefront(
@@ -378,7 +298,7 @@ export async function createOrderFromPublicStorefront(
   options?: StorefrontOrderCreationOptions,
 ) {
   const deliveryType = options?.deliveryType ?? "recogida en tienda";
-  const paymentMethod = options?.paymentMethod ?? "Nequi";
+  const paymentMethod = options?.paymentMethod ?? "Transferencia";
   const customerPhone = options?.customerPhone ?? scenario.customerPhone;
   const customerName = options?.customerName ?? scenario.customerName;
 
@@ -475,6 +395,32 @@ export async function getOrdersFromPrivateApi(page: Page, businessSlug: string) 
   });
 }
 
+export async function listProductsFromPrivateApi(page: Page, businessSlug: string) {
+  const productsAttempt = await getProductsFromPrivateApi(page, businessSlug);
+  expect(productsAttempt.status).toBe(200);
+
+  if (!isPrivateProductsApiPayload(productsAttempt.payload)) {
+    throw new Error(
+      `La respuesta de /api/products para ${businessSlug} no devolvio un payload valido.`,
+    );
+  }
+
+  return productsAttempt.payload.products ?? [];
+}
+
+export async function listOrdersFromPrivateApi(page: Page, businessSlug: string) {
+  const ordersAttempt = await getOrdersFromPrivateApi(page, businessSlug);
+  expect(ordersAttempt.status).toBe(200);
+
+  if (!isPrivateOrdersApiPayload(ordersAttempt.payload)) {
+    throw new Error(
+      `La respuesta de /api/orders para ${businessSlug} no devolvio un payload valido.`,
+    );
+  }
+
+  return ordersAttempt.payload.orders ?? [];
+}
+
 export async function createOrderThroughPublicApi(
   page: Page,
   payload: Record<string, unknown>,
@@ -482,6 +428,28 @@ export async function createOrderThroughPublicApi(
   return requestJsonInBrowserSession<PublicOrdersApiCreatePayload>(page, {
     method: "POST",
     path: "/api/orders",
+    body: payload,
+  });
+}
+
+export async function createProductThroughPrivateApi(
+  page: Page,
+  payload: Record<string, unknown>,
+) {
+  return requestJsonInBrowserSession<PrivateProductsApiCreatePayload>(page, {
+    method: "POST",
+    path: "/api/products",
+    body: payload,
+  });
+}
+
+export async function createManualOrderThroughPrivateApi(
+  page: Page,
+  payload: Record<string, unknown>,
+) {
+  return requestJsonInBrowserSession<PrivateWorkspaceOrdersApiCreatePayload>(page, {
+    method: "POST",
+    path: "/api/orders/private",
     body: payload,
   });
 }
@@ -529,14 +497,14 @@ export async function waitForProductInPrivateApi(
         : null;
       const matchedProduct = Array.isArray(productsPayload?.products)
         ? productsPayload.products.find(
-            (product: { id?: string; name?: string; price?: number } | undefined) =>
+            (product: PrivateProductApiRecord | undefined) =>
               product?.name === productName &&
-              typeof product.id === "string" &&
+              typeof product.productId === "string" &&
               typeof product.price === "number",
           )
         : null;
 
-      if (matchedProduct?.id && typeof matchedProduct.price === "number") {
+      if (matchedProduct?.productId && typeof matchedProduct.price === "number") {
         return matchedProduct;
       }
     }
@@ -576,7 +544,7 @@ export async function waitForOrderInPrivateApi(
         ? ordersPayload.orders.find((order) => orderMatchesLookup(order, lookup))
         : null;
 
-      if (matchedOrder?.id) {
+      if (matchedOrder?.orderId) {
         return matchedOrder;
       }
     }
@@ -609,14 +577,14 @@ export async function getOwnedBusinessResourceIds(
     productName: scenario.productName,
   });
 
-  if (!ownedProduct.id || !ownedOrder.id) {
+  if (!ownedProduct.productId || !ownedOrder.orderId) {
     throw new Error(
       `No fue posible resolver los IDs reales de producto y pedido para ${scenario.businessSlug}.`,
     );
   }
 
   return {
-    productId: ownedProduct.id,
-    orderId: ownedOrder.id,
+    productId: ownedProduct.productId,
+    orderId: ownedOrder.orderId,
   };
 }
