@@ -239,7 +239,7 @@ declare
   request_recorded_at timestamptz := timezone('utc', now());
 begin
   if auth.uid() is null then
-    raise exception 'Debes iniciar sesion para solicitar remediacion legacy.'
+    raise exception 'Debes iniciar sesión para solicitar remediacion legacy.'
       using errcode = '28000';
   end if;
 
@@ -448,7 +448,7 @@ declare
   current_business public.businesses%rowtype;
 begin
   if auth.uid() is null then
-    raise exception 'Debes iniciar sesion para reclamar ownership legacy.'
+    raise exception 'Debes iniciar sesión para reclamar ownership legacy.'
       using errcode = '28000';
   end if;
 

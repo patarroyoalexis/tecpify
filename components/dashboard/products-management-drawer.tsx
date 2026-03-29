@@ -950,7 +950,7 @@ export function ProductsManagementDrawer({
                   <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
                     <div>
                       <p className="text-sm font-semibold text-slate-950">
-                        Centro rapido de catalogo
+                        Centro rápido de catalogo
                       </p>
                       <p className="mt-1 text-sm leading-6 text-slate-600">
                         Edita datos, cambia visibilidad, destaca productos y reordena el catalogo

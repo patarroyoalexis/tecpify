@@ -433,7 +433,7 @@ export function DashboardOverview({
                 Actividad reciente
               </p>
               <h2 className="mt-1 text-2xl font-semibold text-slate-950">
-                Pedidos para revisar rapido
+                Pedidos para revisar rápido
               </h2>
             </div>
             <Link

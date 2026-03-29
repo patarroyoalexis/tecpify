@@ -8,9 +8,9 @@ interface LandingPageProps {
 
 const operationalSignals = [
   "Menos desorden en WhatsApp",
-  "Catalogo centralizado",
+  "Catálogo centralizado",
   "Seguimiento claro del pedido",
-  "Control operativo desde un solo lugar",
+  "Control operativo desde un sólo lugar",
 ];
 
 const steps = [
@@ -22,7 +22,7 @@ const steps = [
   {
     number: "02",
     title: "Comparte tu link",
-    description: "Muestra tu catalogo con un enlace publico facil de enviar por WhatsApp o redes.",
+    description: "Muestra tu catálogo con un enlace público fácil de enviar por WhatsApp o redes.",
   },
   {
     number: "03",
@@ -35,24 +35,24 @@ const benefits = [
   {
     title: "La entrada del negocio deja de depender del chat",
     description:
-      "Tus clientes siguen llegando por canales familiares, pero los pedidos entran a un flujo mucho mas ordenado.",
+      "Tus clientes siguen llegando por canales familiares, pero los pedidos entran a un flujo mucho más ordenado.",
   },
   {
-    title: "Tu catalogo vive en un solo punto",
+    title: "Tu catálogo vive en un solo punto",
     description:
-      "Productos, disponibilidad y presentacion dejan de dispersarse en mensajes, fotos sueltas y respuestas repetidas.",
+      "Productos, disponibilidad y presentación dejan de dispersarse en mensajes, fotos sueltas y respuestas repetidas.",
   },
   {
-    title: "Cada pedido tiene trazabilidad basica",
+    title: "Cada pedido tiene trazabilidad básica",
     description:
-      "Sabes que entro, en que estado va y que necesita atencion, sin improvisar seguimiento manual.",
+      "Sabes que entró, en que estado va y qué necesita atención, sin improvisar seguimiento manual.",
   },
 ];
 
 export function LandingPage({ isAuthenticated }: LandingPageProps) {
   const primaryHref = isAuthenticated ? "/dashboard" : "/register?redirectTo=/dashboard";
   const secondaryHref = "#como-funciona";
-  const secondaryLabel = "Ver como funciona";
+  const secondaryLabel = "Ver cómo funciona";
   const primaryLabel = isAuthenticated ? "Ir a mi panel" : "Crear mi negocio gratis";
 
   return (
@@ -74,7 +74,7 @@ export function LandingPage({ isAuthenticated }: LandingPageProps) {
                   </span>
                 </h1>
                 <p className="mt-5 max-w-xl text-base leading-8 text-[#294B8F] sm:text-lg">
-                  Recibe pedidos en linea, centraliza tu catalogo y lleva el control de todo en un
+                  Recibe pedidos en línea, centraliza tu catálogo y lleva el control de todo en un
                   solo lugar.
                 </p>
 
@@ -126,7 +126,7 @@ export function LandingPage({ isAuthenticated }: LandingPageProps) {
         <div className="mx-auto grid w-full max-w-7xl gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:gap-14">
           <div className="max-w-xl">
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#294B8F]">
-              Como funciona
+              Cómo funciona
             </p>
             <h2 className="mt-4 text-3xl font-semibold tracking-[-0.03em] text-[#12326B] sm:text-4xl">
               Un flujo simple para empezar a operar con mas claridad.
@@ -214,7 +214,7 @@ export function LandingPage({ isAuthenticated }: LandingPageProps) {
                 Dale a tu negocio una entrada mas clara para vender y operar.
               </h2>
               <p className="mt-4 text-base leading-8 text-[#DCE8FF]">
-                Crea tu negocio gratis y empieza a recibir pedidos con una experiencia mas
+                Crea tu negocio gratis y empieza a recibir pedidos con una experiencia más
                 ordenada, simple y profesional.
               </p>
             </div>

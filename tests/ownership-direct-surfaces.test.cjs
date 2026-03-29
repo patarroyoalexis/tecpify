@@ -193,7 +193,7 @@ test("ownership directo: GET /api/products exige sesion o contexto valido", asyn
     requireBusinessApiContext: async () => ({
       ok: false,
       response: NextResponse.json(
-        { error: "Debes iniciar sesion para usar este espacio operativo." },
+        { error: "Debes iniciar sesión para usar este espacio operativo." },
         { status: 401 },
       ),
     }),
@@ -212,7 +212,7 @@ test("ownership directo: GET /api/products exige sesion o contexto valido", asyn
   const body = await response.json();
 
   assert.equal(response.status, 401);
-  assert.equal(body.error, "Debes iniciar sesion para usar este espacio operativo.");
+  assert.equal(body.error, "Debes iniciar sesión para usar este espacio operativo.");
   assert.equal(readWasCalled, false);
 });
 
@@ -282,7 +282,7 @@ test("ownership directo: DELETE /api/products/[productId] exige sesion o context
     requireBusinessApiContext: async () => ({
       ok: false,
       response: NextResponse.json(
-        { error: "Debes iniciar sesion para usar este espacio operativo." },
+        { error: "Debes iniciar sesión para usar este espacio operativo." },
         { status: 401 },
       ),
     }),
@@ -291,7 +291,7 @@ test("ownership directo: DELETE /api/products/[productId] exige sesion o context
     },
     deleteProductInDatabase: async () => {
       deleteWasCalled = true;
-      throw new Error("No debe borrar sin sesion valida");
+      throw new Error("No debe borrar sin sesión valida");
     },
   });
 
@@ -302,7 +302,7 @@ test("ownership directo: DELETE /api/products/[productId] exige sesion o context
   const body = await response.json();
 
   assert.equal(response.status, 401);
-  assert.equal(body.error, "Debes iniciar sesion para usar este espacio operativo.");
+  assert.equal(body.error, "Debes iniciar sesión para usar este espacio operativo.");
   assert.equal(deleteWasCalled, false);
 });
 

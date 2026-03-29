@@ -28,7 +28,7 @@ interface AppNavbarProps {
 
 const marketingLinks: AppNavLink[] = [
   { key: "home", label: "Inicio", href: "/" },
-  { key: "home", label: "Como funciona", href: "/#como-funciona" },
+  { key: "home", label: "Cómo funciona", href: "/#como-funciona" },
   { key: "home", label: "Beneficios", href: "/#beneficios" },
 ];
 
@@ -121,7 +121,7 @@ export function AppNavbar({
                     href={loginHref}
                     className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
                   >
-                    Iniciar sesion
+                    Iniciar sesión
                   </Link>
                   <Link
                     href={registerHref}
@@ -202,7 +202,7 @@ export function AppNavbar({
                 href={loginHref}
                 className="inline-flex h-11 items-center justify-center rounded-2xl border border-brand-border bg-brand-surface px-4 text-sm font-semibold text-brand-primary-blue transition hover:border-brand-focus hover:bg-brand-surface-muted"
               >
-                Iniciar sesion
+                Iniciar sesión
               </Link>
               <Link
                 href={registerHref}
@@ -266,7 +266,7 @@ export function AppNavbar({
                   onClick={() => setIsMobileMenuOpen(false)}
                   className="inline-flex h-11 items-center justify-center rounded-2xl border border-brand-border bg-brand-surface px-4 text-sm font-semibold text-brand-primary-blue transition hover:border-brand-focus hover:bg-brand-surface-muted"
                 >
-                  Iniciar sesion
+                  Iniciar sesión
                 </Link>
                 <Link
                   href={registerHref}

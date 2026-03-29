@@ -61,7 +61,7 @@ export function LoginForm({
       };
 
       if (!response.ok) {
-        throw new Error(payload.error ?? "No fue posible iniciar sesion.");
+        throw new Error(payload.error ?? "No fué posible iniciar sesión.");
       }
 
       router.push(payload.redirectTo ?? redirectTo);
@@ -70,7 +70,7 @@ export function LoginForm({
       setError(
         loginError instanceof Error
           ? loginError.message
-          : "No fue posible iniciar sesion.",
+          : "No fué posible iniciar sesión.",
       );
     } finally {
       setIsSubmitting(false);
@@ -108,7 +108,7 @@ export function LoginForm({
         value={password}
         onChange={(event) => setPassword(event.target.value)}
         autoComplete="current-password"
-        placeholder="Tu password de Supabase Auth"
+        placeholder="Tu contraseña"
         dataTestId="login-password-input"
       />
 
@@ -120,7 +120,7 @@ export function LoginForm({
         dataTestId="login-submit-button"
         variant="login"
       >
-        {isSubmitting ? "Ingresando..." : "Iniciar sesion"}
+        {isSubmitting ? "Ingresando..." : "Iniciar sesión"}
       </AuthPrimaryButton>
 
       <p className="text-sm leading-6 text-brand-text-muted">

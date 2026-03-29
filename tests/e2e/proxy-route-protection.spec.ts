@@ -15,7 +15,7 @@ test.describe("Proxy route protection", () => {
 
       await page.goto("/register");
       await expect(page).toHaveURL(/\/register(?:\?.*)?$/);
-      await expect(page.getByRole("heading", { name: "Registrate para operar" })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Crear cuenta" })).toBeVisible();
     });
 
     await test.step("private route prefixes redirect to login and preserve redirectTo", async () => {

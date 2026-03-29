@@ -56,7 +56,7 @@ function mapWorkspaceUser(user: User): WorkspaceUser {
 
 function buildUnauthenticatedApiResponse() {
   return NextResponse.json(
-    { error: "Debes iniciar sesion para usar este espacio operativo." },
+    { error: "Debes iniciar sesión para usar este espacio operativo." },
     { status: 401 },
   );
 }

@@ -160,14 +160,14 @@ test("ownership: crear negocio exige sesion valida", async () => {
     requireAuthenticatedApiUser: async () => ({
       ok: false,
       response: NextResponse.json(
-        { error: "Debes iniciar sesion para usar este espacio operativo." },
+        { error: "Debes iniciar sesión para usar este espacio operativo." },
         { status: 401 },
       ),
     }),
     createServerSupabaseAuthClient: async () => ({
       from() {
         insertWasCalled = true;
-        throw new Error("No debe insertar sin sesion valida");
+        throw new Error("No debe insertar sin sesión válida");
       },
     }),
     debugError: () => {},
@@ -185,7 +185,7 @@ test("ownership: crear negocio exige sesion valida", async () => {
   const body = await response.json();
 
   assert.equal(response.status, 401);
-  assert.equal(body.error, "Debes iniciar sesion para usar este espacio operativo.");
+  assert.equal(body.error, "Debes iniciar sesión para usar este espacio operativo.");
   assert.equal(insertWasCalled, false);
 });
 
@@ -298,7 +298,7 @@ test("ownership: la lectura privada de pedidos exige sesion o contexto valido", 
     requireBusinessApiContext: async () => ({
       ok: false,
       response: NextResponse.json(
-        { error: "Debes iniciar sesion para usar este espacio operativo." },
+        { error: "Debes iniciar sesión para usar este espacio operativo." },
         { status: 401 },
       ),
     }),
@@ -316,7 +316,7 @@ test("ownership: la lectura privada de pedidos exige sesion o contexto valido", 
   const body = await response.json();
 
   assert.equal(response.status, 401);
-  assert.equal(body.error, "Debes iniciar sesion para usar este espacio operativo.");
+  assert.equal(body.error, "Debes iniciar sesión para usar este espacio operativo.");
 });
 
 test("ownership: owner puede leer pedidos de su negocio", async () => {
@@ -407,13 +407,13 @@ test("ownership: crear pedidos manuales exige sesion valida", async () => {
     requireBusinessApiContext: async () => ({
       ok: false,
       response: NextResponse.json(
-        { error: "Debes iniciar sesion para usar este espacio operativo." },
+        { error: "Debes iniciar sesión para usar este espacio operativo." },
         { status: 401 },
       ),
     }),
     createOrderInDatabase: async () => {
       createOrderWasCalled = true;
-      throw new Error("No debe crear pedidos manuales sin sesion valida");
+      throw new Error("No debe crear pedidos manuales sin sesión válida");
     },
   });
 
@@ -432,7 +432,7 @@ test("ownership: crear pedidos manuales exige sesion valida", async () => {
   const body = await response.json();
 
   assert.equal(response.status, 401);
-  assert.equal(body.error, "Debes iniciar sesion para usar este espacio operativo.");
+  assert.equal(body.error, "Debes iniciar sesión para usar este espacio operativo.");
   assert.equal(createOrderWasCalled, false);
 });
 

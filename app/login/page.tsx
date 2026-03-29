@@ -34,12 +34,11 @@ export default async function LoginPage({
     <PublicLayoutShell>
       <AuthPageShell
         variant="login"
-        formEyebrow="Sesion minima"
-        formTitle="Inicia sesion para operar"
+        formEyebrow="Ingreso rápido"
+        formTitle="Iniciar sesión"
         formDescription={
           <>
-            Despues del login volveras a{" "}
-            <span className="font-semibold text-brand-text">{redirectTo}</span>.
+            Accede a tu panel para gestionar pedidos, actualizar estados y llevar el control de tu negocio desde un solo lugar.
           </>
         }
         redirectTo={redirectTo}

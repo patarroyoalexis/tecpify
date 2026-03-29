@@ -216,7 +216,7 @@ function getRecommendedDrawerAction(
       : {
           title: "Pago pendiente",
           description:
-            "Falta comprobante y este pedido no tiene WhatsApp valido para solicitarlo rapido.",
+            "Falta comprobante y este pedido no tiene WhatsApp válido para solicitarlo rápido.",
           tone: "border-amber-200 bg-amber-50 text-amber-900",
         };
   }

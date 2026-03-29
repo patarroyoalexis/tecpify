@@ -91,7 +91,7 @@ export async function POST(request: Request) {
       ok: true,
       requiresEmailConfirmation: true,
       message:
-        "Tu cuenta fue creada. Revisa tu correo para confirmar el acceso antes de iniciar sesion.",
+        "Tu cuenta fue creada. Revisa tu correo para confirmar el acceso antes de iniciar sesión.",
       redirectTo: "/login",
     },
     { status: 201 },

@@ -102,9 +102,6 @@ export function AuthGoogleButton({
         <GoogleIcon />
       </span>
       <span>{label}</span>
-      <span className="text-brand-text-muted transition group-hover:translate-x-0.5" aria-hidden="true">
-        -&gt;
-      </span>
     </a>
   );
 }

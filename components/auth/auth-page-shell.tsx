@@ -27,7 +27,7 @@ const pageContent: Record<
     visualEyebrow: "Acceso operativo",
     visualTitle: "Retoma pedidos, catalogo y metricas desde una sola entrada clara.",
     visualDescription:
-      "La experiencia de acceso queda mas limpia y enfocada para volver rapido al panel privado sin ruido visual.",
+      "La experiencia de acceso queda mas limpia y enfocada para volver rápido al panel privado sin ruido visual.",
     statLabel: "Estado del acceso",
     statValue: "Protegido con Auth SSR",
     supportItems: [
@@ -131,83 +131,15 @@ export function AuthPageShell({
             <div className="mt-8">{children}</div>
           </div>
 
-          <aside className="relative overflow-hidden rounded-[2rem] border border-brand-border/70 bg-[linear-gradient(160deg,rgb(var(--brand-surface-rgb)/0.96)_0%,rgb(var(--brand-surface-muted-rgb)/0.94)_48%,rgb(var(--brand-surface-rgb)/0.98)_100%)] p-6 shadow-[0_28px_70px_rgb(var(--brand-primary-blue-rgb)/0.12)] sm:p-8 lg:p-9">
-            <div
-              className="pointer-events-none absolute -right-10 -top-10 h-44 w-44 rounded-full blur-3xl"
-              style={accentStyles.orbPrimary}
-            />
-            <div
-              className="pointer-events-none absolute -bottom-14 left-0 h-52 w-52 rounded-full blur-3xl"
-              style={accentStyles.orbSecondary}
-            />
-
-            <div className="relative flex h-full flex-col gap-8">
-              <div>
-                <Image
-                  src="/images/landing/Tecpify-logo.png"
-                  alt="Tecpify"
-                  width={160}
-                  height={42}
-                  priority
-                  className="h-10 w-auto"
-                />
-                <span
-                  className="mt-6 inline-flex items-center rounded-full border border-transparent px-4 py-2 text-[0.7rem] font-semibold uppercase tracking-[0.2em]"
-                  style={accentStyles.badge}
-                >
-                  {content.visualEyebrow}
-                </span>
-                <h2 className="mt-5 max-w-xl text-[1.9rem] font-semibold leading-[1.02] tracking-[-0.04em] text-brand-text sm:text-[2.45rem]">
-                  {content.visualTitle}
-                </h2>
-                <p className="mt-4 max-w-xl text-sm leading-7 text-brand-text-muted sm:text-[0.97rem]">
-                  {content.visualDescription}
-                </p>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                {content.supportItems.map((item) => (
-                  <article
-                    key={item.title}
-                    className="rounded-[1.5rem] border p-4 shadow-[0_16px_36px_rgb(var(--brand-primary-blue-rgb)/0.08)]"
-                    style={accentStyles.miniCard}
-                  >
-                    <p className="text-sm font-semibold text-brand-text">{item.title}</p>
-                    <p className="mt-2 text-sm leading-6 text-brand-text-muted">{item.body}</p>
-                  </article>
-                ))}
-              </div>
-
-              <div className="relative mt-auto">
-                <div className="relative overflow-hidden rounded-[1.75rem] border border-brand-border/80 bg-[rgb(var(--brand-surface-rgb)/0.78)] p-3 shadow-[0_22px_55px_rgb(var(--brand-primary-blue-rgb)/0.14)]">
+          <aside className="relative overflow-hidden rounded-[2rem] border border-brand-border/70 bg-[linear-gradient(160deg,rgb(var(--brand-surface-rgb)/0.96)_0%,rgb(var(--brand-surface-muted-rgb)/0.94)_48%,rgb(var(--brand-surface-rgb)/0.98)_100%)] p-0 shadow-[0_28px_70px_rgb(var(--brand-primary-blue-rgb)/0.12)] sm:p-8 lg:p-8">
                   <Image
-                    src="/images/landing/hero-tecpify-square.png"
+                    src="/images/landing/login-tecpify.png"
                     alt="Vista de Tecpify con dashboard, catalogo y pedidos."
                     width={1200}
                     height={1200}
                     priority
-                    className="h-auto w-full rounded-[1.3rem] object-cover"
+                    className="h-auto w-full rounded-[1.3rem] object-cover shadow-[0_28px_70px_rgb(var(--brand-primary-blue-rgb)/0.12)]"
                   />
-                </div>
-
-                <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto]">
-                  <div className="rounded-[1.35rem] border border-brand-border/80 bg-[rgb(var(--brand-surface-rgb)/0.9)] px-4 py-3 shadow-[0_16px_36px_rgb(var(--brand-primary-blue-rgb)/0.1)]">
-                    <p className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-brand-text-muted">
-                      {content.statLabel}
-                    </p>
-                    <p className="mt-2 text-sm font-semibold text-brand-text">{content.statValue}</p>
-                  </div>
-                  <div className="rounded-[1.35rem] border border-brand-border/80 bg-[rgb(var(--brand-surface-rgb)/0.9)] px-4 py-3 shadow-[0_16px_36px_rgb(var(--brand-primary-blue-rgb)/0.1)]">
-                    <p className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-brand-text-muted">
-                      Despues
-                    </p>
-                    <p className="mt-2 max-w-[14rem] truncate text-sm font-semibold text-brand-text">
-                      {redirectTo}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
           </aside>
         </section>
       </div>

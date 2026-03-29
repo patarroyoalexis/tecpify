@@ -4,7 +4,7 @@ export default function StorefrontOrderLoading() {
       <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-xl items-center">
         <section className="w-full rounded-[32px] border border-white/70 bg-white/95 p-8 shadow-[0_24px_80px_rgba(15,23,42,0.12)]">
           <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-500">
-            Cargando catalogo
+            Cargando catálogo
           </p>
           <h1 className="mt-3 text-3xl font-semibold text-slate-950">
             Estamos preparando tu formulario

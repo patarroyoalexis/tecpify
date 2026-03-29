@@ -213,7 +213,7 @@ export function OrdersWorkspace({ businessSlug }: OrdersWorkspaceProps) {
               Lectura operativa
             </p>
             <p className="mt-1 text-sm text-slate-700">
-              Pedido y pago ahora se leen por separado para detectar mas rapido si falta
+              Pedido y pago ahora se leen por separado para detectar mas rápido si falta
               validar cobro o si el pedido ya puede avanzar.
             </p>
           </div>

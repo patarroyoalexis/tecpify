@@ -80,7 +80,7 @@ export function RegisterForm({
       if (payload.requiresEmailConfirmation) {
         setSuccessMessage(
           payload.message ??
-            "Tu cuenta fue creada. Revisa tu correo para confirmar e iniciar sesion.",
+            "Tu cuenta fue creada. Revisa tu correo para confirmar e iniciar sesión.",
         );
         return;
       }
@@ -123,22 +123,22 @@ export function RegisterForm({
 
       <AuthInputField
         type="password"
-        label="Password"
+        label="Contraseña"
         icon={<LockKeyhole className="h-4 w-4" aria-hidden="true" />}
         value={password}
         onChange={(event) => setPassword(event.target.value)}
         autoComplete="new-password"
-        placeholder="Minimo 8 caracteres"
+        placeholder="Mínimo 8 caracteres"
       />
 
       <AuthInputField
         type="password"
-        label="Confirmar password"
+        label="Confirmar contraseña"
         icon={<ShieldCheck className="h-4 w-4" aria-hidden="true" />}
         value={confirmPassword}
         onChange={(event) => setConfirmPassword(event.target.value)}
         autoComplete="new-password"
-        placeholder="Repite tu password"
+        placeholder="Repite tu contraseña"
       />
 
       {error ? <AuthAlert tone="error">{error}</AuthAlert> : null}
@@ -159,7 +159,7 @@ export function RegisterForm({
           href={`/login?redirectTo=${encodeURIComponent(redirectTo)}`}
           className="font-semibold text-brand-primary-green underline-offset-4 transition hover:text-brand-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--brand-focus-rgb)/0.5)]"
         >
-          Inicia sesion
+          Inicia sesión
         </Link>
       </p>
     </form>

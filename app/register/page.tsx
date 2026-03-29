@@ -34,12 +34,11 @@ export default async function RegisterPage({
     <PublicLayoutShell>
       <AuthPageShell
         variant="register"
-        formEyebrow="Cuenta basica"
-        formTitle="Registrate para operar"
+        formEyebrow="Comienza aquí"
+        formTitle="Crear cuenta"
         formDescription={
           <>
-            Despues del registro volveras a{" "}
-            <span className="font-semibold text-brand-text">{redirectTo}</span>.
+            Registrate para crear y gestionar tu negocio desde un sólo lugar.
           </>
         }
         redirectTo={redirectTo}
