@@ -1,17 +1,16 @@
 import type { Order, OrderStatus, PaymentStatus } from "@/types/orders";
+import {
+  ORDER_STATUS_LABELS,
+  ORDER_WORKFLOW_STATUSES,
+  PAYMENT_STATUS_LABELS,
+  type StatusIconKey,
+  getOrderStatusIconKey,
+  getPaymentStatusIconKey,
+} from "@/lib/orders/status-system";
 
-export type StatusIconKey =
-  | "alert-circle"
-  | "circle-check"
-  | "circle-x"
-  | "clipboard-check"
-  | "clock"
-  | "dot"
-  | "inbox"
-  | "package-check"
-  | "package-open"
-  | "rotate-ccw"
-  | "truck";
+export { ORDER_STATUS_LABELS, PAYMENT_STATUS_LABELS };
+export { getOrderStatusIconKey, getPaymentStatusIconKey };
+export type { StatusIconKey };
 
 export interface TransitionRuleResult {
   allowed: boolean;
@@ -19,67 +18,23 @@ export interface TransitionRuleResult {
   requiresConfirmation?: string;
 }
 
-export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
-  "pendiente de pago": "Pendiente de pago",
-  "pago por verificar": "Pago por verificar",
-  confirmado: "Confirmado",
-  "en preparación": "En preparación",
-  listo: "Listo",
-  entregado: "Entregado",
-  cancelado: "Cancelado",
-};
+export const TERMINAL_ORDER_STATUSES: OrderStatus[] = ["entregado"];
+export const EXCEPTIONAL_ORDER_STATUSES: OrderStatus[] = ["cancelado"];
 
-export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
-  pendiente: "Pendiente",
-  verificado: "Verificado",
-  "con novedad": "Con novedad",
-  "no verificado": "No verificado",
-};
+export function isTerminalOrderStatus(status: OrderStatus) {
+  return TERMINAL_ORDER_STATUSES.includes(status);
+}
 
-const FALLBACK_STATUS_ICON_KEY: StatusIconKey = "dot";
-
-const ORDER_STATUS_ICON_KEYS: Partial<Record<OrderStatus, StatusIconKey>> = {
-  "pendiente de pago": "inbox",
-  "pago por verificar": "inbox",
-  confirmado: "clipboard-check",
-  "en preparación": "package-open",
-  listo: "truck",
-  entregado: "package-check",
-  cancelado: "circle-x",
-};
-
-const PAYMENT_STATUS_ICON_KEYS: Partial<Record<PaymentStatus, StatusIconKey>> = {
-  pendiente: "clock",
-  verificado: "circle-check",
-  "con novedad": "alert-circle",
-  "no verificado": "circle-x",
-};
-
-export const FINAL_ORDER_STATUSES: OrderStatus[] = ["entregado", "cancelado"];
-
-const ORDER_STATUS_SEQUENCE: OrderStatus[] = [
-  "pendiente de pago",
-  "pago por verificar",
-  "confirmado",
-  "en preparación",
-  "listo",
-  "entregado",
-];
+export function isExceptionalOrderStatus(status: OrderStatus) {
+  return EXCEPTIONAL_ORDER_STATUSES.includes(status);
+}
 
 export function isFinalOrderStatus(status: OrderStatus) {
-  return FINAL_ORDER_STATUSES.includes(status);
+  return isTerminalOrderStatus(status) || isExceptionalOrderStatus(status);
 }
 
 export function isPaymentConfirmed(paymentStatus: PaymentStatus) {
   return paymentStatus === "verificado";
-}
-
-export function getOrderStatusIconKey(status: string): StatusIconKey {
-  return ORDER_STATUS_ICON_KEYS[status as OrderStatus] ?? FALLBACK_STATUS_ICON_KEY;
-}
-
-export function getPaymentStatusIconKey(status: string): StatusIconKey {
-  return PAYMENT_STATUS_ICON_KEYS[status as PaymentStatus] ?? FALLBACK_STATUS_ICON_KEY;
 }
 
 export function isNewOrder(order: Pick<Order, "isReviewed">) {
@@ -91,14 +46,18 @@ export function canManageOrderStatus(order: Pick<Order, "paymentStatus">) {
 }
 
 export function getAllowedOrderStatusTransitions(currentStatus: OrderStatus): OrderStatus[] {
-  if (isFinalOrderStatus(currentStatus)) {
-    return [currentStatus];
+  if (currentStatus === "cancelado") {
+    return ["cancelado"];
   }
 
-  const currentIndex = ORDER_STATUS_SEQUENCE.indexOf(currentStatus);
+  if (currentStatus === "entregado") {
+    return ["entregado"];
+  }
+
+  const currentIndex = ORDER_WORKFLOW_STATUSES.indexOf(currentStatus);
   const nextSequentialStatus =
-    currentIndex >= 0 && currentIndex < ORDER_STATUS_SEQUENCE.length - 1
-      ? ORDER_STATUS_SEQUENCE[currentIndex + 1]
+    currentIndex >= 0 && currentIndex < ORDER_WORKFLOW_STATUSES.length - 1
+      ? ORDER_WORKFLOW_STATUSES[currentIndex + 1]
       : null;
 
   return [
@@ -116,17 +75,32 @@ export function canAdvanceOrderStatus(
 }
 
 export function getOrderStatusTransitionRule(
-  order: Pick<Order, "status">,
+  order: Pick<Order, "status" | "paymentStatus">,
   nextStatus: OrderStatus,
 ): TransitionRuleResult {
   if (nextStatus === order.status) {
     return { allowed: true };
   }
 
-  if (isFinalOrderStatus(order.status)) {
+  if (order.status === "entregado") {
     return {
       allowed: false,
       reason: "Este pedido ya terminó su flujo y no puede seguir avanzando desde aquí.",
+    };
+  }
+
+  if (order.status === "cancelado") {
+    return {
+      allowed: false,
+      reason: "Este pedido está cancelado y debe reactivarse antes de volver al flujo operativo.",
+    };
+  }
+
+  if (nextStatus === "cancelado") {
+    return {
+      allowed: true,
+      requiresConfirmation:
+        "Vas a sacar este pedido del flujo principal. La cancelación exige motivo obligatorio.",
     };
   }
 
@@ -137,11 +111,10 @@ export function getOrderStatusTransitionRule(
     };
   }
 
-  if (nextStatus === "cancelado") {
+  if (nextStatus === "confirmado" && !isPaymentConfirmed(order.paymentStatus)) {
     return {
-      allowed: true,
-      requiresConfirmation:
-        "Vas a cancelar este pedido y cerrar su flujo operativo. Confirma para continuar.",
+      allowed: false,
+      reason: "No puedes confirmar el pedido mientras el pago no esté verificado.",
     };
   }
 

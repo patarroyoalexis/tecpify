@@ -59,13 +59,13 @@ test("db guardrails: Supabase deriva el estado inicial de pago en inserts direct
   );
   assert.match(
     migrationSource,
-    /new\.payment_status := 'verificado';[\s\S]*new\.status := 'confirmado';/i,
-    "Los pagos cash deben quedar derivados como verificados y confirmados desde DB.",
+    /new\.payment_status := 'verificado';[\s\S]*new\.status := 'nuevo';/i,
+    "Los pagos cash deben quedar derivados como verificados y en Nuevo desde DB.",
   );
   assert.match(
     migrationSource,
-    /new\.payment_status := 'pendiente';[\s\S]*new\.status := 'pendiente de pago';/i,
-    "Los pagos digitales deben quedar derivados como pendientes desde DB.",
+    /new\.payment_status := 'pendiente';[\s\S]*new\.status := 'nuevo';/i,
+    "Los pagos digitales deben quedar derivados como pendientes y en Nuevo desde DB.",
   );
   assert.match(
     paymentMethodValidationFunctionSource,
@@ -104,6 +104,21 @@ test("db guardrails: Supabase rechaza updates directos incoherentes y contra ent
     migrationSource,
     /No puedes avanzar el pedido mientras el pago no este verificado\./i,
     "La base debe rechazar estados operativos con pago no verificado.",
+  );
+  assert.match(
+    migrationSource,
+    /No puedes cancelar un pedido que ya fue entregado\./i,
+    "La base debe bloquear la cancelacion excepcional cuando el pedido ya fue entregado.",
+  );
+  assert.match(
+    migrationSource,
+    /Debes seleccionar un motivo de cancelacion valido\./i,
+    "La base debe exigir motivo obligatorio para la cancelacion excepcional.",
+  );
+  assert.match(
+    migrationSource,
+    /La reactivacion debe volver exactamente al estado previo guardado\./i,
+    "La base debe exigir que la reactivacion vuelva al estado operativo exacto previo.",
   );
   assert.match(
     migrationSource,
@@ -171,6 +186,16 @@ test("db guardrails: la definicion efectiva tambien blinda flags publicos y fiad
   );
   assert.match(
     migrationSource,
+    /add column if not exists previous_status_before_cancellation text/i,
+    "La migracion efectiva debe persistir el estado previo exacto antes de cancelar.",
+  );
+  assert.match(
+    migrationSource,
+    /add column if not exists cancellation_reason text/i,
+    "La migracion efectiva debe persistir el motivo canonico de cancelacion.",
+  );
+  assert.match(
+    migrationSource,
     /create or replace function public\.business_payment_method_is_enabled/i,
     "La base debe poder validar metodos publicos por negocio tambien en DB.",
   );
@@ -178,6 +203,11 @@ test("db guardrails: la definicion efectiva tambien blinda flags publicos y fiad
     migrationSource,
     /create or replace function public\.orders_fiado_write_is_valid/i,
     "La base debe exponer una validacion reutilizable para el contrato de fiado.",
+  );
+  assert.match(
+    migrationSource,
+    /create or replace function public\.orders_cancellable_status_is_valid/i,
+    "La base debe centralizar tambien los estados operativos que admiten cancelacion excepcional.",
   );
   assert.match(
     migrationSource,

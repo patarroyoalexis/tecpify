@@ -158,14 +158,19 @@ async function advanceCashOrderToDelivered(
   businessSlug: string,
   orderId: string,
 ) {
-  for (const status of ["en preparación", "listo", "entregado"] as const) {
+  for (const status of ["confirmado", "en preparación", "listo", "entregado"] as const) {
     await patchOrder(page, orderId, { status }, `Actualizar ${orderId} -> ${status}`);
     await waitForOrderInPrivateApi(page, businessSlug, { orderId, status });
   }
 }
 
 async function cancelOrder(page: Page, businessSlug: string, orderId: string) {
-  await patchOrder(page, orderId, { status: "cancelado" }, `Cancelar ${orderId}`);
+  await patchOrder(
+    page,
+    orderId,
+    { status: "cancelado", cancellationReason: "pedido_duplicado" },
+    `Cancelar ${orderId}`,
+  );
   await waitForOrderInPrivateApi(page, businessSlug, { orderId, status: "cancelado" });
 }
 

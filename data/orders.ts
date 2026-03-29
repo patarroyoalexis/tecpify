@@ -69,14 +69,14 @@ export function getOperationalPriority(order: Order): OperationalPriority {
   const elapsedMinutes = getElapsedMinutes(order);
 
   if (
-    (order.status === "pendiente de pago" || order.status === "pago por verificar") &&
+    order.status === "nuevo" &&
     elapsedMinutes >= 45
   ) {
     return "alta";
   }
 
   if (
-    (order.status === "confirmado" || order.status === "en preparación") &&
+    (order.status === "confirmado" || order.status === "en preparación" || order.status === "listo") &&
     elapsedMinutes >= 120
   ) {
     return "media";
@@ -92,7 +92,7 @@ export function getOperationalPriorityScore(order: Order): number {
   return priorityWeight * 100000 + getElapsedMinutes(order);
 }
 
-const actionableStatuses = ["pendiente de pago", "pago por verificar"] as const;
+const actionableStatuses = ["nuevo"] as const;
 const productionStatuses = ["confirmado", "en preparación", "listo"] as const;
 
 function isActionableOrderStatus(status: Order["status"]) {
@@ -364,7 +364,7 @@ export function getDashboardMetrics(orders: Order[]): MetricCard[] {
     {
       title: "Acciones pendientes",
       value: `${summary.pendingActionsCount}`,
-      description: "Pedidos por cobrar o pagos por verificar.",
+      description: "Pedidos nuevos que todavía necesitan lectura operativa inicial.",
       tone: "warning",
     },
     {
@@ -392,7 +392,7 @@ export function getOperationalMetrics(orders: Order[]): MetricCard[] {
     {
       title: "Pendientes",
       value: `${summary.pendingActionsCount}`,
-      description: "Pedidos por cobrar o pagos por verificar.",
+      description: "Pedidos en Nuevo que todavía no pasan a confirmación operativa.",
       tone: "warning",
     },
     {
@@ -427,7 +427,7 @@ export function getMetricsOverviewSnapshot(orders: Order[]): MetricsOverviewSnap
       {
         title: "Pendientes de atención",
         value: `${summary.pendingActionsCount}`,
-        description: "Cobros o validaciones de pago que pueden frenar la operación.",
+        description: "Pedidos nuevos o pagos pendientes que todavía frenan el flujo.",
         tone: "warning",
       },
       {

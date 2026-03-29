@@ -1,13 +1,37 @@
 import type { BusinessSlug, OrderCode, OrderId, ProductId } from "@/types/identifiers";
 
 export const ORDER_STATUSES = [
-  "pendiente de pago",
-  "pago por verificar",
+  "nuevo",
   "confirmado",
   "en preparación",
   "listo",
   "entregado",
   "cancelado",
+] as const;
+
+export const ORDER_ACTIVE_STATUSES = [
+  "nuevo",
+  "confirmado",
+  "en preparación",
+  "listo",
+  "entregado",
+] as const;
+
+export const ORDER_CANCELLABLE_STATUSES = [
+  "nuevo",
+  "confirmado",
+  "en preparación",
+  "listo",
+] as const;
+
+export const ORDER_CANCELLATION_REASONS = [
+  "cliente_canceló",
+  "error_de_captura",
+  "pago_rechazado",
+  "sin_respuesta_del_cliente",
+  "producto_no_disponible",
+  "pedido_duplicado",
+  "otro",
 ] as const;
 
 export const PAYMENT_STATUSES = [
@@ -27,6 +51,9 @@ export const PAYMENT_METHODS = [
 ] as const;
 
 export type OrderStatus = (typeof ORDER_STATUSES)[number];
+export type ActiveOrderStatus = (typeof ORDER_ACTIVE_STATUSES)[number];
+export type CancellableOrderStatus = (typeof ORDER_CANCELLABLE_STATUSES)[number];
+export type OrderCancellationReason = (typeof ORDER_CANCELLATION_REASONS)[number];
 export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
 export type FiadoStatus = (typeof FIADO_STATUSES)[number];
 export type DeliveryType = (typeof DELIVERY_TYPES)[number];
@@ -62,6 +89,15 @@ export interface Order {
   isFiado: boolean;
   fiadoStatus: FiadoStatus | null;
   fiadoObservation: string | null;
+  previousStatusBeforeCancellation: CancellableOrderStatus | null;
+  cancellationReason: OrderCancellationReason | null;
+  cancellationDetail: string | null;
+  cancelledAt: string | null;
+  cancelledByUserId: string | null;
+  cancelledByUserEmail: string | null;
+  reactivatedAt: string | null;
+  reactivatedByUserId: string | null;
+  reactivatedByUserEmail: string | null;
   deliveryType: DeliveryType;
   address?: string;
   status: OrderStatus;

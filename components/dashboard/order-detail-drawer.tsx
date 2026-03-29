@@ -1,58 +1,37 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import {
-  getAvailablePaymentMethods,
   getPaymentHelpMessage,
   getPaymentMethodLabel,
-  isDigitalPayment,
   shouldShowPaymentVerificationActions,
 } from "@/components/dashboard/payment-helpers";
 import { OrdersUiIcon } from "@/components/dashboard/orders-ui-icon";
 import { StatusBadgeIcon } from "@/components/dashboard/status-badge-icon";
 import { formatCurrency } from "@/data/orders";
 import type { OrderApiUpdatePayload } from "@/lib/orders/mappers";
-import { fetchProductsByBusinessSlug } from "@/lib/products/api";
 import {
-  canManageOrderStatus,
-  getAllowedOrderStatusTransitions,
-  getOrderStatusIconKey,
-  getOrderStatusTransitionRule,
-  getPaymentStatusIconKey,
-  getPaymentStatusTransitionRule,
-  isNewOrder,
-  isFinalOrderStatus,
+  ORDER_CANCELLATION_REASON_LABELS,
   ORDER_STATUS_LABELS,
   PAYMENT_STATUS_LABELS,
-} from "@/lib/orders/transitions";
-import { resolveAuthoritativeOrderStatePatch } from "@/lib/orders/state-rules";
+  getOrderStatusIconKey,
+  getOrderStatusVisuals,
+  getPaymentStatusIconKey,
+  getPaymentStatusVisuals,
+} from "@/lib/orders/status-system";
+import { buildPaymentProofWhatsAppMessage, buildWhatsAppUrl } from "@/lib/whatsapp";
 import {
-  buildPaymentProofWhatsAppMessage,
-  buildWhatsAppUrl,
-} from "@/lib/whatsapp";
-import {
-  DELIVERY_TYPES,
   getFiadoStatusLabel,
   getOrderDisplayCode,
   isPendingFiadoOrder,
-  ORDER_STATUSES,
-  PAYMENT_STATUSES,
-  type DeliveryType,
-  type FiadoStatus,
   type Order,
-  type OrderProduct,
-  type OrderStatus,
-  type PaymentMethod,
   type PaymentStatus,
 } from "@/types/orders";
-import type { Product } from "@/types/products";
 
 interface OrderDetailDrawerProps {
-  businessSlug: string;
   businessName: string;
   transferInstructions: string | null;
-  availablePaymentMethods: PaymentMethod[];
   allowsFiado: boolean;
   order: Order | null;
   isOpen: boolean;
@@ -83,186 +62,34 @@ interface OrderDetailDrawerProps {
   ) => Promise<Order>;
   onConfirmOrder: (orderId: Order["orderId"]) => Promise<Order>;
   onAdvanceOrderStatus: (orderId: Order["orderId"]) => Promise<Order | undefined>;
-  onCancelOrder: (orderId: Order["orderId"]) => Promise<Order>;
+  onOpenCancelOrderModal: (orderId: Order["orderId"]) => void;
+  onOpenReactivateOrderModal: (orderId: Order["orderId"]) => void;
 }
-
-interface EditOrderFormState {
-  customerName: string;
-  customerWhatsApp: string;
-  deliveryType: DeliveryType;
-  deliveryAddress: string;
-  paymentMethod: PaymentMethod;
-  products: OrderProduct[];
-  notes: string;
-  total: string;
-  status: OrderStatus;
-  paymentStatus: PaymentStatus;
-}
-
-interface EditableProductField {
-  id: string;
-  productId?: string;
-  name: string;
-  quantity: string;
-  unitPrice?: number;
-}
-
-interface RecommendedDrawerAction {
-  title: string;
-  description: string;
-  tone: string;
-  buttonLabel?: string;
-  action?:
-    | { kind: "request-payment-proof" }
-    | { kind: "payment"; value: PaymentStatus }
-    | { kind: "order"; value: OrderStatus };
-}
-
-const fiadoToneStyles: Record<FiadoStatus, string> = {
-  pending: "border-amber-200 bg-amber-50 text-amber-800",
-  paid: "border-emerald-200 bg-emerald-50 text-emerald-800",
-};
 
 const historyFormatter = new Intl.DateTimeFormat("es-CO", {
   dateStyle: "medium",
   timeStyle: "short",
 });
 
-const orderToneStyles: Record<OrderStatus, string> = {
-  "pendiente de pago": "border-sky-200 bg-sky-50 text-sky-800",
-  "pago por verificar": "border-sky-200 bg-sky-50 text-sky-800",
-  confirmado: "border-indigo-200 bg-indigo-50 text-indigo-800",
-  "en preparación": "border-orange-200 bg-orange-50 text-orange-800",
-  listo: "border-emerald-200 bg-emerald-50 text-emerald-800",
-  entregado: "border-green-200 bg-green-50 text-green-800",
-  cancelado: "border-rose-200 bg-rose-50 text-rose-800",
-};
-
-const paymentToneStyles: Record<PaymentStatus, string> = {
-  pendiente: "border-slate-200 bg-slate-100 text-slate-700",
-  verificado: "border-emerald-200 bg-emerald-50 text-emerald-800",
-  "con novedad": "border-orange-200 bg-orange-50 text-orange-800",
-  "no verificado": "border-rose-200 bg-rose-50 text-rose-800",
-};
-
-const DRAWER_TRANSITION_MS = 220;
-
-function getInitialEditOrderFormState(order: Order): EditOrderFormState {
-  return {
-    customerName: order.client,
-    customerWhatsApp: order.customerPhone ?? "",
-    deliveryType: order.deliveryType,
-    deliveryAddress: order.address ?? "",
-    paymentMethod: order.paymentMethod,
-    products: order.products,
-    notes: order.observations ?? "",
-    total: String(order.total),
-    status: order.status,
-    paymentStatus: order.paymentStatus,
-  };
-}
-
-function createEditableProduct(product?: OrderProduct): EditableProductField {
-  return {
-    id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
-    productId: product?.productId,
-    name: product?.name ?? "",
-    quantity: product ? String(product.quantity) : "1",
-    unitPrice: product?.unitPrice,
-  };
-}
-
-function getProductSummary(order: Order) {
-  const totalUnits = order.products.reduce((total, product) => total + product.quantity, 0);
-  const visibleProducts = order.products.slice(0, 2);
-  const hiddenProductsCount = Math.max(order.products.length - visibleProducts.length, 0);
-
-  return {
-    totalUnits,
-    visibleProducts,
-    hiddenProductsCount,
-  };
-}
-
-function getDeliveryTypeLabel(deliveryType: DeliveryType) {
-  return deliveryType === "domicilio" ? "Domicilio" : "Recogida en tienda";
-}
-
-function getRecommendedDrawerAction(
-  order: Order,
-  options: {
-    nextQuickStatus?: OrderStatus;
-    canQuickConfirm: boolean;
-    hasValidWhatsApp: boolean;
-  },
-): RecommendedDrawerAction {
-  if (isFinalOrderStatus(order.status)) {
-    return {
-      title: "Flujo cerrado",
-      description: "Solo conviene revisar datos o historial. No hay un siguiente paso operativo.",
-      tone: "border-slate-200 bg-slate-50 text-slate-700",
-    };
+function getNextWorkflowStatus(order: Order) {
+  if (order.status === "confirmado") {
+    return "en preparación" as const;
   }
 
-  if (shouldShowPaymentVerificationActions(order) && order.paymentStatus === "pendiente") {
-    return options.hasValidWhatsApp
-      ? {
-          title: "Siguiente paso recomendado",
-          description: "Solicita el comprobante antes de confirmar el pedido.",
-          tone: "border-amber-200 bg-amber-50 text-amber-900",
-          buttonLabel: "Solicitar comprobante",
-          action: { kind: "request-payment-proof" },
-        }
-      : {
-          title: "Pago pendiente",
-          description:
-            "Falta comprobante y este pedido no tiene WhatsApp válido para solicitarlo rápido.",
-          tone: "border-amber-200 bg-amber-50 text-amber-900",
-        };
+  if (order.status === "en preparación") {
+    return "listo" as const;
   }
 
-  if (order.paymentStatus === "con novedad" || order.paymentStatus === "no verificado") {
-    return {
-      title: "Resolver pago primero",
-      description: "Aclara el estado del pago antes de continuar con el flujo del pedido.",
-      tone: "border-rose-200 bg-rose-50 text-rose-900",
-      buttonLabel: "Marcar pago verificado",
-      action: { kind: "payment", value: "verificado" },
-    };
+  if (order.status === "listo") {
+    return "entregado" as const;
   }
 
-  if (options.canQuickConfirm) {
-    return {
-      title: "Siguiente paso recomendado",
-      description: "El pago ya esta listo. Confirma el pedido para pasarlo a operacion.",
-      tone: "border-sky-200 bg-sky-50 text-sky-900",
-      buttonLabel: "Confirmar pedido",
-      action: { kind: "order", value: "confirmado" },
-    };
-  }
-
-  if (options.nextQuickStatus) {
-    return {
-      title: "Siguiente paso recomendado",
-      description: `Avanza el pedido a ${ORDER_STATUS_LABELS[options.nextQuickStatus].toLowerCase()}.`,
-      tone: "border-sky-200 bg-sky-50 text-sky-900",
-      buttonLabel: `Avanzar a ${ORDER_STATUS_LABELS[options.nextQuickStatus]}`,
-      action: { kind: "order", value: options.nextQuickStatus },
-    };
-  }
-
-  return {
-    title: "Revisar detalle",
-    description: "Valida datos del cliente, direccion y productos antes de mover el pedido.",
-    tone: "border-slate-200 bg-slate-50 text-slate-700",
-  };
+  return null;
 }
 
 export function OrderDetailDrawer({
-  businessSlug,
   businessName,
   transferInstructions,
-  availablePaymentMethods: businessAvailablePaymentMethods,
   allowsFiado,
   order,
   isOpen,
@@ -272,236 +99,65 @@ export function OrderDetailDrawer({
   onEditOrder,
   onConfirmOrder,
   onAdvanceOrderStatus,
-  onCancelOrder,
+  onOpenCancelOrderModal,
+  onOpenReactivateOrderModal,
 }: OrderDetailDrawerProps) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [editError, setEditError] = useState("");
-  const [editSuccess, setEditSuccess] = useState("");
   const [actionError, setActionError] = useState("");
-  const [whatsAppFeedback, setWhatsAppFeedback] = useState("");
-  const [fiadoObservationDraft, setFiadoObservationDraft] = useState("");
+  const [actionFeedback, setActionFeedback] = useState("");
+  const [fiadoObservationDraft, setFiadoObservationDraft] = useState(
+    () => order?.fiadoObservation ?? "",
+  );
   const [fiadoError, setFiadoError] = useState("");
   const [fiadoFeedback, setFiadoFeedback] = useState("");
-  const [catalogProducts, setCatalogProducts] = useState<Product[]>([]);
-  const [catalogError, setCatalogError] = useState("");
-  const [isLoadingCatalog, setIsLoadingCatalog] = useState(false);
-  const [editForm, setEditForm] = useState<EditOrderFormState | null>(null);
-  const [editableProducts, setEditableProducts] = useState<EditableProductField[]>([]);
-  const [showSecondaryPaymentActions, setShowSecondaryPaymentActions] = useState(false);
-  const [showSecondaryOrderActions, setShowSecondaryOrderActions] = useState(false);
-  const [renderedOrder, setRenderedOrder] = useState<Order | null>(order);
-  const [isVisible, setIsVisible] = useState(false);
-  const previousRenderedOrderIdRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    if (!order) {
-      return;
-    }
-
-    if (renderedOrder?.orderId !== order.orderId) {
-      setIsVisible(false);
-    }
-
-    setRenderedOrder(order);
-  }, [order, renderedOrder?.orderId]);
-
-  useEffect(() => {
-    if (isOpen) {
-      let nextAnimationFrame = 0;
-      const animationFrame = window.requestAnimationFrame(() => {
-        nextAnimationFrame = window.requestAnimationFrame(() => {
-          setIsVisible(true);
-        });
-      });
-
-      return () => {
-        window.cancelAnimationFrame(animationFrame);
-        window.cancelAnimationFrame(nextAnimationFrame);
-      };
-    }
-
-    setIsVisible(false);
-
-    if (!renderedOrder) {
-      return;
-    }
-
-    const timeoutId = window.setTimeout(() => {
-      setRenderedOrder(null);
-    }, DRAWER_TRANSITION_MS);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [isOpen, renderedOrder]);
-
-  useEffect(() => {
-    if (!renderedOrder) {
-      setEditForm(null);
-      setEditableProducts([]);
-      setCatalogProducts([]);
-      setCatalogError("");
-      setIsLoadingCatalog(false);
-      previousRenderedOrderIdRef.current = null;
-      return;
-    }
-
-    const isDifferentOrder = previousRenderedOrderIdRef.current !== renderedOrder.orderId;
-
-    if (isDifferentOrder) {
-      setIsEditing(false);
-      setIsSaving(false);
-      setEditError("");
-      setEditSuccess("");
-      setActionError("");
-      setShowSecondaryPaymentActions(false);
-      setShowSecondaryOrderActions(false);
-      setWhatsAppFeedback("");
-      setFiadoError("");
-      setFiadoFeedback("");
-      setFiadoObservationDraft(renderedOrder.fiadoObservation ?? "");
-    }
-
-    if (!isEditing || isDifferentOrder) {
-      const nextFormState = getInitialEditOrderFormState(renderedOrder);
-      setEditForm(nextFormState);
-      setEditableProducts(
-        renderedOrder.products.length > 0
-          ? renderedOrder.products.map((product) => createEditableProduct(product))
-          : [createEditableProduct()],
-      );
-    }
-
-    previousRenderedOrderIdRef.current = renderedOrder.orderId;
-  }, [isEditing, renderedOrder]);
 
   useEffect(() => {
     if (!isOpen) {
       return;
     }
 
-    let isCancelled = false;
-
-    async function loadCatalogProducts() {
-      setIsLoadingCatalog(true);
-      setCatalogError("");
-
-      try {
-        const fetchedProducts = await fetchProductsByBusinessSlug(businessSlug);
-
-        if (!isCancelled) {
-          setCatalogProducts(fetchedProducts);
-        }
-      } catch (error) {
-        if (!isCancelled) {
-          setCatalogProducts([]);
-          setCatalogError(
-            error instanceof Error
-              ? error.message
-              : "No fue posible cargar el catalogo del negocio.",
-          );
-        }
-      } finally {
-        if (!isCancelled) {
-          setIsLoadingCatalog(false);
-        }
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        onClose();
       }
     }
 
-    void loadCatalogProducts();
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [isOpen, onClose]);
 
-    return () => {
-      isCancelled = true;
-    };
-  }, [businessSlug, isOpen]);
+  const sortedHistory = useMemo(() => {
+    if (!order) {
+      return [];
+    }
 
-  if (!renderedOrder) {
+    return [...order.history].sort(
+      (left, right) =>
+        new Date(right.occurredAt).getTime() - new Date(left.occurredAt).getTime(),
+    );
+  }, [order]);
+
+  if (!isOpen || !order) {
     return null;
   }
 
-  const currentOrder = renderedOrder;
-  const currentEditForm = editForm ?? getInitialEditOrderFormState(currentOrder);
-  const selectableCatalogProducts = catalogProducts.filter(
-    (product) =>
-      product.isAvailable ||
-      editableProducts.some((editableProduct) => editableProduct.productId === product.productId),
+  const currentOrder = order;
+
+  const statusVisuals = getOrderStatusVisuals(currentOrder.status);
+  const paymentVisuals = getPaymentStatusVisuals(currentOrder.paymentStatus);
+  const nextWorkflowStatus = getNextWorkflowStatus(currentOrder);
+  const paymentHelpMessage = getPaymentHelpMessage(currentOrder);
+  const paymentMethodLabel = getPaymentMethodLabel(
+    currentOrder.paymentMethod,
+    currentOrder.deliveryType,
   );
-  const selectedCatalogProductIds = editableProducts
-    .map((product) => product.productId ?? "")
-    .filter(Boolean);
-  const normalizedProducts = editableProducts
-    .map((product) => {
-      const selectedCatalogProduct = product.productId
-        ? selectableCatalogProducts.find(
-            (catalogProduct) => catalogProduct.productId === product.productId,
-          )
-        : undefined;
-
-      return {
-        ...(selectedCatalogProduct ? { productId: selectedCatalogProduct.productId } : {}),
-        name: selectedCatalogProduct?.name ?? product.name.trim(),
-        quantity: Number(product.quantity),
-        ...(selectedCatalogProduct
-          ? { unitPrice: selectedCatalogProduct.price }
-          : product.unitPrice !== undefined
-            ? { unitPrice: product.unitPrice }
-            : {}),
-      };
-    })
-    .filter(
-      (product) =>
-        product.name.length > 0 && Number.isFinite(product.quantity) && product.quantity > 0,
-    );
-  const sortedHistory = [...currentOrder.history].sort(
-    (left, right) =>
-      new Date(right.occurredAt).getTime() - new Date(left.occurredAt).getTime(),
+  const isPendingFiado = isPendingFiadoOrder(currentOrder);
+  const canCancel = ["nuevo", "confirmado", "en preparación", "listo"].includes(
+    currentOrder.status,
   );
-  const availablePaymentMethods = (() => {
-    const nextAvailablePaymentMethods = getAvailablePaymentMethods(
-      currentEditForm.deliveryType,
-      businessAvailablePaymentMethods,
-    );
-
-    return nextAvailablePaymentMethods.includes(currentEditForm.paymentMethod)
-      ? nextAvailablePaymentMethods
-      : [currentEditForm.paymentMethod, ...nextAvailablePaymentMethods];
-  })();
-  const effectivePaymentMethod = availablePaymentMethods.includes(currentEditForm.paymentMethod)
-    ? currentEditForm.paymentMethod
-    : availablePaymentMethods[0];
-  const transitionContext: Order = {
-    ...currentOrder,
-    paymentMethod: effectivePaymentMethod,
-    paymentStatus: currentEditForm.paymentStatus,
-    deliveryType: currentEditForm.deliveryType,
-  };
-  const statusRule = getOrderStatusTransitionRule(transitionContext, currentEditForm.status);
-  const paymentRule = getPaymentStatusTransitionRule(currentOrder, currentEditForm.paymentStatus);
-  const totalValue = Number(currentEditForm.total);
-  const paymentHelpMessage = getPaymentHelpMessage(transitionContext);
-  const hasLinkedProducts = editableProducts.some((product) => Boolean(product.productId));
-  const isEditingCatalogBackedOrder = hasLinkedProducts;
-  const calculatedEditTotal = normalizedProducts.reduce((sum, product) => {
-    const unitPrice = product.unitPrice ?? 0;
-
-    if (!Number.isFinite(unitPrice) || unitPrice < 0) {
-      return sum;
-    }
-
-    return sum + unitPrice * product.quantity;
-  }, 0);
-  const effectiveEditedTotal = isEditingCatalogBackedOrder ? calculatedEditTotal : totalValue;
-  const nextStatusByCurrent: Partial<Record<OrderStatus, OrderStatus>> = {
-    confirmado: "en preparación",
-    "en preparación": "listo",
-    listo: "entregado",
-  };
-  const nextQuickStatus = nextStatusByCurrent[currentOrder.status];
-  const canQuickConfirm = currentOrder.status === "pago por verificar";
-  const isOrderFlowClosed = isFinalOrderStatus(currentOrder.status);
-  const showNewOrderBadge = isNewOrder(currentOrder);
-  const canEditOrderStatus =
-    canManageOrderStatus({ paymentStatus: currentEditForm.paymentStatus }) && !isOrderFlowClosed;
-  const { totalUnits, visibleProducts, hiddenProductsCount } = getProductSummary(currentOrder);
+  const canConfirm =
+    currentOrder.status === "nuevo" && currentOrder.paymentStatus === "verificado";
+  const canAdvance = nextWorkflowStatus !== null;
+  const showPaymentActions = shouldShowPaymentVerificationActions(currentOrder);
   const whatsappMessage = buildPaymentProofWhatsAppMessage({
     businessName,
     customerName: currentOrder.client,
@@ -510,1187 +166,419 @@ export function OrderDetailDrawer({
     transferInstructions,
   });
   const whatsappUrl = buildWhatsAppUrl(currentOrder.customerPhone ?? "", whatsappMessage);
-  const hasValidWhatsApp = Boolean(whatsappUrl);
-  const isPendingFiado = isPendingFiadoOrder(currentOrder);
-  const showFiadoActions = allowsFiado || currentOrder.isFiado;
-  const recommendedAction = getRecommendedDrawerAction(currentOrder, {
-    nextQuickStatus,
-    canQuickConfirm,
-    hasValidWhatsApp,
-  });
 
-  const changedFields = [
-    currentEditForm.status !== currentOrder.status
-      ? `Pedido: ${ORDER_STATUS_LABELS[currentOrder.status]} -> ${ORDER_STATUS_LABELS[currentEditForm.status]}`
-      : "",
-    currentEditForm.paymentStatus !== currentOrder.paymentStatus
-      ? `Pago: ${PAYMENT_STATUS_LABELS[currentOrder.paymentStatus]} -> ${PAYMENT_STATUS_LABELS[currentEditForm.paymentStatus]}`
-      : "",
-    currentEditForm.customerName.trim() !== currentOrder.client.trim()
-      ? "Nombre del cliente"
-      : "",
-    currentEditForm.customerWhatsApp.trim() !== (currentOrder.customerPhone ?? "").trim()
-      ? "WhatsApp del cliente"
-      : "",
-    currentEditForm.deliveryType !== currentOrder.deliveryType ? "Tipo de entrega" : "",
-    currentEditForm.deliveryAddress.trim() !== (currentOrder.address ?? "").trim()
-      ? "Dirección de entrega"
-      : "",
-    effectivePaymentMethod !== currentOrder.paymentMethod ? "Método de pago" : "",
-    JSON.stringify(normalizedProducts) !== JSON.stringify(currentOrder.products)
-      ? "Articulos"
-      : "",
-    currentEditForm.notes.trim() !== (currentOrder.observations ?? "").trim() ? "Notas" : "",
-    effectiveEditedTotal !== currentOrder.total ? "Total" : "",
-  ].filter(Boolean);
-
-  function setField<K extends keyof EditOrderFormState>(
-    field: K,
-    value: EditOrderFormState[K],
-  ) {
-    setEditError("");
-    setEditSuccess("");
+  async function runPaymentStatusUpdate(nextPaymentStatus: PaymentStatus) {
     setActionError("");
-    setEditForm((currentValue) => {
-      const nextValue = {
-        ...(currentValue ?? getInitialEditOrderFormState(currentOrder)),
-        [field]: value,
-      };
-
-      if (field === "deliveryType" && value === "recogida en tienda") {
-        nextValue.deliveryAddress = "";
-      }
-
-      const nextPaymentMethods = getAvailablePaymentMethods(
-        nextValue.deliveryType,
-        businessAvailablePaymentMethods,
-      );
-
-      if (!nextPaymentMethods.includes(nextValue.paymentMethod)) {
-        nextValue.paymentMethod = nextPaymentMethods[0];
-      }
-
-      if (field === "paymentMethod" && !isDigitalPayment(nextValue.paymentMethod)) {
-        nextValue.paymentStatus = "verificado";
-      }
-
-      return nextValue;
-    });
-  }
-
-  function handleEditableProductChange(
-    productId: string,
-    field: "name" | "quantity" | "productId",
-    value: string,
-  ) {
-    setEditError("");
-    setEditSuccess("");
-    setActionError("");
-    setEditableProducts((currentProducts) =>
-      currentProducts.map((product) =>
-        product.id === productId
-          ? {
-              ...product,
-              [field]: value,
-              ...(field === "name" ? { productId: undefined, unitPrice: undefined } : {}),
-              ...(field === "productId"
-                ? {
-                    name:
-                      selectableCatalogProducts.find(
-                        (catalogProduct) => catalogProduct.productId === value,
-                      )?.name ?? "",
-                    unitPrice:
-                      selectableCatalogProducts.find(
-                        (catalogProduct) => catalogProduct.productId === value,
-                      )?.price,
-                  }
-                : {}),
-            }
-          : product,
-      ),
-    );
-  }
-
-  function handleAddProductField() {
-    setEditError("");
-    setEditSuccess("");
-    setActionError("");
-    setEditableProducts((currentProducts) => [...currentProducts, createEditableProduct()]);
-  }
-
-  function handleRemoveProductField(productId: string) {
-    setEditError("");
-    setEditSuccess("");
-    setActionError("");
-    setEditableProducts((currentProducts) =>
-      currentProducts.length === 1
-        ? currentProducts
-        : currentProducts.filter((product) => product.id !== productId),
-    );
-  }
-
-  function validateForm() {
-    if (!currentEditForm.customerName.trim()) {
-      return "Ingresa el nombre del cliente.";
-    }
-
-    if (normalizedProducts.length === 0) {
-      return "Agrega al menos un articulo valido al pedido.";
-    }
-
-    if (isEditingCatalogBackedOrder && (isLoadingCatalog || catalogError)) {
-      return "Recarga el catalogo del negocio antes de editar productos vinculados o guardar cambios.";
-    }
-
-    if (isEditingCatalogBackedOrder && editableProducts.some((product) => !product.productId)) {
-      return "Selecciona productos reales del catalogo en cada fila del pedido.";
-    }
-
-    if (
-      isEditingCatalogBackedOrder &&
-      new Set(
-        editableProducts
-          .map((product) => product.productId)
-          .filter((productId): productId is string => Boolean(productId)),
-      ).size !== editableProducts.length
-    ) {
-      return "No repitas productos del catalogo dentro del mismo pedido.";
-    }
-
-    if (!Number.isFinite(effectiveEditedTotal) || effectiveEditedTotal < 0) {
-      return "Ingresa un total válido.";
-    }
-
-    if (
-      currentEditForm.deliveryType === "domicilio" &&
-      !currentEditForm.deliveryAddress.trim()
-    ) {
-      return "La dirección es obligatoria para domicilio.";
-    }
+    setActionFeedback("");
 
     try {
-      resolveAuthoritativeOrderStatePatch(
-        {
-          deliveryType: currentOrder.deliveryType,
-          paymentMethod: currentOrder.paymentMethod,
-          paymentStatus: currentOrder.paymentStatus,
-          status: currentOrder.status,
-        },
-        {
-          deliveryType: currentEditForm.deliveryType,
-          paymentMethod: effectivePaymentMethod,
-          paymentStatus: currentEditForm.paymentStatus,
-          status: currentEditForm.status,
-        },
-      );
+      await onUpdatePaymentStatus(currentOrder.orderId, nextPaymentStatus);
+      setActionFeedback("Estado del pago actualizado.");
     } catch (error) {
-      return error instanceof Error
-        ? error.message.replace(/^Invalid order update payload\.\s*/i, "")
-        : "Ese cambio de estado o pago no está permitido.";
-    }
-
-    if (changedFields.length === 0) {
-      return "No hay cambios para guardar.";
-    }
-
-    return "";
-  }
-
-  function confirmSensitiveChanges() {
-    const messages = [statusRule.requiresConfirmation, paymentRule.requiresConfirmation].filter(
-      Boolean,
-    );
-
-    if (messages.length === 0) {
-      return true;
-    }
-
-    return window.confirm(messages.join("\n\n"));
-  }
-
-  async function handleSaveOrderChanges() {
-    const validationError = validateForm();
-
-    if (validationError) {
-      setEditError(validationError);
-      setEditSuccess("");
-      return;
-    }
-
-    if (!confirmSensitiveChanges()) {
-      return;
-    }
-
-    setIsSaving(true);
-    setEditError("");
-    setEditSuccess("");
-
-    try {
-      const persistedOrder = await onEditOrder(currentOrder.orderId, {
-        status: currentEditForm.status,
-        paymentStatus: currentEditForm.paymentStatus,
-        customerName: currentEditForm.customerName.trim(),
-        customerWhatsApp: currentEditForm.customerWhatsApp.trim() || null,
-        deliveryType: currentEditForm.deliveryType,
-        deliveryAddress:
-          currentEditForm.deliveryType === "domicilio"
-            ? currentEditForm.deliveryAddress.trim()
-            : null,
-        paymentMethod: effectivePaymentMethod,
-        products: normalizedProducts,
-        notes: currentEditForm.notes.trim() || null,
-        total: effectiveEditedTotal,
-      });
-      setRenderedOrder(persistedOrder);
-      setEditSuccess("Cambios guardados correctamente.");
-      setIsEditing(false);
-    } catch (error) {
-      setEditError(
+      setActionError(
         error instanceof Error
           ? error.message
-          : "No fue posible guardar los cambios del pedido.",
+          : "No fue posible actualizar el estado del pago.",
       );
-    } finally {
-      setIsSaving(false);
     }
   }
 
-  async function handleRequestPaymentByWhatsApp() {
-    if (!whatsappUrl) {
-      setWhatsAppFeedback("Este pedido no tiene un numero de WhatsApp valido.");
-      return;
-    }
+  async function runConfirmOrder() {
+    setActionError("");
+    setActionFeedback("");
 
-    window.open(whatsappUrl, "_blank", "noopener,noreferrer");
+    try {
+      await onConfirmOrder(currentOrder.orderId);
+      setActionFeedback("Pedido confirmado.");
+    } catch (error) {
+      setActionError(
+        error instanceof Error ? error.message : "No fue posible confirmar el pedido.",
+      );
+    }
+  }
+
+  async function runAdvanceOrder() {
+    setActionError("");
+    setActionFeedback("");
+
+    try {
+      await onAdvanceOrderStatus(currentOrder.orderId);
+      setActionFeedback("Pedido movido al siguiente estado.");
+    } catch (error) {
+      setActionError(
+        error instanceof Error ? error.message : "No fue posible avanzar el pedido.",
+      );
+    }
+  }
+
+  async function runRequestPaymentProof() {
+    setActionError("");
+    setActionFeedback("");
+
     try {
       await onRequestPaymentProof(currentOrder.orderId);
-      setWhatsAppFeedback("Se abrio WhatsApp con el mensaje listo para enviar.");
+
+      if (whatsappUrl) {
+        window.open(whatsappUrl, "_blank", "noopener,noreferrer");
+      }
+
+      setActionFeedback("Solicitud de comprobante preparada.");
     } catch (error) {
       setActionError(
         error instanceof Error
           ? error.message
-          : "No fue posible registrar la solicitud de comprobante.",
+          : "No fue posible preparar la solicitud del comprobante.",
       );
     }
   }
 
-  function runRecommendedAction() {
-    if (!recommendedAction.action) {
-      return;
-    }
+  async function runMarkAsFiado() {
+    const normalizedObservation = fiadoObservationDraft.trim();
+    setFiadoError("");
+    setFiadoFeedback("");
 
-    if (recommendedAction.action.kind === "request-payment-proof") {
-      void handleRequestPaymentByWhatsApp();
-      return;
-    }
-
-    if (recommendedAction.action.kind === "payment") {
-      runQuickPaymentChange(recommendedAction.action.value);
-      return;
-    }
-
-    runQuickStatusChange(recommendedAction.action.value);
-  }
-
-  function runQuickStatusChange(nextStatus: OrderStatus) {
-    const rule = getOrderStatusTransitionRule(currentOrder, nextStatus);
-
-    if (!rule.allowed) {
-      setActionError(rule.reason ?? "Ese cambio de estado no está permitido.");
-      return;
-    }
-
-    if (rule.requiresConfirmation && !window.confirm(rule.requiresConfirmation)) {
-      return;
-    }
-
-    setActionError("");
-
-    if (nextStatus === "confirmado") {
-      void onConfirmOrder(currentOrder.orderId).catch((error) => {
-        setActionError(
-          error instanceof Error ? error.message : "No fue posible actualizar el pedido.",
-        );
-      });
-      return;
-    }
-
-    if (nextStatus === "cancelado") {
-      void onCancelOrder(currentOrder.orderId).catch((error) => {
-        setActionError(
-          error instanceof Error ? error.message : "No fue posible actualizar el pedido.",
-        );
-      });
-      return;
-    }
-
-    if (nextQuickStatus === nextStatus) {
-      void onAdvanceOrderStatus(currentOrder.orderId).catch((error) => {
-        setActionError(
-          error instanceof Error ? error.message : "No fue posible actualizar el pedido.",
-        );
-      });
-      return;
-    }
-
-    void onEditOrder(currentOrder.orderId, { status: nextStatus }).catch((error) => {
-      setActionError(
-        error instanceof Error ? error.message : "No fue posible actualizar el pedido.",
-      );
-    });
-  }
-
-  function runQuickPaymentChange(nextStatus: PaymentStatus) {
-    const rule = getPaymentStatusTransitionRule(currentOrder, nextStatus);
-
-    if (!rule.allowed) {
-      setActionError(rule.reason ?? "Ese cambio de pago no está permitido.");
-      return;
-    }
-
-    if (rule.requiresConfirmation && !window.confirm(rule.requiresConfirmation)) {
-      return;
-    }
-
-    setActionError("");
-    void onUpdatePaymentStatus(currentOrder.orderId, nextStatus).catch((error) => {
-      setActionError(
-        error instanceof Error ? error.message : "No fue posible actualizar el pago.",
-      );
-    });
-  }
-
-  function runMarkAsFiado() {
-    if (!allowsFiado) {
-      setFiadoError("Este negocio no tiene habilitado el fiado interno.");
-      return;
-    }
-
-    const normalizedFiadoObservation = fiadoObservationDraft.trim();
-
-    if (!normalizedFiadoObservation) {
+    if (normalizedObservation.length === 0) {
       setFiadoError("La observación de fiado es obligatoria.");
       return;
     }
 
-    setFiadoError("");
-    setFiadoFeedback("");
-    void onEditOrder(currentOrder.orderId, {
-      isFiado: true,
-      fiadoStatus: "pending",
-      fiadoObservation: normalizedFiadoObservation,
-    }).then(() => {
-      setFiadoObservationDraft(normalizedFiadoObservation);
-      setFiadoFeedback("El pedido quedó marcado como fiado pendiente.");
-    }).catch((error) => {
+    try {
+      await onEditOrder(currentOrder.orderId, {
+        isFiado: true,
+        fiadoStatus: "pending",
+        fiadoObservation: normalizedObservation,
+      });
+      setFiadoFeedback("Pedido marcado como fiado pendiente.");
+    } catch (error) {
       setFiadoError(
-        error instanceof Error
-          ? error.message
-          : "No fue posible marcar el pedido como fiado.",
+        error instanceof Error ? error.message : "No fue posible marcar el pedido como fiado.",
       );
-    });
+    }
   }
 
-  function runMarkFiadoAsPaid() {
-    if (!isPendingFiado) {
-      setFiadoError("Solo puedes marcar como pagado un fiado pendiente.");
+  async function runMarkFiadoAsPaid() {
+    const normalizedObservation =
+      fiadoObservationDraft.trim() || currentOrder.fiadoObservation?.trim() || "";
+    setFiadoError("");
+    setFiadoFeedback("");
+
+    if (normalizedObservation.length === 0) {
+      setFiadoError("La observación de fiado es obligatoria.");
       return;
     }
 
-    setFiadoError("");
-    setFiadoFeedback("");
-    void onEditOrder(currentOrder.orderId, {
-      fiadoStatus: "paid",
-    }).then(() => {
-      setFiadoFeedback("El fiado quedó marcado como pagado.");
-    }).catch((error) => {
+    try {
+      await onEditOrder(currentOrder.orderId, {
+        fiadoStatus: "paid",
+        fiadoObservation: normalizedObservation,
+      });
+      setFiadoFeedback("Fiado marcado como pagado.");
+    } catch (error) {
       setFiadoError(
-        error instanceof Error
-          ? error.message
-          : "No fue posible marcar el fiado como pagado.",
+        error instanceof Error ? error.message : "No fue posible marcar el fiado como pagado.",
       );
-    });
+    }
   }
 
   return (
     <>
       <div
-        className={`fixed inset-0 z-40 bg-slate-950/30 transition-opacity duration-200 ease-out ${
-          isVisible ? "opacity-100" : "pointer-events-none opacity-0"
-        }`}
-        onClick={isSaving ? undefined : onClose}
+        className="fixed inset-0 z-40 bg-slate-950/35"
+        aria-hidden="true"
+        onClick={onClose}
       />
       <aside
         data-testid="order-detail-drawer"
-        className={`fixed right-0 top-0 z-50 flex h-screen w-full max-w-2xl flex-col border-l border-slate-200 bg-slate-50 transition-all duration-200 ease-out will-change-transform ${
-          isVisible ? "translate-x-0 opacity-100" : "translate-x-full opacity-0"
-        }`}
-        aria-hidden={!isVisible}
+        className="fixed inset-y-0 right-0 z-50 flex w-full max-w-2xl flex-col border-l border-slate-200 bg-[linear-gradient(180deg,rgba(248,250,252,0.98),rgba(255,255,255,0.98))] shadow-[-18px_0_48px_rgba(15,23,42,0.14)]"
       >
-        <div className="border-b border-slate-200 bg-white px-6 py-5">
+        <header className="border-b border-slate-200 bg-white/92 px-5 py-4">
           <div className="flex items-start justify-between gap-4">
-            <div className="space-y-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-2xl font-semibold text-slate-950">{currentOrder.client}</h2>
-                <span className="rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
-                  Pedido {getOrderDisplayCode(currentOrder)}
-                </span>
-                {showNewOrderBadge ? (
-                  <span className="inline-flex items-center gap-1 rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700">
-                    <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
-                    Pedido nuevo
-                  </span>
-                ) : null}
-              </div>
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                Pedido operativo
+              </p>
+              <h2 className="mt-1 text-2xl font-semibold text-slate-950">{order.client}</h2>
+              <p className="mt-1 text-sm text-slate-600">
+                {getOrderDisplayCode(order)} · {order.dateLabel}
+              </p>
             </div>
             <button
               type="button"
               onClick={onClose}
-              className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 transition hover:border-slate-300 hover:bg-slate-50"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-700 transition hover:border-slate-300 hover:bg-slate-100"
             >
               <OrdersUiIcon icon="x" className="h-4 w-4" />
-              Cerrar
             </button>
           </div>
-        </div>
+        </header>
 
-        <div className="flex-1 space-y-5 overflow-y-auto px-6 py-6">
-          <section className="rounded-[24px] border border-slate-200 bg-white p-5">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div className="min-w-0 flex-1 space-y-4 px-1">
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className={`rounded-2xl border px-4 py-3 ${orderToneStyles[currentOrder.status]}`}>
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-70">
-                      Estado del pedido
-                    </p>
-                    <div className="mt-2 flex items-center gap-2">
-                      <StatusBadgeIcon iconKey={getOrderStatusIconKey(currentOrder.status)} />
-                      <span className="text-sm font-semibold">
-                        {ORDER_STATUS_LABELS[currentOrder.status]}
-                      </span>
-                    </div>
-                  </div>
-                  <div className={`rounded-2xl border px-4 py-3 ${paymentToneStyles[currentOrder.paymentStatus]}`}>
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-70">
-                      Estado del pago
-                    </p>
-                    <div className="mt-2 flex items-center gap-2">
-                      <StatusBadgeIcon
-                        iconKey={getPaymentStatusIconKey(currentOrder.paymentStatus)}
-                      />
-                      <span className="text-sm font-semibold">
-                        {PAYMENT_STATUS_LABELS[currentOrder.paymentStatus]}
-                      </span>
-                    </div>
-                  </div>
-                  {currentOrder.isFiado ? (
-                    <div
-                      className={`rounded-2xl border px-4 py-3 ${
-                        fiadoToneStyles[currentOrder.fiadoStatus ?? "pending"]
-                      }`}
-                    >
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-70">
-                        Estado de fiado
-                      </p>
-                      <div className="mt-2 flex items-center gap-2">
-                        <OrdersUiIcon icon="clipboard-check" className="h-4 w-4" />
-                        <span className="text-sm font-semibold">
-                          {getFiadoStatusLabel(currentOrder.fiadoStatus)}
-                        </span>
-                      </div>
-                    </div>
-                  ) : null}
+        <div className="flex-1 space-y-5 overflow-y-auto px-5 py-5">
+          <section className="rounded-[26px] border border-slate-200 bg-white p-5 shadow-[0_16px_34px_rgba(15,23,42,0.04)]">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <p className="text-3xl font-semibold tracking-tight text-slate-950">
+                  {formatCurrency(order.total)}
+                </p>
+                <p className="mt-2 text-sm text-slate-600">
+                  {order.products.length} producto{order.products.length === 1 ? "" : "s"} ·{" "}
+                  {paymentMethodLabel}
+                </p>
+                {order.customerPhone ? (
+                  <p className="mt-1 text-sm text-slate-600">{order.customerPhone}</p>
+                ) : null}
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <div
+                  className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold ${statusVisuals.badgeClassName}`}
+                >
+                  <StatusBadgeIcon iconKey={getOrderStatusIconKey(order.status)} />
+                  <span>{ORDER_STATUS_LABELS[order.status]}</span>
                 </div>
-                <div className={`rounded-2xl border px-4 py-3 ${recommendedAction.tone}`}>
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="min-w-0">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-70">
-                        {recommendedAction.title}
-                      </p>
-                      <p className="mt-1 text-sm font-medium">{recommendedAction.description}</p>
-                    </div>
-                    {recommendedAction.action && recommendedAction.buttonLabel ? (
-                      <button
-                        type="button"
-                        onClick={runRecommendedAction}
-                        className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-full border border-current/15 bg-white/85 px-4 py-2.5 text-sm font-semibold text-inherit transition hover:bg-white"
-                      >
-                        <OrdersUiIcon
-                          icon={
-                            recommendedAction.action.kind === "request-payment-proof"
-                              ? "clipboard"
-                              : recommendedAction.action.kind === "payment"
-                                ? "save"
-                                : "clipboard-check"
-                          }
-                          className="h-4 w-4"
-                        />
-                        {recommendedAction.buttonLabel}
-                      </button>
-                    ) : null}
-                  </div>
-                </div>
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
-                  <span>{formatCurrency(currentOrder.total)}</span>
-                  <span className="text-slate-300">•</span>
-                  <span>{getDeliveryTypeLabel(currentOrder.deliveryType)}</span>
-                  <span className="text-slate-300">•</span>
-                  <span>{historyFormatter.format(new Date(currentOrder.createdAt))}</span>
+                <div
+                  className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold ${paymentVisuals.badgeClassName}`}
+                >
+                  <StatusBadgeIcon iconKey={getPaymentStatusIconKey(order.paymentStatus)} />
+                  <span>{PAYMENT_STATUS_LABELS[order.paymentStatus]}</span>
                 </div>
               </div>
-              {isEditing ? (
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEditForm(getInitialEditOrderFormState(currentOrder));
-                      setEditError("");
-                      setEditSuccess("");
-                      setIsEditing(false);
-                    }}
-                    disabled={isSaving}
-                    className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700"
-                  >
-                    <OrdersUiIcon icon="x" className="h-4 w-4" />
-                    Cancelar
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleSaveOrderChanges()}
-                    disabled={isSaving}
-                    className="inline-flex items-center gap-1.5 rounded-full bg-slate-900 px-4 py-2.5 text-sm font-medium text-white"
-                  >
-                    <OrdersUiIcon icon="save" className="h-4 w-4" />
-                    {isSaving ? "Guardando..." : "Guardar cambios"}
-                  </button>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setIsEditing(true)}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700"
-                >
-                  <OrdersUiIcon icon="edit" className="h-4 w-4" />
-                  Editar pedido
-                </button>
-              )}
             </div>
 
-            {editError ? (
-              <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-                {editError}
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              <div className="rounded-[20px] border border-slate-200 bg-slate-50 px-4 py-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                  Entrega
+                </p>
+                <p className="mt-2 text-sm font-medium text-slate-900">
+                  {order.deliveryType === "domicilio" ? "Domicilio" : "Recogida en tienda"}
+                </p>
               </div>
-            ) : null}
-            {editSuccess ? (
-              <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                {editSuccess}
+              <div className="rounded-[20px] border border-slate-200 bg-slate-50 px-4 py-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                  Pago
+                </p>
+                <p className="mt-2 text-sm font-medium text-slate-900">{paymentMethodLabel}</p>
               </div>
-            ) : null}
-
-            {isEditing ? (
-              <div className="mt-5 grid gap-4 sm:grid-cols-2">
-                {canEditOrderStatus ? (
-                  <label className="space-y-2 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-4">
-                    <span className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-                      <StatusBadgeIcon iconKey={getOrderStatusIconKey(currentEditForm.status)} />
-                      Estado del pedido
-                    </span>
-                    <select
-                      value={currentEditForm.status}
-                      onChange={(event) => setField("status", event.target.value as OrderStatus)}
-                      disabled={isSaving}
-                      className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900"
+              {order.address ? (
+                <div className="rounded-[20px] border border-slate-200 bg-slate-50 px-4 py-3 sm:col-span-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                    Dirección
+                  </p>
+                  <p className="mt-2 text-sm font-medium text-slate-900">{order.address}</p>
+                </div>
+              ) : null}
+              <div className="rounded-[20px] border border-slate-200 bg-slate-50 px-4 py-3 sm:col-span-2">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                  Productos
+                </p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {order.products.map((product) => (
+                    <span
+                      key={`${product.name}-${product.quantity}-${product.productId ?? "custom"}`}
+                      className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-700"
                     >
-                      {getAllowedOrderStatusTransitions(currentOrder.status).map((statusOption) => (
-                        <option key={statusOption} value={statusOption}>
-                          {ORDER_STATUS_LABELS[statusOption]}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                ) : (
-                  <div className="space-y-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-                    <span className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-                      <StatusBadgeIcon iconKey={getOrderStatusIconKey(currentOrder.status)} />
-                      Estado del pedido
+                      {product.quantity} x {product.name}
                     </span>
-                    <p className="text-sm text-slate-700">
-                      Pedido: {ORDER_STATUS_LABELS[currentOrder.status]}
-                    </p>
-                    <p className="text-xs text-slate-500">
-                      Confirma el pago para habilitar este cambio.
-                    </p>
-                  </div>
-                )}
-                <div className="space-y-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4">
-                  <span className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-                    <StatusBadgeIcon
-                      iconKey={getPaymentStatusIconKey(currentEditForm.paymentStatus)}
-                    />
-                    Estado del pago
-                  </span>
-                  {isDigitalPayment(effectivePaymentMethod) ? (
-                    <select
-                      value={currentEditForm.paymentStatus}
-                      onChange={(event) =>
-                        setField("paymentStatus", event.target.value as PaymentStatus)
-                      }
-                      disabled={isSaving}
-                      className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900"
-                    >
-                      {PAYMENT_STATUSES.map((statusOption) => (
-                        <option key={statusOption} value={statusOption}>
-                          {PAYMENT_STATUS_LABELS[statusOption]}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <div className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900">
-                      {PAYMENT_STATUS_LABELS.verificado}
-                    </div>
-                  )}
-                  {!isDigitalPayment(effectivePaymentMethod) ? (
-                    <p className="text-xs text-slate-600">
-                      Para pagos no digitales dejamos el pago como verificado en operacion.
-                    </p>
+                  ))}
+                </div>
+              </div>
+              {order.observations ? (
+                <div className="rounded-[20px] border border-slate-200 bg-slate-50 px-4 py-3 sm:col-span-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                    Notas
+                  </p>
+                  <p className="mt-2 text-sm font-medium text-slate-900">{order.observations}</p>
+                </div>
+              ) : null}
+              {order.status === "cancelado" ? (
+                <div
+                  className={`rounded-[20px] border px-4 py-3 sm:col-span-2 ${statusVisuals.softPanelClassName}`}
+                >
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-rose-700/80">
+                    Cancelación
+                  </p>
+                  <p className="mt-2 text-sm font-medium text-slate-900">
+                    Motivo:{" "}
+                    {order.cancellationReason
+                      ? ORDER_CANCELLATION_REASON_LABELS[order.cancellationReason]
+                      : "Sin motivo registrado"}
+                  </p>
+                  <p className="mt-1 text-sm text-slate-700">
+                    Estado previo:{" "}
+                    {order.previousStatusBeforeCancellation
+                      ? ORDER_STATUS_LABELS[order.previousStatusBeforeCancellation]
+                      : "Sin estado previo válido"}
+                  </p>
+                  {order.cancellationDetail ? (
+                    <p className="mt-1 text-sm text-slate-700">{order.cancellationDetail}</p>
                   ) : null}
                 </div>
-              </div>
-            ) : null}
-            {isEditing ? (
-              <>
-                <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                  <label className="space-y-2">
-                    <span className="text-sm font-medium text-slate-700">Nombre del cliente</span>
-                    <input
-                      value={currentEditForm.customerName}
-                      onChange={(event) => setField("customerName", event.target.value)}
-                      disabled={isSaving}
-                      className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm text-slate-900"
-                    />
-                  </label>
-                  <label className="space-y-2">
-                    <span className="text-sm font-medium text-slate-700">WhatsApp del cliente</span>
-                    <input
-                      value={currentEditForm.customerWhatsApp}
-                      onChange={(event) => setField("customerWhatsApp", event.target.value)}
-                      disabled={isSaving}
-                      className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm text-slate-900"
-                    />
-                  </label>
-                  <label className="space-y-2">
-                    <span className="text-sm font-medium text-slate-700">Tipo de entrega</span>
-                    <select
-                      value={currentEditForm.deliveryType}
-                      onChange={(event) =>
-                        setField("deliveryType", event.target.value as DeliveryType)
-                      }
-                      disabled={isSaving}
-                      className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900"
-                    >
-                      {DELIVERY_TYPES.map((deliveryType) => (
-                        <option key={deliveryType} value={deliveryType}>
-                          {deliveryType === "domicilio" ? "Domicilio" : "Recogida en tienda"}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="space-y-2">
-                    <span className="text-sm font-medium text-slate-700">Método de pago</span>
-                    <select
-                      value={effectivePaymentMethod}
-                      onChange={(event) =>
-                        setField("paymentMethod", event.target.value as PaymentMethod)
-                      }
-                      disabled={isSaving}
-                      className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900"
-                    >
-                      {availablePaymentMethods.map((method) => (
-                        <option key={method} value={method}>
-                          {getPaymentMethodLabel(method, currentEditForm.deliveryType)}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="space-y-2">
-                    <span className="text-sm font-medium text-slate-700">Dirección de entrega</span>
-                    <input
-                      value={currentEditForm.deliveryAddress}
-                      onChange={(event) => setField("deliveryAddress", event.target.value)}
-                      disabled={isSaving || currentEditForm.deliveryType !== "domicilio"}
-                      className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm text-slate-900 disabled:bg-slate-100"
-                    />
-                  </label>
-                  <label className="space-y-2">
-                    <span className="text-sm font-medium text-slate-700">Total</span>
-                    {isEditingCatalogBackedOrder ? (
-                      <div className="rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3">
-                        <p className="text-sm font-semibold text-slate-900">
-                          {formatCurrency(calculatedEditTotal)}
-                        </p>
-                        <p className="mt-1 text-xs text-slate-500">
-                          Calculado automaticamente desde productos vinculados al catalogo.
-                        </p>
-                      </div>
-                    ) : (
-                      <input
-                        type="number"
-                        min="0"
-                        step="100"
-                        value={currentEditForm.total}
-                        onChange={(event) => setField("total", event.target.value)}
-                        disabled={isSaving}
-                        className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm text-slate-900"
-                      />
-                    )}
-                  </label>
-                  <div className="space-y-3 sm:col-span-2">
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-sm font-medium text-slate-700">Artículos</span>
-                      <button
-                        type="button"
-                        onClick={handleAddProductField}
-                        disabled={isSaving}
-                        className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
-                      >
-                        <OrdersUiIcon icon="plus" className="h-3.5 w-3.5" />
-                        Agregar
-                      </button>
-                    </div>
-
-                    {isLoadingCatalog ? (
-                      <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                        Cargando catalogo del negocio...
-                      </div>
-                    ) : null}
-
-                    {catalogError ? (
-                      <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                        {catalogError}
-                      </div>
-                    ) : null}
-
-                    {isEditingCatalogBackedOrder ? (
-                      <div className="rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
-                        Este pedido usa catalogo real. Para mantener consistencia, los
-                        articulos editables deben seguir vinculados a productos del negocio.
-                      </div>
-                    ) : null}
-
-                    <div className="space-y-3">
-                      {editableProducts.map((product, index) => (
-                        <div
-                          key={product.id}
-                          className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-[1fr_120px_auto]"
-                        >
-                          <label className="space-y-2">
-                            <span className="text-xs font-medium text-slate-600">
-                              Artículo {index + 1}
-                            </span>
-                            {isEditingCatalogBackedOrder ? (
-                              <>
-                                <select
-                                  value={product.productId ?? ""}
-                                  onChange={(event) =>
-                                    handleEditableProductChange(
-                                      product.id,
-                                      "productId",
-                                      event.target.value,
-                                    )
-                                  }
-                                  disabled={isSaving}
-                                  className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900"
-                                >
-                                  <option value="">Selecciona un producto del catalogo</option>
-                                  {selectableCatalogProducts
-                                    .filter(
-                                      (catalogProduct) =>
-                                        catalogProduct.productId === product.productId ||
-                                        !selectedCatalogProductIds.includes(
-                                          catalogProduct.productId,
-                                        ),
-                                    )
-                                    .map((catalogProduct) => (
-                                      <option
-                                        key={catalogProduct.productId}
-                                        value={catalogProduct.productId}
-                                      >
-                                        {catalogProduct.name}
-                                      </option>
-                                    ))}
-                                </select>
-                                {product.productId ? (
-                                  <p className="text-xs text-slate-500">
-                                    Precio unitario del catalogo:{" "}
-                                    {formatCurrency(
-                                      selectableCatalogProducts.find(
-                                        (catalogProduct) =>
-                                          catalogProduct.productId === product.productId,
-                                      )?.price ?? 0,
-                                    )}
-                                  </p>
-                                ) : null}
-                              </>
-                            ) : null}
-                            {isEditingCatalogBackedOrder ? null : (
-                              <input
-                                value={product.name}
-                                onChange={(event) =>
-                                  handleEditableProductChange(
-                                    product.id,
-                                    "name",
-                                    event.target.value,
-                                  )
-                                }
-                                disabled={isSaving}
-                                className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900"
-                                placeholder="Nombre del articulo"
-                              />
-                            )}
-                          </label>
-
-                          <label className="space-y-2">
-                            <span className="text-xs font-medium text-slate-600">Cantidad</span>
-                            <input
-                              type="number"
-                              min="1"
-                              value={product.quantity}
-                              onChange={(event) =>
-                                handleEditableProductChange(
-                                  product.id,
-                                  "quantity",
-                                  event.target.value,
-                                )
-                              }
-                              disabled={isSaving}
-                              className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900"
-                            />
-                          </label>
-
-                          <div className="flex items-end">
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveProductField(product.id)}
-                              disabled={isSaving || editableProducts.length === 1}
-                              className="inline-flex items-center gap-1.5 rounded-full border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
-                            >
-                              <OrdersUiIcon icon="minus" className="h-3.5 w-3.5" />
-                              Quitar
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  <label className="space-y-2 sm:col-span-2">
-                    <span className="text-sm font-medium text-slate-700">Notas</span>
-                    <textarea
-                      rows={4}
-                      value={currentEditForm.notes}
-                      onChange={(event) => setField("notes", event.target.value)}
-                      disabled={isSaving}
-                      className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm text-slate-900"
-                    />
-                  </label>
-                </div>
-
-                {changedFields.length > 0 ? (
-                  <div className="mt-4 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-4">
-                    <p className="text-sm font-semibold text-sky-900">Cambios listos para guardar</p>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {changedFields.map((change) => (
-                        <span
-                          key={change}
-                          className="rounded-full border border-sky-200 bg-white px-3 py-1 text-xs font-medium text-sky-700"
-                        >
-                          {change}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
-              </>
-            ) : (
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Cliente</p>
-                  <p className="mt-2 text-sm font-medium text-slate-900">{currentOrder.client}</p>
-                </div>
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">WhatsApp</p>
-                  <div className="mt-2 space-y-2">
-                    <p className="text-sm font-medium text-slate-900">
-                      {currentOrder.customerPhone ?? "Sin WhatsApp registrado"}
+              ) : null}
+              {order.isFiado ? (
+                <div className="rounded-[20px] border border-amber-200 bg-amber-50 px-4 py-3 sm:col-span-2">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-700">
+                      Fiado interno
                     </p>
-                    {hasValidWhatsApp ? (
-                      <a
-                        href={whatsappUrl ?? undefined}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 transition hover:border-emerald-300 hover:bg-emerald-100"
-                      >
-                        <OrdersUiIcon icon="clipboard" className="h-3.5 w-3.5" />
-                        Abrir WhatsApp
-                      </a>
-                    ) : null}
+                    <span className="rounded-full border border-amber-200 bg-white px-3 py-1 text-xs font-semibold text-amber-700">
+                      {getFiadoStatusLabel(order.fiadoStatus)}
+                    </span>
                   </div>
-                </div>
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Total</p>
-                  <p className="mt-2 text-base font-semibold text-slate-950">
-                    {formatCurrency(currentOrder.total)}
-                  </p>
-                </div>
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Entrega</p>
                   <p className="mt-2 text-sm font-medium text-slate-900">
-                    {getDeliveryTypeLabel(currentOrder.deliveryType)}
+                    {order.fiadoObservation ?? "Sin observación registrada."}
                   </p>
                 </div>
-                {currentOrder.deliveryType === "domicilio" && currentOrder.address ? (
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Dirección</p>
-                    <p className="mt-2 text-sm font-medium text-slate-900">{currentOrder.address}</p>
-                  </div>
-                ) : null}
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Método de pago</p>
-                  <p className="mt-2 text-sm font-medium text-slate-900">
-                    {getPaymentMethodLabel(currentOrder.paymentMethod, currentOrder.deliveryType)}
-                  </p>
-                </div>
-                {currentOrder.products.length > 0 ? (
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 sm:col-span-2">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Productos</p>
-                      <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700">
-                        {totalUnits} unidad{totalUnits === 1 ? "" : "es"}
-                      </span>
-                    </div>
-                    <div className="mt-2 flex flex-wrap items-center gap-2">
-                      {visibleProducts.map((product) => (
-                        <span
-                          key={`${product.name}-${product.quantity}`}
-                          className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600"
-                        >
-                          {product.quantity} x {product.name}
-                        </span>
-                      ))}
-                      {hiddenProductsCount > 0 ? (
-                        <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600">
-                          +{hiddenProductsCount} más
-                        </span>
-                      ) : null}
-                    </div>
-                  </div>
-                ) : null}
-                {currentOrder.observations ? (
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 sm:col-span-2">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Notas</p>
-                    <p className="mt-2 text-sm font-medium text-slate-900">
-                      {currentOrder.observations}
-                    </p>
-                  </div>
-                ) : null}
-                {currentOrder.isFiado ? (
-                  <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 sm:col-span-2">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-700">
-                        Observacion de fiado
-                      </p>
-                      <span className="rounded-full border border-amber-200 bg-white px-3 py-1 text-xs font-semibold text-amber-700">
-                        {getFiadoStatusLabel(currentOrder.fiadoStatus)}
-                      </span>
-                    </div>
-                    <p className="mt-2 text-sm font-medium text-slate-900">
-                      {currentOrder.fiadoObservation ?? "Sin observacion registrada."}
-                    </p>
-                  </div>
-                ) : null}
-              </div>
-            )}
+              ) : null}
+            </div>
           </section>
-          <section className="rounded-[24px] border border-slate-200 bg-white p-5">
+
+          <section className="rounded-[26px] border border-slate-200 bg-white p-5 shadow-[0_16px_34px_rgba(15,23,42,0.04)]">
             <h3 className="text-lg font-semibold text-slate-950">Acciones operativas</h3>
+            <p className="mt-1 text-sm text-slate-600">{paymentHelpMessage}</p>
+
             {actionError ? (
-              <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              <div className="mt-4 rounded-[18px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
                 {actionError}
               </div>
             ) : null}
-            {fiadoError ? (
-              <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-                {fiadoError}
+            {actionFeedback ? (
+              <div className="mt-4 rounded-[18px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                {actionFeedback}
               </div>
             ) : null}
-            {fiadoFeedback ? (
-              <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                {fiadoFeedback}
-              </div>
-            ) : null}
-            <div className="mt-4 grid gap-4 lg:grid-cols-2">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <p className="text-sm font-semibold text-slate-900">Pago</p>
-                <p className="mt-2 text-sm text-slate-600">{paymentHelpMessage}</p>
+
+            <div className="mt-5 grid gap-4 lg:grid-cols-2">
+              <div className={`rounded-[22px] border p-4 ${paymentVisuals.panelClassName}`}>
+                <p className="text-sm font-semibold">Pago</p>
                 <div className="mt-4 grid gap-3">
-                  {shouldShowPaymentVerificationActions(currentOrder) ? (
+                  {showPaymentActions ? (
                     <>
                       <button
                         type="button"
-                        onClick={() => void handleRequestPaymentByWhatsApp()}
-                        disabled={!hasValidWhatsApp}
-                        className={`inline-flex items-center justify-center gap-1.5 rounded-full px-4 py-3 text-sm font-medium ${
-                          hasValidWhatsApp
-                            ? "border border-slate-300 bg-white text-slate-700"
-                            : "cursor-not-allowed border border-slate-200 bg-slate-100 text-slate-400"
-                        }`}
-                        title={
-                          hasValidWhatsApp
-                            ? "Abrir WhatsApp con el mensaje listo"
-                            : "El pedido no tiene un número de WhatsApp válido"
-                        }
+                        onClick={() => void runRequestPaymentProof()}
+                        className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
                       >
                         <OrdersUiIcon icon="clipboard" className="h-4 w-4" />
-                        Solicitar comprobante por WhatsApp
+                        Solicitar comprobante
                       </button>
                       <button
                         type="button"
-                        onClick={() => runQuickPaymentChange("verificado")}
-                        className="inline-flex items-center justify-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700"
+                        onClick={() => void runPaymentStatusUpdate("verificado")}
+                        className="inline-flex items-center justify-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700 transition hover:border-emerald-300 hover:bg-emerald-100"
                       >
                         <OrdersUiIcon icon="save" className="h-4 w-4" />
-                        Marcar pago como verificado
+                        Marcar verificado
                       </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setShowSecondaryPaymentActions((currentValue) => !currentValue)
-                        }
-                        className="inline-flex items-center justify-center gap-1.5 rounded-full border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700"
-                      >
-                        <OrdersUiIcon
-                          icon={showSecondaryPaymentActions ? "chevron-up" : "chevron-down"}
-                          className="h-4 w-4"
-                        />
-                        {showSecondaryPaymentActions
-                          ? "Ocultar acciones secundarias"
-                          : "Mas acciones de pago"}
-                      </button>
-                      {showSecondaryPaymentActions ? (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => runQuickPaymentChange("con novedad")}
-                            className="inline-flex items-center justify-center gap-1.5 rounded-full border border-orange-200 bg-orange-50 px-4 py-3 text-sm font-medium text-orange-700"
-                          >
-                            <OrdersUiIcon icon="edit" className="h-4 w-4" />
-                            Marcar pago con novedad
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => runQuickPaymentChange("no verificado")}
-                            className="inline-flex items-center justify-center gap-1.5 rounded-full border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700"
-                          >
-                            <OrdersUiIcon icon="x" className="h-4 w-4" />
-                            Marcar pago como no verificado
-                          </button>
-                        </>
-                      ) : null}
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <button
+                          type="button"
+                          onClick={() => void runPaymentStatusUpdate("con novedad")}
+                          className="inline-flex items-center justify-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-4 py-3 text-sm font-semibold text-orange-700 transition hover:border-orange-300 hover:bg-orange-100"
+                        >
+                          <OrdersUiIcon icon="edit" className="h-4 w-4" />
+                          Con novedad
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void runPaymentStatusUpdate("no verificado")}
+                          className="inline-flex items-center justify-center gap-2 rounded-full border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700 transition hover:border-rose-300 hover:bg-rose-100"
+                        >
+                          <OrdersUiIcon icon="x" className="h-4 w-4" />
+                          No verificado
+                        </button>
+                      </div>
                     </>
                   ) : (
-                    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
-                      Este método de pago no requiere validación de comprobante.
+                    <div className="rounded-[18px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
+                      Este método de pago no requiere comprobante previo.
                     </div>
                   )}
-                  {whatsAppFeedback ? (
-                    <p className="text-sm text-slate-600">{whatsAppFeedback}</p>
-                  ) : null}
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <p className="text-sm font-semibold text-slate-900">Pedido</p>
-                {canManageOrderStatus(currentOrder) ? (
-                  <>
-                    <p className="mt-2 text-sm text-slate-600">
-                      Confirma, avanza o cancela sin salir del detalle.
-                    </p>
-                    <div className="mt-4 grid gap-3">
-                      {canQuickConfirm ? (
+              <div className={`rounded-[22px] border p-4 ${statusVisuals.softPanelClassName}`}>
+                <p className="text-sm font-semibold">Pedido</p>
+                <div className="mt-4 grid gap-3">
+                  {order.status === "cancelado" ? (
+                    <button
+                      type="button"
+                      onClick={() => onOpenReactivateOrderModal(order.orderId)}
+                      className="inline-flex items-center justify-center gap-2 rounded-full border border-teal-200 bg-teal-50 px-4 py-3 text-sm font-semibold text-teal-700 transition hover:border-teal-300 hover:bg-teal-100"
+                    >
+                      <OrdersUiIcon icon="save" className="h-4 w-4" />
+                      Reactivar al estado previo
+                    </button>
+                  ) : (
+                    <>
+                      {canConfirm ? (
                         <button
                           type="button"
-                          onClick={() => runQuickStatusChange("confirmado")}
-                          className="inline-flex items-center justify-center gap-1.5 rounded-full bg-slate-900 px-4 py-3 text-sm font-medium text-white"
+                          onClick={() => void runConfirmOrder()}
+                          className="inline-flex items-center justify-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-700 transition hover:border-amber-300 hover:bg-amber-100"
                         >
                           <OrdersUiIcon icon="clipboard-check" className="h-4 w-4" />
                           Confirmar pedido
                         </button>
                       ) : null}
-                      {nextQuickStatus ? (
+                      {canAdvance && nextWorkflowStatus ? (
                         <button
                           type="button"
-                          onClick={() => runQuickStatusChange(nextQuickStatus)}
-                          className="inline-flex items-center justify-center gap-1.5 rounded-full border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-medium text-sky-700"
+                          onClick={() => void runAdvanceOrder()}
+                          className="inline-flex items-center justify-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-semibold text-sky-700 transition hover:border-sky-300 hover:bg-sky-100"
                         >
-                          <OrdersUiIcon icon="chevron-down" className="h-4 w-4" />
-                          Avanzar a {ORDER_STATUS_LABELS[nextQuickStatus]}
+                          <OrdersUiIcon icon="clipboard-check" className="h-4 w-4" />
+                          Mover a {ORDER_STATUS_LABELS[nextWorkflowStatus]}
                         </button>
                       ) : null}
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setShowSecondaryOrderActions((currentValue) => !currentValue)
-                        }
-                        className="inline-flex items-center justify-center gap-1.5 rounded-full border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700"
-                      >
-                        <OrdersUiIcon
-                          icon={showSecondaryOrderActions ? "chevron-up" : "chevron-down"}
-                          className="h-4 w-4"
-                        />
-                        {showSecondaryOrderActions
-                          ? "Ocultar acciones secundarias"
-                          : "Mas acciones del pedido"}
-                      </button>
-                      {showSecondaryOrderActions ? (
+                      {canCancel ? (
                         <button
                           type="button"
-                          onClick={() => runQuickStatusChange("cancelado")}
-                          className="inline-flex items-center justify-center gap-1.5 rounded-full border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700"
+                          onClick={() => onOpenCancelOrderModal(order.orderId)}
+                          className="inline-flex items-center justify-center gap-2 rounded-full border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700 transition hover:border-rose-300 hover:bg-rose-100"
                         >
                           <OrdersUiIcon icon="x" className="h-4 w-4" />
                           Cancelar pedido
                         </button>
                       ) : null}
-                    </div>
-                  </>
-                ) : (
-                  <div className="mt-4 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
-                    El estado del pedido se habilita cuando el pago queda verificado.
-                  </div>
-                )}
+                      {!canConfirm && !canAdvance && !canCancel ? (
+                        <div className="rounded-[18px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
+                          No hay acciones operativas adicionales en este estado.
+                        </div>
+                      ) : null}
+                    </>
+                  )}
+                </div>
               </div>
             </div>
 
-            {showFiadoActions ? (
-              <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50/70 p-4">
+            {allowsFiado || order.isFiado ? (
+              <div className="mt-4 rounded-[22px] border border-amber-200 bg-amber-50/80 p-4">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <p className="text-sm font-semibold text-slate-900">Fiado interno</p>
                     <p className="mt-1 text-sm text-slate-600">
-                      Operacion privada del negocio. Nunca se expone como metodo de pago al cliente.
+                      Operación privada del negocio. Nunca aparece como método público para el cliente.
                     </p>
                   </div>
                   <span className="inline-flex rounded-full border border-amber-200 bg-white px-3 py-1 text-xs font-semibold text-amber-700">
-                    {currentOrder.isFiado
-                      ? `Fiado ${getFiadoStatusLabel(currentOrder.fiadoStatus)}`
-                      : "No marcado"}
+                    {order.isFiado ? `Fiado ${getFiadoStatusLabel(order.fiadoStatus)}` : "No marcado"}
                   </span>
                 </div>
 
+                {fiadoError ? (
+                  <div className="mt-4 rounded-[18px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                    {fiadoError}
+                  </div>
+                ) : null}
+                {fiadoFeedback ? (
+                  <div className="mt-4 rounded-[18px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                    {fiadoFeedback}
+                  </div>
+                ) : null}
+
                 <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_auto]">
                   <label className="space-y-2">
-                    <span className="text-sm font-medium text-slate-700">
-                      Observacion de fiado
-                    </span>
+                    <span className="text-sm font-medium text-slate-700">Observación de fiado</span>
                     <textarea
                       rows={3}
                       value={fiadoObservationDraft}
@@ -1699,63 +587,38 @@ export function OrderDetailDrawer({
                         setFiadoError("");
                         setFiadoFeedback("");
                       }}
-                      placeholder="No pago, dijo que paga manana."
-                      className="w-full rounded-2xl border border-amber-200 bg-white px-4 py-3 text-sm text-slate-900"
+                      placeholder="No pagó y prometió cancelar mañana."
+                      className="w-full rounded-[18px] border border-amber-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-amber-300"
                     />
                   </label>
 
                   <div className="grid gap-3 self-end">
-                    {!currentOrder.isFiado ? (
+                    {!order.isFiado ? (
                       <button
                         type="button"
-                        onClick={runMarkAsFiado}
+                        onClick={() => void runMarkAsFiado()}
                         disabled={!allowsFiado}
-                        className={`inline-flex items-center justify-center gap-1.5 rounded-full px-4 py-3 text-sm font-medium ${
+                        className={`inline-flex items-center justify-center gap-2 rounded-full px-4 py-3 text-sm font-semibold transition ${
                           allowsFiado
-                            ? "border border-amber-300 bg-white text-amber-800"
+                            ? "border border-amber-300 bg-white text-amber-800 hover:border-amber-400 hover:bg-amber-50"
                             : "cursor-not-allowed border border-slate-200 bg-slate-100 text-slate-400"
                         }`}
                       >
                         <OrdersUiIcon icon="clipboard" className="h-4 w-4" />
-                        Marcar como fiado
+                        Marcar fiado
                       </button>
                     ) : null}
-
                     {isPendingFiado ? (
                       <button
                         type="button"
-                        onClick={runMarkFiadoAsPaid}
-                        className="inline-flex items-center justify-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700"
+                        onClick={() => void runMarkFiadoAsPaid()}
+                        className="inline-flex items-center justify-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700 transition hover:border-emerald-300 hover:bg-emerald-100"
                       >
                         <OrdersUiIcon icon="save" className="h-4 w-4" />
-                        Marcar fiado como pagado
+                        Marcar como pagado
                       </button>
                     ) : null}
                   </div>
-                </div>
-              </div>
-            ) : null}
-
-            {ORDER_STATUSES.some(
-              (statusOption) =>
-                !getOrderStatusTransitionRule(transitionContext, statusOption).allowed,
-            ) ? (
-              <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4">
-                <p className="text-sm font-semibold text-amber-900">Transiciones bloqueadas</p>
-                <div className="mt-2 space-y-2 text-sm text-amber-800">
-                  {ORDER_STATUSES.map((statusOption) => {
-                    const rule = getOrderStatusTransitionRule(transitionContext, statusOption);
-
-                    if (rule.allowed || !rule.reason) {
-                      return null;
-                    }
-
-                    return (
-                      <p key={statusOption}>
-                        {ORDER_STATUS_LABELS[statusOption]}: {rule.reason}
-                      </p>
-                    );
-                  })}
                 </div>
               </div>
             ) : null}
@@ -1763,18 +626,18 @@ export function OrderDetailDrawer({
 
           <section
             data-testid="order-history-section"
-            className="rounded-[24px] border border-slate-200 bg-white p-5"
+            className="rounded-[26px] border border-slate-200 bg-white p-5 shadow-[0_16px_34px_rgba(15,23,42,0.04)]"
           >
             <h3 className="text-lg font-semibold text-slate-950">Historial del pedido</h3>
             <p className="mt-1 text-sm text-slate-600">
-              Cada cambio relevante deja rastro con fecha, campo y valores.
+              Toda mutación relevante queda trazada con fecha y descripción legible.
             </p>
             <div className="mt-4 space-y-4">
               {sortedHistory.map((event) => (
                 <article
                   key={event.id}
                   data-testid="order-history-event"
-                  className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4"
+                  className="rounded-[20px] border border-slate-200 bg-slate-50 px-4 py-4"
                 >
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>

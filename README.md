@@ -70,6 +70,7 @@ Las garantias activas del MVP hoy no viven solo en UI ni solo en handlers HTTP: 
 - `Transferencia` es el unico metodo generico de transferencia del MVP y las instrucciones reales del negocio para pagar/comprobar viven en `businesses.transfer_instructions`.
 - Los metodos publicos visibles al cliente se derivan de flags por negocio; Fiado no es un metodo publico y nunca aparece en checkout ni formularios del cliente.
 - El estado inicial del pedido se deriva en servidor segun `paymentMethod`, y la DB rederiva y valida inserts/updates directos sobre `public.orders`.
+- El flujo operativo principal del pedido hoy vive en `Nuevo -> Confirmado -> Preparación -> Listo -> Entregado`; `Cancelado` es una salida excepcional separada, con motivo obligatorio, estado previo persistido y reactivacion exacta al punto anterior.
 - `Contra entrega` solo es valido para pedidos a domicilio, y esa regla existe en server y en DB.
 - El historial inicial del pedido se genera en servidor/DB segun el origen real (`public_form` o `workspace_manual`).
 - El historial del pedido es append-only bajo control server-side y DB; el cliente no puede reemplazar snapshots completos de `history`.
@@ -141,7 +142,7 @@ Ademas, la fase actual de E2E ya protege reglas criticas del dominio de pedidos:
 3. el historial inicial nace segun el origen real `public_form`
 4. una mutacion valida desde workspace agrega eventos al historial sin reemplazar el snapshot previo
 5. `Contra entrega` queda bloqueado para `recogida en tienda` en el formulario y tambien en el endpoint real
-6. un pedido valido a domicilio con `Contra entrega` nace en el estado confirmado/verificado esperado
+6. un pedido valido a domicilio con `Contra entrega` nace en `Nuevo` con `paymentStatus=verificado`, sin abrir una columna paralela de pago
 
 ### Ejecucion
 

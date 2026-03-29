@@ -617,7 +617,7 @@ select json_build_object(
 from public.orders
 where id = $(ConvertTo-SqlText $PublicOrderId)::uuid;
 "@
-  Assert-Equal -Actual $publicInsertResult.status -Expected "pendiente de pago" -Message "DB debe derivar el estado inicial del pedido publico."
+  Assert-Equal -Actual $publicInsertResult.status -Expected "nuevo" -Message "DB debe derivar el estado inicial del pedido publico."
   Assert-Equal -Actual $publicInsertResult.paymentStatus -Expected "pendiente" -Message "DB debe derivar el estado inicial del pago publico."
   Assert-HistoryContract -ActualHistory $publicInsertResult.history -ExpectedHistory $expectedPublicHistory -Message "DB debe generar el historial inicial publico correcto."
 
@@ -664,7 +664,7 @@ select json_build_object(
 )::text
 from inserted_order;
 "@)
-  Assert-Equal -Actual $manualInsertResult.status -Expected "confirmado" -Message "DB debe derivar el estado inicial del pedido manual."
+  Assert-Equal -Actual $manualInsertResult.status -Expected "nuevo" -Message "DB debe derivar el estado inicial del pedido manual."
   Assert-Equal -Actual $manualInsertResult.paymentStatus -Expected "verificado" -Message "DB debe derivar el estado inicial del pago manual."
   Assert-HistoryContract -ActualHistory $manualInsertResult.history -ExpectedHistory $expectedManualHistory -Message "DB debe generar el historial inicial manual correcto."
 
@@ -703,6 +703,42 @@ from public.update_order_with_server_history(
   Assert-Equal -Actual $controlledUpdateResult.history[0].title -Expected "Mensaje de comprobante preparado para WhatsApp" -Message "La funcion controlada debe anexar el evento server-side correcto."
   Assert-Equal -Actual $controlledUpdateResult.history[1].field -Expected "notes" -Message "La funcion controlada debe anexar el cambio trazable al historial."
   Assert-True -Condition ($controlledUpdateResult.history.Count -ge 4) -Message "La funcion controlada debe conservar el historial append-only."
+
+  $cancelledOrderResult = Invoke-JsonSql -PsqlPath $psqlPath -ClusterRoot $clusterRoot -Sql (Wrap-AsRole -Role "authenticated" -UserId $OwnerId -Sql @"
+select row_to_json(updated_order)::text
+from public.update_order_with_server_history(
+  $(ConvertTo-SqlText $ManualOrderId)::uuid,
+  $(ConvertTo-SqlJsonb @{
+      status = "cancelado"
+      cancellationReason = "pedido_duplicado"
+      actorUserId = $OwnerId
+      actorEmail = "owner@example.com"
+    })
+) as updated_order;
+"@)
+  Assert-Equal -Actual $cancelledOrderResult.status -Expected "cancelado" -Message "La funcion controlada debe sacar el pedido del flujo principal al cancelar."
+  Assert-Equal -Actual $cancelledOrderResult.previous_status_before_cancellation -Expected "nuevo" -Message "La cancelacion debe guardar el estado operativo previo exacto."
+  Assert-Equal -Actual $cancelledOrderResult.cancellation_reason -Expected "pedido_duplicado" -Message "La cancelacion debe persistir el motivo canonico."
+  Assert-Equal -Actual $cancelledOrderResult.history[0].title -Expected "Pedido cancelado" -Message "La funcion controlada debe anexar un evento explicito de cancelacion."
+  Assert-Match -Text $cancelledOrderResult.history[0].description -Pattern "pedido duplicado|owner@example.com" -Message "La cancelacion debe dejar trazabilidad legible de motivo y actor."
+
+  $reactivatedOrderResult = Invoke-JsonSql -PsqlPath $psqlPath -ClusterRoot $clusterRoot -Sql (Wrap-AsRole -Role "authenticated" -UserId $OwnerId -Sql @"
+select row_to_json(updated_order)::text
+from public.update_order_with_server_history(
+  $(ConvertTo-SqlText $ManualOrderId)::uuid,
+  $(ConvertTo-SqlJsonb @{
+      reactivateCancelledOrder = $true
+      actorUserId = $OwnerId
+      actorEmail = "owner@example.com"
+    })
+) as updated_order;
+"@)
+  Assert-Equal -Actual $reactivatedOrderResult.status -Expected "nuevo" -Message "La reactivacion debe devolver el pedido al estado operativo previo exacto."
+  Assert-Equal -Actual $reactivatedOrderResult.previous_status_before_cancellation -Expected $null -Message "La reactivacion debe limpiar el estado previo guardado de cancelacion."
+  Assert-Equal -Actual $reactivatedOrderResult.cancellation_reason -Expected $null -Message "La reactivacion debe limpiar el motivo activo de cancelacion."
+  Assert-True -Condition ([bool]$reactivatedOrderResult.reactivated_at) -Message "La reactivacion debe registrar fecha y hora."
+  Assert-Equal -Actual $reactivatedOrderResult.history[0].title -Expected "Pedido reactivado" -Message "La funcion controlada debe anexar un evento explicito de reactivacion."
+  Assert-Match -Text $reactivatedOrderResult.history[0].description -Pattern "owner@example.com|nuevo" -Message "La reactivacion debe dejar trazabilidad legible del actor y del estado recuperado."
 
   $foreignUserResult = Invoke-PostgresSql -PsqlPath $psqlPath -ClusterRoot $clusterRoot -Sql (Wrap-AsRole -Role "authenticated" -UserId $OtherUserId -Sql @"
 select row_to_json(updated_order)::text

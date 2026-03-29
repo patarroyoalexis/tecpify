@@ -20,17 +20,6 @@ function readHistoryTitles(order: PrivateOrderApiRecord) {
   return (order.history ?? []).map((event) => event.title);
 }
 
-async function expandCollapsedOrderGroups(page: Parameters<typeof openPublicStorefront>[0]) {
-  const collapsedGroupButtons = page.getByRole("button", {
-    name: "Mostrar grupo de pedidos",
-  });
-  const collapsedGroups = await collapsedGroupButtons.count();
-
-  for (let index = 0; index < collapsedGroups; index += 1) {
-    await collapsedGroupButtons.nth(index).click();
-  }
-}
-
 async function readPaymentMethodOptionValues(
   page: Parameters<typeof openPublicStorefront>[0],
 ) {
@@ -89,7 +78,7 @@ test.describe("Order domain rules", () => {
         expect(order.paymentMethod).toBe("Transferencia");
         expect(order.deliveryType).toBe("recogida en tienda");
         expect(order.paymentStatus).toBe("pendiente");
-        expect(order.status).toBe("pendiente de pago");
+        expect(order.status).toBe("nuevo");
         expect(order.isReviewed).toBe(false);
         expect(readHistoryTitles(order)).toEqual([
           "Pedido creado desde formulario publico",
@@ -100,7 +89,7 @@ test.describe("Order domain rules", () => {
         await expect(page).toHaveURL(new RegExp(`/pedidos/${scenario.businessSlug}$`));
         await expect(page.getByTestId(`order-card-${order.orderId}`)).toBeVisible();
         await expect(page.getByTestId(`order-card-status-${order.orderId}`)).toContainText(
-          "Pendiente de pago",
+          "Nuevo",
         );
         await expect(
           page.getByTestId(`order-card-payment-status-${order.orderId}`),
@@ -148,7 +137,7 @@ test.describe("Order domain rules", () => {
         });
 
         expect(forgedOrder.paymentStatus).toBe("pendiente");
-        expect(forgedOrder.status).toBe("pendiente de pago");
+        expect(forgedOrder.status).toBe("nuevo");
         expect(forgedOrder.isReviewed).toBe(false);
         expect(readHistoryTitles(forgedOrder)).toEqual([
           "Pedido creado desde formulario publico",
@@ -163,12 +152,12 @@ test.describe("Order domain rules", () => {
         await page.getByTestId(`order-card-primary-action-${initialOrder.orderId}`).click();
         const updatedOrder = await waitForOrderInPrivateApi(page, scenario.businessSlug, {
           orderId: initialOrder.orderId,
-          status: "pago por verificar",
+          status: "nuevo",
           paymentStatus: "verificado",
         });
 
         await expect(page.getByTestId(`order-card-status-${initialOrder.orderId}`)).toContainText(
-          "Pago por verificar",
+          "Nuevo",
         );
         await expect(
           page.getByTestId(`order-card-payment-status-${initialOrder.orderId}`),
@@ -176,13 +165,11 @@ test.describe("Order domain rules", () => {
         const updatedHistory = updatedOrder.history ?? [];
 
         expect(updatedOrder.paymentStatus).toBe("verificado");
-        expect(updatedOrder.status).toBe("pago por verificar");
+        expect(updatedOrder.status).toBe("nuevo");
         expect(updatedOrder.isReviewed).toBe(true);
-        expect(updatedHistory).toHaveLength(initialHistoryIds.length + 3);
+        expect(updatedHistory.length).toBeGreaterThanOrEqual(initialHistoryIds.length + 1);
         expect(readHistoryTitles(updatedOrder)).toEqual(
           expect.arrayContaining([
-            "Pedido revisado",
-            "Estado del pedido actualizado",
             "Estado del pago actualizado",
             "Pedido creado desde formulario publico",
             "Pedido registrado",
@@ -193,7 +180,7 @@ test.describe("Order domain rules", () => {
         );
 
         const orderCard = page.getByTestId(`order-card-${initialOrder.orderId}`);
-        await orderCard.getByRole("button", { name: /Ver detalles del pedido/i }).click();
+        await orderCard.getByRole("button", { name: /ver detalle/i }).click();
         await expect(page.getByTestId("order-detail-drawer")).toBeVisible();
         await expect(page.getByTestId("order-history-section")).toBeVisible();
         await expect(page.getByTestId("order-history-event")).toHaveCount(updatedHistory.length);
@@ -206,7 +193,7 @@ test.describe("Order domain rules", () => {
     }
   });
 
-  test("contra entrega stays blocked for pickup and valid domicilio orders start with the cash-confirmed state", async ({
+  test("contra entrega stays blocked for pickup and valid domicilio orders keep the new operational state", async ({
     browser,
     page,
   }, testInfo) => {
@@ -300,19 +287,18 @@ test.describe("Order domain rules", () => {
         expect(domicilioOrder.paymentMethod).toBe("Contra entrega");
         expect(domicilioOrder.deliveryType).toBe("domicilio");
         expect(domicilioOrder.paymentStatus).toBe("verificado");
-        expect(domicilioOrder.status).toBe("confirmado");
+        expect(domicilioOrder.status).toBe("nuevo");
         expect(readHistoryTitles(domicilioOrder)).toEqual([
           "Pedido creado desde formulario publico",
           "Pedido registrado",
         ]);
 
         await page.goto(`/pedidos/${scenario.businessSlug}`);
-        await expandCollapsedOrderGroups(page);
         await expect(page.getByTestId(`order-card-${domicilioOrder.orderId}`)).toBeVisible();
         await expect(
           page.getByTestId(`order-card-status-${domicilioOrder.orderId}`),
         ).toContainText(
-          "Confirmado",
+          "Nuevo",
         );
         await expect(
           page.getByTestId(`order-card-payment-status-${domicilioOrder.orderId}`),

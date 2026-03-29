@@ -1,7 +1,9 @@
 import type {
+  CancellableOrderStatus,
   DeliveryType,
   FiadoStatus,
   Order,
+  OrderCancellationReason,
   OrderHistoryEvent,
   OrderProduct,
   OrderStatus,
@@ -69,6 +71,9 @@ export interface OrderApiUpdatePayload {
   fiadoStatus?: FiadoStatus | null;
   fiadoObservation?: string | null;
   eventIntent?: OrderUpdateEventIntent;
+  cancellationReason?: OrderCancellationReason;
+  cancellationDetail?: string | null;
+  reactivateCancelledOrder?: boolean;
 }
 
 function readString(row: SupabaseOrderRow, ...keys: string[]) {
@@ -297,6 +302,38 @@ export function mapSupabaseRowToOrder(
     })(),
     fiadoObservation:
       readString(row, "fiado_observation", "fiadoObservation") || null,
+    previousStatusBeforeCancellation: (() => {
+      const previousStatus = readString(
+        row,
+        "previous_status_before_cancellation",
+        "previousStatusBeforeCancellation",
+      );
+
+      return previousStatus ? (previousStatus as CancellableOrderStatus) : null;
+    })(),
+    cancellationReason: (() => {
+      const cancellationReason = readString(
+        row,
+        "cancellation_reason",
+        "cancellationReason",
+      );
+
+      return cancellationReason
+        ? (cancellationReason as OrderCancellationReason)
+        : null;
+    })(),
+    cancellationDetail:
+      readString(row, "cancellation_detail", "cancellationDetail") || null,
+    cancelledAt: readString(row, "cancelled_at", "cancelledAt") || null,
+    cancelledByUserId:
+      readString(row, "cancelled_by_user_id", "cancelledByUserId") || null,
+    cancelledByUserEmail:
+      readString(row, "cancelled_by_user_email", "cancelledByUserEmail") || null,
+    reactivatedAt: readString(row, "reactivated_at", "reactivatedAt") || null,
+    reactivatedByUserId:
+      readString(row, "reactivated_by_user_id", "reactivatedByUserId") || null,
+    reactivatedByUserEmail:
+      readString(row, "reactivated_by_user_email", "reactivatedByUserEmail") || null,
     deliveryType: readString(row, "delivery_type", "deliveryType") as DeliveryType,
     address: readString(row, "delivery_address", "address") || undefined,
     status: readString(row, "status") as OrderStatus,

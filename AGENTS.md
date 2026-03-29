@@ -85,6 +85,7 @@ Este archivo es el contrato operativo de consistencia del MVP. Su funcion no es 
 - El POST de pedidos solo acepta datos editables; cualquier campo derivable enviado por cliente se ignora.
 - El estado inicial del pedido se deriva en servidor y la DB debe rederivar/validar inserts directos cuando corresponda.
 - El PATCH de pedidos solo puede persistir estados coherentes y transiciones permitidas.
+- El flujo principal del pedido es `nuevo -> confirmado -> en preparación -> listo -> entregado`; `cancelado` es un estado excepcional separado del board principal, exige motivo obligatorio y solo puede volver al flujo por reactivacion exacta al estado previo guardado.
 - Fiado es una dimension interna separada del metodo de pago: solo puede activarse en superficie privada autorizada, exige `fiadoObservation` y no puede exponerse al cliente como metodo seleccionable.
 - `Contra entrega` no puede existir como regla solo de UI; debe validarse tambien en server o DB.
 - El historial inicial no puede nacer desde cliente.
@@ -99,6 +100,7 @@ Este archivo es el contrato operativo de consistencia del MVP. Su funcion no es 
 - Las instrucciones de transferencia del negocio viven en `businesses.transfer_instructions`, se editan desde el workspace y alimentan el mensaje operativo de comprobante por WhatsApp.
 - Los flags publicos de metodos por negocio y el fiado interno manual tambien viven en DB y runtime; `Fiado` no reabre el frente de `Transferencia` ni reaparece en checkout publico.
 - El PATCH operativo usa la funcion controlada `public.update_order_with_server_history`; el cliente no fabrica ni reemplaza snapshots completos de `history`.
+- La cancelacion excepcional y la reactivacion exacta tambien pasan por `public.update_order_with_server_history`; la DB guarda `previous_status_before_cancellation`, motivo canonico, actor, timestamp e historial legible.
 - Mientras un pedido este en fiado pendiente no debe entrar a ventas efectivas; solo vuelve a contarse cuando el negocio lo marca manualmente como pagado.
 - El frente de pedidos si tiene evidencia automatizada en varios niveles: guardrails unitarios, auditorias de migraciones SQL, integracion real de DB y specs E2E del flujo publico + operacion privada.
 

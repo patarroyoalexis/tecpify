@@ -38,9 +38,18 @@ function createOrderFixture(overrides = {}) {
     isFiado: false,
     fiadoStatus: null,
     fiadoObservation: null,
+    previousStatusBeforeCancellation: null,
+    cancellationReason: null,
+    cancellationDetail: null,
+    cancelledAt: null,
+    cancelledByUserId: null,
+    cancelledByUserEmail: null,
+    reactivatedAt: null,
+    reactivatedByUserId: null,
+    reactivatedByUserEmail: null,
     deliveryType: "domicilio",
     address: "Calle 1 # 2-3",
-    status: "pendiente de pago",
+    status: "nuevo",
     dateLabel: "25 mar 2026, 4:00 p. m.",
     createdAt: "2026-03-25T21:00:00.000Z",
     isReviewed: false,
@@ -124,11 +133,11 @@ test("dominio: el primer evento del historial difiere segun el origen real", () 
 
 test("dominio: el estado inicial se deriva en servidor segun la regla de pago real", () => {
   assert.deepEqual(deriveInitialOrderStateFromPaymentMethod("Transferencia"), {
-    status: "pendiente de pago",
+    status: "nuevo",
     paymentStatus: "pendiente",
   });
   assert.deepEqual(deriveInitialOrderStateFromPaymentMethod("Efectivo"), {
-    status: "confirmado",
+    status: "nuevo",
     paymentStatus: "verificado",
   });
 });
@@ -158,7 +167,7 @@ test("dominio: POST server-side acepta Contra entrega solo cuando el pedido es a
     origin: "public_form",
   });
 
-  assert.equal(serverState.status, "confirmado");
+  assert.equal(serverState.status, "nuevo");
   assert.equal(serverState.paymentStatus, "verificado");
 });
 
@@ -611,6 +620,98 @@ test("PATCH /api/orders/[orderId] actualiza solo cambios editables e intents con
   assert.equal(body.order.isReviewed, true);
 });
 
+test("PATCH /api/orders/[orderId] envia cancelacion excepcional con motivo obligatorio", async () => {
+  let receivedPayload = null;
+  const cancelledOrder = createOrderFixture({
+    status: "cancelado",
+    previousStatusBeforeCancellation: "nuevo",
+    cancellationReason: "cliente_canceló",
+    cancellationDetail: null,
+  });
+  const handlers = createOrderByIdRouteHandlers({
+    requireOrderApiContext: async () => ({
+      ok: true,
+      context: {
+        businessId: "0f9f5d8d-1234-4f6b-8f16-6e16b14ac101",
+        businessSlug: "mi-tienda",
+        businessName: "Mi tienda",
+        createdByUserId: "user-1",
+        accessLevel: "owned",
+        user: {
+          userId: "user-1",
+          email: "owner@example.com",
+          user: { id: "user-1", email: "owner@example.com" },
+        },
+      },
+    }),
+    updateOrderInDatabase: async (_orderId, payload) => {
+      receivedPayload = payload;
+      return cancelledOrder;
+    },
+  });
+
+  const response = await handlers.PATCH(
+    createJsonRequest(`http://localhost/api/orders/${ORDER_ID}`, "PATCH", {
+      status: "cancelado",
+      cancellationReason: "cliente_canceló",
+    }),
+    { params: Promise.resolve({ orderId: ORDER_ID }) },
+  );
+  const body = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(receivedPayload, {
+    status: "cancelado",
+    cancellationReason: "cliente_canceló",
+  });
+  assert.equal(body.order.status, "cancelado");
+  assert.equal(body.order.previousStatusBeforeCancellation, "nuevo");
+});
+
+test("PATCH /api/orders/[orderId] envia reactivacion controlada al backend", async () => {
+  let receivedPayload = null;
+  const reactivatedOrder = createOrderFixture({
+    status: "en preparación",
+    previousStatusBeforeCancellation: null,
+    cancellationReason: null,
+  });
+  const handlers = createOrderByIdRouteHandlers({
+    requireOrderApiContext: async () => ({
+      ok: true,
+      context: {
+        businessId: "0f9f5d8d-1234-4f6b-8f16-6e16b14ac101",
+        businessSlug: "mi-tienda",
+        businessName: "Mi tienda",
+        createdByUserId: "user-1",
+        accessLevel: "owned",
+        user: {
+          userId: "user-1",
+          email: "owner@example.com",
+          user: { id: "user-1", email: "owner@example.com" },
+        },
+      },
+    }),
+    updateOrderInDatabase: async (_orderId, payload) => {
+      receivedPayload = payload;
+      return reactivatedOrder;
+    },
+  });
+
+  const response = await handlers.PATCH(
+    createJsonRequest(`http://localhost/api/orders/${ORDER_ID}`, "PATCH", {
+      reactivateCancelledOrder: true,
+    }),
+    { params: Promise.resolve({ orderId: ORDER_ID }) },
+  );
+  const body = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(receivedPayload, {
+    reactivateCancelledOrder: true,
+  });
+  assert.equal(body.order.status, "en preparación");
+});
+
 test("PATCH /api/orders/[orderId] falla si intenta reemplazar historial completo", async () => {
   let updateOrderWasCalled = false;
   const handlers = createOrderByIdRouteHandlers({
@@ -669,7 +770,7 @@ test("dominio: PATCH rechaza combinaciones incoherentes entre estado y pago", ()
     }
   })();
 
-  assert.match(error, /pago no este verificado/i);
+  assert.match(error, /pago no est[eé] verificado/i);
 });
 
 test("dominio: PATCH acepta transicion valida y deriva status complementario desde servidor", () => {
@@ -678,7 +779,7 @@ test("dominio: PATCH acepta transicion valida y deriva status complementario des
       deliveryType: "domicilio",
       paymentMethod: "Transferencia",
       paymentStatus: "pendiente",
-      status: "pendiente de pago",
+      status: "nuevo",
     },
     {
       paymentStatus: "verificado",
@@ -689,10 +790,10 @@ test("dominio: PATCH acepta transicion valida y deriva status complementario des
     deliveryType: "domicilio",
     paymentMethod: "Transferencia",
     paymentStatus: "verificado",
-    status: "pago por verificar",
+    status: "nuevo",
   });
-  assert.deepEqual(resolvedStatePatch.changedFields.sort(), ["paymentStatus", "status"]);
-  assert.deepEqual(resolvedStatePatch.derivedFields, ["status"]);
+  assert.deepEqual(resolvedStatePatch.changedFields.sort(), ["paymentStatus"]);
+  assert.deepEqual(resolvedStatePatch.derivedFields, []);
 });
 
 test("dominio: los cambios posteriores al historial quedan controlados por servidor", () => {
@@ -710,7 +811,7 @@ test("dominio: los cambios posteriores al historial quedan controlados por servi
     currentHistory,
     currentOrder: {
       orderId: ORDER_ID,
-      status: "pendiente de pago",
+      status: "nuevo",
       paymentStatus: "pendiente",
       customerName: "Ana Perez",
       customerWhatsApp: "3001234567",
@@ -724,7 +825,7 @@ test("dominio: los cambios posteriores al historial quedan controlados por servi
     },
     nextOrder: {
       orderId: ORDER_ID,
-      status: "pendiente de pago",
+      status: "nuevo",
       paymentStatus: "pendiente",
       customerName: "Ana Perez",
       customerWhatsApp: "3001234567",
@@ -776,9 +877,9 @@ test("regresion: ninguna ruta o helper reintroduce history en contratos publicos
   const insertPayloadBlock = ordersServerSource.match(
     /const insertPayload = \{(?<block>[\s\S]*?)\n\s*};/,
   );
-  const updatePayloadBlock = ordersServerSource.match(
-    /const updatePayload = \{(?<block>[\s\S]*?)\n\s*};/,
-  );
+  const updatePayloadBlocks = [
+    ...ordersServerSource.matchAll(/updatePayload\s*=\s*\{(?<block>[\s\S]*?)\n\s*};/g),
+  ];
   const updateAllowedFieldsBlock = orderStateRulesSource.match(
     /export const ORDER_UPDATE_CLIENT_EDITABLE_FIELDS = \[(?<fields>[\s\S]*?)\] as const;/,
   );
@@ -813,14 +914,20 @@ test("regresion: ninguna ruta o helper reintroduce history en contratos publicos
     "El insert persistido no debe volver a incluir history como payload directo.",
   );
   assert.ok(
-    updatePayloadBlock?.groups?.block,
-    "La persistencia del patch debe conservar un bloque identificable para guardrails.",
+    updatePayloadBlocks.length > 0,
+    "La persistencia del patch debe conservar bloques identificables para guardrails.",
   );
-  assert.doesNotMatch(
-    updatePayloadBlock.groups.block,
-    /\bhistory:/,
-    "El patch persistido no debe volver a incluir history como payload directo.",
-  );
+  for (const updatePayloadBlock of updatePayloadBlocks) {
+    assert.ok(
+      updatePayloadBlock.groups?.block,
+      "Cada bloque de patch persistido debe poder auditarse.",
+    );
+    assert.doesNotMatch(
+      updatePayloadBlock.groups.block,
+      /\bhistory:/,
+      "El patch persistido no debe volver a incluir history como payload directo.",
+    );
+  }
   assert.match(
     historyRulesSource,
     /createInitialOrderHistory/,

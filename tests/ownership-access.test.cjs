@@ -77,7 +77,7 @@ function createOrderFixture(overrides = {}) {
     fiadoObservation: null,
     deliveryType: "domicilio",
     address: "Calle 1 # 2-3",
-    status: "pendiente de pago",
+    status: "nuevo",
     dateLabel: "25 mar 2026, 4:00 p. m.",
     createdAt: "2026-03-25T21:00:00.000Z",
     isReviewed: false,

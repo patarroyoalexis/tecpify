@@ -206,9 +206,9 @@ test("documentacion: las afirmaciones contractuales siguen alineadas con el codi
   const ordersInsertPayloadBlock = ordersDataSource.match(
     /const insertPayload = \{(?<block>[\s\S]*?)\n\s*};/,
   );
-  const ordersUpdatePayloadBlock = ordersDataSource.match(
-    /const updatePayload = \{(?<block>[\s\S]*?)\n\s*};/,
-  );
+  const ordersUpdatePayloadBlocks = [
+    ...ordersDataSource.matchAll(/updatePayload\s*=\s*\{(?<block>[\s\S]*?)\n\s*};/g),
+  ];
   const orderPaymentMigrationSource = getLatestMigrationSourceByPattern(
     /create(?:\s+or\s+replace)?\s+function\s+public\.orders_payment_method_is_valid/i,
   );
@@ -649,14 +649,20 @@ test("documentacion: las afirmaciones contractuales siguen alineadas con el codi
     "El insert persistido no debe volver a incluir history como payload directo.",
   );
   assert.ok(
-    ordersUpdatePayloadBlock?.groups?.block,
-    "La persistencia del patch debe conservar un bloque identificable para guardrails.",
+    ordersUpdatePayloadBlocks.length > 0,
+    "La persistencia del patch debe conservar bloques identificables para guardrails.",
   );
-  assert.doesNotMatch(
-    ordersUpdatePayloadBlock.groups.block,
-    /\bhistory:/,
-    "El patch persistido no debe volver a incluir history como payload directo.",
-  );
+  for (const ordersUpdatePayloadBlock of ordersUpdatePayloadBlocks) {
+    assert.ok(
+      ordersUpdatePayloadBlock.groups?.block,
+      "Cada bloque de patch persistido debe poder auditarse.",
+    );
+    assert.doesNotMatch(
+      ordersUpdatePayloadBlock.groups.block,
+      /\bhistory:/,
+      "El patch persistido no debe volver a incluir history como payload directo.",
+    );
+  }
   assert.match(
     ordersDataSource,
     /options\?\.businessId/,
@@ -900,9 +906,10 @@ test("documentacion: las afirmaciones contractuales siguen alineadas con el codi
     .filter((relativePath) => !relativePath.startsWith("tests/"))
     .filter((relativePath) => /\blocalStorage\b/.test(readFile(relativePath)));
 
-  assert.deepEqual(
-    localStorageUsageFiles,
-    ["components/dashboard/orders-workspace.tsx"],
-    `localStorage solo debe existir en frontera de UI no critica: ${localStorageUsageFiles.join(", ")}`,
+  assert.ok(
+    localStorageUsageFiles.every(
+      (relativePath) => relativePath === "components/dashboard/orders-workspace.tsx",
+    ),
+    `localStorage solo puede vivir en frontera de UI no critica: ${localStorageUsageFiles.join(", ")}`,
   );
 });

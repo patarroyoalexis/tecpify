@@ -77,7 +77,10 @@ export function createOrderByIdRouteHandlers(
       }
 
       try {
-        const order = await dependencies.updateOrderInDatabase(normalizedOrderId, payload);
+        const order = await dependencies.updateOrderInDatabase(normalizedOrderId, payload, {
+          actorUserId: orderContextResult.context.user.userId,
+          actorEmail: orderContextResult.context.user.email,
+        });
         debugLog("[orders-api] Updated order", {
           orderId: normalizedOrderId,
           fieldsUpdated,

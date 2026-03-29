@@ -41,6 +41,11 @@ type EditableOrderPayload = Pick<
   | "fiadoObservation"
 >;
 
+type CancelOrderPayload = Pick<
+  OrderApiUpdatePayload,
+  "cancellationReason" | "cancellationDetail"
+>;
+
 function isValidDeliveryType(value: unknown): value is DeliveryType {
   return typeof value === "string" && DELIVERY_TYPES.includes(value as DeliveryType);
 }
@@ -426,8 +431,43 @@ export function useBusinessOrders({
     return handleEditOrder(orderId, { status: nextStatus });
   }
 
-  async function handleCancelOrder(orderId: Order["orderId"]) {
-    return handleEditOrder(orderId, { status: "cancelado" });
+  async function handleCancelOrder(
+    orderId: Order["orderId"],
+    payload: CancelOrderPayload,
+  ) {
+    setOrdersError(null);
+
+    try {
+      const persistedOrder = await updateOrderViaApi(orderId, {
+        status: "cancelado",
+        cancellationReason: payload.cancellationReason,
+        cancellationDetail: payload.cancellationDetail ?? null,
+      });
+      await resyncAfterMutation([persistedOrder]);
+      return persistedOrder;
+    } catch (error) {
+      debugError("[dashboard] Order cancellation failed", { orderId });
+      await refreshOrders({ suppressError: true });
+      setOrdersError(buildOrdersSyncError(error));
+      throw error;
+    }
+  }
+
+  async function handleReactivateOrder(orderId: Order["orderId"]) {
+    setOrdersError(null);
+
+    try {
+      const persistedOrder = await updateOrderViaApi(orderId, {
+        reactivateCancelledOrder: true,
+      });
+      await resyncAfterMutation([persistedOrder]);
+      return persistedOrder;
+    } catch (error) {
+      debugError("[dashboard] Order reactivation failed", { orderId });
+      await refreshOrders({ suppressError: true });
+      setOrdersError(buildOrdersSyncError(error));
+      throw error;
+    }
   }
 
   async function handleCreateOrder(input: NewOrderFormValue) {
@@ -481,6 +521,7 @@ export function useBusinessOrders({
     handleEditOrder,
     handleMarkAllAsReviewed,
     handleMarkAsReviewed,
+    handleReactivateOrder,
     handleHydrateOrder,
     handleRequestPaymentProof,
     handleResetOrders,

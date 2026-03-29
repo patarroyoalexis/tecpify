@@ -26,6 +26,11 @@ import {
   resolveAuthoritativeOrderStatePatch,
 } from "@/lib/orders/state-rules";
 import {
+  getCancelOrderError,
+  getReactivateOrderError,
+  normalizeCancellationDetail,
+} from "@/lib/orders/cancellation-rules";
+import {
   getBusinessPaymentMethodAvailabilityError,
   readBusinessPaymentSettings,
 } from "@/lib/businesses/payment-settings";
@@ -91,6 +96,20 @@ interface OrderLookupRow {
   is_fiado: boolean;
   fiado_status: Order["fiadoStatus"];
   fiado_observation: string | null;
+  previous_status_before_cancellation: Order["previousStatusBeforeCancellation"];
+  cancellation_reason: Order["cancellationReason"];
+  cancellation_detail: string | null;
+  cancelled_at: string | null;
+  cancelled_by_user_id: string | null;
+  cancelled_by_user_email: string | null;
+  reactivated_at: string | null;
+  reactivated_by_user_id: string | null;
+  reactivated_by_user_email: string | null;
+}
+
+interface UpdateOrderActorOptions {
+  actorUserId?: string | null;
+  actorEmail?: string | null;
 }
 
 function assertBusinessPaymentMethodIsEnabled(
@@ -136,6 +155,15 @@ function buildPersistedInsertedOrder(
     is_fiado: boolean;
     fiado_status: Order["fiadoStatus"];
     fiado_observation: string | null;
+    previous_status_before_cancellation: Order["previousStatusBeforeCancellation"];
+    cancellation_reason: Order["cancellationReason"];
+    cancellation_detail: string | null;
+    cancelled_at: string | null;
+    cancelled_by_user_id: string | null;
+    cancelled_by_user_email: string | null;
+    reactivated_at: string | null;
+    reactivated_by_user_id: string | null;
+    reactivated_by_user_email: string | null;
     history: Order["history"];
   },
   businessSlug: BusinessSlug,
@@ -568,6 +596,15 @@ export async function createOrderInDatabase(
       is_fiado: false,
       fiado_status: null,
       fiado_observation: null,
+      previous_status_before_cancellation: null,
+      cancellation_reason: null,
+      cancellation_detail: null,
+      cancelled_at: null,
+      cancelled_by_user_id: null,
+      cancelled_by_user_email: null,
+      reactivated_at: null,
+      reactivated_by_user_id: null,
+      reactivated_by_user_email: null,
       inserted_at: now,
     };
     const insertQuery = supabase.from("orders").insert(insertPayload);
@@ -591,6 +628,15 @@ export async function createOrderInDatabase(
           is_fiado: initialServerState.isFiado,
           fiado_status: initialServerState.fiadoStatus,
           fiado_observation: initialServerState.fiadoObservation,
+          previous_status_before_cancellation: null,
+          cancellation_reason: null,
+          cancellation_detail: null,
+          cancelled_at: null,
+          cancelled_by_user_id: null,
+          cancelled_by_user_email: null,
+          reactivated_at: null,
+          reactivated_by_user_id: null,
+          reactivated_by_user_email: null,
           history: initialServerState.history,
         },
         normalizedBusinessSlug,
@@ -652,6 +698,13 @@ function validateUpdateOrderPayload(payload: unknown): payload is OrderApiUpdate
     (candidate.fiadoObservation === undefined ||
       candidate.fiadoObservation === null ||
       typeof candidate.fiadoObservation === "string") &&
+    (candidate.cancellationReason === undefined ||
+      typeof candidate.cancellationReason === "string") &&
+    (candidate.cancellationDetail === undefined ||
+      candidate.cancellationDetail === null ||
+      typeof candidate.cancellationDetail === "string") &&
+    (candidate.reactivateCancelledOrder === undefined ||
+      typeof candidate.reactivateCancelledOrder === "boolean") &&
     (candidate.eventIntent === undefined ||
       isValidOrderUpdateEventIntent(candidate.eventIntent)) &&
     Object.keys(candidate).length > 0 &&
@@ -760,6 +813,28 @@ function describeUpdatePayloadProblems(payload: unknown) {
     problems.push("fiadoObservation debe ser texto o null.");
   }
 
+  if (
+    candidate.cancellationReason !== undefined &&
+    typeof candidate.cancellationReason !== "string"
+  ) {
+    problems.push("cancellationReason debe ser texto.");
+  }
+
+  if (
+    candidate.cancellationDetail !== undefined &&
+    candidate.cancellationDetail !== null &&
+    typeof candidate.cancellationDetail !== "string"
+  ) {
+    problems.push("cancellationDetail debe ser texto o null.");
+  }
+
+  if (
+    candidate.reactivateCancelledOrder !== undefined &&
+    typeof candidate.reactivateCancelledOrder !== "boolean"
+  ) {
+    problems.push("reactivateCancelledOrder debe ser booleano.");
+  }
+
   if (candidate.eventIntent !== undefined && !isValidOrderUpdateEventIntent(candidate.eventIntent)) {
     problems.push("eventIntent no es valido para public.orders.");
   }
@@ -776,6 +851,7 @@ function describeUpdatePayloadProblems(payload: unknown) {
 export async function updateOrderInDatabase(
   orderId: OrderId,
   payload: unknown,
+  options?: UpdateOrderActorOptions,
 ): Promise<Order> {
   const normalizedOrderId = requireOrderId(orderId);
   const normalizedPayload = normalizeOrderApiUpdatePayload(payload);
@@ -790,7 +866,7 @@ export async function updateOrderInDatabase(
   const { data: existingOrder, error: lookupError } = await supabase
     .from("orders")
     .select(
-      "id, business_id, customer_name, customer_whatsapp, delivery_type, delivery_address, payment_method, products, total, notes, status, payment_status, is_reviewed, is_fiado, fiado_status, fiado_observation",
+      "id, business_id, customer_name, customer_whatsapp, delivery_type, delivery_address, payment_method, products, total, notes, status, payment_status, is_reviewed, is_fiado, fiado_status, fiado_observation, previous_status_before_cancellation, cancellation_reason, cancellation_detail, cancelled_at, cancelled_by_user_id, cancelled_by_user_email, reactivated_at, reactivated_by_user_id, reactivated_by_user_email",
     )
     .eq("id", normalizedOrderId)
     .maybeSingle<OrderLookupRow>();
@@ -806,152 +882,253 @@ export async function updateOrderInDatabase(
   const businessPaymentSettings = await getBusinessPaymentSettingsByDatabaseId(
     existingOrder.business_id,
   );
+  const receivedFields = Object.keys(normalizedPayload);
+  const isCancellationOperation = normalizedPayload.status === "cancelado";
+  const isReactivationOperation = normalizedPayload.reactivateCancelledOrder === true;
 
-  const resolvedStatePatch = resolveAuthoritativeOrderStatePatch(
-    {
-      deliveryType: existingOrder.delivery_type,
-      paymentMethod: existingOrder.payment_method,
-      paymentStatus: existingOrder.payment_status,
-      status: existingOrder.status,
-    },
-    {
-      deliveryType: normalizedPayload.deliveryType,
-      paymentMethod: normalizedPayload.paymentMethod,
-      paymentStatus: normalizedPayload.paymentStatus,
-      status: normalizedPayload.status,
-    },
-  );
-  const nextOrderState = resolvedStatePatch.nextState;
-  const resolvedFiadoPatch = resolveAuthoritativeOrderFiadoPatch(
-    {
-      isFiado: existingOrder.is_fiado,
-      fiadoStatus: existingOrder.fiado_status,
-      fiadoObservation: existingOrder.fiado_observation,
-    },
-    {
-      isFiado: normalizedPayload.isFiado,
-      fiadoStatus: normalizedPayload.fiadoStatus,
-      fiadoObservation: normalizedPayload.fiadoObservation,
-    },
-    {
-      allowsFiado: businessPaymentSettings.allows_fiado ?? false,
-    },
-  );
-  const nextFiadoState = resolvedFiadoPatch.nextState;
+  if (isCancellationOperation && isReactivationOperation) {
+    throw new Error(
+      "Invalid order update payload. No puedes cancelar y reactivar el pedido en la misma operacion.",
+    );
+  }
 
   if (
-    normalizedPayload.paymentMethod !== undefined ||
-    resolvedStatePatch.changedFields.includes("paymentMethod")
+    !isCancellationOperation &&
+    !isReactivationOperation &&
+    (normalizedPayload.cancellationReason !== undefined ||
+      normalizedPayload.cancellationDetail !== undefined)
   ) {
-    assertBusinessPaymentMethodIsEnabled(nextOrderState.paymentMethod, businessPaymentSettings);
-  }
-
-  const nextCustomerName =
-    normalizedPayload.customerName !== undefined
-      ? normalizedPayload.customerName.trim()
-      : existingOrder.customer_name;
-  const nextCustomerWhatsApp =
-    normalizedPayload.customerWhatsApp !== undefined
-      ? normalizedPayload.customerWhatsApp?.trim() || ""
-      : existingOrder.customer_whatsapp ?? "";
-  const nextDeliveryType =
-    normalizedPayload.deliveryType !== undefined
-      ? normalizedPayload.deliveryType
-      : existingOrder.delivery_type;
-  const nextDeliveryAddress =
-    normalizedPayload.deliveryAddress !== undefined
-      ? normalizedPayload.deliveryAddress?.trim() || ""
-      : existingOrder.delivery_address ?? "";
-  const nextTotal =
-    normalizedPayload.total !== undefined ? normalizedPayload.total : existingOrder.total;
-  const nextProducts =
-    normalizedPayload.products !== undefined ? normalizedPayload.products : existingOrder.products;
-  const nextIsReviewed =
-    normalizedPayload.eventIntent === "mark_reviewed_from_operation" ||
-    normalizedPayload.eventIntent === "mark_reviewed_from_new_orders"
-      ? true
-      : normalizedPayload.isReviewed ?? existingOrder.is_reviewed;
-
-  if (nextCustomerName.length === 0) {
-    throw new Error("Invalid order update payload. customerName is required.");
-  }
-
-  if (nextDeliveryType === "domicilio" && nextDeliveryAddress.length === 0) {
     throw new Error(
-      "Invalid order update payload. deliveryAddress is required for domicilio orders.",
+      "Invalid order update payload. cancellationReason y cancellationDetail solo se admiten en la cancelacion excepcional.",
     );
   }
 
-  if (nextTotal < 0) {
-    throw new Error("Invalid order update payload. total must be greater than or equal to 0.");
+  if (isCancellationOperation) {
+    const cancelError = getCancelOrderError(
+      {
+        status: existingOrder.status,
+      },
+      {
+        status: normalizedPayload.status,
+        cancellationReason: normalizedPayload.cancellationReason,
+        cancellationDetail: normalizedPayload.cancellationDetail,
+      },
+      receivedFields,
+    );
+
+    if (cancelError) {
+      throw new Error(`Invalid order update payload. ${cancelError}`);
+    }
   }
 
-  if (!isValidOrderProducts(nextProducts)) {
+  if (isReactivationOperation) {
+    const reactivateError = getReactivateOrderError(
+      {
+        status: existingOrder.status,
+        previousStatusBeforeCancellation:
+          existingOrder.previous_status_before_cancellation,
+      },
+      {
+        reactivateCancelledOrder: normalizedPayload.reactivateCancelledOrder,
+      },
+      receivedFields,
+    );
+
+    if (reactivateError) {
+      throw new Error(`Invalid order update payload. ${reactivateError}`);
+    }
+  }
+
+  if (
+    existingOrder.status === "cancelado" &&
+    !isReactivationOperation &&
+    [
+      "status",
+      "paymentStatus",
+      "payment_status",
+      "paymentMethod",
+      "deliveryType",
+      "products",
+      "total",
+      "isFiado",
+      "fiadoStatus",
+      "fiadoObservation",
+    ].some((field) => field in normalizedPayload)
+  ) {
     throw new Error(
-      "Invalid order update payload. products must contain at least one valid product.",
+      "Invalid order update payload. Un pedido cancelado debe reactivarse antes de volver a mutar su frente operativo.",
     );
   }
 
-  const normalizedProducts =
-    normalizedPayload.products !== undefined
-      ? normalizeOrderProductsForPersistence(
-          normalizedPayload.products,
-          await getBusinessProductsForOrder(existingOrder.business_id, { mode: "auth" }),
+  let updatePayload: Record<string, unknown>;
+
+  if (isCancellationOperation) {
+    updatePayload = {
+      status: "cancelado",
+      cancellationReason: normalizedPayload.cancellationReason ?? null,
+      cancellationDetail: normalizeCancellationDetail(normalizedPayload.cancellationDetail),
+    };
+  } else if (isReactivationOperation) {
+    updatePayload = {
+      reactivateCancelledOrder: true,
+    };
+  } else {
+    const resolvedStatePatch = resolveAuthoritativeOrderStatePatch(
+      {
+        deliveryType: existingOrder.delivery_type,
+        paymentMethod: existingOrder.payment_method,
+        paymentStatus: existingOrder.payment_status,
+        status: existingOrder.status,
+      },
+      {
+        deliveryType: normalizedPayload.deliveryType,
+        paymentMethod: normalizedPayload.paymentMethod,
+        paymentStatus: normalizedPayload.paymentStatus,
+        status: normalizedPayload.status,
+      },
+    );
+    const nextOrderState = resolvedStatePatch.nextState;
+    const resolvedFiadoPatch = resolveAuthoritativeOrderFiadoPatch(
+      {
+        isFiado: existingOrder.is_fiado,
+        fiadoStatus: existingOrder.fiado_status,
+        fiadoObservation: existingOrder.fiado_observation,
+      },
+      {
+        isFiado: normalizedPayload.isFiado,
+        fiadoStatus: normalizedPayload.fiadoStatus,
+        fiadoObservation: normalizedPayload.fiadoObservation,
+      },
+      {
+        allowsFiado: businessPaymentSettings.allows_fiado ?? false,
+      },
+    );
+    const nextFiadoState = resolvedFiadoPatch.nextState;
+
+    if (
+      normalizedPayload.paymentMethod !== undefined ||
+      resolvedStatePatch.changedFields.includes("paymentMethod")
+    ) {
+      assertBusinessPaymentMethodIsEnabled(nextOrderState.paymentMethod, businessPaymentSettings);
+    }
+
+    const nextCustomerName =
+      normalizedPayload.customerName !== undefined
+        ? normalizedPayload.customerName.trim()
+        : existingOrder.customer_name;
+    const nextCustomerWhatsApp =
+      normalizedPayload.customerWhatsApp !== undefined
+        ? normalizedPayload.customerWhatsApp?.trim() || ""
+        : existingOrder.customer_whatsapp ?? "";
+    const nextDeliveryType =
+      normalizedPayload.deliveryType !== undefined
+        ? normalizedPayload.deliveryType
+        : existingOrder.delivery_type;
+    const nextDeliveryAddress =
+      normalizedPayload.deliveryAddress !== undefined
+        ? normalizedPayload.deliveryAddress?.trim() || ""
+        : existingOrder.delivery_address ?? "";
+    const nextTotal =
+      normalizedPayload.total !== undefined ? normalizedPayload.total : existingOrder.total;
+    const nextProducts =
+      normalizedPayload.products !== undefined
+        ? normalizedPayload.products
+        : existingOrder.products;
+    const nextIsReviewed =
+      normalizedPayload.eventIntent === "mark_reviewed_from_operation" ||
+      normalizedPayload.eventIntent === "mark_reviewed_from_new_orders"
+        ? true
+        : normalizedPayload.isReviewed ?? existingOrder.is_reviewed;
+
+    if (nextCustomerName.length === 0) {
+      throw new Error("Invalid order update payload. customerName is required.");
+    }
+
+    if (nextDeliveryType === "domicilio" && nextDeliveryAddress.length === 0) {
+      throw new Error(
+        "Invalid order update payload. deliveryAddress is required for domicilio orders.",
+      );
+    }
+
+    if (nextTotal < 0) {
+      throw new Error("Invalid order update payload. total must be greater than or equal to 0.");
+    }
+
+    if (!isValidOrderProducts(nextProducts)) {
+      throw new Error(
+        "Invalid order update payload. products must contain at least one valid product.",
+      );
+    }
+
+    const normalizedProducts =
+      normalizedPayload.products !== undefined
+        ? normalizeOrderProductsForPersistence(
+            normalizedPayload.products,
+            await getBusinessProductsForOrder(existingOrder.business_id, { mode: "auth" }),
+          )
+        : undefined;
+
+    const shouldValidatePersistedTotal =
+      normalizedPayload.products !== undefined || normalizedPayload.total !== undefined;
+    const persistedTotal = shouldValidatePersistedTotal
+      ? assertOrderTotalMatchesProducts(
+          nextTotal,
+          normalizedProducts ?? existingOrder.products,
+          { allowZero: true },
         )
-      : undefined;
+      : nextTotal;
 
-  const shouldValidatePersistedTotal =
-    normalizedPayload.products !== undefined || normalizedPayload.total !== undefined;
-  const persistedTotal = shouldValidatePersistedTotal
-    ? assertOrderTotalMatchesProducts(
-        nextTotal,
-        normalizedProducts ?? existingOrder.products,
-        { allowZero: true },
-      )
-    : nextTotal;
+    updatePayload = {
+      ...(resolvedStatePatch.changedFields.includes("status")
+        ? { status: nextOrderState.status }
+        : {}),
+      ...(resolvedStatePatch.changedFields.includes("paymentStatus")
+        ? { paymentStatus: nextOrderState.paymentStatus }
+        : {}),
+      ...(normalizedPayload.customerName !== undefined
+        ? { customerName: nextCustomerName }
+        : {}),
+      ...(normalizedPayload.customerWhatsApp !== undefined
+        ? { customerWhatsApp: nextCustomerWhatsApp || null }
+        : {}),
+      ...(normalizedPayload.deliveryType !== undefined
+        ? { deliveryType: normalizedPayload.deliveryType }
+        : {}),
+      ...(normalizedPayload.deliveryAddress !== undefined
+        ? { deliveryAddress: nextDeliveryAddress || null }
+        : {}),
+      ...(resolvedStatePatch.changedFields.includes("paymentMethod")
+        ? { paymentMethod: nextOrderState.paymentMethod }
+        : {}),
+      ...(normalizedProducts !== undefined ? { products: normalizedProducts } : {}),
+      ...(normalizedPayload.notes !== undefined
+        ? { notes: normalizedPayload.notes?.trim() || null }
+        : {}),
+      ...(normalizedPayload.total !== undefined || normalizedPayload.products !== undefined
+        ? { total: persistedTotal }
+        : {}),
+      ...(nextIsReviewed !== existingOrder.is_reviewed
+        ? { isReviewed: nextIsReviewed }
+        : {}),
+      ...(resolvedFiadoPatch.changedFields.includes("isFiado")
+        ? { isFiado: nextFiadoState.isFiado }
+        : {}),
+      ...(resolvedFiadoPatch.changedFields.includes("fiadoStatus")
+        ? { fiadoStatus: nextFiadoState.fiadoStatus }
+        : {}),
+      ...(resolvedFiadoPatch.changedFields.includes("fiadoObservation")
+        ? { fiadoObservation: nextFiadoState.fiadoObservation }
+        : {}),
+    };
+  }
 
-  const updatePayload = {
-    ...(resolvedStatePatch.changedFields.includes("status")
-      ? { status: nextOrderState.status }
-      : {}),
-    ...(resolvedStatePatch.changedFields.includes("paymentStatus")
-      ? { paymentStatus: nextOrderState.paymentStatus }
-      : {}),
-    ...(normalizedPayload.customerName !== undefined
-      ? { customerName: nextCustomerName }
-      : {}),
-    ...(normalizedPayload.customerWhatsApp !== undefined
-      ? { customerWhatsApp: nextCustomerWhatsApp || null }
-      : {}),
-    ...(normalizedPayload.deliveryType !== undefined
-      ? { deliveryType: normalizedPayload.deliveryType }
-      : {}),
-    ...(normalizedPayload.deliveryAddress !== undefined
-      ? { deliveryAddress: nextDeliveryAddress || null }
-      : {}),
-    ...(resolvedStatePatch.changedFields.includes("paymentMethod")
-      ? { paymentMethod: nextOrderState.paymentMethod }
-      : {}),
-    ...(normalizedProducts !== undefined ? { products: normalizedProducts } : {}),
-    ...(normalizedPayload.notes !== undefined
-      ? { notes: normalizedPayload.notes?.trim() || null }
-      : {}),
-    ...(normalizedPayload.total !== undefined || normalizedPayload.products !== undefined
-      ? { total: persistedTotal }
-      : {}),
-    ...(nextIsReviewed !== existingOrder.is_reviewed
-      ? { isReviewed: nextIsReviewed }
-      : {}),
-    ...(resolvedFiadoPatch.changedFields.includes("isFiado")
-      ? { isFiado: nextFiadoState.isFiado }
-      : {}),
-    ...(resolvedFiadoPatch.changedFields.includes("fiadoStatus")
-      ? { fiadoStatus: nextFiadoState.fiadoStatus }
-      : {}),
-    ...(resolvedFiadoPatch.changedFields.includes("fiadoObservation")
-      ? { fiadoObservation: nextFiadoState.fiadoObservation }
-      : {}),
-  };
+  if (options?.actorUserId) {
+    updatePayload.actorUserId = options.actorUserId;
+  }
+
+  if (options?.actorEmail) {
+    updatePayload.actorEmail = options.actorEmail;
+  }
 
   debugLog("[orders-api] Preparing order patch", {
     orderId: normalizedOrderId,

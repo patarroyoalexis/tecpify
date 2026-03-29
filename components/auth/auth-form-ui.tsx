@@ -82,6 +82,7 @@ export function AuthInputField({
 
   return (
     <label className="grid gap-2.5">
+      <span className="sr-only">{label}</span>
       <span className="relative flex items-center">
         <span className="pointer-events-none absolute left-4 text-brand-text-muted">{icon}</span>
         <input {...inputProps} data-testid={dataTestId} className={inputClassName} />

@@ -5,6 +5,7 @@ import type {
   PaymentMethod,
   PaymentStatus,
 } from "@/types/orders";
+import { ORDER_WORKFLOW_STATUSES } from "@/lib/orders/status-system";
 
 export const ORDER_CREATE_CLIENT_EDITABLE_FIELDS = [
   "businessSlug",
@@ -52,6 +53,9 @@ export const ORDER_UPDATE_CLIENT_EDITABLE_FIELDS = [
   "fiadoStatus",
   "fiadoObservation",
   "eventIntent",
+  "cancellationReason",
+  "cancellationDetail",
+  "reactivateCancelledOrder",
 ] as const;
 
 const ORDER_CREATE_CLIENT_EDITABLE_FIELD_SET = new Set<string>(
@@ -120,14 +124,6 @@ export interface AuthoritativeOrderFiadoPatchInput {
 export interface AuthoritativeOrderFiadoPatchResult {
   nextState: OrderFiadoSnapshot;
   changedFields: Array<keyof OrderFiadoSnapshot>;
-}
-
-function isPendingPaymentStatus(paymentStatus: PaymentStatus) {
-  return (
-    paymentStatus === "pendiente" ||
-    paymentStatus === "con novedad" ||
-    paymentStatus === "no verificado"
-  );
 }
 
 function collectLegacyOrderProductAliasFields(
@@ -229,13 +225,13 @@ export function deriveInitialOrderStateFromPaymentMethod(
   if (isDigitalPaymentMethod(paymentMethod)) {
     return {
       paymentStatus: "pendiente",
-      status: "pendiente de pago",
+      status: "nuevo",
     };
   }
 
   return {
     paymentStatus: "verificado",
-    status: "confirmado",
+    status: "nuevo",
   };
 }
 
@@ -249,31 +245,17 @@ export function getOrderStateConsistencyError(state: OrderStateSnapshot) {
     return paymentMethodDeliveryTypeError;
   }
 
-  if (isCashPaymentMethod(state.paymentMethod)) {
-    if (!isPaymentConfirmed(state.paymentStatus)) {
-      return "Los pagos en efectivo o contra entrega solo pueden persistirse como verificados.";
-    }
-
-    if (state.status === "pendiente de pago" || state.status === "pago por verificar") {
-      return "Los pedidos con pago en efectivo o contra entrega no pueden quedar en estados de validacion de pago.";
-    }
-
-    return null;
-  }
-
-  if (state.status === "pago por verificar" && !isPaymentConfirmed(state.paymentStatus)) {
-    return "Solo un pago verificado puede quedar en pago por verificar.";
+  if (isCashPaymentMethod(state.paymentMethod) && !isPaymentConfirmed(state.paymentStatus)) {
+    return "Los pagos en efectivo o contra entrega solo pueden persistirse como verificados.";
   }
 
   if (
     OPERATIONAL_ORDER_STATUSES_REQUIRING_CONFIRMED_PAYMENT.has(state.status) &&
     !isPaymentConfirmed(state.paymentStatus)
   ) {
-    return "No puedes avanzar el pedido mientras el pago no este verificado.";
-  }
-
-  if (state.status === "pendiente de pago" && isPaymentConfirmed(state.paymentStatus)) {
-    return "Un pago verificado no puede quedar en pendiente de pago.";
+    return state.status === "confirmado"
+      ? "No puedes confirmar el pedido mientras el pago no esté verificado."
+      : "No puedes avanzar el pedido mientras el pago no esté verificado.";
   }
 
   return null;
@@ -303,35 +285,35 @@ function getSequentialOrderStatusTransitionRule(
   currentStatus: OrderStatus,
   nextStatus: OrderStatus,
 ): OrderStateTransitionRuleResult {
-  const orderStatusSequence: OrderStatus[] = [
-    "pendiente de pago",
-    "pago por verificar",
-    "confirmado",
-    "en preparación",
-    "listo",
-    "entregado",
-  ];
-  const isFinalCurrentStatus = currentStatus === "entregado" || currentStatus === "cancelado";
-
   if (nextStatus === currentStatus) {
     return { allowed: true };
   }
 
-  if (isFinalCurrentStatus) {
+  if (currentStatus === "entregado") {
     return {
       allowed: false,
       reason: "Este pedido ya termino su flujo y no puede seguir avanzando desde aqui.",
     };
   }
 
-  if (nextStatus === "cancelado") {
-    return { allowed: true };
+  if (currentStatus === "cancelado") {
+    return {
+      allowed: false,
+      reason: "Este pedido esta cancelado y debe reactivarse antes de volver al flujo operativo.",
+    };
   }
 
-  const currentIndex = orderStatusSequence.indexOf(currentStatus);
-  const nextIndex = orderStatusSequence.indexOf(nextStatus);
+  if (nextStatus === "cancelado") {
+    return {
+      allowed: false,
+      reason: "La cancelacion requiere el flujo excepcional con motivo obligatorio.",
+    };
+  }
 
-  if (nextIndex === currentIndex + 1) {
+  const currentIndex = ORDER_WORKFLOW_STATUSES.indexOf(currentStatus);
+  const nextIndex = ORDER_WORKFLOW_STATUSES.indexOf(nextStatus);
+
+  if (currentIndex >= 0 && nextIndex === currentIndex + 1) {
     return { allowed: true };
   }
 
@@ -339,44 +321,6 @@ function getSequentialOrderStatusTransitionRule(
     allowed: false,
     reason: "Solo puedes mover el pedido al siguiente paso permitido del flujo.",
   };
-}
-
-function isCashConfirmationPromotion(
-  currentState: OrderStateSnapshot,
-  nextState: OrderStateSnapshot,
-) {
-  return (
-    currentState.status === "pendiente de pago" &&
-    nextState.status === "confirmado" &&
-    isCashPaymentMethod(nextState.paymentMethod) &&
-    isPaymentConfirmed(nextState.paymentStatus)
-  );
-}
-
-function isPaymentVerificationRollback(
-  currentState: OrderStateSnapshot,
-  nextState: OrderStateSnapshot,
-) {
-  return (
-    currentState.status === "pago por verificar" &&
-    nextState.status === "pendiente de pago" &&
-    isPendingPaymentStatus(nextState.paymentStatus)
-  );
-}
-
-function getOrderStatusTransitionRuleForStatePatch(
-  currentState: OrderStateSnapshot,
-  nextState: OrderStateSnapshot,
-): OrderStateTransitionRuleResult {
-  if (isCashConfirmationPromotion(currentState, nextState)) {
-    return { allowed: true };
-  }
-
-  if (isPaymentVerificationRollback(currentState, nextState)) {
-    return { allowed: true };
-  }
-
-  return getSequentialOrderStatusTransitionRule(currentState.status, nextState.status);
 }
 
 function readRequestedPaymentStatus(
@@ -411,32 +355,17 @@ function resolveNextPaymentStatus(
 function resolveNextStatus(
   currentState: OrderStateSnapshot,
   patch: AuthoritativeOrderStatePatchInput,
-  nextPaymentMethod: PaymentMethod,
-  nextPaymentStatus: PaymentStatus,
 ) {
   if (patch.status !== undefined) {
+    if (patch.status === "cancelado") {
+      throw new Error(
+        "Invalid order update payload. Usa el flujo de cancelacion con motivo obligatorio.",
+      );
+    }
+
     return {
       status: patch.status,
       derivedFields: [] as Array<"status" | "paymentStatus">,
-    };
-  }
-
-  if (currentState.status === "pendiente de pago" && isPaymentConfirmed(nextPaymentStatus)) {
-    return {
-      status: isCashPaymentMethod(nextPaymentMethod)
-        ? ("confirmado" as OrderStatus)
-        : ("pago por verificar" as OrderStatus),
-      derivedFields: ["status"] as Array<"status" | "paymentStatus">,
-    };
-  }
-
-  if (
-    currentState.status === "pago por verificar" &&
-    !isPaymentConfirmed(nextPaymentStatus)
-  ) {
-    return {
-      status: "pendiente de pago" as OrderStatus,
-      derivedFields: ["status"] as Array<"status" | "paymentStatus">,
     };
   }
 
@@ -574,12 +503,7 @@ export function resolveAuthoritativeOrderStatePatch(
     patch,
     nextPaymentMethod,
   );
-  const resolvedStatus = resolveNextStatus(
-    currentState,
-    patch,
-    nextPaymentMethod,
-    nextPaymentStatus,
-  );
+  const resolvedStatus = resolveNextStatus(currentState, patch);
   const nextState: OrderStateSnapshot = {
     deliveryType: nextDeliveryType,
     paymentMethod: nextPaymentMethod,
@@ -592,7 +516,10 @@ export function resolveAuthoritativeOrderStatePatch(
     throw new Error(`Invalid order update payload. ${consistencyError}`);
   }
 
-  const transitionRule = getOrderStatusTransitionRuleForStatePatch(currentState, nextState);
+  const transitionRule = getSequentialOrderStatusTransitionRule(
+    currentState.status,
+    nextState.status,
+  );
 
   if (!transitionRule.allowed) {
     throw new Error(

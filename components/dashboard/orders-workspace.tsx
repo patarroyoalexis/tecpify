@@ -1,89 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { MetricsCards } from "@/components/dashboard/metrics-cards";
-import {
-  defaultExpandedGroupsState,
-  OrdersList,
-  type GroupKey,
-} from "@/components/dashboard/orders-list";
-import { OrdersFilters } from "@/components/dashboard/orders-filters";
-import { getBusinessDashboardStateKey } from "@/data/order-storage";
+import { OrdersBoard } from "@/components/dashboard/orders-board";
+import { OrdersUiIcon } from "@/components/dashboard/orders-ui-icon";
 import { getOperationalMetrics } from "@/data/orders";
 import { isProductionRuntime } from "@/lib/runtime";
-import { getOrderDisplayCode, ORDER_STATUSES, type Order, type OrderStatus } from "@/types/orders";
+import { ORDER_STATUS_LABELS, ORDER_WORKFLOW_STATUSES } from "@/lib/orders/status-system";
+import { getOrderDisplayCode, type Order } from "@/types/orders";
 import { useBusinessWorkspace } from "./business-workspace-context";
 
 interface OrdersWorkspaceProps {
   businessSlug: string;
-}
-
-interface PersistedOrdersViewState {
-  selectedStatus: OrderStatus | "todos";
-  expandedGroups: Record<GroupKey, boolean>;
-  searchQuery: string;
-}
-
-function isValidOrderStatus(value: unknown): value is OrderStatus {
-  return typeof value === "string" && ORDER_STATUSES.includes(value as OrderStatus);
-}
-
-function isValidSelectedStatus(value: unknown): value is OrderStatus | "todos" {
-  return value === "todos" || isValidOrderStatus(value);
-}
-
-function isValidExpandedGroups(value: unknown): value is Record<GroupKey, boolean> {
-  if (!value || typeof value !== "object") {
-    return false;
-  }
-
-  const candidate = value as Record<string, unknown>;
-  return (
-    typeof candidate.immediate === "boolean" &&
-    typeof candidate.active === "boolean" &&
-    typeof candidate.closed === "boolean"
-  );
-}
-
-function readPersistedOrdersViewState(storageKey: string): PersistedOrdersViewState | null {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  try {
-    const rawValue = window.localStorage.getItem(storageKey);
-
-    if (!rawValue) {
-      return null;
-    }
-
-    const parsedValue = JSON.parse(rawValue) as Partial<PersistedOrdersViewState>;
-
-    if (
-      !isValidSelectedStatus(parsedValue.selectedStatus) ||
-      !isValidExpandedGroups(parsedValue.expandedGroups) ||
-      typeof parsedValue.searchQuery !== "string"
-    ) {
-      return null;
-    }
-
-    return {
-      selectedStatus: parsedValue.selectedStatus,
-      expandedGroups: parsedValue.expandedGroups,
-      searchQuery: parsedValue.searchQuery,
-    };
-  } catch {
-    return null;
-  }
-}
-
-function getInitialOrdersViewState(): PersistedOrdersViewState {
-  return {
-    selectedStatus: "todos",
-    expandedGroups: defaultExpandedGroupsState,
-    searchQuery: "",
-  };
 }
 
 function matchesSearch(order: Order, searchQuery: string) {
@@ -98,6 +27,7 @@ function matchesSearch(order: Order, searchQuery: string) {
     order.orderId,
     order.client,
     order.customerPhone ?? "",
+    order.cancellationDetail ?? "",
     ...order.products.map((product) => product.name),
   ];
 
@@ -105,73 +35,30 @@ function matchesSearch(order: Order, searchQuery: string) {
 }
 
 export function OrdersWorkspace({ businessSlug }: OrdersWorkspaceProps) {
-  const dashboardStorageKey = getBusinessDashboardStateKey(businessSlug);
-  const [initialOrdersViewState] = useState(() => getInitialOrdersViewState());
-  const [selectedStatus, setSelectedStatus] = useState<OrderStatus | "todos">(
-    initialOrdersViewState.selectedStatus,
-  );
-  const [expandedGroups, setExpandedGroups] = useState(initialOrdersViewState.expandedGroups);
-  const [searchQuery, setSearchQuery] = useState(initialOrdersViewState.searchQuery);
+  void businessSlug;
+  const [searchQuery, setSearchQuery] = useState("");
   const {
     hasHydrated,
     ordersError,
     ordersState,
     handleResetOrders,
-    quickUpdateOrderStatus,
-    quickUpdatePaymentStatus,
+    handleAdvanceOrderStatus,
+    handleConfirmOrder,
+    handleUpdatePaymentStatus,
+    openCancelOrderModal,
     openOrderDetails,
+    openReactivateOrderModal,
   } = useBusinessWorkspace();
-
-  useEffect(() => {
-    const persistedState = readPersistedOrdersViewState(dashboardStorageKey);
-
-    if (!persistedState) {
-      return;
-    }
-
-    queueMicrotask(() => {
-      setSelectedStatus(persistedState.selectedStatus);
-      setExpandedGroups(persistedState.expandedGroups);
-      setSearchQuery(persistedState.searchQuery);
-    });
-  }, [dashboardStorageKey]);
-
-  useEffect(() => {
-    if (typeof window === "undefined" || !hasHydrated) {
-      return;
-    }
-
-    const stateToPersist: PersistedOrdersViewState = {
-      selectedStatus,
-      expandedGroups,
-      searchQuery,
-    };
-
-    window.localStorage.setItem(dashboardStorageKey, JSON.stringify(stateToPersist));
-  }, [dashboardStorageKey, expandedGroups, hasHydrated, searchQuery, selectedStatus]);
-
-  const searchedOrders = ordersState.filter((order) => matchesSearch(order, searchQuery));
-  const filteredOrders =
-    selectedStatus === "todos"
-      ? searchedOrders
-      : searchedOrders.filter((order) => order.status === selectedStatus);
+  const filteredOrders = useMemo(
+    () => ordersState.filter((order) => matchesSearch(order, searchQuery)),
+    [ordersState, searchQuery],
+  );
   const metrics = getOperationalMetrics(ordersState);
-  const hasActiveFilters = selectedStatus !== "todos" || searchQuery.trim().length > 0;
-  const ordersPendingPayment = ordersState.filter(
-    (order) => order.paymentStatus !== "verificado" && order.status !== "cancelado",
+  const pendingPaymentsCount = ordersState.filter(
+    (order) => order.status !== "cancelado" && order.paymentStatus !== "verificado",
   ).length;
-  const ordersReadyToAdvance = ordersState.filter(
-    (order) =>
-      order.paymentStatus === "verificado" &&
-      !["entregado", "cancelado"].includes(order.status),
-  ).length;
-
-  function handleToggleGroup(groupKey: GroupKey) {
-    setExpandedGroups((currentState) => ({
-      ...currentState,
-      [groupKey]: !currentState[groupKey],
-    }));
-  }
+  const cancelledCount = ordersState.filter((order) => order.status === "cancelado").length;
+  const activeCount = ordersState.length - cancelledCount;
 
   useEffect(() => {
     if (isProductionRuntime() || typeof window === "undefined") {
@@ -181,23 +68,17 @@ export function OrdersWorkspace({ businessSlug }: OrdersWorkspaceProps) {
     function handleDevelopmentReset(event: KeyboardEvent) {
       if (event.altKey && event.shiftKey && event.key.toLowerCase() === "r") {
         event.preventDefault();
-        window.localStorage.removeItem(dashboardStorageKey);
         handleResetOrders();
-        setSelectedStatus("todos");
         setSearchQuery("");
-        setExpandedGroups(defaultExpandedGroupsState);
       }
     }
 
     window.addEventListener("keydown", handleDevelopmentReset);
-
-    return () => {
-      window.removeEventListener("keydown", handleDevelopmentReset);
-    };
-  }, [dashboardStorageKey, handleResetOrders]);
+    return () => window.removeEventListener("keydown", handleDevelopmentReset);
+  }, [handleResetOrders]);
 
   return (
-    <div className="w-full space-y-4 sm:space-y-5">
+    <div className="w-full space-y-5">
       {ordersError ? (
         <div className="rounded-[22px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           {ordersError}
@@ -206,45 +87,88 @@ export function OrdersWorkspace({ businessSlug }: OrdersWorkspaceProps) {
 
       <MetricsCards metrics={metrics} compactOnMobile layout="orders" />
 
-      <section className="rounded-[24px] border border-slate-200 bg-white px-4 py-4 shadow-[0_16px_40px_rgba(15,23,42,0.05)] sm:px-5">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-              Lectura operativa
+      <section className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-[0_18px_42px_rgba(15,23,42,0.05)] sm:p-5">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+          <div className="max-w-3xl">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+              Operación de pedidos
             </p>
-            <p className="mt-1 text-sm text-slate-700">
-              Pedido y pago ahora se leen por separado para detectar mas rápido si falta
-              validar cobro o si el pedido ya puede avanzar.
+            <h2 className="mt-2 text-2xl font-semibold text-slate-950">
+              Flujo principal por estado, cancelados por separado
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              El board usa el estado operativo real del pedido. El pago vive aparte y solo habilita confirmación o avance cuando corresponde.
             </p>
           </div>
+
+          <div className="grid gap-2 sm:grid-cols-3">
+            <div className="rounded-[20px] border border-slate-200 bg-slate-50 px-4 py-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                Activos
+              </p>
+              <p className="mt-2 text-2xl font-semibold text-slate-950">{activeCount}</p>
+            </div>
+            <div className="rounded-[20px] border border-amber-200 bg-amber-50 px-4 py-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-700">
+                Pago pendiente
+              </p>
+              <p className="mt-2 text-2xl font-semibold text-amber-950">{pendingPaymentsCount}</p>
+            </div>
+            <div className="rounded-[20px] border border-rose-200 bg-rose-50 px-4 py-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-rose-700">
+                Cancelados
+              </p>
+              <p className="mt-2 text-2xl font-semibold text-rose-950">{cancelledCount}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-5 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <label className="flex w-full max-w-xl items-center gap-3 rounded-full border border-slate-200 bg-slate-50 px-4 py-3">
+            <OrdersUiIcon icon="search" className="h-4 w-4 text-slate-400" />
+            <input
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Buscar por cliente, código, producto o detalle de cancelación"
+              className="w-full bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
+            />
+          </label>
+
           <div className="flex flex-wrap gap-2">
-            <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800">
-              {ordersPendingPayment} con pago pendiente
-            </span>
-            <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-semibold text-sky-800">
-              {ordersReadyToAdvance} listos para avanzar
+            {ORDER_WORKFLOW_STATUSES.map((status) => (
+              <span
+                key={status}
+                className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600"
+              >
+                {ORDER_STATUS_LABELS[status]}
+              </span>
+            ))}
+            <span className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700">
+              Cancelado aparte
             </span>
           </div>
         </div>
+
+        <div className="mt-4 rounded-[22px] border border-slate-200 bg-slate-50/70 px-4 py-4 text-sm text-slate-600">
+          Desktop queda resuelto como board operativo. En móvil solo dejamos la base semántica y visual lista para reutilizar después con tabs o vistas compactas, sin duplicar reglas ni colores.
+        </div>
       </section>
 
-      <OrdersFilters
-        selectedStatus={selectedStatus}
-        onStatusChange={setSelectedStatus}
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-        resultsCount={filteredOrders.length}
+      <OrdersBoard
+        orders={filteredOrders}
+        onOpenDetails={openOrderDetails}
+        onConfirmOrder={handleConfirmOrder}
+        onAdvanceOrderStatus={handleAdvanceOrderStatus}
+        onUpdatePaymentStatus={handleUpdatePaymentStatus}
+        onOpenCancelOrderModal={openCancelOrderModal}
+        onOpenReactivateOrderModal={openReactivateOrderModal}
       />
 
-      <OrdersList
-        orders={filteredOrders}
-        hasActiveFilters={hasActiveFilters}
-        expandedGroups={expandedGroups}
-        onToggleGroup={handleToggleGroup}
-        onOpenDetails={openOrderDetails}
-        onQuickUpdateOrderStatus={quickUpdateOrderStatus}
-        onQuickUpdatePaymentStatus={quickUpdatePaymentStatus}
-      />
+      {hasHydrated && filteredOrders.length === 0 ? (
+        <section className="rounded-[24px] border border-dashed border-slate-300 bg-white px-4 py-8 text-center text-sm text-slate-500">
+          No encontramos pedidos con ese filtro.
+        </section>
+      ) : null}
     </div>
   );
 }

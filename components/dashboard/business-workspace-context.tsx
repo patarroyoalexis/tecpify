@@ -14,7 +14,9 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { NewOrderFormValue } from "@/components/dashboard/new-order-drawer";
 import { GlobalOrderSearch } from "@/components/dashboard/global-order-search";
 import { NewOrderDrawer } from "@/components/dashboard/new-order-drawer";
+import { OrderCancelModal } from "@/components/dashboard/order-cancel-modal";
 import { OrderDetailDrawer } from "@/components/dashboard/order-detail-drawer";
+import { OrderReactivateModal } from "@/components/dashboard/order-reactivate-modal";
 import { ProductsManagementDrawer } from "@/components/dashboard/products-management-drawer";
 import { useBusinessOrders } from "@/components/dashboard/use-business-orders";
 import { updateBusinessSettingsViaApi } from "@/lib/businesses/api";
@@ -55,6 +57,8 @@ interface BusinessWorkspaceContextValue {
   openNewOrder: () => void;
   openNewProduct: () => void;
   openOrderDetails: (orderId: Order["orderId"]) => void;
+  openCancelOrderModal: (orderId: Order["orderId"]) => void;
+  openReactivateOrderModal: (orderId: Order["orderId"]) => void;
   openProductsManager: () => void;
   saveBusinessSettings: (
     payload: Pick<
@@ -88,13 +92,12 @@ interface BusinessWorkspaceContextValue {
       | "fiadoObservation"
     >,
   ) => Promise<Order>;
-  quickUpdateOrderStatus: (orderId: Order["orderId"], status: Order["status"]) => Promise<void>;
-  quickUpdatePaymentStatus: (
-    orderId: Order["orderId"],
-    paymentStatus: PaymentStatus,
-  ) => Promise<void>;
   handleAdvanceOrderStatus: (orderId: Order["orderId"]) => Promise<Order | undefined>;
-  handleCancelOrder: (orderId: Order["orderId"]) => Promise<Order>;
+  handleCancelOrder: (
+    orderId: Order["orderId"],
+    payload: Pick<OrderApiUpdatePayload, "cancellationReason" | "cancellationDetail">,
+  ) => Promise<Order>;
+  handleReactivateOrder: (orderId: Order["orderId"]) => Promise<Order>;
   handleConfirmOrder: (orderId: Order["orderId"]) => Promise<Order>;
   handleHydrateOrder: (order: Order) => void;
   handleRequestPaymentProof: (orderId: Order["orderId"]) => Promise<boolean>;
@@ -144,6 +147,8 @@ export function BusinessWorkspaceProvider({
     shouldStartProductOnboarding ? "create" : "list",
   );
   const [selectedOrderId, setSelectedOrderId] = useState<Order["orderId"] | null>(null);
+  const [cancelOrderId, setCancelOrderId] = useState<Order["orderId"] | null>(null);
+  const [reactivateOrderId, setReactivateOrderId] = useState<Order["orderId"] | null>(null);
   const hasHandledOnboardingIntentRef = useRef(false);
   const {
     hasHydrated,
@@ -158,6 +163,7 @@ export function BusinessWorkspaceProvider({
     handleHydrateOrder,
     handleMarkAllAsReviewed,
     handleMarkAsReviewed,
+    handleReactivateOrder,
     handleRequestPaymentProof,
     handleResetOrders,
     handleUpdatePaymentStatus,
@@ -169,6 +175,9 @@ export function BusinessWorkspaceProvider({
   const businessAvailablePaymentMethods = getPublicPaymentMethodsForBusiness(businessSettings);
 
   const selectedOrder = ordersState.find((order) => order.orderId === selectedOrderId) ?? null;
+  const orderToCancel = ordersState.find((order) => order.orderId === cancelOrderId) ?? null;
+  const orderToReactivate =
+    ordersState.find((order) => order.orderId === reactivateOrderId) ?? null;
 
   useEffect(() => {
     setBusinessSettings({
@@ -214,6 +223,12 @@ export function BusinessWorkspaceProvider({
         handleMarkAsReviewed(orderId);
         setSelectedOrderId(orderId);
       },
+      openCancelOrderModal: (orderId: Order["orderId"]) => {
+        setCancelOrderId(orderId);
+      },
+      openReactivateOrderModal: (orderId: Order["orderId"]) => {
+        setReactivateOrderId(orderId);
+      },
       openProductsManager: () => {
         setProductsDrawerMode("list");
         setIsProductsDrawerOpen(true);
@@ -245,15 +260,10 @@ export function BusinessWorkspaceProvider({
       handleMarkAsReviewed,
       handleCreateOrder,
       handleEditOrder,
-      quickUpdateOrderStatus: async (orderId, status) => {
-        await handleEditOrder(orderId, { status });
-      },
-      quickUpdatePaymentStatus: async (orderId, paymentStatus) => {
-        await handleEditOrder(orderId, { paymentStatus });
-      },
       handleAdvanceOrderStatus,
       handleCancelOrder,
       handleConfirmOrder,
+      handleReactivateOrder,
       handleHydrateOrder,
       handleRequestPaymentProof,
       handleResetOrders,
@@ -268,6 +278,7 @@ export function BusinessWorkspaceProvider({
       handleHydrateOrder,
       handleMarkAllAsReviewed,
       handleMarkAsReviewed,
+      handleReactivateOrder,
       handleRequestPaymentProof,
       handleResetOrders,
       handleUpdatePaymentStatus,
@@ -290,10 +301,9 @@ export function BusinessWorkspaceProvider({
       {children}
 
       <OrderDetailDrawer
-        businessSlug={businessSlug}
+        key={selectedOrderId ?? "order-detail-drawer-closed"}
         businessName={businessName}
         transferInstructions={businessSettings.transferInstructions}
-        availablePaymentMethods={businessAvailablePaymentMethods}
         allowsFiado={businessSettings.allowsFiado}
         order={selectedOrder}
         isOpen={selectedOrder !== null}
@@ -303,7 +313,22 @@ export function BusinessWorkspaceProvider({
         onEditOrder={handleEditOrder}
         onConfirmOrder={handleConfirmOrder}
         onAdvanceOrderStatus={handleAdvanceOrderStatus}
-        onCancelOrder={handleCancelOrder}
+        onOpenCancelOrderModal={(orderId) => setCancelOrderId(orderId)}
+        onOpenReactivateOrderModal={(orderId) => setReactivateOrderId(orderId)}
+      />
+
+      <OrderCancelModal
+        order={orderToCancel}
+        isOpen={orderToCancel !== null}
+        onClose={() => setCancelOrderId(null)}
+        onConfirm={handleCancelOrder}
+      />
+
+      <OrderReactivateModal
+        order={orderToReactivate}
+        isOpen={orderToReactivate !== null}
+        onClose={() => setReactivateOrderId(null)}
+        onConfirm={handleReactivateOrder}
       />
 
       <NewOrderDrawer
