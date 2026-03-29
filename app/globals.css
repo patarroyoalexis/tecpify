@@ -1,10 +1,25 @@
-﻿@import "tailwindcss";
+@import "tailwindcss";
 
 :root {
+  --brand-primary-blue: #12326b;
+  --brand-primary-blue-rgb: 18 50 107;
+  --brand-primary-green: #18b56a;
+  --brand-primary-green-rgb: 24 181 106;
+  --brand-surface: #ffffff;
+  --brand-surface-rgb: 255 255 255;
+  --brand-surface-muted: #eef5ff;
+  --brand-surface-muted-rgb: 238 245 255;
+  --brand-border: #d9e6ff;
+  --brand-border-rgb: 217 230 255;
+  --brand-text: #14213d;
+  --brand-text-rgb: 20 33 61;
+  --brand-text-muted: #294b8f;
+  --brand-focus: #bfd3ff;
+  --brand-focus-rgb: 191 211 255;
   --background: #f5f9ff;
-  --foreground: #14213d;
-  --surface: #ffffff;
-  --muted: #294b8f;
+  --foreground: var(--brand-text);
+  --surface: var(--brand-surface);
+  --muted: var(--brand-text-muted);
   --font-geist-sans:
     "Segoe UI", "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif;
   --font-geist-mono:
@@ -16,6 +31,14 @@
   --color-foreground: var(--foreground);
   --color-surface: var(--surface);
   --color-muted: var(--muted);
+  --color-brand-primary-blue: var(--brand-primary-blue);
+  --color-brand-primary-green: var(--brand-primary-green);
+  --color-brand-surface: var(--brand-surface);
+  --color-brand-surface-muted: var(--brand-surface-muted);
+  --color-brand-border: var(--brand-border);
+  --color-brand-text: var(--brand-text);
+  --color-brand-text-muted: var(--brand-text-muted);
+  --color-brand-focus: var(--brand-focus);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
@@ -35,9 +58,13 @@
     font-family: var(--font-geist-sans), sans-serif;
     min-height: 100vh;
     background-image:
-      radial-gradient(circle at top left, rgba(24, 181, 106, 0.08), transparent 26%),
-      radial-gradient(circle at top right, rgba(18, 50, 107, 0.1), transparent 24%),
-      linear-gradient(180deg, #f8fbff 0%, #eef5ff 100%);
+      radial-gradient(circle at top left, rgb(var(--brand-primary-green-rgb) / 0.08), transparent 26%),
+      radial-gradient(circle at top right, rgb(var(--brand-primary-blue-rgb) / 0.1), transparent 24%),
+      linear-gradient(
+        180deg,
+        rgb(var(--brand-surface-rgb)) 0%,
+        rgb(var(--brand-surface-muted-rgb)) 100%
+      );
   }
 
   a {
@@ -52,8 +79,8 @@
 }
 
 ::selection {
-  background: #12326b;
-  color: #f8fbff;
+  background: var(--brand-primary-blue);
+  color: rgb(var(--brand-surface-rgb));
 }
 
 @keyframes tecpify-fade-up {
@@ -65,5 +92,58 @@
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@layer components {
+  .auth-page {
+    position: relative;
+    isolation: isolate;
+    overflow: clip;
+  }
+
+  .auth-page::before {
+    content: "";
+    pointer-events: none;
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background:
+      radial-gradient(circle at top left, rgb(var(--brand-primary-blue-rgb) / 0.12), transparent 30%),
+      linear-gradient(
+        180deg,
+        rgb(var(--brand-surface-rgb) / 0.94) 0%,
+        rgb(var(--brand-surface-muted-rgb) / 0.92) 100%
+      );
+  }
+
+  .auth-page--login::before {
+    background:
+      radial-gradient(circle at top left, rgb(var(--brand-primary-green-rgb) / 0.18), transparent 30%),
+      radial-gradient(circle at right, rgb(var(--brand-primary-blue-rgb) / 0.12), transparent 28%),
+      linear-gradient(
+        180deg,
+        rgb(var(--brand-surface-rgb) / 0.94) 0%,
+        rgb(var(--brand-surface-muted-rgb) / 0.92) 100%
+      );
+  }
+
+  .auth-page--register::before {
+    background:
+      radial-gradient(circle at top left, rgb(var(--brand-primary-blue-rgb) / 0.18), transparent 30%),
+      radial-gradient(circle at right, rgb(var(--brand-primary-green-rgb) / 0.12), transparent 28%),
+      linear-gradient(
+        180deg,
+        rgb(var(--brand-surface-rgb) / 0.94) 0%,
+        rgb(var(--brand-surface-muted-rgb) / 0.92) 100%
+      );
+  }
+
+  .auth-shell {
+    border: 1px solid rgb(var(--brand-border-rgb) / 0.82);
+    border-radius: 2.25rem;
+    background: rgb(var(--brand-surface-rgb) / 0.74);
+    box-shadow: 0 28px 90px rgb(var(--brand-primary-blue-rgb) / 0.12);
+    backdrop-filter: blur(26px);
   }
 }

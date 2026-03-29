@@ -3,6 +3,19 @@
 import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import {
+  LockKeyhole,
+  Mail,
+  ShieldCheck,
+} from "lucide-react";
+
+import {
+  AuthAlert,
+  AuthDivider,
+  AuthGoogleButton,
+  AuthInputField,
+  AuthPrimaryButton,
+} from "@/components/auth/auth-form-ui";
 
 interface RegisterFormProps {
   redirectTo: string;
@@ -86,87 +99,66 @@ export function RegisterForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-5" data-testid="register-form">
       {googleAuthHref ? (
         <>
-          <a
+          <AuthGoogleButton
             href={googleAuthHref}
-            data-testid="register-google-auth-link"
-            className="inline-flex w-full items-center justify-center rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-3 text-sm font-semibold text-emerald-900 transition hover:border-emerald-300 hover:bg-emerald-100"
-          >
-            Crear cuenta con Google
-          </a>
-          <div className="flex items-center gap-3 text-xs uppercase tracking-[0.18em] text-slate-400">
-            <span className="h-px flex-1 bg-slate-200" />
-            <span>o sigue con email</span>
-            <span className="h-px flex-1 bg-slate-200" />
-          </div>
+            dataTestId="register-google-auth-link"
+            label="Crear cuenta con Google"
+          />
+          <AuthDivider />
         </>
       ) : null}
 
-      <label className="block space-y-2">
-        <span className="text-sm font-medium text-slate-700">Email</span>
-        <input
-          type="email"
-          value={email}
-          onChange={(event) => setEmail(event.target.value)}
-          autoComplete="email"
-          placeholder="operacion@tu-negocio.com"
-          className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-950 outline-none transition focus:border-slate-400"
-        />
-      </label>
+      <AuthInputField
+        type="email"
+        label="Email"
+        icon={<Mail className="h-4 w-4" aria-hidden="true" />}
+        value={email}
+        onChange={(event) => setEmail(event.target.value)}
+        autoComplete="email"
+        placeholder="operacion@tu-negocio.com"
+      />
 
-      <label className="block space-y-2">
-        <span className="text-sm font-medium text-slate-700">Password</span>
-        <input
-          type="password"
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
-          autoComplete="new-password"
-          placeholder="Minimo 8 caracteres"
-          className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-950 outline-none transition focus:border-slate-400"
-        />
-      </label>
+      <AuthInputField
+        type="password"
+        label="Password"
+        icon={<LockKeyhole className="h-4 w-4" aria-hidden="true" />}
+        value={password}
+        onChange={(event) => setPassword(event.target.value)}
+        autoComplete="new-password"
+        placeholder="Minimo 8 caracteres"
+      />
 
-      <label className="block space-y-2">
-        <span className="text-sm font-medium text-slate-700">Confirmar password</span>
-        <input
-          type="password"
-          value={confirmPassword}
-          onChange={(event) => setConfirmPassword(event.target.value)}
-          autoComplete="new-password"
-          placeholder="Repite tu password"
-          className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-950 outline-none transition focus:border-slate-400"
-        />
-      </label>
+      <AuthInputField
+        type="password"
+        label="Confirmar password"
+        icon={<ShieldCheck className="h-4 w-4" aria-hidden="true" />}
+        value={confirmPassword}
+        onChange={(event) => setConfirmPassword(event.target.value)}
+        autoComplete="new-password"
+        placeholder="Repite tu password"
+      />
 
-      {error ? (
-        <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-          {error}
-        </div>
-      ) : null}
+      {error ? <AuthAlert tone="error">{error}</AuthAlert> : null}
 
-      {successMessage ? (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-          {successMessage}
-        </div>
-      ) : null}
+      {successMessage ? <AuthAlert tone="success">{successMessage}</AuthAlert> : null}
 
-      <button
-        type="submit"
+      <AuthPrimaryButton
         disabled={isSubmitting}
-        className={`w-full rounded-2xl px-5 py-3 text-sm font-semibold text-white transition ${
-          isSubmitting
-            ? "cursor-not-allowed bg-slate-400"
-            : "bg-slate-950 hover:bg-slate-800"
-        }`}
+        isLoading={isSubmitting}
+        variant="register"
       >
         {isSubmitting ? "Creando cuenta..." : "Crear cuenta"}
-      </button>
+      </AuthPrimaryButton>
 
-      <p className="text-sm text-slate-600">
-        ¿Ya tienes cuenta?{" "}
-        <Link href={`/login?redirectTo=${encodeURIComponent(redirectTo)}`} className="font-semibold text-slate-900">
+      <p className="text-sm leading-6 text-brand-text-muted">
+        Ya tienes cuenta?{" "}
+        <Link
+          href={`/login?redirectTo=${encodeURIComponent(redirectTo)}`}
+          className="font-semibold text-brand-primary-green underline-offset-4 transition hover:text-brand-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--brand-focus-rgb)/0.5)]"
+        >
           Inicia sesion
         </Link>
       </p>
