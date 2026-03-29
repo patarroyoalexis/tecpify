@@ -9,7 +9,7 @@ interface LogoutButtonProps {
 
 export function LogoutButton({
   className,
-  label = "Cerrar sesion",
+  label = "Cerrar sesión",
 }: LogoutButtonProps) {
   const router = useRouter();
   const fallbackHref = "/login";

@@ -69,7 +69,7 @@ export function AuthInputField({
   ...inputProps
 }: AuthInputFieldProps) {
   const inputClassName = [
-    "h-14 w-full rounded-[1.35rem] border border-brand-border bg-brand-surface px-4 pl-12 text-[0.95rem] text-brand-text shadow-[0_14px_34px_rgb(var(--brand-primary-blue-rgb)/0.08)] outline-none transition",
+    "h-14 w-full rounded-[1.35rem] border border-brand-border bg-brand-surface px-4 pl-12 text-[16px] text-brand-text shadow-[0_14px_34px_rgb(var(--brand-primary-blue-rgb)/0.08)] outline-none transition",
     "placeholder:text-brand-text-muted/70 hover:border-brand-focus hover:bg-white focus:border-brand-focus focus:bg-white focus-visible:ring-4 focus-visible:ring-[rgb(var(--brand-focus-rgb)/0.48)]",
     className,
   ]
