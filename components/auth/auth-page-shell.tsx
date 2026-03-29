@@ -54,7 +54,7 @@ const pageContent: Record<
         body: "Crea la cuenta, activa el negocio y deja lista la base para publicar y gestionar pedidos.",
       },
       {
-        title: "Imagen mas confiable",
+        title: "Imagen más confiable",
         body: "El espacio transmite un tono moderno y profesional antes del primer paso operativo.",
       },
     ],

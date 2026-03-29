@@ -132,10 +132,10 @@ export function AppFooter({
               />
               <div className="relative">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#A9D3FF]">
-                  Operacion lista
+                  Operación lista
                 </p>
                 <h2 className="mt-4 text-2xl font-semibold tracking-[-0.04em] text-white">
-                  Publica rápido y empieza a recibir pedidos con mas orden.
+                  Publica rápido y empieza a recibir pedidos con más orden.
                 </h2>
                 <p className="mt-4 text-sm leading-7 text-slate-300">
                   Activa tu negocio, comparte un enlace y sigue el flujo desde un solo punto de

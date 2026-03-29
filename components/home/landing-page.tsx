@@ -129,7 +129,7 @@ export function LandingPage({ isAuthenticated }: LandingPageProps) {
               Cómo funciona
             </p>
             <h2 className="mt-4 text-3xl font-semibold tracking-[-0.03em] text-[#12326B] sm:text-4xl">
-              Un flujo simple para empezar a operar con mas claridad.
+              Un flujo simple para empezar a operar con más claridad.
             </h2>
             <p className="mt-4 text-base leading-8 text-[#294B8F]">
               Tecpify reduce el caos operativo a tres pasos concretos para que un negocio publique
@@ -168,7 +168,7 @@ export function LandingPage({ isAuthenticated }: LandingPageProps) {
               Beneficios reales
             </p>
             <h2 className="mt-4 text-3xl font-semibold tracking-[-0.03em] text-[#12326B] sm:text-4xl">
-              Mas control para operar, menos friccion para vender.
+              Más control para operar, menos friccion para vender.
             </h2>
             <p className="mt-4 text-base leading-8 text-[#294B8F]">
               No es un dashboard recargado ni una promesa vacia: es una forma mas clara de
