@@ -6,6 +6,11 @@ import type {
   PaymentStatus,
 } from "@/types/orders";
 import { ORDER_WORKFLOW_STATUSES } from "@/lib/orders/status-system";
+import {
+  canOrderMoveFromNewToConfirmed,
+  isCashPaymentMethod as isCashPaymentMethodByGate,
+  isDigitalPaymentMethod as isDigitalPaymentMethodByGate,
+} from "@/lib/orders/payment-gate";
 
 export const ORDER_CREATE_CLIENT_EDITABLE_FIELDS = [
   "businessSlug",
@@ -65,11 +70,6 @@ const ORDER_CREATE_SERVER_DERIVED_FIELD_SET = new Set<string>(
   ORDER_CREATE_SERVER_DERIVED_FIELDS,
 );
 
-const DIGITAL_PAYMENT_METHODS = new Set<PaymentMethod>([
-  "Transferencia",
-  "Tarjeta",
-]);
-const CASH_PAYMENT_METHODS = new Set<PaymentMethod>(["Efectivo", "Contra entrega"]);
 const OPERATIONAL_ORDER_STATUSES_REQUIRING_CONFIRMED_PAYMENT = new Set<OrderStatus>([
   "confirmado",
   "en preparación",
@@ -82,6 +82,11 @@ export interface OrderStateSnapshot {
   paymentMethod: PaymentMethod;
   paymentStatus: PaymentStatus;
   status: OrderStatus;
+}
+
+export interface OrderStateGateContext {
+  isFiado?: boolean;
+  fiadoStatus?: FiadoStatus | null;
 }
 
 export interface AuthoritativeOrderStatePatchInput {
@@ -166,11 +171,11 @@ export function getOrderPaymentMethodDeliveryTypeError(
 }
 
 export function isDigitalPaymentMethod(method: PaymentMethod): boolean {
-  return DIGITAL_PAYMENT_METHODS.has(method);
+  return isDigitalPaymentMethodByGate(method);
 }
 
 export function isCashPaymentMethod(method: PaymentMethod): boolean {
-  return CASH_PAYMENT_METHODS.has(method);
+  return isCashPaymentMethodByGate(method);
 }
 
 export function isPaymentConfirmed(paymentStatus: PaymentStatus) {
@@ -235,7 +240,10 @@ export function deriveInitialOrderStateFromPaymentMethod(
   };
 }
 
-export function getOrderStateConsistencyError(state: OrderStateSnapshot) {
+export function getOrderStateConsistencyError(
+  state: OrderStateSnapshot,
+  gateContext?: OrderStateGateContext,
+) {
   const paymentMethodDeliveryTypeError = getOrderPaymentMethodDeliveryTypeError(
     state.deliveryType,
     state.paymentMethod,
@@ -251,11 +259,16 @@ export function getOrderStateConsistencyError(state: OrderStateSnapshot) {
 
   if (
     OPERATIONAL_ORDER_STATUSES_REQUIRING_CONFIRMED_PAYMENT.has(state.status) &&
-    !isPaymentConfirmed(state.paymentStatus)
+    !canOrderMoveFromNewToConfirmed({
+      paymentMethod: state.paymentMethod,
+      paymentStatus: state.paymentStatus,
+      isFiado: gateContext?.isFiado ?? false,
+      fiadoStatus: gateContext?.fiadoStatus ?? null,
+    })
   ) {
     return state.status === "confirmado"
-      ? "No puedes confirmar el pedido mientras el pago no esté verificado."
-      : "No puedes avanzar el pedido mientras el pago no esté verificado.";
+      ? "No puedes confirmar el pedido mientras la condición financiera siga bloqueando la compuerta de Nuevo."
+      : "No puedes avanzar el pedido mientras la condición financiera siga bloqueando la compuerta operativa.";
   }
 
   return null;
@@ -378,9 +391,10 @@ function resolveNextStatus(
 export function getOrderStateUpdateError(
   currentState: OrderStateSnapshot,
   patch: AuthoritativeOrderStatePatchInput,
+  gateContext?: OrderStateGateContext,
 ) {
   try {
-    resolveAuthoritativeOrderStatePatch(currentState, patch);
+    resolveAuthoritativeOrderStatePatch(currentState, patch, gateContext);
     return null;
   } catch (error) {
     return error instanceof Error ? error.message : "Invalid order update payload.";
@@ -495,6 +509,7 @@ export function resolveAuthoritativeOrderFiadoPatch(
 export function resolveAuthoritativeOrderStatePatch(
   currentState: OrderStateSnapshot,
   patch: AuthoritativeOrderStatePatchInput,
+  gateContext?: OrderStateGateContext,
 ): AuthoritativeOrderStatePatchResult {
   const nextDeliveryType = patch.deliveryType ?? currentState.deliveryType;
   const nextPaymentMethod = patch.paymentMethod ?? currentState.paymentMethod;
@@ -510,7 +525,7 @@ export function resolveAuthoritativeOrderStatePatch(
     paymentStatus: nextPaymentStatus,
     status: resolvedStatus.status,
   };
-  const consistencyError = getOrderStateConsistencyError(nextState);
+  const consistencyError = getOrderStateConsistencyError(nextState, gateContext);
 
   if (consistencyError) {
     throw new Error(`Invalid order update payload. ${consistencyError}`);

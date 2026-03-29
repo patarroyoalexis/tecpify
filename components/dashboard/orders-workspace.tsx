@@ -4,8 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 
 import { MetricsCards } from "@/components/dashboard/metrics-cards";
 import { OrdersBoard } from "@/components/dashboard/orders-board";
+import { OrderPaymentReviewModal } from "@/components/dashboard/order-payment-review-modal";
 import { OrdersUiIcon } from "@/components/dashboard/orders-ui-icon";
 import { getOperationalMetrics } from "@/data/orders";
+import { isOrderAwaitingPaymentReview } from "@/lib/orders/payment-gate";
 import { isProductionRuntime } from "@/lib/runtime";
 import { ORDER_STATUS_LABELS, ORDER_WORKFLOW_STATUSES } from "@/lib/orders/status-system";
 import { getOrderDisplayCode, type Order } from "@/types/orders";
@@ -37,6 +39,9 @@ function matchesSearch(order: Order, searchQuery: string) {
 export function OrdersWorkspace({ businessSlug }: OrdersWorkspaceProps) {
   void businessSlug;
   const [searchQuery, setSearchQuery] = useState("");
+  const [paymentReviewOrderId, setPaymentReviewOrderId] = useState<Order["orderId"] | null>(
+    null,
+  );
   const {
     hasHydrated,
     ordersError,
@@ -44,6 +49,7 @@ export function OrdersWorkspace({ businessSlug }: OrdersWorkspaceProps) {
     handleResetOrders,
     handleAdvanceOrderStatus,
     handleConfirmOrder,
+    handleMarkAsReviewed,
     handleUpdatePaymentStatus,
     openCancelOrderModal,
     openOrderDetails,
@@ -55,10 +61,12 @@ export function OrdersWorkspace({ businessSlug }: OrdersWorkspaceProps) {
   );
   const metrics = getOperationalMetrics(ordersState);
   const pendingPaymentsCount = ordersState.filter(
-    (order) => order.status !== "cancelado" && order.paymentStatus !== "verificado",
+    (order) => order.status !== "cancelado" && isOrderAwaitingPaymentReview(order),
   ).length;
   const cancelledCount = ordersState.filter((order) => order.status === "cancelado").length;
   const activeCount = ordersState.length - cancelledCount;
+  const orderToReview =
+    ordersState.find((order) => order.orderId === paymentReviewOrderId) ?? null;
 
   useEffect(() => {
     if (isProductionRuntime() || typeof window === "undefined") {
@@ -110,7 +118,7 @@ export function OrdersWorkspace({ businessSlug }: OrdersWorkspaceProps) {
             </div>
             <div className="rounded-[20px] border border-amber-200 bg-amber-50 px-4 py-3">
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-700">
-                Pago pendiente
+                Cobros por revisar
               </p>
               <p className="mt-2 text-2xl font-semibold text-amber-950">{pendingPaymentsCount}</p>
             </div>
@@ -157,11 +165,21 @@ export function OrdersWorkspace({ businessSlug }: OrdersWorkspaceProps) {
       <OrdersBoard
         orders={filteredOrders}
         onOpenDetails={openOrderDetails}
+        onOpenPaymentReviewModal={(orderId) => {
+          handleMarkAsReviewed(orderId);
+          setPaymentReviewOrderId(orderId);
+        }}
         onConfirmOrder={handleConfirmOrder}
         onAdvanceOrderStatus={handleAdvanceOrderStatus}
-        onUpdatePaymentStatus={handleUpdatePaymentStatus}
         onOpenCancelOrderModal={openCancelOrderModal}
         onOpenReactivateOrderModal={openReactivateOrderModal}
+      />
+
+      <OrderPaymentReviewModal
+        order={orderToReview}
+        isOpen={orderToReview !== null}
+        onClose={() => setPaymentReviewOrderId(null)}
+        onUpdatePaymentStatus={handleUpdatePaymentStatus}
       />
 
       {hasHydrated && filteredOrders.length === 0 ? (

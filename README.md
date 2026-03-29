@@ -71,7 +71,9 @@ Las garantias activas del MVP hoy no viven solo en UI ni solo en handlers HTTP: 
 - Los metodos publicos visibles al cliente se derivan de flags por negocio; Fiado no es un metodo publico y nunca aparece en checkout ni formularios del cliente.
 - El estado inicial del pedido se deriva en servidor segun `paymentMethod`, y la DB rederiva y valida inserts/updates directos sobre `public.orders`.
 - El flujo operativo principal del pedido hoy vive en `Nuevo -> Confirmado -> Preparación -> Listo -> Entregado`; `Cancelado` es una salida excepcional separada, con motivo obligatorio, estado previo persistido y reactivacion exacta al punto anterior.
+- La compuerta financiera vive dentro de `Nuevo`: solo `paymentStatus=verificado`, `Contra entrega` o `Fiado` habilitan `Nuevo -> Confirmado`; `Pendiente`, `Por verificar` y `Con novedad` no abren esa transicion.
 - `Contra entrega` solo es valido para pedidos a domicilio, y esa regla existe en server y en DB.
+- El board desktop de pedidos usa columnas por estado operativo y mantiene `Cancelado` fuera del flujo principal; la semantica visual y los CTAs quedan centralizados para reutilizarse despues en movil sin duplicar logica.
 - El historial inicial del pedido se genera en servidor/DB segun el origen real (`public_form` o `workspace_manual`).
 - El historial del pedido es append-only bajo control server-side y DB; el cliente no puede reemplazar snapshots completos de `history`.
 - Un producto ya referenciado en pedidos historicos persistidos no puede borrarse: el veto vive en runtime y tambien en DB, incluso ante deletes directos sobre `public.products`.
@@ -142,13 +144,15 @@ Ademas, la fase actual de E2E ya protege reglas criticas del dominio de pedidos:
 3. el historial inicial nace segun el origen real `public_form`
 4. una mutacion valida desde workspace agrega eventos al historial sin reemplazar el snapshot previo
 5. `Contra entrega` queda bloqueado para `recogida en tienda` en el formulario y tambien en el endpoint real
-6. un pedido valido a domicilio con `Contra entrega` nace en `Nuevo` con `paymentStatus=verificado`, sin abrir una columna paralela de pago
+6. un pedido valido a domicilio con `Contra entrega` nace en `Nuevo` con condicion financiera `Contra entrega`, sin abrir una columna paralela de pago
+7. la revision de pago se resuelve dentro de `Nuevo` mediante una superficie dedicada y luego habilita `Confirmado` sin mezclar pago con columnas del board
 
 ### Ejecucion
 
 - `npm run test:e2e`
 - `npm run test:e2e:headed`
 - La base enlazada debe tener aplicadas las migraciones vigentes de `supabase/migrations`. Si el proyecto remoto queda atrasado respecto del repo, el owner puede quedar bloqueado por RLS al crear negocio o publicar productos y la suite E2E no cerrara el circuito real.
+- La migracion `20260329002_rework_order_operational_flow_and_cancellation.sql` agrega `previous_status_before_cancellation`, `cancellation_reason`, `cancellation_detail` y la funcion controlada `public.update_order_with_server_history`. Si el remoto enlazado no la tiene aplicada, la cancelacion/reactivacion excepcional no queda cerrada y reaparece drift entre runtime y esquema.
 - Antes de correr specs, Playwright bootstrapea fixtures dedicadas de Auth con `tests/helpers/playwright-global-setup.ts`. Ese bootstrap usa service role aislada de test para crear o corregir dos cuentas no humanas, las confirma sin correo y luego verifica login real con password.
 - La suite E2E falla cerrado si faltan prerequisitos del bootstrap, si Supabase Auth no puede dejar operativas esas fixtures o si el proyecto remoto no acepta login real con ellas.
 - La suite E2E no llama `/api/auth/register`, no usa `signUp`, no dispara correos de confirmacion, OTP, magic link, reset ni resend, no toca Google OAuth real y no depende de cuentas humanas ni de estados manuales inciertos.

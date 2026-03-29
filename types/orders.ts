@@ -40,6 +40,14 @@ export const PAYMENT_STATUSES = [
   "con novedad",
   "no verificado",
 ] as const;
+export const ORDER_FINANCIAL_CONDITIONS = [
+  "pendiente",
+  "por verificar",
+  "verificado",
+  "con novedad",
+  "contra entrega",
+  "fiado",
+] as const;
 export const FIADO_STATUSES = ["pending", "paid"] as const;
 
 export const DELIVERY_TYPES = ["domicilio", "recogida en tienda"] as const;
@@ -55,6 +63,7 @@ export type ActiveOrderStatus = (typeof ORDER_ACTIVE_STATUSES)[number];
 export type CancellableOrderStatus = (typeof ORDER_CANCELLABLE_STATUSES)[number];
 export type OrderCancellationReason = (typeof ORDER_CANCELLATION_REASONS)[number];
 export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
+export type OrderFinancialCondition = (typeof ORDER_FINANCIAL_CONDITIONS)[number];
 export type FiadoStatus = (typeof FIADO_STATUSES)[number];
 export type DeliveryType = (typeof DELIVERY_TYPES)[number];
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];

@@ -92,7 +92,7 @@ test.describe("Order domain rules", () => {
           "Nuevo",
         );
         await expect(
-          page.getByTestId(`order-card-payment-status-${order.orderId}`),
+          page.getByTestId(`order-card-financial-condition-${order.orderId}`),
         ).toContainText(
           "Pendiente",
         );
@@ -150,6 +150,11 @@ test.describe("Order domain rules", () => {
         const initialHistoryIds = (initialOrder.history ?? []).map((event) => event.id);
 
         await page.getByTestId(`order-card-primary-action-${initialOrder.orderId}`).click();
+        await expect(page.getByTestId("order-payment-review-modal")).toBeVisible();
+        await page
+          .getByTestId("order-payment-review-panel")
+          .getByRole("button", { name: /marcar verificado/i })
+          .click();
         const updatedOrder = await waitForOrderInPrivateApi(page, scenario.businessSlug, {
           orderId: initialOrder.orderId,
           status: "nuevo",
@@ -160,7 +165,7 @@ test.describe("Order domain rules", () => {
           "Nuevo",
         );
         await expect(
-          page.getByTestId(`order-card-payment-status-${initialOrder.orderId}`),
+          page.getByTestId(`order-card-financial-condition-${initialOrder.orderId}`),
         ).toContainText("Verificado");
         const updatedHistory = updatedOrder.history ?? [];
 
@@ -178,6 +183,9 @@ test.describe("Order domain rules", () => {
         expect(updatedHistory.slice(-initialHistoryIds.length).map((event) => event.id)).toEqual(
           initialHistoryIds,
         );
+
+        await page.getByRole("button", { name: /^cerrar$/i }).click();
+        await expect(page.getByTestId("order-payment-review-modal")).toBeHidden();
 
         const orderCard = page.getByTestId(`order-card-${initialOrder.orderId}`);
         await orderCard.getByRole("button", { name: /ver detalle/i }).click();
@@ -301,8 +309,8 @@ test.describe("Order domain rules", () => {
           "Nuevo",
         );
         await expect(
-          page.getByTestId(`order-card-payment-status-${domicilioOrder.orderId}`),
-        ).toContainText("Verificado");
+          page.getByTestId(`order-card-financial-condition-${domicilioOrder.orderId}`),
+        ).toContainText("Contra entrega");
       });
     } finally {
       await storefrontContext.close();

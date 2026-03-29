@@ -2,37 +2,34 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import { getPaymentMethodLabel } from "@/components/dashboard/payment-helpers";
 import { OrdersUiIcon } from "@/components/dashboard/orders-ui-icon";
-import {
-  getPaymentMethodLabel,
-  shouldShowPaymentVerificationActions,
-} from "@/components/dashboard/payment-helpers";
 import { StatusBadgeIcon } from "@/components/dashboard/status-badge-icon";
 import { formatCurrency, formatElapsedTime, getOperationalPriority } from "@/data/orders";
+import { canCancelOrder, getOrderPrimaryAction } from "@/lib/orders/action-semantics";
+import {
+  getOrderFinancialCondition,
+  getOrderFinancialConditionVisuals,
+  ORDER_FINANCIAL_CONDITION_LABELS,
+} from "@/lib/orders/payment-gate";
 import {
   ORDER_CANCELLATION_REASON_LABELS,
   ORDER_STATUS_LABELS,
   getOrderStatusIconKey,
   getOrderStatusVisuals,
-  getPaymentStatusIconKey,
-  getPaymentStatusVisuals,
 } from "@/lib/orders/status-system";
-import { getAllowedOrderStatusTransitions } from "@/lib/orders/transitions";
 import {
+  getFiadoStatusLabel,
   getOrderDisplayCode,
   type Order,
-  type PaymentStatus,
 } from "@/types/orders";
 
 interface OrderCardProps {
   order: Order;
   onOpenDetails: (orderId: Order["orderId"]) => void;
+  onOpenPaymentReviewModal: (orderId: Order["orderId"]) => void;
   onConfirmOrder: (orderId: Order["orderId"]) => Promise<Order>;
   onAdvanceOrderStatus: (orderId: Order["orderId"]) => Promise<Order | undefined>;
-  onUpdatePaymentStatus: (
-    orderId: Order["orderId"],
-    paymentStatus: PaymentStatus,
-  ) => Promise<Order>;
   onOpenCancelOrderModal: (orderId: Order["orderId"]) => void;
   onOpenReactivateOrderModal: (orderId: Order["orderId"]) => void;
 }
@@ -49,37 +46,6 @@ function getProductSummary(order: Order) {
     summary: visibleProducts.map((product) => `${product.quantity} x ${product.name}`).join(", "),
     hiddenProductsCount,
   };
-}
-
-function getPrimaryActionKind(order: Order) {
-  if (order.status === "cancelado") {
-    if (order.previousStatusBeforeCancellation) {
-      return "reactivate";
-    }
-
-    return "details";
-  }
-
-  if (shouldShowPaymentVerificationActions(order) && order.paymentStatus === "pendiente") {
-    return "verify-payment";
-  }
-
-  if (order.status === "nuevo" && order.paymentStatus === "verificado") {
-    return "confirm-order";
-  }
-
-  if (
-    shouldShowPaymentVerificationActions(order) &&
-    (order.paymentStatus === "con novedad" || order.paymentStatus === "no verificado")
-  ) {
-    return "details";
-  }
-
-  if (["confirmado", "en preparación", "listo"].includes(order.status)) {
-    return "advance-order";
-  }
-
-  return "details";
 }
 
 function getPriorityAccent(order: Order) {
@@ -99,9 +65,9 @@ function getPriorityAccent(order: Order) {
 export function OrderCard({
   order,
   onOpenDetails,
+  onOpenPaymentReviewModal,
   onConfirmOrder,
   onAdvanceOrderStatus,
-  onUpdatePaymentStatus,
   onOpenCancelOrderModal,
   onOpenReactivateOrderModal,
 }: OrderCardProps) {
@@ -109,24 +75,22 @@ export function OrderCard({
   const [feedbackMessage, setFeedbackMessage] = useState("");
   const [feedbackTone, setFeedbackTone] = useState<FeedbackTone>("neutral");
   const statusVisuals = getOrderStatusVisuals(order.status);
-  const paymentVisuals = getPaymentStatusVisuals(order.paymentStatus);
+  const financialCondition = getOrderFinancialCondition(order);
+  const financialVisuals = getOrderFinancialConditionVisuals(financialCondition);
   const paymentMethodLabel = getPaymentMethodLabel(order.paymentMethod, order.deliveryType);
-  const primaryActionKind = getPrimaryActionKind(order);
-  const nextOperationalStatus = useMemo(
-    () =>
-      getAllowedOrderStatusTransitions(order.status).find(
-        (statusOption) => statusOption !== order.status && statusOption !== "cancelado",
-      ) ?? null,
-    [order.status],
-  );
+  const primaryAction = getOrderPrimaryAction(order);
   const { totalUnits, summary, hiddenProductsCount } = getProductSummary(order);
-  const canCancel = ["nuevo", "confirmado", "en preparación", "listo"].includes(order.status);
+  const canCancel = canCancelOrder(order);
   const feedbackClassName =
     feedbackTone === "error"
       ? "text-rose-700"
       : feedbackTone === "success"
         ? "text-emerald-700"
         : "text-slate-500";
+  const financialSubtitle =
+    order.isFiado && order.fiadoStatus
+      ? `Fiado ${getFiadoStatusLabel(order.fiadoStatus).toLowerCase()}`
+      : null;
 
   useEffect(() => {
     if (!feedbackMessage) {
@@ -141,33 +105,47 @@ export function OrderCard({
     return () => window.clearTimeout(timeoutId);
   }, [feedbackMessage]);
 
+  const primaryActionIcon = useMemo(() => {
+    if (primaryAction.kind === "review_payment") {
+      return "edit" as const;
+    }
+
+    if (primaryAction.kind === "reactivate") {
+      return "save" as const;
+    }
+
+    if (primaryAction.kind === "confirm_order" || primaryAction.kind === "advance_order") {
+      return "clipboard-check" as const;
+    }
+
+    return "clipboard" as const;
+  }, [primaryAction.kind]);
+
   async function runPrimaryAction() {
     setIsRunningPrimaryAction(true);
     setFeedbackMessage("");
 
     try {
-      if (primaryActionKind === "verify-payment") {
-        await onUpdatePaymentStatus(order.orderId, "verificado");
-        setFeedbackTone("success");
-        setFeedbackMessage("Pago marcado como verificado.");
+      if (primaryAction.kind === "review_payment") {
+        onOpenPaymentReviewModal(order.orderId);
         return;
       }
 
-      if (primaryActionKind === "confirm-order") {
+      if (primaryAction.kind === "confirm_order") {
         await onConfirmOrder(order.orderId);
         setFeedbackTone("success");
         setFeedbackMessage("Pedido confirmado.");
         return;
       }
 
-      if (primaryActionKind === "advance-order") {
+      if (primaryAction.kind === "advance_order") {
         await onAdvanceOrderStatus(order.orderId);
         setFeedbackTone("success");
         setFeedbackMessage("Pedido movido al siguiente estado.");
         return;
       }
 
-      if (primaryActionKind === "reactivate") {
+      if (primaryAction.kind === "reactivate") {
         onOpenReactivateOrderModal(order.orderId);
         return;
       }
@@ -181,38 +159,6 @@ export function OrderCard({
     } finally {
       setIsRunningPrimaryAction(false);
     }
-  }
-
-  function getPrimaryActionLabel() {
-    if (primaryActionKind === "verify-payment") {
-      return "Verificar pago";
-    }
-
-    if (primaryActionKind === "confirm-order") {
-      return "Confirmar pedido";
-    }
-
-    if (primaryActionKind === "advance-order" && nextOperationalStatus) {
-      return `Mover a ${ORDER_STATUS_LABELS[nextOperationalStatus]}`;
-    }
-
-    if (primaryActionKind === "reactivate") {
-      return "Reactivar";
-    }
-
-    return "Ver detalle";
-  }
-
-  function getPrimaryActionIcon() {
-    if (primaryActionKind === "verify-payment" || primaryActionKind === "reactivate") {
-      return "save" as const;
-    }
-
-    if (primaryActionKind === "confirm-order" || primaryActionKind === "advance-order") {
-      return "clipboard-check" as const;
-    }
-
-    return "clipboard" as const;
   }
 
   return (
@@ -256,11 +202,10 @@ export function OrderCard({
         </div>
 
         <div
-          data-testid={`order-card-payment-status-${order.orderId}`}
-          className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold ${paymentVisuals.badgeClassName}`}
+          data-testid={`order-card-financial-condition-${order.orderId}`}
+          className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold ${financialVisuals.badgeClassName}`}
         >
-          <StatusBadgeIcon iconKey={getPaymentStatusIconKey(order.paymentStatus)} />
-          <span>{order.paymentStatus === "verificado" ? "Pago verificado" : `Pago ${order.paymentStatus}`}</span>
+          <span>{ORDER_FINANCIAL_CONDITION_LABELS[financialCondition]}</span>
         </div>
       </div>
 
@@ -274,7 +219,14 @@ export function OrderCard({
           <span>{order.deliveryType === "domicilio" ? "Domicilio" : "Recogida en tienda"}</span>
           <span>{paymentMethodLabel}</span>
         </div>
-        {order.address ? <p className="line-clamp-2 text-xs text-slate-500">{order.address}</p> : null}
+        {financialSubtitle ? (
+          <p className={`text-xs font-medium ${financialVisuals.accentClassName}`}>
+            {financialSubtitle}
+          </p>
+        ) : null}
+        {order.address ? (
+          <p className="line-clamp-2 text-xs text-slate-500">{order.address}</p>
+        ) : null}
       </div>
 
       {order.status === "cancelado" ? (
@@ -336,8 +288,8 @@ export function OrderCard({
             data-testid={`order-card-primary-action-${order.orderId}`}
             className={`inline-flex items-center justify-center gap-2 rounded-full border px-3.5 py-2 text-xs font-semibold transition ${statusVisuals.badgeClassName} disabled:cursor-not-allowed disabled:opacity-60`}
           >
-            <OrdersUiIcon icon={getPrimaryActionIcon()} className="h-3.5 w-3.5" />
-            {getPrimaryActionLabel()}
+            <OrdersUiIcon icon={primaryActionIcon} className="h-3.5 w-3.5" />
+            {primaryAction.label}
           </button>
         </div>
       </div>

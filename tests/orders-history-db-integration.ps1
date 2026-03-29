@@ -621,6 +621,63 @@ where id = $(ConvertTo-SqlText $PublicOrderId)::uuid;
   Assert-Equal -Actual $publicInsertResult.paymentStatus -Expected "pendiente" -Message "DB debe derivar el estado inicial del pago publico."
   Assert-HistoryContract -ActualHistory $publicInsertResult.history -ExpectedHistory $expectedPublicHistory -Message "DB debe generar el historial inicial publico correcto."
 
+  $publicOperationalReadResult = Invoke-JsonSql -PsqlPath $psqlPath -ClusterRoot $clusterRoot -Sql (Wrap-AsRole -Role "authenticated" -UserId $OwnerId -Sql @"
+select json_build_object(
+  'previousStatusBeforeCancellation', previous_status_before_cancellation,
+  'cancellationReason', cancellation_reason,
+  'cancellationDetail', cancellation_detail
+)::text
+from public.orders
+where id = $(ConvertTo-SqlText $PublicOrderId)::uuid;
+"@)
+  Assert-Equal -Actual $publicOperationalReadResult.previousStatusBeforeCancellation -Expected $null -Message "La lectura operativa posterior debe poder leer el estado previo de cancelacion como null tras crear el pedido."
+  Assert-Equal -Actual $publicOperationalReadResult.cancellationReason -Expected $null -Message "La lectura operativa posterior debe poder leer el motivo de cancelacion como null tras crear el pedido."
+  Assert-Equal -Actual $publicOperationalReadResult.cancellationDetail -Expected $null -Message "La lectura operativa posterior debe poder leer el detalle libre de cancelacion como null tras crear el pedido."
+
+  Invoke-PostgresSql -PsqlPath $psqlPath -ClusterRoot $clusterRoot -Sql @"
+update public.businesses
+set allows_fiado = true
+where id = $(ConvertTo-SqlText $BusinessId)::uuid;
+"@ | Out-Null
+
+  $fiadoActivatedResult = Invoke-JsonSql -PsqlPath $psqlPath -ClusterRoot $clusterRoot -Sql (Wrap-AsRole -Role "authenticated" -UserId $OwnerId -Sql @"
+select row_to_json(updated_order)::text
+from public.update_order_with_server_history(
+  $(ConvertTo-SqlText $PublicOrderId)::uuid,
+  $(ConvertTo-SqlJsonb @{
+      isFiado = $true
+      fiadoStatus = "pending"
+      fiadoObservation = "Cliente frecuente, paga manana al recibir inventario"
+      actorUserId = $OwnerId
+      actorEmail = "owner@example.com"
+    })
+) as updated_order;
+"@)
+  Assert-Equal -Actual $fiadoActivatedResult.status -Expected "nuevo" -Message "Activar fiado no debe sacar el pedido del estado Nuevo por si solo."
+  Assert-Equal -Actual $fiadoActivatedResult.payment_status -Expected "pendiente" -Message "Activar fiado no debe falsificar el payment_status como verificado."
+  Assert-Equal -Actual $fiadoActivatedResult.is_fiado -Expected $true -Message "La funcion controlada debe persistir el flag interno de fiado."
+  Assert-Equal -Actual $fiadoActivatedResult.fiado_status -Expected "pending" -Message "La funcion controlada debe persistir fiado_status."
+  Assert-Match -Text ([string]$fiadoActivatedResult.fiado_observation) -Pattern "Cliente frecuente" -Message "La funcion controlada debe persistir la observacion de fiado."
+  Assert-Match -Text ([string]$fiadoActivatedResult.history[0].title) -Pattern "Estado interno de fiado actualizado" -Message "DB debe anexar trazabilidad legible al activar fiado."
+
+  $fiadoConfirmedResult = Invoke-JsonSql -PsqlPath $psqlPath -ClusterRoot $clusterRoot -Sql (Wrap-AsRole -Role "authenticated" -UserId $OwnerId -Sql @"
+select row_to_json(updated_order)::text
+from public.update_order_with_server_history(
+  $(ConvertTo-SqlText $PublicOrderId)::uuid,
+  $(ConvertTo-SqlJsonb @{
+      status = "confirmado"
+      actorUserId = $OwnerId
+      actorEmail = "owner@example.com"
+    })
+) as updated_order;
+"@)
+  Assert-Equal -Actual $fiadoConfirmedResult.status -Expected "confirmado" -Message "La compuerta financiera de fiado debe permitir confirmar desde Nuevo."
+  Assert-Equal -Actual $fiadoConfirmedResult.payment_status -Expected "pendiente" -Message "Confirmar un fiado no debe fingir pago verificado."
+  Assert-Equal -Actual $fiadoConfirmedResult.is_fiado -Expected $true -Message "El pedido debe seguir marcado como fiado despues de confirmar."
+  Assert-Equal -Actual $fiadoConfirmedResult.fiado_status -Expected "pending" -Message "El estado interno del fiado debe conservarse al confirmar."
+  Assert-Equal -Actual $fiadoConfirmedResult.history[0].title -Expected "Estado del pedido actualizado" -Message "La confirmacion operativa debe anexar un evento legible de cambio de estado."
+  Assert-Match -Text $fiadoConfirmedResult.history[0].description -Pattern "Confirmado" -Message "La confirmacion operativa debe dejar trazabilidad del estado recuperado por la compuerta financiera."
+
   $manualInsertResult = Invoke-JsonSql -PsqlPath $psqlPath -ClusterRoot $clusterRoot -Sql (Wrap-AsRole -Role "authenticated" -UserId $OwnerId -Sql @"
 with inserted_order as (
   insert into public.orders (
@@ -739,6 +796,24 @@ from public.update_order_with_server_history(
   Assert-True -Condition ([bool]$reactivatedOrderResult.reactivated_at) -Message "La reactivacion debe registrar fecha y hora."
   Assert-Equal -Actual $reactivatedOrderResult.history[0].title -Expected "Pedido reactivado" -Message "La funcion controlada debe anexar un evento explicito de reactivacion."
   Assert-Match -Text $reactivatedOrderResult.history[0].description -Pattern "owner@example.com|nuevo" -Message "La reactivacion debe dejar trazabilidad legible del actor y del estado recuperado."
+
+  $cancelledWithDetailResult = Invoke-JsonSql -PsqlPath $psqlPath -ClusterRoot $clusterRoot -Sql (Wrap-AsRole -Role "authenticated" -UserId $OwnerId -Sql @"
+select row_to_json(updated_order)::text
+from public.update_order_with_server_history(
+  $(ConvertTo-SqlText $ManualOrderId)::uuid,
+  $(ConvertTo-SqlJsonb @{
+      status = "cancelado"
+      cancellationReason = "otro"
+      cancellationDetail = "Cliente pidio frenar el duplicado despues de confirmar por WhatsApp"
+      actorUserId = $OwnerId
+      actorEmail = "owner@example.com"
+    })
+) as updated_order;
+"@)
+  Assert-Equal -Actual $cancelledWithDetailResult.status -Expected "cancelado" -Message "La cancelacion excepcional con detalle libre debe volver a sacar el pedido del flujo principal."
+  Assert-Equal -Actual $cancelledWithDetailResult.cancellation_reason -Expected "otro" -Message "La cancelacion excepcional con detalle libre debe persistir el motivo canonico Otro."
+  Assert-Equal -Actual $cancelledWithDetailResult.cancellation_detail -Expected "Cliente pidio frenar el duplicado despues de confirmar por WhatsApp" -Message "La cancelacion excepcional con detalle libre debe persistir cancellation_detail."
+  Assert-Match -Text $cancelledWithDetailResult.history[0].description -Pattern "Cliente pidio frenar el duplicado despues de confirmar por WhatsApp|owner@example.com" -Message "La cancelacion excepcional con detalle libre debe dejar trazabilidad legible del detalle y del actor."
 
   $foreignUserResult = Invoke-PostgresSql -PsqlPath $psqlPath -ClusterRoot $clusterRoot -Sql (Wrap-AsRole -Role "authenticated" -UserId $OtherUserId -Sql @"
 select row_to_json(updated_order)::text

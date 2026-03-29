@@ -21,6 +21,14 @@ const {
   getReactivateOrderError,
 } = loadTsModule("lib/orders/cancellation-rules.ts");
 const {
+  canOrderMoveFromNewToConfirmed,
+  getOrderFinancialCondition,
+  ORDER_FINANCIAL_CONDITION_VISUALS,
+} = loadTsModule("lib/orders/payment-gate.ts");
+const {
+  splitOrdersForOperationalBoard,
+} = loadTsModule("lib/orders/board-model.ts");
+const {
   ORDER_STATUS_VISUALS,
 } = loadTsModule("lib/orders/status-system.ts");
 
@@ -42,22 +50,179 @@ test("dominio: bloquea saltos de estado y estados finales", async (t) => {
   });
 });
 
-test("dominio: exige pago verificado para avanzar el estado operativo", () => {
-  const error = getOrderUpdateTransitionError(
-    {
-      deliveryType: "domicilio",
-      status: "nuevo",
-      paymentStatus: "pendiente",
-    },
-    {
-      status: "confirmado",
-    },
-  );
+test("dominio: la compuerta de Nuevo bloquea el avance cuando la condicion financiera no habilita confirmar", async (t) => {
+  await t.test("bloquea Nuevo -> Confirmado cuando el pago digital sigue pendiente", () => {
+    const error = getOrderUpdateTransitionError(
+      {
+        deliveryType: "domicilio",
+        status: "nuevo",
+        paymentStatus: "pendiente",
+      },
+      {
+        status: "confirmado",
+      },
+    );
 
-  assert.match(error, /pago no est[eé] verificado/i);
+    assert.match(error, /condici[oó]n financiera|compuerta/i);
+  });
+
+  await t.test("bloquea Nuevo -> Confirmado cuando el pedido ya esta por verificar", () => {
+    const error = getOrderStateUpdateError(
+      {
+        deliveryType: "domicilio",
+        paymentMethod: "Transferencia",
+        paymentStatus: "no verificado",
+        status: "nuevo",
+      },
+      {
+        status: "confirmado",
+      },
+    );
+
+    assert.match(error, /condici[oó]n financiera|compuerta/i);
+  });
 });
 
-test("dominio: permite verificar pago y avanzar en la misma actualizacion", () => {
+test("dominio: Nuevo -> Confirmado se habilita solo con la condicion financiera correcta", async (t) => {
+  await t.test("permite confirmar cuando paymentStatus = verificado", () => {
+    const error = getOrderUpdateTransitionError(
+      {
+        deliveryType: "domicilio",
+        status: "nuevo",
+        paymentStatus: "verificado",
+      },
+      {
+        status: "confirmado",
+      },
+    );
+
+    assert.equal(error, null);
+  });
+
+  await t.test("permite confirmar cuando la condicion es contra entrega", () => {
+    const error = getOrderStateUpdateError(
+      {
+        deliveryType: "domicilio",
+        paymentMethod: "Contra entrega",
+        paymentStatus: "verificado",
+        status: "nuevo",
+      },
+      {
+        status: "confirmado",
+      },
+    );
+
+    assert.equal(error, null);
+  });
+
+  await t.test("permite confirmar cuando la condicion es fiado", () => {
+    const error = getOrderUpdateTransitionError(
+      {
+        deliveryType: "domicilio",
+        paymentMethod: "Transferencia",
+        paymentStatus: "pendiente",
+        status: "nuevo",
+        isFiado: true,
+        fiadoStatus: "pending",
+      },
+      {
+        status: "confirmado",
+      },
+    );
+
+    assert.equal(error, null);
+  });
+});
+
+test("dominio: la semantica financiera mantiene fiado visible y separado del pago verificado", async (t) => {
+  await t.test("fiado no se degrada a pendiente generico", () => {
+    assert.equal(
+      getOrderFinancialCondition({
+        paymentMethod: "Transferencia",
+        paymentStatus: "pendiente",
+        isFiado: true,
+        fiadoStatus: "pending",
+        isReviewed: true,
+      }),
+      "fiado",
+    );
+  });
+
+  await t.test("la compuerta reutilizable reconoce verified, contra entrega y fiado", () => {
+    assert.equal(
+      canOrderMoveFromNewToConfirmed({
+        paymentMethod: "Transferencia",
+        paymentStatus: "verificado",
+        isFiado: false,
+        fiadoStatus: null,
+      }),
+      true,
+    );
+    assert.equal(
+      canOrderMoveFromNewToConfirmed({
+        paymentMethod: "Contra entrega",
+        paymentStatus: "verificado",
+        isFiado: false,
+        fiadoStatus: null,
+      }),
+      true,
+    );
+    assert.equal(
+      canOrderMoveFromNewToConfirmed({
+        paymentMethod: "Transferencia",
+        paymentStatus: "pendiente",
+        isFiado: true,
+        fiadoStatus: "pending",
+      }),
+      true,
+    );
+    assert.equal(
+      canOrderMoveFromNewToConfirmed({
+        paymentMethod: "Transferencia",
+        paymentStatus: "con novedad",
+        isFiado: false,
+        fiadoStatus: null,
+      }),
+      false,
+    );
+  });
+});
+
+test("dominio: marcar pago verificado habilita confirmar y con novedad mantiene el bloqueo", async (t) => {
+  await t.test("permite verificar pago y avanzar en la misma actualizacion", () => {
+    const error = getOrderUpdateTransitionError(
+      {
+        deliveryType: "domicilio",
+        status: "nuevo",
+        paymentStatus: "pendiente",
+      },
+      {
+        status: "confirmado",
+        paymentStatus: "verificado",
+      },
+    );
+
+    assert.equal(error, null);
+  });
+
+  await t.test("con novedad mantiene bloqueado Nuevo -> Confirmado", () => {
+    const error = getOrderStateUpdateError(
+      {
+        deliveryType: "domicilio",
+        paymentMethod: "Transferencia",
+        paymentStatus: "con novedad",
+        status: "nuevo",
+      },
+      {
+        status: "confirmado",
+      },
+    );
+
+    assert.match(error, /condici[oó]n financiera|compuerta/i);
+  });
+});
+
+test("dominio: exige regla financiera antes de avanzar el estado operativo", () => {
   const error = getOrderUpdateTransitionError(
     {
       deliveryType: "domicilio",
@@ -66,11 +231,10 @@ test("dominio: permite verificar pago y avanzar en la misma actualizacion", () =
     },
     {
       status: "confirmado",
-      paymentStatus: "verificado",
     },
   );
 
-  assert.equal(error, null);
+  assert.match(error, /condici[oó]n financiera|compuerta/i);
 });
 
 test("dominio: cambios de pago verificado mantienen confirmacion explicita", () => {
@@ -286,4 +450,63 @@ test("ui: la semantica de color de estados queda centralizada", () => {
   assert.match(ORDER_STATUS_VISUALS.listo.boardHeaderClassName, /emerald/i);
   assert.match(ORDER_STATUS_VISUALS.entregado.boardHeaderClassName, /teal/i);
   assert.match(ORDER_STATUS_VISUALS.cancelado.boardHeaderClassName, /rose/i);
+});
+
+test("ui: la semantica financiera reusable queda centralizada para futuras vistas moviles", () => {
+  const actualConditions = Object.keys(ORDER_FINANCIAL_CONDITION_VISUALS).sort((left, right) =>
+    left.localeCompare(right, "es"),
+  );
+  const expectedConditions = [
+    "con novedad",
+    "contra entrega",
+    "fiado",
+    "pendiente",
+    "por verificar",
+    "verificado",
+  ].sort((left, right) => left.localeCompare(right, "es"));
+
+  assert.deepEqual(actualConditions, expectedConditions);
+  assert.match(ORDER_FINANCIAL_CONDITION_VISUALS.pendiente.badgeClassName, /slate/i);
+  assert.match(ORDER_FINANCIAL_CONDITION_VISUALS["por verificar"].badgeClassName, /sky/i);
+  assert.match(ORDER_FINANCIAL_CONDITION_VISUALS.verificado.badgeClassName, /emerald/i);
+  assert.match(ORDER_FINANCIAL_CONDITION_VISUALS["con novedad"].badgeClassName, /orange/i);
+  assert.match(ORDER_FINANCIAL_CONDITION_VISUALS["contra entrega"].badgeClassName, /cyan/i);
+  assert.match(ORDER_FINANCIAL_CONDITION_VISUALS.fiado.badgeClassName, /amber/i);
+});
+
+test("ui: cancelados quedan fuera del flujo principal del board", () => {
+  const { cancelledOrders, columns } = splitOrdersForOperationalBoard([
+    {
+      orderId: "order-1",
+      status: "cancelado",
+      createdAt: "2026-03-29T12:00:00.000Z",
+    },
+    {
+      orderId: "order-2",
+      status: "nuevo",
+      createdAt: "2026-03-29T11:00:00.000Z",
+    },
+    {
+      orderId: "order-3",
+      status: "confirmado",
+      createdAt: "2026-03-29T10:00:00.000Z",
+    },
+  ]);
+
+  assert.deepEqual(
+    cancelledOrders.map((order) => order.orderId),
+    ["order-1"],
+  );
+  assert.deepEqual(
+    columns.find((column) => column.status === "nuevo")?.orders.map((order) => order.orderId),
+    ["order-2"],
+  );
+  assert.deepEqual(
+    columns.find((column) => column.status === "confirmado")?.orders.map((order) => order.orderId),
+    ["order-3"],
+  );
+  assert.equal(
+    columns.some((column) => column.orders.some((order) => order.status === "cancelado")),
+    false,
+  );
 });

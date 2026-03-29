@@ -1,6 +1,7 @@
 import type { OrderApiUpdatePayload } from "@/lib/orders/mappers";
 import type {
   DeliveryType,
+  FiadoStatus,
   OrderStatus,
   PaymentMethod,
   PaymentStatus,
@@ -12,6 +13,8 @@ interface OrderTransitionSnapshot {
   status: OrderStatus;
   paymentStatus: PaymentStatus;
   paymentMethod?: PaymentMethod;
+  isFiado?: boolean;
+  fiadoStatus?: FiadoStatus | null;
 }
 
 function readNextPaymentStatus(
@@ -37,6 +40,10 @@ export function getOrderUpdateTransitionError(
       paymentMethod: payload.paymentMethod,
       paymentStatus: readNextPaymentStatus(order, payload),
       status: payload.status,
+    },
+    {
+      isFiado: order.isFiado ?? false,
+      fiadoStatus: order.fiadoStatus ?? null,
     },
   );
 }

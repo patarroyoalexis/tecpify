@@ -12,6 +12,7 @@ import type {
   Order,
 } from "@/types/orders";
 import { isPendingFiadoOrder } from "@/types/orders";
+import { isOrderAwaitingPaymentReview } from "@/lib/orders/payment-gate";
 
 function getOperationalReferenceDate() {
   return getCurrentDate();
@@ -22,12 +23,7 @@ function isActiveOrder(order: Order) {
 }
 
 function isPendingPayment(order: Order) {
-  return (
-    isActiveOrder(order) &&
-    (order.paymentStatus === "pendiente" ||
-      order.paymentStatus === "con novedad" ||
-      order.paymentStatus === "no verificado")
-  );
+  return isActiveOrder(order) && isOrderAwaitingPaymentReview(order);
 }
 
 function isEffectiveRevenueOrder(order: Order) {

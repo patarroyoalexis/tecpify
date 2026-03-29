@@ -596,15 +596,6 @@ export async function createOrderInDatabase(
       is_fiado: false,
       fiado_status: null,
       fiado_observation: null,
-      previous_status_before_cancellation: null,
-      cancellation_reason: null,
-      cancellation_detail: null,
-      cancelled_at: null,
-      cancelled_by_user_id: null,
-      cancelled_by_user_email: null,
-      reactivated_at: null,
-      reactivated_by_user_id: null,
-      reactivated_by_user_email: null,
       inserted_at: now,
     };
     const insertQuery = supabase.from("orders").insert(insertPayload);
@@ -973,21 +964,6 @@ export async function updateOrderInDatabase(
       reactivateCancelledOrder: true,
     };
   } else {
-    const resolvedStatePatch = resolveAuthoritativeOrderStatePatch(
-      {
-        deliveryType: existingOrder.delivery_type,
-        paymentMethod: existingOrder.payment_method,
-        paymentStatus: existingOrder.payment_status,
-        status: existingOrder.status,
-      },
-      {
-        deliveryType: normalizedPayload.deliveryType,
-        paymentMethod: normalizedPayload.paymentMethod,
-        paymentStatus: normalizedPayload.paymentStatus,
-        status: normalizedPayload.status,
-      },
-    );
-    const nextOrderState = resolvedStatePatch.nextState;
     const resolvedFiadoPatch = resolveAuthoritativeOrderFiadoPatch(
       {
         isFiado: existingOrder.is_fiado,
@@ -1004,6 +980,25 @@ export async function updateOrderInDatabase(
       },
     );
     const nextFiadoState = resolvedFiadoPatch.nextState;
+    const resolvedStatePatch = resolveAuthoritativeOrderStatePatch(
+      {
+        deliveryType: existingOrder.delivery_type,
+        paymentMethod: existingOrder.payment_method,
+        paymentStatus: existingOrder.payment_status,
+        status: existingOrder.status,
+      },
+      {
+        deliveryType: normalizedPayload.deliveryType,
+        paymentMethod: normalizedPayload.paymentMethod,
+        paymentStatus: normalizedPayload.paymentStatus,
+        status: normalizedPayload.status,
+      },
+      {
+        isFiado: nextFiadoState.isFiado,
+        fiadoStatus: nextFiadoState.fiadoStatus,
+      },
+    );
+    const nextOrderState = resolvedStatePatch.nextState;
 
     if (
       normalizedPayload.paymentMethod !== undefined ||

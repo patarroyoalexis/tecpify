@@ -220,7 +220,9 @@ create or replace function public.orders_payment_write_is_valid(
   candidate_delivery_type text,
   candidate_payment_method text,
   candidate_payment_status text,
-  candidate_status text
+  candidate_status text,
+  candidate_is_fiado boolean default false,
+  candidate_fiado_status text default null
 )
 returns boolean
 language sql
@@ -238,10 +240,15 @@ as $$
     and case
       when candidate_payment_method in ('Efectivo', 'Contra entrega') then
         candidate_payment_status = 'verificado'
-        
+
       when candidate_status in ('confirmado', 'en preparación', 'listo', 'entregado') then
         candidate_payment_status = 'verificado'
-      
+        or candidate_payment_method = 'Contra entrega'
+        or (
+          coalesce(candidate_is_fiado, false)
+          and candidate_fiado_status in ('pending', 'paid')
+        )
+
       else
         true
     end;
@@ -424,7 +431,7 @@ as $$
         when 'pendiente' then 'Pendiente'
         when 'verificado' then 'Verificado'
         when 'con novedad' then 'Con novedad'
-        when 'no verificado' then 'No verificado'
+        when 'no verificado' then 'Por verificar'
         else nullif(trim(both '"' from candidate_value::text), '')
       end
     when candidate_field = 'deliveryType' then
@@ -706,7 +713,9 @@ begin
     new.delivery_type,
     new.payment_method,
     new.payment_status,
-    new.status
+    new.status,
+    new.is_fiado,
+    new.fiado_status
   ) then
     raise exception using
       errcode = '23514',
@@ -889,17 +898,18 @@ begin
     next_delivery_type,
     next_payment_method,
     next_payment_status,
-    next_status
+    next_status,
+    next_is_fiado,
+    next_fiado_status
   ) then
     if next_payment_method in ('Efectivo', 'Contra entrega') then
       raise exception using
         errcode = '23514',
         message = 'Invalid order update payload. Los pagos en efectivo o contra entrega solo pueden persistirse como verificados.';
-    elsif next_status in ('confirmado', 'en preparación', 'listo', 'entregado')
-      and next_payment_status <> 'verificado' then
+    elsif next_status in ('confirmado', 'en preparación', 'listo', 'entregado') then
       raise exception using
         errcode = '23514',
-        message = 'Invalid order update payload. No puedes avanzar el pedido mientras el pago no este verificado.';
+        message = 'Invalid order update payload. No puedes avanzar el pedido mientras la condicion financiera siga bloqueando la compuerta de Nuevo.';
     else
       raise exception using
         errcode = '23514',
@@ -1953,7 +1963,9 @@ create policy "authenticated can update accessible orders"
       orders.delivery_type,
       orders.payment_method,
       orders.payment_status,
-      orders.status
+      orders.status,
+      orders.is_fiado,
+      orders.fiado_status
     )
   );
 

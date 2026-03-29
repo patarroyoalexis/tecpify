@@ -4,46 +4,31 @@ import { OrderCard } from "@/components/dashboard/order-card";
 import {
   ORDER_CANCELLATION_REASON_LABELS,
   ORDER_STATUS_LABELS,
-  ORDER_WORKFLOW_STATUSES,
   getOrderStatusVisuals,
 } from "@/lib/orders/status-system";
-import type { Order, PaymentStatus } from "@/types/orders";
+import { splitOrdersForOperationalBoard } from "@/lib/orders/board-model";
+import type { Order } from "@/types/orders";
 
 interface OrdersBoardProps {
   orders: Order[];
   onOpenDetails: (orderId: Order["orderId"]) => void;
+  onOpenPaymentReviewModal: (orderId: Order["orderId"]) => void;
   onConfirmOrder: (orderId: Order["orderId"]) => Promise<Order>;
   onAdvanceOrderStatus: (orderId: Order["orderId"]) => Promise<Order | undefined>;
-  onUpdatePaymentStatus: (
-    orderId: Order["orderId"],
-    paymentStatus: PaymentStatus,
-  ) => Promise<Order>;
   onOpenCancelOrderModal: (orderId: Order["orderId"]) => void;
   onOpenReactivateOrderModal: (orderId: Order["orderId"]) => void;
-}
-
-function sortOrdersForBoard(orders: Order[]) {
-  return [...orders].sort(
-    (left, right) =>
-      new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
-  );
 }
 
 export function OrdersBoard({
   orders,
   onOpenDetails,
+  onOpenPaymentReviewModal,
   onConfirmOrder,
   onAdvanceOrderStatus,
-  onUpdatePaymentStatus,
   onOpenCancelOrderModal,
   onOpenReactivateOrderModal,
 }: OrdersBoardProps) {
-  const activeOrders = sortOrdersForBoard(
-    orders.filter((order) => order.status !== "cancelado"),
-  );
-  const cancelledOrders = sortOrdersForBoard(
-    orders.filter((order) => order.status === "cancelado"),
-  );
+  const { cancelledOrders, columns } = splitOrdersForOperationalBoard(orders);
 
   return (
     <div className="space-y-5">
@@ -52,8 +37,7 @@ export function OrdersBoard({
         className="overflow-x-auto rounded-[28px] border border-slate-200 bg-white p-4 shadow-[0_18px_42px_rgba(15,23,42,0.05)]"
       >
         <div className="flex min-w-[1380px] gap-4">
-          {ORDER_WORKFLOW_STATUSES.map((status) => {
-            const columnOrders = activeOrders.filter((order) => order.status === status);
+          {columns.map(({ status, orders: columnOrders }) => {
             const visuals = getOrderStatusVisuals(status);
 
             return (
@@ -84,9 +68,9 @@ export function OrdersBoard({
                         key={order.orderId}
                         order={order}
                         onOpenDetails={onOpenDetails}
+                        onOpenPaymentReviewModal={onOpenPaymentReviewModal}
                         onConfirmOrder={onConfirmOrder}
                         onAdvanceOrderStatus={onAdvanceOrderStatus}
-                        onUpdatePaymentStatus={onUpdatePaymentStatus}
                         onOpenCancelOrderModal={onOpenCancelOrderModal}
                         onOpenReactivateOrderModal={onOpenReactivateOrderModal}
                       />

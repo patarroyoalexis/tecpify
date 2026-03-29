@@ -117,6 +117,11 @@ test("regresion: rutas y capa de datos no reintroducen snapshots directos de his
     /\bhistory:/,
     "El insert persistido no debe volver a incluir history como payload directo.",
   );
+  assert.doesNotMatch(
+    insertPayloadBlock.groups.block,
+    /\bprevious_status_before_cancellation:|\bcancellation_reason:|\bcancellation_detail:|\bcancelled_at:|\bcancelled_by_user_id:|\bcancelled_by_user_email:|\breactivated_at:|\breactivated_by_user_id:|\breactivated_by_user_email:/,
+    "El insert persistido no debe depender de campos exclusivos de cancelacion/reactivacion.",
+  );
   assert.ok(
     updatePayloadBlocks.length > 0,
     "El update persistido debe conservar bloques identificables para guardrails.",

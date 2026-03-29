@@ -3,22 +3,26 @@
 import { useEffect, useMemo, useState } from "react";
 
 import {
-  getPaymentHelpMessage,
   getPaymentMethodLabel,
-  shouldShowPaymentVerificationActions,
 } from "@/components/dashboard/payment-helpers";
+import { OrderPaymentReviewPanel } from "@/components/dashboard/order-payment-review-panel";
 import { OrdersUiIcon } from "@/components/dashboard/orders-ui-icon";
 import { StatusBadgeIcon } from "@/components/dashboard/status-badge-icon";
 import { formatCurrency } from "@/data/orders";
+import { canCancelOrder } from "@/lib/orders/action-semantics";
 import type { OrderApiUpdatePayload } from "@/lib/orders/mappers";
+import {
+  canOrderMoveFromNewToConfirmed,
+  getOrderFinancialCondition,
+  getOrderFinancialConditionVisuals,
+  ORDER_FINANCIAL_CONDITION_LABELS,
+  requiresManualPaymentReview,
+} from "@/lib/orders/payment-gate";
 import {
   ORDER_CANCELLATION_REASON_LABELS,
   ORDER_STATUS_LABELS,
-  PAYMENT_STATUS_LABELS,
   getOrderStatusIconKey,
   getOrderStatusVisuals,
-  getPaymentStatusIconKey,
-  getPaymentStatusVisuals,
 } from "@/lib/orders/status-system";
 import { buildPaymentProofWhatsAppMessage, buildWhatsAppUrl } from "@/lib/whatsapp";
 import {
@@ -143,21 +147,22 @@ export function OrderDetailDrawer({
   const currentOrder = order;
 
   const statusVisuals = getOrderStatusVisuals(currentOrder.status);
-  const paymentVisuals = getPaymentStatusVisuals(currentOrder.paymentStatus);
+  const financialCondition = getOrderFinancialCondition(currentOrder);
+  const financialVisuals = getOrderFinancialConditionVisuals(financialCondition);
   const nextWorkflowStatus = getNextWorkflowStatus(currentOrder);
-  const paymentHelpMessage = getPaymentHelpMessage(currentOrder);
   const paymentMethodLabel = getPaymentMethodLabel(
     currentOrder.paymentMethod,
     currentOrder.deliveryType,
   );
   const isPendingFiado = isPendingFiadoOrder(currentOrder);
-  const canCancel = ["nuevo", "confirmado", "en preparación", "listo"].includes(
-    currentOrder.status,
-  );
+  const canCancel = canCancelOrder(currentOrder);
   const canConfirm =
-    currentOrder.status === "nuevo" && currentOrder.paymentStatus === "verificado";
+    currentOrder.status === "nuevo" && canOrderMoveFromNewToConfirmed(currentOrder);
   const canAdvance = nextWorkflowStatus !== null;
-  const showPaymentActions = shouldShowPaymentVerificationActions(currentOrder);
+  const canReactivate =
+    currentOrder.status === "cancelado" &&
+    currentOrder.previousStatusBeforeCancellation !== null;
+  const requiresPaymentReview = requiresManualPaymentReview(currentOrder);
   const whatsappMessage = buildPaymentProofWhatsAppMessage({
     businessName,
     customerName: currentOrder.client,
@@ -166,22 +171,6 @@ export function OrderDetailDrawer({
     transferInstructions,
   });
   const whatsappUrl = buildWhatsAppUrl(currentOrder.customerPhone ?? "", whatsappMessage);
-
-  async function runPaymentStatusUpdate(nextPaymentStatus: PaymentStatus) {
-    setActionError("");
-    setActionFeedback("");
-
-    try {
-      await onUpdatePaymentStatus(currentOrder.orderId, nextPaymentStatus);
-      setActionFeedback("Estado del pago actualizado.");
-    } catch (error) {
-      setActionError(
-        error instanceof Error
-          ? error.message
-          : "No fue posible actualizar el estado del pago.",
-      );
-    }
-  }
 
   async function runConfirmOrder() {
     setActionError("");
@@ -336,10 +325,9 @@ export function OrderDetailDrawer({
                   <span>{ORDER_STATUS_LABELS[order.status]}</span>
                 </div>
                 <div
-                  className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold ${paymentVisuals.badgeClassName}`}
+                  className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold ${financialVisuals.badgeClassName}`}
                 >
-                  <StatusBadgeIcon iconKey={getPaymentStatusIconKey(order.paymentStatus)} />
-                  <span>{PAYMENT_STATUS_LABELS[order.paymentStatus]}</span>
+                  <span>{ORDER_FINANCIAL_CONDITION_LABELS[financialCondition]}</span>
                 </div>
               </div>
             </div>
@@ -434,7 +422,10 @@ export function OrderDetailDrawer({
 
           <section className="rounded-[26px] border border-slate-200 bg-white p-5 shadow-[0_16px_34px_rgba(15,23,42,0.04)]">
             <h3 className="text-lg font-semibold text-slate-950">Acciones operativas</h3>
-            <p className="mt-1 text-sm text-slate-600">{paymentHelpMessage}</p>
+            <p className="mt-1 text-sm text-slate-600">
+              El pedido avanza por estado operativo. La revisión de pago vive dentro de Nuevo y no
+              reemplaza el flujo principal.
+            </p>
 
             {actionError ? (
               <div className="mt-4 rounded-[18px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
@@ -448,66 +439,42 @@ export function OrderDetailDrawer({
             ) : null}
 
             <div className="mt-5 grid gap-4 lg:grid-cols-2">
-              <div className={`rounded-[22px] border p-4 ${paymentVisuals.panelClassName}`}>
-                <p className="text-sm font-semibold">Pago</p>
-                <div className="mt-4 grid gap-3">
-                  {showPaymentActions ? (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => void runRequestPaymentProof()}
-                        className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
-                      >
-                        <OrdersUiIcon icon="clipboard" className="h-4 w-4" />
-                        Solicitar comprobante
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void runPaymentStatusUpdate("verificado")}
-                        className="inline-flex items-center justify-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700 transition hover:border-emerald-300 hover:bg-emerald-100"
-                      >
-                        <OrdersUiIcon icon="save" className="h-4 w-4" />
-                        Marcar verificado
-                      </button>
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <button
-                          type="button"
-                          onClick={() => void runPaymentStatusUpdate("con novedad")}
-                          className="inline-flex items-center justify-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-4 py-3 text-sm font-semibold text-orange-700 transition hover:border-orange-300 hover:bg-orange-100"
-                        >
-                          <OrdersUiIcon icon="edit" className="h-4 w-4" />
-                          Con novedad
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void runPaymentStatusUpdate("no verificado")}
-                          className="inline-flex items-center justify-center gap-2 rounded-full border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700 transition hover:border-rose-300 hover:bg-rose-100"
-                        >
-                          <OrdersUiIcon icon="x" className="h-4 w-4" />
-                          No verificado
-                        </button>
-                      </div>
-                    </>
-                  ) : (
-                    <div className="rounded-[18px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
-                      Este método de pago no requiere comprobante previo.
-                    </div>
-                  )}
-                </div>
+              <div className="space-y-3">
+                {requiresPaymentReview ? (
+                  <button
+                    type="button"
+                    onClick={() => void runRequestPaymentProof()}
+                    className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                  >
+                    <OrdersUiIcon icon="clipboard" className="h-4 w-4" />
+                    Solicitar comprobante
+                  </button>
+                ) : null}
+
+                <OrderPaymentReviewPanel
+                  order={currentOrder}
+                  onUpdatePaymentStatus={onUpdatePaymentStatus}
+                />
               </div>
 
               <div className={`rounded-[22px] border p-4 ${statusVisuals.softPanelClassName}`}>
                 <p className="text-sm font-semibold">Pedido</p>
                 <div className="mt-4 grid gap-3">
                   {order.status === "cancelado" ? (
-                    <button
-                      type="button"
-                      onClick={() => onOpenReactivateOrderModal(order.orderId)}
-                      className="inline-flex items-center justify-center gap-2 rounded-full border border-teal-200 bg-teal-50 px-4 py-3 text-sm font-semibold text-teal-700 transition hover:border-teal-300 hover:bg-teal-100"
-                    >
-                      <OrdersUiIcon icon="save" className="h-4 w-4" />
-                      Reactivar al estado previo
-                    </button>
+                    canReactivate ? (
+                      <button
+                        type="button"
+                        onClick={() => onOpenReactivateOrderModal(order.orderId)}
+                        className="inline-flex items-center justify-center gap-2 rounded-full border border-teal-200 bg-teal-50 px-4 py-3 text-sm font-semibold text-teal-700 transition hover:border-teal-300 hover:bg-teal-100"
+                      >
+                        <OrdersUiIcon icon="save" className="h-4 w-4" />
+                        Reactivar al estado previo
+                      </button>
+                    ) : (
+                      <div className="rounded-[18px] border border-rose-200 bg-white px-4 py-3 text-sm text-rose-700">
+                        Este pedido no puede reactivarse porque no conserva un estado previo válido.
+                      </div>
+                    )
                   ) : (
                     <>
                       {canConfirm ? (
@@ -519,6 +486,10 @@ export function OrderDetailDrawer({
                           <OrdersUiIcon icon="clipboard-check" className="h-4 w-4" />
                           Confirmar pedido
                         </button>
+                      ) : order.status === "nuevo" && requiresPaymentReview ? (
+                        <div className="rounded-[18px] border border-sky-200 bg-white px-4 py-3 text-sm text-sky-800">
+                          Revisa la condición financiera antes de mover este pedido a Confirmado.
+                        </div>
                       ) : null}
                       {canAdvance && nextWorkflowStatus ? (
                         <button

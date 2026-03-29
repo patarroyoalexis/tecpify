@@ -30,6 +30,23 @@ function getLatestOrdersPaymentMigrationSource() {
   return fs.readFileSync(path.join(migrationsDir, migrationFilenames.at(-1)), "utf8");
 }
 
+function getLatestOrdersConstraintRepairMigrationSource() {
+  const migrationFilenames = fs
+    .readdirSync(migrationsDir)
+    .filter((filename) => filename.endsWith(".sql"))
+    .filter((filename) => {
+      const source = fs.readFileSync(path.join(migrationsDir, filename), "utf8");
+      return /drop constraint if exists orders_status_check/i.test(source);
+    })
+    .sort();
+
+  if (migrationFilenames.length === 0) {
+    throw new Error("No se encontro una migracion efectiva para reparar orders_status_check.");
+  }
+
+  return fs.readFileSync(path.join(migrationsDir, migrationFilenames.at(-1)), "utf8");
+}
+
 function extractSqlFunctionBlock(source, functionName) {
   const escapedFunctionName = functionName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const match = source.match(
@@ -43,6 +60,7 @@ function extractSqlFunctionBlock(source, functionName) {
 }
 
 const migrationSource = getLatestOrdersPaymentMigrationSource();
+const constraintRepairMigrationSource = getLatestOrdersConstraintRepairMigrationSource();
 const paymentMethodValidationFunctionSource = extractSqlFunctionBlock(
   migrationSource,
   "public.orders_payment_method_is_valid",
@@ -102,8 +120,8 @@ test("db guardrails: Supabase rechaza updates directos incoherentes y contra ent
   );
   assert.match(
     migrationSource,
-    /No puedes avanzar el pedido mientras el pago no este verificado\./i,
-    "La base debe rechazar estados operativos con pago no verificado.",
+    /No puedes avanzar el pedido mientras la condicion financiera siga bloqueando la compuerta de Nuevo\./i,
+    "La base debe rechazar estados operativos cuando la condicion financiera todavia no habilita el avance.",
   );
   assert.match(
     migrationSource,
@@ -145,8 +163,44 @@ test("db guardrails: las policies de orders obligan el blindaje de pago en inser
   );
   assert.match(
     migrationSource,
-    /create policy "authenticated can update accessible orders"[\s\S]*orders_payment_write_is_valid/i,
+    /create policy "authenticated can update accessible orders"[\s\S]*orders_payment_write_is_valid[\s\S]*orders\.is_fiado[\s\S]*orders\.fiado_status/i,
     "La policy de update debe exigir la validacion de pago en DB.",
+  );
+});
+
+test("db guardrails: la compuerta financiera efectiva acepta verificado, contra entrega y fiado", () => {
+  assert.match(
+    migrationSource,
+    /create or replace function public\.orders_payment_write_is_valid\([\s\S]*candidate_is_fiado boolean default false[\s\S]*candidate_fiado_status text default null/i,
+    "La validacion efectiva de DB debe recibir el contexto explicito de fiado.",
+  );
+  assert.match(
+    migrationSource,
+    /candidate_payment_status = 'verificado'[\s\S]*candidate_payment_method = 'Contra entrega'[\s\S]*candidate_fiado_status in \('pending', 'paid'\)/i,
+    "La compuerta efectiva de DB debe abrirse con pago verificado, contra entrega o fiado valido.",
+  );
+});
+
+test("db guardrails: una migracion efectiva repara constraints legacy de estado en el remoto", () => {
+  assert.match(
+    constraintRepairMigrationSource,
+    /update public\.orders[\s\S]*status = 'nuevo'[\s\S]*where status in \('pendiente de pago', 'pago por verificar'\)/i,
+    "La reparacion efectiva debe normalizar estados legacy al canonico Nuevo.",
+  );
+  assert.match(
+    constraintRepairMigrationSource,
+    /drop constraint if exists orders_status_check[\s\S]*drop constraint if exists orders_payment_status_check/i,
+    "La reparacion efectiva debe retirar las constraints legacy antes de recrearlas.",
+  );
+  assert.match(
+    constraintRepairMigrationSource,
+    /add constraint orders_status_check[\s\S]*orders_status_is_valid\(status\)/i,
+    "La reparacion efectiva debe recrear orders_status_check con el contrato canonico.",
+  );
+  assert.match(
+    constraintRepairMigrationSource,
+    /add constraint orders_payment_status_check[\s\S]*orders_payment_status_is_valid\(payment_status\)/i,
+    "La reparacion efectiva debe recrear orders_payment_status_check con el contrato canonico.",
   );
 });
 

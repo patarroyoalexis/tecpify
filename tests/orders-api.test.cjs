@@ -770,7 +770,7 @@ test("dominio: PATCH rechaza combinaciones incoherentes entre estado y pago", ()
     }
   })();
 
-  assert.match(error, /pago no est[eé] verificado/i);
+  assert.match(error, /condici[oó]n financiera|compuerta/i);
 });
 
 test("dominio: PATCH acepta transicion valida y deriva status complementario desde servidor", () => {
@@ -794,6 +794,32 @@ test("dominio: PATCH acepta transicion valida y deriva status complementario des
   });
   assert.deepEqual(resolvedStatePatch.changedFields.sort(), ["paymentStatus"]);
   assert.deepEqual(resolvedStatePatch.derivedFields, []);
+});
+
+test("dominio: PATCH server-side permite confirmar un pedido fiado aunque el pago siga pendiente", () => {
+  const resolvedStatePatch = resolveAuthoritativeOrderStatePatch(
+    {
+      deliveryType: "domicilio",
+      paymentMethod: "Transferencia",
+      paymentStatus: "pendiente",
+      status: "nuevo",
+    },
+    {
+      status: "confirmado",
+    },
+    {
+      isFiado: true,
+      fiadoStatus: "pending",
+    },
+  );
+
+  assert.deepEqual(resolvedStatePatch.nextState, {
+    deliveryType: "domicilio",
+    paymentMethod: "Transferencia",
+    paymentStatus: "pendiente",
+    status: "confirmado",
+  });
+  assert.deepEqual(resolvedStatePatch.changedFields, ["status"]);
 });
 
 test("dominio: los cambios posteriores al historial quedan controlados por servidor", () => {

@@ -4,10 +4,14 @@ import type {
   PaymentMethod,
 } from "@/types/orders";
 import {
-  isCashPaymentMethod,
-  isDigitalPaymentMethod,
   isPaymentMethodAllowedForDeliveryType,
 } from "@/lib/orders/state-rules";
+import {
+  getOrderPaymentGateMessage,
+  isCashPaymentMethod,
+  isDigitalPaymentMethod,
+  requiresManualPaymentReview,
+} from "@/lib/orders/payment-gate";
 
 export const allPaymentMethods: PaymentMethod[] = [
   "Efectivo",
@@ -49,21 +53,21 @@ export function getPaymentMethodLabel(
 }
 
 export function shouldShowPaymentVerificationActions(order: Order): boolean {
-  return isDigitalPayment(order.paymentMethod);
+  return requiresManualPaymentReview(order);
 }
 
 export function getPaymentHelpMessage(order: Order): string {
-  if (isDigitalPayment(order.paymentMethod)) {
-    if (order.paymentStatus === "con novedad") {
-      return "Revisa la novedad del pago antes de continuar con el pedido.";
+  if (!shouldShowPaymentVerificationActions(order)) {
+    if (order.isFiado) {
+      return "Fiado se mantiene visible como condicion financiera separada y habilita la confirmacion sin comprobante previo.";
     }
 
-    return "Este pago requiere validacion previa antes de confirmar el pedido.";
+    return order.deliveryType === "domicilio"
+      ? "Esta condicion financiera no requiere comprobante previo para mover el pedido desde Nuevo."
+      : "Esta condicion financiera no necesita validacion manual previa para seguir con la operacion.";
   }
 
-  return order.deliveryType === "domicilio"
-    ? "Este pago se recibe al momento de la entrega. No requiere comprobante previo."
-    : "Este pago se recibe al momento de la recogida. No requiere comprobante previo.";
+  return getOrderPaymentGateMessage(order);
 }
 
 export function getCashPaymentDisplayStatus(order: Order): string {

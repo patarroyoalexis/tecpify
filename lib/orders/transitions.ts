@@ -1,4 +1,5 @@
 import type { Order, OrderStatus, PaymentStatus } from "@/types/orders";
+import { canOrderMoveFromNewToConfirmed } from "@/lib/orders/payment-gate";
 import {
   ORDER_STATUS_LABELS,
   ORDER_WORKFLOW_STATUSES,
@@ -41,8 +42,10 @@ export function isNewOrder(order: Pick<Order, "isReviewed">) {
   return !order.isReviewed;
 }
 
-export function canManageOrderStatus(order: Pick<Order, "paymentStatus">) {
-  return isPaymentConfirmed(order.paymentStatus);
+export function canManageOrderStatus(
+  order: Pick<Order, "paymentMethod" | "paymentStatus" | "isFiado" | "fiadoStatus">,
+) {
+  return canOrderMoveFromNewToConfirmed(order);
 }
 
 export function getAllowedOrderStatusTransitions(currentStatus: OrderStatus): OrderStatus[] {
@@ -75,7 +78,10 @@ export function canAdvanceOrderStatus(
 }
 
 export function getOrderStatusTransitionRule(
-  order: Pick<Order, "status" | "paymentStatus">,
+  order: Pick<
+    Order,
+    "status" | "paymentMethod" | "paymentStatus" | "isFiado" | "fiadoStatus"
+  >,
   nextStatus: OrderStatus,
 ): TransitionRuleResult {
   if (nextStatus === order.status) {
@@ -111,10 +117,11 @@ export function getOrderStatusTransitionRule(
     };
   }
 
-  if (nextStatus === "confirmado" && !isPaymentConfirmed(order.paymentStatus)) {
+  if (nextStatus === "confirmado" && !canOrderMoveFromNewToConfirmed(order)) {
     return {
       allowed: false,
-      reason: "No puedes confirmar el pedido mientras el pago no esté verificado.",
+      reason:
+        "No puedes confirmar el pedido mientras la condición financiera siga bloqueando la compuerta de Nuevo.",
     };
   }
 

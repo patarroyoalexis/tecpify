@@ -244,6 +244,10 @@ export function useBusinessOrders({
         paymentStatus: payload.paymentStatus,
         status: payload.status,
       },
+      {
+        isFiado: currentOrder.isFiado,
+        fiadoStatus: currentOrder.fiadoStatus,
+      },
     );
     const normalizedPayload: EditableOrderPayload = {
       ...payload,

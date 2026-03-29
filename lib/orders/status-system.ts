@@ -39,7 +39,7 @@ export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
   pendiente: "Pendiente",
   verificado: "Verificado",
   "con novedad": "Con novedad",
-  "no verificado": "No verificado",
+  "no verificado": "Por verificar",
 };
 
 export const ORDER_CANCELLATION_REASON_LABELS: Record<OrderCancellationReason, string> = {
@@ -65,7 +65,7 @@ export const PAYMENT_STATUS_ICON_KEYS: Partial<Record<PaymentStatus, StatusIconK
   pendiente: "clock",
   verificado: "circle-check",
   "con novedad": "alert-circle",
-  "no verificado": "circle-x",
+  "no verificado": "clipboard-check",
 };
 
 export const PAYMENT_STATUS_VISUALS: Record<
@@ -88,8 +88,8 @@ export const PAYMENT_STATUS_VISUALS: Record<
     panelClassName: "border-orange-200/80 bg-orange-50/70 text-orange-900",
   },
   "no verificado": {
-    badgeClassName: "border-rose-200 bg-rose-50 text-rose-800",
-    panelClassName: "border-rose-200/80 bg-rose-50/70 text-rose-900",
+    badgeClassName: "border-sky-200 bg-sky-50 text-sky-800",
+    panelClassName: "border-sky-200/80 bg-sky-50/70 text-sky-900",
   },
 };
 
