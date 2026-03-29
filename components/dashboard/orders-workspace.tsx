@@ -158,7 +158,7 @@ export function OrdersWorkspace({ businessSlug }: OrdersWorkspaceProps) {
         </div>
 
         <div className="mt-4 rounded-[22px] border border-slate-200 bg-slate-50/70 px-4 py-4 text-sm text-slate-600">
-          Desktop queda resuelto como board operativo. En móvil solo dejamos la base semántica y visual lista para reutilizar después con tabs o vistas compactas, sin duplicar reglas ni colores.
+          Desktop opera como board por columnas. En movil cambiamos a tabs por estado y lista vertical, con Cancelado fuera del flujo principal.
         </div>
       </section>
 

@@ -1,6 +1,8 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
 
 const { loadTsModule } = require("./helpers/test-runtime.cjs");
 
@@ -31,6 +33,13 @@ const {
 const {
   ORDER_STATUS_VISUALS,
 } = loadTsModule("lib/orders/status-system.ts");
+
+function getOrdersBoardSource() {
+  return fs.readFileSync(
+    path.join(process.cwd(), "components", "dashboard", "orders-board.tsx"),
+    "utf8",
+  );
+}
 
 test("dominio: bloquea saltos de estado y estados finales", async (t) => {
   await t.test("no permite saltar pasos del flujo", () => {
@@ -509,4 +518,39 @@ test("ui: cancelados quedan fuera del flujo principal del board", () => {
     columns.some((column) => column.orders.some((order) => order.status === "cancelado")),
     false,
   );
+});
+
+test("ui: desktop mantiene el board horizontal solo en viewport desktop", () => {
+  const source = getOrdersBoardSource();
+
+  assert.match(source, /function OrdersDesktopBoard/);
+  assert.match(source, /data-testid="orders-board-main"/);
+  assert.match(source, /min-w-\[1380px\]/);
+  assert.match(source, /data-testid="orders-board-cancelled"/);
+  assert.match(source, /return <OrdersDesktopBoard \{\.\.\.props\} \/>;/);
+});
+
+test("ui: mobile reemplaza el board horizontal por tabs y lista vertical", () => {
+  const source = getOrdersBoardSource();
+
+  assert.match(source, /function OrdersMobileBoard/);
+  assert.match(source, /MOBILE_MEDIA_QUERY = "\(\max-width: 767px\)"/);
+  assert.match(source, /data-testid="orders-mobile-board"/);
+  assert.match(source, /data-testid="orders-mobile-nav"/);
+  assert.match(source, /data-testid=\{`orders-mobile-tab-\$\{status\}`\}/);
+  assert.match(source, /data-testid=\{`orders-mobile-panel-\$\{activeStatus\}`\}/);
+  assert.match(source, /Tabs por estado y lista vertical/);
+  assert.match(source, /Compuerta operativa principal/);
+  assert.match(source, /return <OrdersMobileBoard \{\.\.\.props\} \/>;/);
+});
+
+test("ui: mobile deja cancelado en una vista secundaria separada del flujo principal", () => {
+  const source = getOrdersBoardSource();
+
+  assert.match(source, /data-testid="orders-mobile-tab-cancelado"/);
+  assert.match(source, /Vista secundaria fuera del flujo principal/);
+  assert.match(source, /Salida excepcional/);
+  assert.match(source, /Cancelado queda fuera del flujo operativo/);
+  assert.match(source, /Se gestionan aparte para no contaminar la operacion diaria/);
+  assert.match(source, /defaultMobileStatus = "nuevo"/);
 });

@@ -73,7 +73,7 @@ Las garantias activas del MVP hoy no viven solo en UI ni solo en handlers HTTP: 
 - El flujo operativo principal del pedido hoy vive en `Nuevo -> Confirmado -> Preparación -> Listo -> Entregado`; `Cancelado` es una salida excepcional separada, con motivo obligatorio, estado previo persistido y reactivacion exacta al punto anterior.
 - La compuerta financiera vive dentro de `Nuevo`: solo `paymentStatus=verificado`, `Contra entrega` o `Fiado` habilitan `Nuevo -> Confirmado`; `Pendiente`, `Por verificar` y `Con novedad` no abren esa transicion.
 - `Contra entrega` solo es valido para pedidos a domicilio, y esa regla existe en server y en DB.
-- El board desktop de pedidos usa columnas por estado operativo y mantiene `Cancelado` fuera del flujo principal; la semantica visual y los CTAs quedan centralizados para reutilizarse despues en movil sin duplicar logica.
+- El frente de pedidos tiene UX real por breakpoint: desktop usa board por columnas y movil usa tabs por estado con lista vertical, sin scroll horizontal operativo; `Cancelado` queda fuera del flujo principal como vista secundaria.
 - El historial inicial del pedido se genera en servidor/DB segun el origen real (`public_form` o `workspace_manual`).
 - El historial del pedido es append-only bajo control server-side y DB; el cliente no puede reemplazar snapshots completos de `history`.
 - Un producto ya referenciado en pedidos historicos persistidos no puede borrarse: el veto vive en runtime y tambien en DB, incluso ante deletes directos sobre `public.products`.
