@@ -8,6 +8,7 @@ const {
   PAYMENT_METHODS,
   isPendingFiadoOrder,
 } = loadTsModule("types/orders.ts");
+const { getCurrentIsoTimestamp } = loadTsModule("lib/operational-time.ts");
 const {
   getPublicPaymentMethodsForBusiness,
 } = loadTsModule("lib/businesses/payment-settings.ts");
@@ -35,7 +36,7 @@ function createOrderFixture(overrides = {}) {
     address: "Calle 1 # 2-3",
     status: "entregado",
     dateLabel: "28 mar 2026, 10:00 a. m.",
-    createdAt: "2026-03-28T15:00:00.000Z",
+    createdAt: getCurrentIsoTimestamp(),
     isReviewed: true,
     history: [],
     observations: null,

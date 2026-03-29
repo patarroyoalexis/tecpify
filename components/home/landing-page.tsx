@@ -50,10 +50,11 @@ const benefits = [
 ];
 
 export function LandingPage({ isAuthenticated }: LandingPageProps) {
-  const primaryHref = isAuthenticated ? "/dashboard" : "/register?redirectTo=/dashboard";
+  const primaryHref = isAuthenticated ? "/dashboard" : "/login?redirectTo=/dashboard";
+  const registerSecondaryHref = "/register?redirectTo=/dashboard";
   const secondaryHref = "#como-funciona";
   const secondaryLabel = "Ver cómo funciona";
-  const primaryLabel = isAuthenticated ? "Ir a mi panel" : "Crear mi negocio gratis";
+  const primaryLabel = isAuthenticated ? "Ir a mi panel" : "Iniciar sesion";
 
   return (
     <main className="overflow-x-clip">
@@ -93,6 +94,19 @@ export function LandingPage({ isAuthenticated }: LandingPageProps) {
                     <ArrowRight className="h-4 w-4" aria-hidden="true" />
                   </Link>
                 </div>
+
+                {!isAuthenticated ? (
+                  <p className="mt-3 max-w-xl text-sm leading-7 text-[#294B8F]">
+                    Si necesitas probar el registro manual, usa el{" "}
+                    <Link
+                      href={registerSecondaryHref}
+                      className="font-semibold text-[#12326B] underline-offset-4 transition hover:text-[#18B56A] hover:underline"
+                    >
+                      carril secundario
+                    </Link>
+                    . Puede requerir confirmacion de correo antes de dejar operativo el acceso.
+                  </p>
+                ) : null}
 
                 <div className="mt-8 grid gap-3 border-t border-[#D9E6FF] pt-6 sm:grid-cols-2 xl:grid-cols-4">
                   {operationalSignals.map((signal) => (
@@ -214,8 +228,8 @@ export function LandingPage({ isAuthenticated }: LandingPageProps) {
                 Dale a tu negocio una entrada mas clara para vender y operar.
               </h2>
               <p className="mt-4 text-base leading-8 text-[#DCE8FF]">
-                Crea tu negocio gratis y empieza a recibir pedidos con una experiencia más
-                ordenada, simple y profesional.
+                Entra con un acceso ya operativo para seguir administrando pedidos con una
+                experiencia mas ordenada, simple y profesional.
               </p>
             </div>
 
@@ -234,6 +248,18 @@ export function LandingPage({ isAuthenticated }: LandingPageProps) {
               </Link>
             </div>
           </div>
+          {!isAuthenticated ? (
+            <p className="mt-4 text-sm leading-7 text-[#DCE8FF]">
+              El registro manual sigue disponible solo como carril secundario en{" "}
+              <Link
+                href={registerSecondaryHref}
+                className="font-semibold text-white underline underline-offset-4 transition hover:text-[#B9D7FF]"
+              >
+                /register
+              </Link>
+              .
+            </p>
+          ) : null}
         </div>
       </section>
     </main>

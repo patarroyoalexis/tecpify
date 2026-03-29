@@ -11,6 +11,8 @@ create policy "authenticated can update owned businesses"
   using (created_by_user_id = auth.uid())
   with check (created_by_user_id = auth.uid());
 
+select set_config('tecpify.allow_order_history_write', 'on', true);
+
 update public.orders
 set payment_method = 'Transferencia'
 where payment_method in ('Nequi', 'Daviplata', 'Bre-B');

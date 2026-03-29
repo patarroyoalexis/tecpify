@@ -282,5 +282,9 @@ test("business transfer migration: la definicion efectiva agrega el campo y el u
   assert.match(migrationSource, /add column if not exists transfer_instructions text/i);
   assert.match(migrationSource, /grant update on public\.businesses to authenticated/i);
   assert.match(migrationSource, /create policy "authenticated can update owned businesses"/i);
+  assert.match(
+    migrationSource,
+    /set_config\('tecpify\.allow_order_history_write', 'on', true\)/i,
+  );
   assert.match(migrationSource, /payment_method = 'Transferencia'/i);
 });

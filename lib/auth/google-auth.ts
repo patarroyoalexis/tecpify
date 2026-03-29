@@ -1,32 +1,31 @@
 import { sanitizeRedirectPath } from "@/lib/auth/redirect-path";
 import { getOperationalEnv } from "@/lib/env";
 
-export type AuthEntryIntent = "login" | "register";
-
 const GOOGLE_AUTH_START_PATH = "/api/auth/oauth/google";
+const GOOGLE_AUTH_ENTRY_PATH = "/login";
 
 export function isGoogleAuthEnabled() {
   return getOperationalEnv().nextPublicGoogleAuthEnabled;
 }
 
-export function parseAuthEntryIntent(intent: string | null | undefined): AuthEntryIntent {
-  return intent === "register" ? "register" : "login";
-}
-
-export function getAuthEntryPath(intent: AuthEntryIntent) {
-  return intent === "register" ? "/register" : "/login";
-}
-
 export function buildGoogleAuthStartHref(options?: {
   redirectTo?: string | null | undefined;
-  intent?: AuthEntryIntent;
 }) {
   const searchParams = new URLSearchParams({
     redirectTo: sanitizeRedirectPath(options?.redirectTo),
-    intent: options?.intent ?? "login",
   });
 
   return `${GOOGLE_AUTH_START_PATH}?${searchParams.toString()}`;
+}
+
+export function getGoogleAuthEntryPath() {
+  return GOOGLE_AUTH_ENTRY_PATH;
+}
+
+export function getGoogleAuthHref(options?: {
+  redirectTo?: string | null | undefined;
+}) {
+  return isGoogleAuthEnabled() ? buildGoogleAuthStartHref(options) : null;
 }
 
 export function getAuthFlowErrorMessage(errorCode: string | null | undefined) {

@@ -4,17 +4,12 @@ import {
 } from "@/lib/supabase/server";
 import {
   requireBusinessId,
-  requireOrderCode,
-  requireOrderId,
   requireProductId,
   type BusinessId,
-  type OrderCode,
-  type OrderId,
   type ProductId,
 } from "@/types/identifiers";
 import type { Product, ProductRow } from "@/types/products";
 import type { BusinessProduct } from "@/types/storefront";
-import type { OrderProduct } from "@/types/orders";
 
 interface ProductCreatePayload {
   businessId: BusinessId;
@@ -36,15 +31,13 @@ interface ProductUpdatePayload {
   sortOrder?: number;
 }
 
-interface ProductUsageOrderReference {
-  orderId: OrderId;
-  orderCode?: OrderCode;
-}
-
 export interface ProductDeleteValidation {
   canDelete: boolean;
   referencedOrdersCount: number;
-  sampleOrders: ProductUsageOrderReference[];
+  sampleOrders: Array<{
+    orderId: string;
+    orderCode?: string;
+  }>;
 }
 
 export interface ProductDeleteResult {
@@ -233,6 +226,10 @@ async function writeNormalizedSortOrders(businessId: BusinessId, orderedIds: Pro
 }
 
 function mapSupabaseProductError(error: { code?: string; message: string }) {
+  if (error.message.startsWith("No puedes borrar")) {
+    return error.message;
+  }
+
   if (error.code === "23505") {
     return "Ya existe un producto con ese nombre u orden dentro de este negocio.";
   }
@@ -242,74 +239,6 @@ function mapSupabaseProductError(error: { code?: string; message: string }) {
   }
 
   return `Supabase products mutation failed: ${error.message}`;
-}
-
-function readPersistedOrderProductsFromDatabase(value: unknown): OrderProduct[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value.flatMap((item) => {
-    if (!item || typeof item !== "object") {
-      return [];
-    }
-
-    const candidate = item as Record<string, unknown>;
-    const name = typeof candidate.name === "string" ? candidate.name : "";
-    const quantity =
-      typeof candidate.quantity === "number"
-        ? candidate.quantity
-        : typeof candidate.quantity === "string"
-          ? Number(candidate.quantity)
-          : 0;
-    const productId =
-      typeof candidate.productId === "string"
-        ? requireProductId(candidate.productId)
-        : typeof candidate.product_id === "string"
-          ? requireProductId(candidate.product_id)
-          : undefined;
-
-    if (!name || !Number.isFinite(quantity) || quantity <= 0) {
-      return [];
-    }
-
-    return [{ name, quantity, ...(productId ? { productId } : {}) }];
-  });
-}
-
-async function getProductUsageValidation(
-  businessId: BusinessId,
-  productId: ProductId,
-): Promise<ProductDeleteValidation> {
-  const normalizedBusinessId = requireBusinessId(businessId);
-  const normalizedProductId = requireProductId(productId);
-  const supabase = await createServerSupabaseAuthClient();
-  const { data, error } = await supabase
-    .from("orders")
-    .select("id, order_code, products")
-    .eq("business_id", normalizedBusinessId);
-
-  if (error) {
-    throw new Error(`Supabase product usage lookup failed: ${error.message}`);
-  }
-
-  const matchingOrders = ((data ?? []) as Record<string, unknown>[]).filter((order) =>
-    readPersistedOrderProductsFromDatabase(order.products).some(
-      (product) => product.productId === normalizedProductId,
-    ),
-  );
-
-  return {
-    canDelete: matchingOrders.length === 0,
-    referencedOrdersCount: matchingOrders.length,
-    sampleOrders: matchingOrders.slice(0, 3).map((order) => ({
-      orderId: requireOrderId(typeof order.id === "string" ? order.id : ""),
-      orderCode:
-        typeof order.order_code === "string"
-          ? requireOrderCode(order.order_code)
-          : undefined,
-    })),
-  };
 }
 
 export async function createProductInDatabase(payload: ProductCreatePayload): Promise<Product> {
@@ -439,14 +368,6 @@ export async function deleteProductInDatabase(
     throw new Error(`Product not found for id "${normalizedProductId}".`);
   }
 
-  const validation = await getProductUsageValidation(normalizedBusinessId, normalizedProductId);
-
-  if (!validation.canDelete) {
-    throw new Error(
-      `No puedes borrar "${existingProduct.name}" porque ya aparece en ${validation.referencedOrdersCount} pedido${validation.referencedOrdersCount === 1 ? "" : "s"} real${validation.referencedOrdersCount === 1 ? "" : "es"}. Desactivalo en lugar de borrarlo.`,
-    );
-  }
-
   const supabase = await createServerSupabaseAuthClient();
   const { error } = await supabase
     .from("products")
@@ -468,6 +389,10 @@ export async function deleteProductInDatabase(
 
   return {
     deletedProduct: existingProduct,
-    validation,
+    validation: {
+      canDelete: true,
+      referencedOrdersCount: 0,
+      sampleOrders: [],
+    },
   };
 }

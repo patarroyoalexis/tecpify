@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { getAuthEntryPath, parseAuthEntryIntent } from "@/lib/auth/google-auth";
+import { getGoogleAuthEntryPath, isGoogleAuthEnabled } from "@/lib/auth/google-auth";
 import { sanitizeRedirectPath } from "@/lib/auth/server";
 import { getSiteUrl } from "@/lib/site-url";
 import { createServerSupabaseAuthClient } from "@/lib/supabase/server";
@@ -21,11 +21,19 @@ export async function GET(request: Request) {
   const tokenHash = requestUrl.searchParams.get("token_hash");
   const type = requestUrl.searchParams.get("type");
   const next = sanitizeRedirectPath(requestUrl.searchParams.get("next"));
-  const intent = parseAuthEntryIntent(requestUrl.searchParams.get("intent"));
   const supabase = await createServerSupabaseAuthClient();
 
-  try {
-    if (code) {
+  if (code) {
+    if (!isGoogleAuthEnabled()) {
+      return NextResponse.redirect(
+        buildRedirectUrl(getGoogleAuthEntryPath(), {
+          redirectTo: next,
+          error: "google_auth_unavailable",
+        }),
+      );
+    }
+
+    try {
       const { data, error } = await supabase.auth.exchangeCodeForSession(code);
 
       if (error || !data.user) {
@@ -33,9 +41,18 @@ export async function GET(request: Request) {
       }
 
       return NextResponse.redirect(buildRedirectUrl(next));
+    } catch {
+      return NextResponse.redirect(
+        buildRedirectUrl(getGoogleAuthEntryPath(), {
+          redirectTo: next,
+          error: "auth_callback_failed",
+        }),
+      );
     }
+  }
 
-    if (tokenHash && type) {
+  if (tokenHash && type) {
+    try {
       const { data, error } = await supabase.auth.verifyOtp({
         token_hash: tokenHash,
         type: type as "signup" | "email" | "recovery" | "invite" | "email_change",
@@ -46,18 +63,18 @@ export async function GET(request: Request) {
       }
 
       return NextResponse.redirect(buildRedirectUrl(next));
+    } catch {
+      return NextResponse.redirect(
+        buildRedirectUrl(getGoogleAuthEntryPath(), {
+          redirectTo: next,
+          error: "auth_callback_failed",
+        }),
+      );
     }
-  } catch {
-    return NextResponse.redirect(
-      buildRedirectUrl(getAuthEntryPath(intent), {
-        redirectTo: next,
-        error: "auth_callback_failed",
-      }),
-    );
   }
 
   return NextResponse.redirect(
-    buildRedirectUrl(getAuthEntryPath(intent), {
+    buildRedirectUrl(getGoogleAuthEntryPath(), {
       redirectTo: next,
       error: "auth_callback_missing_code",
     }),

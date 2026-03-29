@@ -200,6 +200,7 @@ test("documentacion: las afirmaciones contractuales siguen alineadas con el codi
   const ordersDataSource = readFile("lib/data/orders-server.ts");
   const orderStateRulesSource = readFile("lib/orders/state-rules.ts");
   const orderHistoryRulesSource = readFile("lib/orders/history-rules.ts");
+  const privateMetricsSpecSource = readFile("tests/e2e/private-metrics.spec.ts");
   const paymentHelpersSource = readFile("components/dashboard/payment-helpers.ts");
   const businessOrdersHookSource = readFile("components/dashboard/use-business-orders.ts");
   const ordersInsertPayloadBlock = ordersDataSource.match(
@@ -217,6 +218,9 @@ test("documentacion: las afirmaciones contractuales siguen alineadas con el codi
   );
   const orderHistoryMigrationSource = getLatestMigrationSourceByPattern(
     /create(?:\s+or\s+replace)?\s+function\s+public\.update_order_with_server_history/i,
+  );
+  const productDeleteMigrationSource = getLatestMigrationSourceByPattern(
+    /create(?:\s+or\s+replace)?\s+function\s+public\.products_block_delete_when_referenced_by_orders/i,
   );
   const legacyOwnerlessSqlClosureState = getLegacyOwnerlessSqlClosureState();
 
@@ -287,18 +291,98 @@ test("documentacion: las afirmaciones contractuales siguen alineadas con el codi
   );
   assert.match(
     readmeSource,
-    /Google OAuth opcional.*carril secundario/i,
-    "README.md debe describir Google OAuth como una opcion secundaria y no como reemplazo de email/password.",
+    /Google OAuth opcional.*solo como carril secundario en `\/login`/i,
+    "README.md debe describir Google OAuth como una opcion secundaria acotada a /login y no como reemplazo de email/password.",
   );
   assert.match(
     agentsSource,
-    /Google OAuth puede existir como opcion secundaria/i,
-    "AGENTS.md debe describir Google OAuth como superficie opcional y complementaria.",
+    /Google OAuth puede existir solo como opcion secundaria de login/i,
+    "AGENTS.md debe describir Google OAuth como superficie opcional, complementaria y acotada a login.",
+  );
+  assert.doesNotMatch(
+    readmeSource,
+    /Google OAuth[\s\S]*tambien se expone en `\/register`|Google OAuth[\s\S]*carril secundario de registro/i,
+    "README.md no debe reabrir Google OAuth como superficie de register.",
+  );
+  assert.doesNotMatch(
+    agentsSource,
+    /Google OAuth[\s\S]*si se mantiene visible|Google OAuth[\s\S]*carril secundario de registro/i,
+    "AGENTS.md no debe dejar ambiguo si Google tambien vive en register.",
   );
   assert.match(
     agentsSource,
     /bootstrap(?:ea|ear)?.*fixtures.*Auth/i,
     "AGENTS.md debe reflejar el contrato real del bootstrap E2E aislado de test.",
+  );
+  assert.match(
+    readmeSource,
+    /metricas.*evidencia E2E real.*Supabase enlazado/i,
+    "README.md debe describir honestamente el cierre real de metricas privadas sobre el Supabase enlazado.",
+  );
+  assert.match(
+    agentsSource,
+    /metricas privadas.*quedan cerradas/i,
+    "AGENTS.md debe describir honestamente el cierre real del frente de metricas privadas.",
+  );
+  assert.doesNotMatch(
+    readmeSource,
+    /todavia sin una spec E2E dedicada|suite E2E todavia no cubre metricas privadas/i,
+    "README.md no puede seguir diciendo que no existe una spec dedicada para metricas privadas.",
+  );
+  assert.doesNotMatch(
+    agentsSource,
+    /no tienen una validacion E2E dedicada|frente sigue abierto hasta que el proyecto Supabase apuntado por Playwright/i,
+    "AGENTS.md no puede seguir describiendo metricas privadas como un frente abierto por drift.",
+  );
+  assert.match(
+    readmeSource,
+    /borrado de productos usados.*runtime y DB/i,
+    "README.md debe reflejar que el veto de borrado historico ya vive en runtime y DB.",
+  );
+  assert.match(
+    readmeSource,
+    /producto ya referenciado en pedidos historicos persistidos no puede borrarse/i,
+    "README.md debe describir el veto canonico de borrado sobre historicos persistidos.",
+  );
+  assert.match(
+    agentsSource,
+    /pedidos historicos persistidos no puede borrarse/i,
+    "AGENTS.md debe fijar que el producto historico solo puede desactivarse y no borrarse.",
+  );
+  assert.match(
+    agentsSource,
+    /trigger de DB y pruebas automatizadas/i,
+    "AGENTS.md debe describir honestamente el cierre tecnico del veto de borrado historico.",
+  );
+  assert.doesNotMatch(
+    readmeSource,
+    /candado todavia no esta reforzado en DB|No tiene todavia un candado de DB equivalente|borrado seguro de productos siguen parciales/i,
+    "README.md no puede seguir describiendo el veto de borrado historico como un frente abierto.",
+  );
+  assert.doesNotMatch(
+    agentsSource,
+    /bloqueo de borrado por uso historico vive hoy en runtime|ese candado no esta reforzado por DB/i,
+    "AGENTS.md no puede seguir describiendo el veto de borrado historico como un frente abierto.",
+  );
+  assert.match(
+    productDeleteMigrationSource,
+    /create trigger products_block_delete_when_referenced_by_orders/i,
+    "Las docs no pueden declarar cerrado el veto de borrado historico si la migracion efectiva no cablea el trigger en DB.",
+  );
+  assert.match(
+    privateMetricsSpecSource,
+    /unauthorized-business-access/i,
+    "La spec dedicada de metricas debe cubrir el aislamiento frente a otro usuario autenticado.",
+  );
+  assert.match(
+    privateMetricsSpecSource,
+    /localStorage\.length/i,
+    "La spec dedicada de metricas debe demostrar que el resultado no depende de localStorage.",
+  );
+  assert.match(
+    privateMetricsSpecSource,
+    /metrics-pending-fiado-banner|pendingFiadoCount/i,
+    "La spec dedicada de metricas debe cubrir la regla activa del fiado pendiente fuera de ingresos efectivos.",
   );
   assert.doesNotMatch(
     readmeSource,
@@ -743,6 +827,16 @@ test("documentacion: las afirmaciones contractuales siguen alineadas con el codi
     readmeSource,
     /no toca Google OAuth real/i,
     "README.md debe documentar que el carril E2E estable no depende de Google OAuth.",
+  );
+  assert.match(
+    readmeSource,
+    /rechaza callbacks OAuth directos con `code`/i,
+    "README.md debe documentar que la flag apagada tambien bloquea callbacks OAuth directos.",
+  );
+  assert.match(
+    agentsSource,
+    /no se expone en `\/login` ni se admite el callback OAuth con `code`/i,
+    "AGENTS.md debe fijar el mismo cierre runtime cuando la flag de Google esta apagada.",
   );
   assert.match(
     agentsSource,

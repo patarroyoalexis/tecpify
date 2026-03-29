@@ -34,14 +34,16 @@ function withPatchedEnv(overrides, callback) {
   }
 }
 
-test("google auth: el flag opcional del entorno permanece deshabilitado por defecto y acepta booleanos validos", () => {
+test("google auth: el flag opcional del entorno permanece deshabilitado por defecto, acepta booleanos validos y controla el href secundario", () => {
   withPatchedEnv(
     {
       NEXT_PUBLIC_GOOGLE_AUTH_ENABLED: undefined,
     },
     () => {
       const envModule = loadTsModule("lib/env.ts");
+      const googleAuthModule = loadTsModule("lib/auth/google-auth.ts");
       assert.equal(envModule.getOperationalEnv().nextPublicGoogleAuthEnabled, false);
+      assert.equal(googleAuthModule.getGoogleAuthHref({ redirectTo: "/dashboard" }), null);
     },
   );
 
@@ -51,7 +53,12 @@ test("google auth: el flag opcional del entorno permanece deshabilitado por defe
     },
     () => {
       const envModule = loadTsModule("lib/env.ts");
+      const googleAuthModule = loadTsModule("lib/auth/google-auth.ts");
       assert.equal(envModule.getOperationalEnv().nextPublicGoogleAuthEnabled, true);
+      assert.equal(
+        googleAuthModule.getGoogleAuthHref({ redirectTo: "/dashboard" }),
+        "/api/auth/oauth/google?redirectTo=%2Fdashboard",
+      );
     },
   );
 
@@ -69,25 +76,23 @@ test("google auth: el flag opcional del entorno permanece deshabilitado por defe
   );
 });
 
-test("google auth: el helper mantiene login como default y sanea redirectTo antes de iniciar OAuth", () => {
+test("google auth: el helper mantiene Google acotado a login y sanea redirectTo antes de iniciar OAuth", () => {
   const googleAuthModule = loadTsModule("lib/auth/google-auth.ts");
 
   assert.equal(
     googleAuthModule.buildGoogleAuthStartHref(),
-    "/api/auth/oauth/google?redirectTo=%2F&intent=login",
+    "/api/auth/oauth/google?redirectTo=%2F",
   );
   assert.equal(
     googleAuthModule.buildGoogleAuthStartHref({
       redirectTo: "https://evil.example.com/steal",
-      intent: "register",
     }),
-    "/api/auth/oauth/google?redirectTo=%2F&intent=register",
+    "/api/auth/oauth/google?redirectTo=%2F",
   );
-  assert.equal(googleAuthModule.parseAuthEntryIntent("register"), "register");
-  assert.equal(googleAuthModule.parseAuthEntryIntent("otra-cosa"), "login");
+  assert.equal(googleAuthModule.getGoogleAuthEntryPath(), "/login");
 });
 
-test("google auth: la nueva frontera runtime inicia Google solo desde cliente anon/SSR normal y reutiliza el callback canónico", () => {
+test("google auth: la nueva frontera runtime inicia Google solo desde cliente anon/SSR normal y lo acota a /login", () => {
   const routeSource = fs.readFileSync(
     path.join(repoRoot, "app", "api", "auth", "oauth", "google", "route.ts"),
     "utf8",
@@ -111,7 +116,7 @@ test("google auth: la nueva frontera runtime inicia Google solo desde cliente an
   assert.match(
     routeSource,
     /skipBrowserRedirect:\s*true/,
-    "La frontera runtime debe pedir la URL de OAuth sin dejar la redireccion implícita a la UI.",
+    "La frontera runtime debe pedir la URL de OAuth sin dejar la redireccion implicita a la UI.",
   );
   assert.match(
     routeSource,
@@ -120,12 +125,100 @@ test("google auth: la nueva frontera runtime inicia Google solo desde cliente an
   );
   assert.match(
     routeSource,
-    /getAuthCallbackUrl/,
-    "Google OAuth debe reutilizar el callback canonico del auth flow.",
+    /getAuthCallbackUrl\(\{\s*next:\s*redirectTo\s*\}\)/,
+    "Google OAuth debe reutilizar el callback canonico del auth flow sin abrir una rama paralela de register.",
+  );
+  assert.match(
+    routeSource,
+    /getGoogleAuthEntryPath/,
+    "Google OAuth debe redirigir de vuelta al acceso secundario de login.",
+  );
+  assert.doesNotMatch(
+    routeSource,
+    /parseAuthEntryIntent|intent:/,
+    "La ruta de inicio de Google no debe conservar una rama muerta para register.",
   );
   assert.doesNotMatch(
     routeSource,
     /\bSUPABASE_SERVICE_ROLE_KEY\b|createInternalServiceRoleSupabaseClient|createServerSupabaseAdminClient/,
     "Google OAuth no puede reintroducir service role en el runtime normal.",
+  );
+});
+
+test("google auth: el callback bloquea code OAuth cuando la flag esta apagada y conserva verifyOtp para confirmaciones no OAuth", () => {
+  const callbackSource = fs.readFileSync(
+    path.join(repoRoot, "app", "auth", "callback", "route.ts"),
+    "utf8",
+  );
+
+  assert.match(
+    callbackSource,
+    /if \(code\) \{[\s\S]*!isGoogleAuthEnabled\(\)[\s\S]*google_auth_unavailable/,
+    "El callback debe rechazar codigos OAuth directos cuando Google no esta habilitado.",
+  );
+  assert.match(
+    callbackSource,
+    /exchangeCodeForSession/,
+    "El callback debe seguir cerrando el intercambio de codigo OAuth dentro de la frontera auth normal.",
+  );
+  assert.doesNotMatch(
+    callbackSource,
+    /parseAuthEntryIntent|getAuthEntryPath/,
+    "El callback no debe conservar una rama muerta para register despues de acotar Google a login.",
+  );
+  assert.match(
+    callbackSource,
+    /verifyOtp/,
+    "El callback no debe romper la confirmacion manual por token_hash.",
+  );
+});
+
+test("google auth: la UI mantiene email/password como camino base y no expone Google desde register", () => {
+  const loginPageSource = fs.readFileSync(
+    path.join(repoRoot, "app", "login", "page.tsx"),
+    "utf8",
+  );
+  const loginFormSource = fs.readFileSync(
+    path.join(repoRoot, "components", "auth", "login-form.tsx"),
+    "utf8",
+  );
+  const registerPageSource = fs.readFileSync(
+    path.join(repoRoot, "app", "register", "page.tsx"),
+    "utf8",
+  );
+  const registerFormSource = fs.readFileSync(
+    path.join(repoRoot, "components", "auth", "register-form.tsx"),
+    "utf8",
+  );
+
+  assert.match(
+    loginPageSource,
+    /getGoogleAuthHref/,
+    "La pagina de login debe resolver el carril opcional desde un helper centralizado.",
+  );
+  assert.match(
+    loginFormSource,
+    /login-submit-button[\s\S]*login-google-auth-link/,
+    "Email/password debe seguir apareciendo antes del CTA secundario de Google.",
+  );
+  assert.match(
+    loginFormSource,
+    /login-google-auth-secondary-copy[\s\S]*Google es opcional en este entorno/i,
+    "La UI de login debe explicitar que Google es un carril opcional/secundario.",
+  );
+  assert.match(
+    registerPageSource,
+    /Google[\s\S]*solo desde \/login/i,
+    "La pagina de register debe dejar claro que Google, si existe, se intenta solo desde login.",
+  );
+  assert.match(
+    registerFormSource,
+    /solo desde \/login/i,
+    "El formulario de register debe mantener Google fuera del carril manual.",
+  );
+  assert.doesNotMatch(
+    registerFormSource,
+    /register-google-auth-link|AuthGoogleButton/,
+    "Register no debe renderizar un CTA propio de Google OAuth.",
   );
 });

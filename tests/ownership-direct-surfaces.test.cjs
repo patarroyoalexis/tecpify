@@ -276,6 +276,33 @@ test("ownership directo: owner puede borrar producto", async () => {
   assert.equal(body.deletedProduct.productId, PRODUCT_ID);
 });
 
+test("ownership directo: DELETE /api/products/[productId] propaga el veto canonico desde DB", async () => {
+  const handlers = createProductByIdRouteHandlers({
+    requireBusinessApiContext: async () => ({
+      ok: true,
+      context: createOwnedBusinessContext(),
+    }),
+    updateProductInDatabase: async () => {
+      throw new Error("updateProductInDatabase no debe usarse");
+    },
+    deleteProductInDatabase: async () => {
+      throw new Error(
+        'No puedes borrar "Hamburguesa" porque ya aparece en 1 pedido historico persistido. Desactivalo en lugar de borrarlo.',
+      );
+    },
+  });
+
+  const response = await handlers.DELETE(
+    new Request(`http://localhost/api/products/${PRODUCT_ID}?businessSlug=mi-tienda`),
+    { params: Promise.resolve({ productId: PRODUCT_ID }) },
+  );
+  const body = await response.json();
+
+  assert.equal(response.status, 409);
+  assert.match(body.error, /No puedes borrar "Hamburguesa"/);
+  assert.match(body.error, /pedido historico persistido/i);
+});
+
 test("ownership directo: DELETE /api/products/[productId] exige sesion o contexto valido", async () => {
   let deleteWasCalled = false;
   const handlers = createProductByIdRouteHandlers({

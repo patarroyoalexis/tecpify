@@ -25,11 +25,13 @@ El objetivo actual del MVP es validar, de punta a punta, que un negocio pueda:
 
 Ese es el circuito hoy validado con mayor evidencia automatizada y usa Supabase como base real para auth, datos y reglas de acceso.
 
-`registro` y `metricas` existen en runtime, pero todavia no tienen el mismo cierre E2E del circuito critico.
+El login por email/password si forma parte de ese carril oficial. El registro manual permanece accesible solo como carril secundario/no garantizado y no debe venderse como frente cerrado del MVP.
 
 ## 5. Estado funcional actual
 
-- Registro, login y sesion del operador con Supabase Auth SSR por email/password, con Google OAuth opcional como carril secundario en login/signup cuando el proveedor esta configurado; la evidencia automatizada fuerte hoy valida login real con fixtures, no todo el recorrido manual de registro, confirmacion de correo ni OAuth social.
+- Login y sesion del operador con Supabase Auth SSR por email/password; este es el carril oficial validado con evidencia automatizada fuerte mediante fixtures dedicadas.
+- El registro manual por email/password sigue accesible en runtime solo como carril secundario/no garantizado; puede requerir confirmacion de correo y configuracion real de Supabase Auth antes de dejar operativo el login.
+- Google OAuth opcional puede aparecer solo como carril secundario en `/login` cuando el proveedor esta configurado, pero no reemplaza el login por email/password ni forma parte del circuito cerrado del MVP.
 - Proteccion temprana de rutas privadas con `proxy.ts`, conservando `redirectTo` hacia `/login`.
 - Creacion de negocios con ownership persistido en `created_by_user_id` y expuesto en runtime como `createdByUserId`.
 - Catalogo por negocio con alta, edicion, activacion, destacado y reordenamiento.
@@ -39,8 +41,8 @@ Ese es el circuito hoy validado con mayor evidencia automatizada y usa Supabase 
 - Pagos por transferencia modelados con un unico metodo `Transferencia`; variantes como Nequi o Daviplata viven como instrucciones configurables del negocio y no como metodos separados del sistema.
 - Configuracion operativa por negocio con flags publicos (`acceptsCash`, `acceptsTransfer`, `acceptsCard`) y `allowsFiado` solo para operacion interna.
 - Fiado interno manual por pedido, con observacion obligatoria, estado binario (`pending` o `paid`) y sin calculos de deuda, saldo ni cartera.
-- Metricas operativas basicas calculadas sobre pedidos persistidos, todavia sin una spec E2E dedicada.
-- El borrado de productos usados se bloquea hoy en runtime cuando ya aparecen en pedidos reales, pero ese candado todavia no esta reforzado en DB.
+- Metricas operativas basicas calculadas sobre pedidos persistidos, con evidencia E2E real sobre el Supabase enlazado para ownership, aislamiento por negocio, regla de fiado y ausencia de dependencia de `localStorage`.
+- El borrado de productos usados queda bloqueado de forma canonica en runtime y DB; un producto ya referenciado en pedidos historicos persistidos no puede eliminarse.
 - Negocios legacy sin owner tratados como casos no operativos/no soportados en runtime, UI y definicion final efectiva de migraciones SQL; el repo no expone panel, rutas runtime ni funciones SQL activas de remediacion/claim legacy.
 
 ## 6. Garantias tecnicas activas
@@ -71,6 +73,7 @@ Las garantias activas del MVP hoy no viven solo en UI ni solo en handlers HTTP: 
 - `Contra entrega` solo es valido para pedidos a domicilio, y esa regla existe en server y en DB.
 - El historial inicial del pedido se genera en servidor/DB segun el origen real (`public_form` o `workspace_manual`).
 - El historial del pedido es append-only bajo control server-side y DB; el cliente no puede reemplazar snapshots completos de `history`.
+- Un producto ya referenciado en pedidos historicos persistidos no puede borrarse: el veto vive en runtime y tambien en DB, incluso ante deletes directos sobre `public.products`.
 - Mientras un pedido este en fiado pendiente no entra a ingresos efectivos; solo vuelve a contarse cuando el negocio lo marca manualmente como `paid`.
 - `localStorage` queda limitado a estado visual no critico del workspace.
 
@@ -79,24 +82,28 @@ Las garantias activas del MVP hoy no viven solo en UI ni solo en handlers HTTP: 
 - El frente con mayor cierre tecnico hoy es pedidos/pagos/historial: runtime, funciones SQL, triggers, policies y tests automatizados coinciden.
 - El frente de naming canonico (`businessId`, `businessSlug`, `productId`, `orderId`, `orderCode`) tiene guardrails activos en tipos, rutas, helpers y tests.
 - El borde privilegiado del runtime normal sigue aislado: `SUPABASE_SERVICE_ROLE_KEY` no participa en el flujo productivo y queda reservada para el helper interno autorizado y el bootstrap test-only de Playwright.
-- Registro, Google OAuth opcional, metricas privadas y borrado seguro de productos siguen parciales: existen en runtime, pero no todos tienen el mismo refuerzo de DB + E2E que ya tiene el frente de pedidos.
+- El login por email/password sigue siendo el unico carril de acceso respaldado hoy por evidencia E2E fuerte.
+- El registro manual permanece visible solo como carril secundario/no garantizado; no forma parte del frente cerrado del MVP mientras dependa de confirmacion de correo o configuracion incierta del entorno.
+- Metricas privadas quedan cerradas: runtime, base Supabase enlazada, spec E2E dedicada y documentacion ya estan alineados con la misma definicion efectiva.
+- El veto de borrado de productos historicos queda cerrado con trigger en Supabase, runtime alineado y evidencia automatizada de guardrails + integracion real de DB.
 - El frente ownerless queda cerrado tambien en la definicion final efectiva: runtime, UI, migraciones SQL finales y guardrails automatizados coinciden en retirar `request/grant/claim/list` y mantener bloqueado `ownerless -> owned` dentro del MVP.
 
 ### Variables de entorno vigentes
 
 - `NEXT_PUBLIC_SUPABASE_URL`: obligatoria.
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`: obligatoria.
-- `NEXT_PUBLIC_GOOGLE_AUTH_ENABLED`: opcional. Usa `1` o `true` solo cuando Google OAuth ya esta configurado en Supabase y debe exponerse como opcion secundaria en login/signup.
+- `NEXT_PUBLIC_GOOGLE_AUTH_ENABLED`: opcional. Usa `1` o `true` solo cuando Google OAuth ya esta configurado en Supabase y debe exponerse como opcion secundaria solo en `/login`.
 - `NEXT_PUBLIC_SITE_URL`: obligatoria en produccion y con fallback local en desarrollo.
 - `SUPABASE_SERVICE_ROLE_KEY`: opcional y aislada del runtime normal; solo puede leerse desde `lib/supabase/internal/service-role-client.ts`.
 
 ### Google OAuth opcional
 
-- Google OAuth no reemplaza email/password: ambos formularios siguen siendo el camino base del MVP y el circuito E2E estable sigue entrando por credenciales controladas.
+- Google OAuth no reemplaza el login por email/password: ese acceso sigue siendo el camino base validado del MVP y el circuito E2E estable sigue entrando por credenciales controladas.
+- Google OAuth no vive en `/register`: si esta habilitado, se intenta solo desde `/login` y `/register` sigue reservado para el carril manual secundario.
 - Para activarlo en runtime, define `NEXT_PUBLIC_GOOGLE_AUTH_ENABLED=1` solo despues de habilitar Google como provider en Supabase Auth y cargar ahi el client ID/client secret de Google.
 - En Supabase Auth debes permitir los redirects del callback app-level que usa Tecpify: `http://localhost:3000/auth/callback` para desarrollo y `https://tu-dominio/auth/callback` para produccion; `NEXT_PUBLIC_SITE_URL` debe coincidir con el dominio real que vas a usar.
 - En Google Cloud Console, el redirect URI autorizado del provider debe ser el callback de Supabase Auth del proyecto: `https://<project-ref>.supabase.co/auth/v1/callback`.
-- Si la flag no existe o queda en `0`/`false`, el sistema simplemente oculta Google y email/password sigue operativo sin cambiar tests ni ownership.
+- Si la flag no existe o queda en `0`/`false`, el sistema oculta Google en la UI, no inicia el flujo desde `/api/auth/oauth/google` y tambien rechaza callbacks OAuth directos con `code`; email/password sigue operativo sin cambiar tests ni ownership.
 
 ## 7. Limites actuales del producto
 
@@ -105,15 +112,15 @@ Las garantias activas del MVP hoy no viven solo en UI ni solo en handlers HTTP: 
 - No tiene pagos automatizados, conciliacion ni pasarela integrada.
 - No tiene inventario formal, variantes, categorias, imagenes ni logistica avanzada.
 - No ofrece remediacion runtime ni SQL para negocios ownerless; `request/grant/claim/list` quedan retirados en la definicion final efectiva y cualquier saneamiento ocurre fuera del runtime del MVP.
-- No tiene todavia un candado de DB equivalente para impedir borrar productos ya usados en pedidos historicos.
 - No debe usarse como excusa para relajar naming, ownership o source of truth: el alcance es acotado, no ambiguo.
 
 ## 8. Siguiente etapa del proyecto
 
-1. Extender los E2E hacia metricas privadas y, si el producto va a seguir ofreciendo registro manual, cubrir tambien ese recorrido real.
-2. Reforzar en DB lo que hoy solo vive en runtime, como el veto de borrado de productos ya usados en pedidos.
-3. Seguir simplificando el workspace sin abrir excepciones sobre ownership, naming ni source of truth.
-4. Mantener acotada la capa de `proxy.ts` y no moverle responsabilidades de dominio que deben vivir en runtime, DB y tests.
+1. Mantener alineado el proyecto Supabase apuntado por Playwright con las migraciones vigentes para no reabrir la evidencia E2E real de metricas privadas.
+2. Solo si se decide volver a promover el registro manual como carril oficial, cubrirlo de punta a punta con confirmacion real y evidencia E2E equivalente al login.
+3. Mantener alineados runtime, migraciones y tests cuando el catalogo evolucione, para no reabrir el veto de borrado sobre productos historicos.
+4. Seguir simplificando el workspace sin abrir excepciones sobre ownership, naming ni source of truth.
+5. Mantener acotada la capa de `proxy.ts` y no moverle responsabilidades de dominio que deben vivir en runtime, DB y tests.
 
 ## 9. E2E del circuito critico
 
@@ -144,7 +151,8 @@ Ademas, la fase actual de E2E ya protege reglas criticas del dominio de pedidos:
 - Antes de correr specs, Playwright bootstrapea fixtures dedicadas de Auth con `tests/helpers/playwright-global-setup.ts`. Ese bootstrap usa service role aislada de test para crear o corregir dos cuentas no humanas, las confirma sin correo y luego verifica login real con password.
 - La suite E2E falla cerrado si faltan prerequisitos del bootstrap, si Supabase Auth no puede dejar operativas esas fixtures o si el proyecto remoto no acepta login real con ellas.
 - La suite E2E no llama `/api/auth/register`, no usa `signUp`, no dispara correos de confirmacion, OTP, magic link, reset ni resend, no toca Google OAuth real y no depende de cuentas humanas ni de estados manuales inciertos.
-- La suite E2E todavia no cubre metricas privadas ni todo el recorrido manual de registro/confirmacion; esos frentes existen en runtime, pero no deben presentarse como cerrados de punta a punta.
+- La suite E2E ya incluye una spec dedicada para metricas privadas y hoy si cuenta como cierre efectivo: corre contra el Supabase enlazado real, valida ownership, aislamiento, regla de fiado y demuestra que el resultado no depende de `localStorage`.
+- El registro manual/confirmacion y Google OAuth real quedan fuera del carril E2E estable; el runtime solo los expone como superficies secundarias/no garantizadas y no como parte cerrada del MVP.
 
 ### Variables para E2E
 

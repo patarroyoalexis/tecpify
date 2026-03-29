@@ -8,21 +8,36 @@ import {
 } from "@/data/orders";
 import { useBusinessWorkspace } from "./business-workspace-context";
 
+function buildMetricsToken(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
 export function MetricsOverview() {
   const { ordersError, ordersState } = useBusinessWorkspace();
   const snapshot = getMetricsOverviewSnapshot(ordersState);
   const summary = getOrdersMetricsSummary(ordersState);
 
   return (
-    <div className="space-y-6">
+    <div data-testid="metrics-overview" className="space-y-6">
       {ordersError ? (
-        <section className="rounded-[22px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        <section
+          data-testid="metrics-orders-error"
+          className="rounded-[22px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
+        >
           {ordersError}
         </section>
       ) : null}
 
       {ordersState.length === 0 ? (
-        <section className="rounded-[28px] border border-dashed border-slate-300 bg-white/90 p-6 shadow-[0_18px_45px_rgba(15,23,42,0.04)]">
+        <section
+          data-testid="metrics-empty-state"
+          className="rounded-[28px] border border-dashed border-slate-300 bg-white/90 p-6 shadow-[0_18px_45px_rgba(15,23,42,0.04)]"
+        >
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">
             Metricas iniciales
           </p>
@@ -37,14 +52,20 @@ export function MetricsOverview() {
       ) : null}
 
       {snapshot.hasOrders ? (
-        <section className="rounded-[22px] border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
+        <section
+          data-testid="metrics-reference-cutoff"
+          className="rounded-[22px] border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900"
+        >
           Corte actual basado en pedidos persistidos hasta{" "}
           <span className="font-semibold">{snapshot.referenceDateLabel}</span>.
         </section>
       ) : null}
 
       {summary.pendingFiadoCount > 0 ? (
-        <section className="rounded-[22px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        <section
+          data-testid="metrics-pending-fiado-banner"
+          className="rounded-[22px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+        >
           Los ingresos efectivos excluyen {summary.pendingFiadoCount} fiado
           {summary.pendingFiadoCount === 1 ? "" : "s"} pendiente
           {summary.pendingFiadoCount === 1 ? "" : "s"} hasta marcarlos como pagados.
@@ -69,32 +90,48 @@ export function MetricsOverview() {
           </div>
 
           <div className="mt-5 space-y-3">
-            {snapshot.focusItems.map((item) => (
-              <div
-                key={item.label}
-                className={`rounded-[22px] border px-4 py-4 ${
-                  item.tone === "warning"
-                    ? "border-amber-200 bg-amber-50/70"
-                    : item.tone === "success"
-                      ? "border-emerald-200 bg-emerald-50/70"
-                      : item.tone === "info"
-                        ? "border-sky-200 bg-sky-50/70"
-                        : "border-slate-200 bg-slate-50/70"
-                }`}
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold text-slate-950">{item.label}</p>
-                    <p className="mt-1 text-sm leading-6 text-slate-600">
-                      {item.description}
-                    </p>
+            {snapshot.focusItems.map((item) => {
+              const itemToken = buildMetricsToken(item.label);
+
+              return (
+                <div
+                  key={item.label}
+                  data-testid={`metrics-focus-item-${itemToken}`}
+                  className={`rounded-[22px] border px-4 py-4 ${
+                    item.tone === "warning"
+                      ? "border-amber-200 bg-amber-50/70"
+                      : item.tone === "success"
+                        ? "border-emerald-200 bg-emerald-50/70"
+                        : item.tone === "info"
+                          ? "border-sky-200 bg-sky-50/70"
+                          : "border-slate-200 bg-slate-50/70"
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p
+                        data-testid={`metrics-focus-item-${itemToken}-label`}
+                        className="text-sm font-semibold text-slate-950"
+                      >
+                        {item.label}
+                      </p>
+                      <p
+                        data-testid={`metrics-focus-item-${itemToken}-description`}
+                        className="mt-1 text-sm leading-6 text-slate-600"
+                      >
+                        {item.description}
+                      </p>
+                    </div>
+                    <span
+                      data-testid={`metrics-focus-item-${itemToken}-value`}
+                      className="rounded-full bg-white px-3 py-1 text-sm font-semibold text-slate-700"
+                    >
+                      {item.value}
+                    </span>
                   </div>
-                  <span className="rounded-full bg-white px-3 py-1 text-sm font-semibold text-slate-700">
-                    {item.value}
-                  </span>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </article>
 
@@ -118,13 +155,20 @@ export function MetricsOverview() {
               snapshot.topProducts.map((product, index) => (
                 <div
                   key={product.name}
+                  data-testid={`metrics-top-product-${index + 1}`}
                   className="flex items-center justify-between rounded-[22px] border border-slate-200 bg-slate-50/70 px-4 py-3"
                 >
                   <div>
-                    <p className="text-sm font-semibold text-slate-950">
+                    <p
+                      data-testid={`metrics-top-product-${index + 1}-name`}
+                      className="text-sm font-semibold text-slate-950"
+                    >
                       {index + 1}. {product.name}
                     </p>
-                    <p className="text-xs text-slate-500">
+                    <p
+                      data-testid={`metrics-top-product-${index + 1}-quantity`}
+                      className="text-xs text-slate-500"
+                    >
                       {product.quantity} unidad{product.quantity === 1 ? "" : "es"}
                     </p>
                   </div>
@@ -134,7 +178,10 @@ export function MetricsOverview() {
                 </div>
               ))
             ) : (
-              <div className="rounded-[22px] border border-dashed border-slate-300 bg-slate-50 p-5 text-sm text-slate-600">
+              <div
+                data-testid="metrics-top-products-empty"
+                className="rounded-[22px] border border-dashed border-slate-300 bg-slate-50 p-5 text-sm text-slate-600"
+              >
                 Aun no hay suficiente historial para detectar productos con demanda clara.
               </div>
             )}
@@ -142,7 +189,10 @@ export function MetricsOverview() {
 
           <div className="mt-5 rounded-[22px] border border-slate-200 bg-slate-50/80 p-4">
             <p className="text-sm font-semibold text-slate-950">Referencia de valor</p>
-            <p className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">
+            <p
+              data-testid="metrics-average-ticket-value"
+              className="mt-2 text-2xl font-semibold tracking-tight text-slate-950"
+            >
               {formatCurrency(summary.averageTicket)}
             </p>
             <p className="mt-2 text-sm leading-6 text-slate-600">

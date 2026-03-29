@@ -22,15 +22,15 @@ const marketingFooterGroups: FooterGroup[] = [
     title: "Producto",
     links: [
       { label: "Inicio", href: "/" },
-      { label: "Cómo funciona", href: "/#como-funciona" },
+      { label: "Como funciona", href: "/#como-funciona" },
       { label: "Beneficios", href: "/#beneficios" },
     ],
   },
   {
     title: "Acceso",
     links: [
-      { label: "Crear cuenta", href: "/register?redirectTo=/dashboard" },
-      { label: "Iniciar sesión", href: "/login?redirectTo=/dashboard" },
+      { label: "Iniciar sesion", href: "/login?redirectTo=/dashboard" },
+      { label: "Registro manual secundario", href: "/register?redirectTo=/dashboard" },
       { label: "Ir al panel", href: "/dashboard" },
     ],
   },
@@ -38,7 +38,7 @@ const marketingFooterGroups: FooterGroup[] = [
     title: "Empresa",
     links: [
       { label: "Privacidad", href: "/legal/privacidad" },
-      { label: "Términos", href: "/legal/terminos" },
+      { label: "Terminos", href: "/legal/terminos" },
       { label: "Tecpify", href: "/" },
     ],
   },
@@ -46,7 +46,7 @@ const marketingFooterGroups: FooterGroup[] = [
 
 const marketingLegalLinks: FooterLink[] = [
   { label: "Privacidad", href: "/legal/privacidad" },
-  { label: "Términos", href: "/legal/terminos" },
+  { label: "Terminos", href: "/legal/terminos" },
 ];
 
 const marketingLinkClassName =
@@ -90,15 +90,15 @@ export function AppFooter({
                 Recibe pedidos, comparte tu link y opera con una base mas clara.
               </p>
               <p className="mt-4 max-w-lg text-sm leading-7 text-slate-300 sm:text-[0.96rem]">
-                Tecpify concentra catálogo, pedidos y seguimiento en un flujo simple para
-                negocios que necesitan verse mas profesionales sin agregar más desorden.
+                Tecpify concentra catalogo, pedidos y seguimiento en un flujo simple para
+                negocios que necesitan verse mas profesionales sin agregar mas desorden.
               </p>
 
               <Link
                 href="/#como-funciona"
                 className={`mt-6 inline-flex items-center gap-2 font-medium ${marketingLinkClassName}`}
               >
-                Ver cómo funciona
+                Ver como funciona
                 <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </Link>
             </div>
@@ -132,32 +132,36 @@ export function AppFooter({
               />
               <div className="relative">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#A9D3FF]">
-                  Operación lista
+                  Operacion lista
                 </p>
                 <h2 className="mt-4 text-2xl font-semibold tracking-[-0.04em] text-white">
-                  Publica rápido y empieza a recibir pedidos con más orden.
+                  Publica rapido y entra a operar desde el carril validado.
                 </h2>
                 <p className="mt-4 text-sm leading-7 text-slate-300">
-                  Activa tu negocio, comparte un enlace y sigue el flujo desde un solo punto de
-                  entrada operativo.
+                  El acceso garantizado del MVP sigue entrando por login con una cuenta ya
+                  operativa. El registro manual permanece disponible solo como carril
+                  secundario.
                 </p>
 
                 <div className="mt-6 grid gap-3 border-t border-white/10 pt-5">
                   <Link
-                    href="/register?redirectTo=/dashboard"
+                    href="/login?redirectTo=/dashboard"
                     className="inline-flex items-center gap-2 text-sm font-semibold text-white transition hover:text-[#9DCAFF] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--brand-focus-rgb)/0.8)] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0D1628]"
                   >
-                    Crear mi negocio
+                    Iniciar sesion
                     <ArrowRight className="h-4 w-4" aria-hidden="true" />
                   </Link>
-                  <Link href="/login?redirectTo=/dashboard" className={marketingLinkClassName}>
-                    Entrar al panel
+                  <Link
+                    href="/register?redirectTo=/dashboard"
+                    className={marketingLinkClassName}
+                  >
+                    Registro manual secundario
                   </Link>
                 </div>
 
                 <p className="mt-6 text-xs leading-6 text-slate-400">
-                  Pensado para negocios que venden por WhatsApp, Instagram o llamadas y necesitan
-                  una operacion mas estable.
+                  Pensado para negocios que venden por WhatsApp, Instagram o llamadas y
+                  necesitan una operacion mas estable.
                 </p>
               </div>
             </aside>
@@ -165,8 +169,8 @@ export function AppFooter({
 
           <div className="flex flex-col gap-4 border-t border-white/10 py-5 text-sm text-slate-400 sm:py-6 lg:flex-row lg:items-center lg:justify-between">
             <p className="max-w-2xl">
-              &copy; {currentYear} Tecpify. Una forma mas clara de recibir pedidos, compartir tu
-              link y operar mejor el negocio.
+              &copy; {currentYear} Tecpify. Una forma mas clara de recibir pedidos,
+              compartir tu link y operar mejor el negocio.
             </p>
             <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
               {marketingLegalLinks.map((link) => (
@@ -204,8 +208,8 @@ export function AppFooter({
               Operacion y visibilidad ligera para negocios en crecimiento.
             </h2>
             <p className="mt-2 text-sm leading-6 text-brand-text-muted">
-              MVP enfocado en pequenos negocios que necesitan una forma mas simple de recibir
-              pedidos y organizar su operacion.
+              MVP enfocado en pequenos negocios que necesitan una forma mas simple de
+              recibir pedidos y organizar su operacion.
             </p>
           </div>
 

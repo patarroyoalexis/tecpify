@@ -20,6 +20,10 @@ interface AuthAlertProps {
   children: ReactNode;
 }
 
+interface AuthDividerProps {
+  label?: string;
+}
+
 interface AuthPrimaryButtonProps {
   children: ReactNode;
   disabled?: boolean;
@@ -78,7 +82,6 @@ export function AuthInputField({
 
   return (
     <label className="grid gap-2.5">
-      <span className="text-sm font-semibold text-brand-text">{label}</span>
       <span className="relative flex items-center">
         <span className="pointer-events-none absolute left-4 text-brand-text-muted">{icon}</span>
         <input {...inputProps} data-testid={dataTestId} className={inputClassName} />
@@ -106,11 +109,11 @@ export function AuthGoogleButton({
   );
 }
 
-export function AuthDivider() {
+export function AuthDivider({ label = "o sigue con email" }: AuthDividerProps) {
   return (
     <div className="flex items-center gap-3 text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-brand-text-muted/75">
       <span className="h-px flex-1 bg-brand-border" />
-      <span>o sigue con email</span>
+      <span>{label}</span>
       <span className="h-px flex-1 bg-brand-border" />
     </div>
   );

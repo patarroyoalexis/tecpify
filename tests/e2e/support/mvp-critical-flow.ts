@@ -88,6 +88,22 @@ interface PrivateWorkspaceOrdersApiCreatePayload {
   error?: string;
 }
 
+export interface PrivateBusinessApiRecord {
+  businessId?: string;
+  businessSlug?: string;
+  name?: string;
+  transferInstructions?: string | null;
+  acceptsCash?: boolean;
+  acceptsTransfer?: boolean;
+  acceptsCard?: boolean;
+  allowsFiado?: boolean;
+}
+
+interface PrivateBusinessApiPayload {
+  business?: PrivateBusinessApiRecord;
+  error?: string;
+}
+
 export interface StorefrontOrderCreationOptions {
   customerName?: string;
   customerPhone?: string;
@@ -432,6 +448,17 @@ export async function createOrderThroughPublicApi(
   });
 }
 
+export async function createBusinessThroughPrivateApi(
+  page: Page,
+  payload: Record<string, unknown>,
+) {
+  return requestJsonInBrowserSession<PrivateBusinessApiPayload>(page, {
+    method: "POST",
+    path: "/api/businesses",
+    body: payload,
+  });
+}
+
 export async function createProductThroughPrivateApi(
   page: Page,
   payload: Record<string, unknown>,
@@ -474,6 +501,17 @@ export async function updateOrderThroughPrivateApi(
   return requestJsonInBrowserSession(page, {
     method: "PATCH",
     path: `/api/orders/${orderId}`,
+    body: payload,
+  });
+}
+
+export async function updateBusinessSettingsThroughPrivateApi(
+  page: Page,
+  payload: Record<string, unknown>,
+) {
+  return requestJsonInBrowserSession<PrivateBusinessApiPayload>(page, {
+    method: "PATCH",
+    path: "/api/businesses",
     body: payload,
   });
 }

@@ -8,7 +8,6 @@ interface AuthPageShellProps {
   formDescription: ReactNode;
   formEyebrow: string;
   formTitle: string;
-  redirectTo: string;
   variant: AuthPageVariant;
 }
 
@@ -56,7 +55,6 @@ export function AuthPageShell({
   formDescription,
   formEyebrow,
   formTitle,
-  redirectTo,
   variant,
 }: AuthPageShellProps) {
   const accentStyles = getAccentStyles(variant);

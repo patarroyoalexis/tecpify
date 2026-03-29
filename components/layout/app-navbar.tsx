@@ -119,15 +119,15 @@ export function AppNavbar({
                 <>
                   <Link
                     href={loginHref}
-                    className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                    className="inline-flex h-10 items-center justify-center rounded-xl bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-slate-800"
                   >
-                    Iniciar sesión
+                    Iniciar sesion
                   </Link>
                   <Link
                     href={registerHref}
-                    className="inline-flex h-10 items-center justify-center rounded-xl bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-slate-800"
+                    className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
                   >
-                    Crear cuenta
+                    Registro manual
                   </Link>
                 </>
               )}
@@ -200,15 +200,15 @@ export function AppNavbar({
             <>
               <Link
                 href={loginHref}
-                className="inline-flex h-11 items-center justify-center rounded-2xl border border-brand-border bg-brand-surface px-4 text-sm font-semibold text-brand-primary-blue transition hover:border-brand-focus hover:bg-brand-surface-muted"
+                className="inline-flex h-11 items-center justify-center rounded-2xl bg-brand-primary-green px-4 text-sm font-semibold text-white shadow-[0_14px_30px_rgb(var(--brand-primary-green-rgb)/0.22)] transition hover:brightness-95"
               >
-                Iniciar sesión
+                Iniciar sesion
               </Link>
               <Link
                 href={registerHref}
-                className="inline-flex h-11 items-center justify-center rounded-2xl bg-brand-primary-green px-5 text-sm font-semibold text-white shadow-[0_14px_30px_rgb(var(--brand-primary-green-rgb)/0.22)] transition hover:brightness-95"
+                className="inline-flex h-11 items-center justify-center rounded-2xl border border-brand-border bg-brand-surface px-5 text-sm font-semibold text-brand-primary-blue transition hover:border-brand-focus hover:bg-brand-surface-muted"
               >
-                Crear mi negocio
+                Registro manual
               </Link>
             </>
           )}
@@ -264,16 +264,16 @@ export function AppNavbar({
                 <Link
                   href={loginHref}
                   onClick={() => setIsMobileMenuOpen(false)}
-                  className="inline-flex h-11 items-center justify-center rounded-2xl border border-brand-border bg-brand-surface px-4 text-sm font-semibold text-brand-primary-blue transition hover:border-brand-focus hover:bg-brand-surface-muted"
+                  className="inline-flex h-11 items-center justify-center rounded-2xl bg-brand-primary-green px-4 text-sm font-semibold text-white transition hover:brightness-95"
                 >
-                  Iniciar sesión
+                  Iniciar sesion
                 </Link>
                 <Link
                   href={registerHref}
                   onClick={() => setIsMobileMenuOpen(false)}
-                  className="inline-flex h-11 items-center justify-center rounded-2xl bg-brand-primary-green px-4 text-sm font-semibold text-white transition hover:brightness-95"
+                  className="inline-flex h-11 items-center justify-center rounded-2xl border border-brand-border bg-brand-surface px-4 text-sm font-semibold text-brand-primary-blue transition hover:border-brand-focus hover:bg-brand-surface-muted"
                 >
-                  Crear mi negocio
+                  Registro manual
                 </Link>
               </>
             )}

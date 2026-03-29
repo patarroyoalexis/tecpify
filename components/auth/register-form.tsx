@@ -11,8 +11,6 @@ import {
 
 import {
   AuthAlert,
-  AuthDivider,
-  AuthGoogleButton,
   AuthInputField,
   AuthPrimaryButton,
 } from "@/components/auth/auth-form-ui";
@@ -20,13 +18,11 @@ import {
 interface RegisterFormProps {
   redirectTo: string;
   initialError?: string | null;
-  googleAuthHref?: string | null;
 }
 
 export function RegisterForm({
   redirectTo,
   initialError = null,
-  googleAuthHref = null,
 }: RegisterFormProps) {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -80,7 +76,7 @@ export function RegisterForm({
       if (payload.requiresEmailConfirmation) {
         setSuccessMessage(
           payload.message ??
-            "Tu cuenta fue creada. Revisa tu correo para confirmar e iniciar sesión.",
+            "Tu cuenta fue creada. Revisa tu correo para confirmar e iniciar sesion.",
         );
         return;
       }
@@ -100,16 +96,15 @@ export function RegisterForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5" data-testid="register-form">
-      {googleAuthHref ? (
-        <>
-          <AuthGoogleButton
-            href={googleAuthHref}
-            dataTestId="register-google-auth-link"
-            label="Crear cuenta con Google"
-          />
-          <AuthDivider />
-        </>
-      ) : null}
+      <div
+        data-testid="register-secondary-warning"
+        className="rounded-[1.35rem] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+      >
+        Este registro manual permanece disponible solo como carril secundario.
+        Puede requerir confirmacion de correo y configuracion real de Supabase Auth
+        antes de dejar operativo el login. Si este entorno habilita Google, ese
+        carril opcional se intenta solo desde /login.
+      </div>
 
       <AuthInputField
         type="email"
@@ -118,22 +113,22 @@ export function RegisterForm({
         value={email}
         onChange={(event) => setEmail(event.target.value)}
         autoComplete="email"
-        placeholder="operacion@tu-negocio.com"
+        placeholder="tu-correo@tu-negocio.com"
       />
 
       <AuthInputField
         type="password"
-        label="Contraseña"
+        label="Contrasena"
         icon={<LockKeyhole className="h-4 w-4" aria-hidden="true" />}
         value={password}
         onChange={(event) => setPassword(event.target.value)}
         autoComplete="new-password"
-        placeholder="Mínimo 8 caracteres"
+        placeholder="Contraseña"
       />
 
       <AuthInputField
         type="password"
-        label="Confirmar contraseña"
+        label="Confirmar contrasena"
         icon={<ShieldCheck className="h-4 w-4" aria-hidden="true" />}
         value={confirmPassword}
         onChange={(event) => setConfirmPassword(event.target.value)}
@@ -148,19 +143,21 @@ export function RegisterForm({
       <AuthPrimaryButton
         disabled={isSubmitting}
         isLoading={isSubmitting}
+        dataTestId="register-submit-button"
         variant="register"
       >
-        {isSubmitting ? "Creando cuenta..." : "Crear cuenta"}
+        {isSubmitting ? "Intentando registro..." : "Intentar registro manual"}
       </AuthPrimaryButton>
 
       <p className="text-sm leading-6 text-brand-text-muted">
-        Ya tienes cuenta?{" "}
+        Si ya tienes un acceso operativo,{" "}
         <Link
           href={`/login?redirectTo=${encodeURIComponent(redirectTo)}`}
           className="font-semibold text-brand-primary-green underline-offset-4 transition hover:text-brand-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--brand-focus-rgb)/0.5)]"
         >
-          Inicia sesión
+          inicia sesion
         </Link>
+        .
       </p>
     </form>
   );

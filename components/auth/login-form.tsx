@@ -61,7 +61,7 @@ export function LoginForm({
       };
 
       if (!response.ok) {
-        throw new Error(payload.error ?? "No fué posible iniciar sesión.");
+        throw new Error(payload.error ?? "No fue posible iniciar sesion.");
       }
 
       router.push(payload.redirectTo ?? redirectTo);
@@ -70,7 +70,7 @@ export function LoginForm({
       setError(
         loginError instanceof Error
           ? loginError.message
-          : "No fué posible iniciar sesión.",
+          : "No fue posible iniciar sesion.",
       );
     } finally {
       setIsSubmitting(false);
@@ -79,17 +79,6 @@ export function LoginForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5" data-testid="login-form">
-      {googleAuthHref ? (
-        <>
-          <AuthGoogleButton
-            href={googleAuthHref}
-            dataTestId="login-google-auth-link"
-            label="Continuar con Google"
-          />
-          <AuthDivider />
-        </>
-      ) : null}
-
       <AuthInputField
         type="email"
         label="Email"
@@ -97,7 +86,7 @@ export function LoginForm({
         value={email}
         onChange={(event) => setEmail(event.target.value)}
         autoComplete="email"
-        placeholder="operacion@tu-negocio.com"
+        placeholder="tu-correo@tu-negocio.com"
         dataTestId="login-email-input"
       />
 
@@ -108,7 +97,7 @@ export function LoginForm({
         value={password}
         onChange={(event) => setPassword(event.target.value)}
         autoComplete="current-password"
-        placeholder="Tu contraseña"
+        placeholder="Tu contrasena"
         dataTestId="login-password-input"
       />
 
@@ -120,17 +109,37 @@ export function LoginForm({
         dataTestId="login-submit-button"
         variant="login"
       >
-        {isSubmitting ? "Ingresando..." : "Iniciar sesión"}
+        {isSubmitting ? "Ingresando..." : "Iniciar sesion"}
       </AuthPrimaryButton>
 
+      {googleAuthHref ? (
+        <>
+          <AuthDivider label="o usa la opcion secundaria" />
+          <AuthGoogleButton
+            href={googleAuthHref}
+            dataTestId="login-google-auth-link"
+            label="Intentar con Google"
+          />
+          <p
+            data-testid="login-google-auth-secondary-copy"
+            className="text-sm leading-6 text-brand-text-muted"
+          >
+            Google es opcional en este entorno. Si falla o no esta habilitado,
+            sigue entrando con email y password.
+          </p>
+        </>
+      ) : null}
+
       <p className="text-sm leading-6 text-brand-text-muted">
-        Todavia no tienes cuenta?{" "}
+        Si necesitas probar el registro manual, usa el{" "}
         <Link
           href={`/register?redirectTo=${encodeURIComponent(redirectTo)}`}
+          data-testid="login-register-secondary-link"
           className="font-semibold text-brand-primary-blue underline-offset-4 transition hover:text-brand-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--brand-focus-rgb)/0.5)]"
         >
-          Crear acceso
+          carril secundario
         </Link>
+        .
       </p>
     </form>
   );
