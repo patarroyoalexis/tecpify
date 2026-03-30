@@ -9,16 +9,27 @@ import {
 } from "@/lib/auth/business-access";
 import { buildLoginHref } from "@/lib/auth/redirect-path";
 import {
+  canAccessBusinessWorkspaceRole,
+  isPlatformAdminRole,
+  type AppRole,
+} from "@/lib/auth/roles";
+import { getUserProfileByUserId } from "@/lib/auth/user-profiles";
+import {
   createServerSupabaseAuthClient,
   type ServerSupabaseAuthClient,
 } from "@/lib/supabase/server";
 import type { OrderId } from "@/types/identifiers";
 
-export { buildLoginHref, sanitizeRedirectPath } from "@/lib/auth/redirect-path";
+export {
+  buildLoginHref,
+  sanitizePrivateRedirectPath,
+  sanitizeRedirectPath,
+} from "@/lib/auth/redirect-path";
 
 export interface WorkspaceUser {
   userId: string;
   email: string;
+  role: AppRole;
   user: User;
 }
 
@@ -46,18 +57,37 @@ export type BusinessApiContextResult =
       response: NextResponse;
     };
 
-function mapWorkspaceUser(user: User): WorkspaceUser {
+async function mapWorkspaceUser(
+  user: User,
+  supabase: ServerSupabaseAuthClient,
+): Promise<WorkspaceUser> {
+  const userProfile = await getUserProfileByUserId(user.id, supabase);
+
+  if (!userProfile) {
+    throw new Error(
+      `El usuario autenticado ${user.id} no tiene un perfil persistido en public.user_profiles.`,
+    );
+  }
+
   return {
     userId: user.id,
     email: user.email ?? "",
+    role: userProfile.role,
     user,
   };
 }
 
 function buildUnauthenticatedApiResponse() {
   return NextResponse.json(
-    { error: "Debes iniciar sesión para usar este espacio operativo." },
+    { error: "Debes iniciar sesion para usar este espacio operativo." },
     { status: 401 },
+  );
+}
+
+function buildForbiddenBusinessRoleApiResponse() {
+  return NextResponse.json(
+    { error: "Tu rol autenticado no puede operar workspaces de negocio." },
+    { status: 403 },
   );
 }
 
@@ -75,10 +105,21 @@ function buildForbiddenOrderApiResponse() {
   );
 }
 
+function buildForbiddenAdminApiResponse() {
+  return NextResponse.json(
+    { error: "No tienes acceso al panel interno de plataforma." },
+    { status: 403 },
+  );
+}
+
 async function getBusinessContextForUser(
   businessSlug: string,
   user: WorkspaceUser,
 ): Promise<BusinessContext | null> {
+  if (!canAccessBusinessWorkspaceRole(user.role)) {
+    return null;
+  }
+
   const access = await getBusinessAccessBySlug(businessSlug, user.userId);
 
   if (!access) {
@@ -104,7 +145,7 @@ export async function getCurrentUser(
     return null;
   }
 
-  return mapWorkspaceUser(user);
+  return mapWorkspaceUser(user, authSupabase);
 }
 
 export async function requireAuthenticatedUser(
@@ -118,6 +159,22 @@ export async function requireAuthenticatedUser(
   }
 
   return user;
+}
+
+export async function requireBusinessOperatorUser(
+  redirectTo: string,
+  supabase?: ServerSupabaseAuthClient,
+) {
+  const user = await requireAuthenticatedUser(redirectTo, supabase);
+  return canAccessBusinessWorkspaceRole(user.role) ? user : null;
+}
+
+export async function requirePlatformAdmin(
+  redirectTo: string,
+  supabase?: ServerSupabaseAuthClient,
+) {
+  const user = await requireAuthenticatedUser(redirectTo, supabase);
+  return isPlatformAdminRole(user.role) ? user : null;
 }
 
 export async function requireAuthenticatedApiUser(
@@ -138,6 +195,44 @@ export async function requireAuthenticatedApiUser(
   };
 }
 
+export async function requireBusinessOperatorApiUser(
+  supabase?: ServerSupabaseAuthClient,
+): Promise<AuthenticatedApiResult> {
+  const authResult = await requireAuthenticatedApiUser(supabase);
+
+  if (!authResult.ok) {
+    return authResult;
+  }
+
+  if (!canAccessBusinessWorkspaceRole(authResult.user.role)) {
+    return {
+      ok: false as const,
+      response: buildForbiddenBusinessRoleApiResponse(),
+    };
+  }
+
+  return authResult;
+}
+
+export async function requirePlatformAdminApiUser(
+  supabase?: ServerSupabaseAuthClient,
+): Promise<AuthenticatedApiResult> {
+  const authResult = await requireAuthenticatedApiUser(supabase);
+
+  if (!authResult.ok) {
+    return authResult;
+  }
+
+  if (!isPlatformAdminRole(authResult.user.role)) {
+    return {
+      ok: false as const,
+      response: buildForbiddenAdminApiResponse(),
+    };
+  }
+
+  return authResult;
+}
+
 export async function getCurrentBusinessContext(
   businessSlug: string,
 ): Promise<BusinessContext | null> {
@@ -154,14 +249,19 @@ export async function requireBusinessContext(
   businessSlug: string,
   redirectTo: string,
 ): Promise<BusinessContext | null> {
-  const user = await requireAuthenticatedUser(redirectTo);
+  const user = await requireBusinessOperatorUser(redirectTo);
+
+  if (!user) {
+    return null;
+  }
+
   return getBusinessContextForUser(businessSlug, user);
 }
 
 export async function requireBusinessApiContext(
   businessSlug: string,
 ): Promise<BusinessApiContextResult> {
-  const authResult = await requireAuthenticatedApiUser();
+  const authResult = await requireBusinessOperatorApiUser();
 
   if (!authResult.ok) {
     return authResult;
@@ -185,7 +285,7 @@ export async function requireBusinessApiContext(
 export async function requireOrderApiContext(
   orderId: OrderId,
 ): Promise<BusinessApiContextResult> {
-  const authResult = await requireAuthenticatedApiUser();
+  const authResult = await requireBusinessOperatorApiUser();
 
   if (!authResult.ok) {
     return authResult;

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { authenticateOperatorCredentials } from "@/lib/auth/operator-auth";
-import { sanitizeRedirectPath } from "@/lib/auth/server";
+import { sanitizePrivateRedirectPath } from "@/lib/auth/server";
 
 interface LoginPayload {
   email: string;
@@ -40,7 +40,7 @@ export async function POST(request: Request) {
 
   const email = payload.email.trim().toLowerCase();
   const password = payload.password;
-  const redirectTo = sanitizeRedirectPath(payload.redirectTo);
+  const redirectTo = sanitizePrivateRedirectPath(payload.redirectTo);
 
   if (!email || !password) {
     return NextResponse.json(

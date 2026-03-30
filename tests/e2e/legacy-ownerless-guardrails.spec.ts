@@ -74,7 +74,6 @@ test.describe("Legacy ownerless guardrails", () => {
     }
 
     await loginThroughUi(page, ownerlessGuardrailUsers.owner);
-    await page.goto("/dashboard");
 
     await expect(page.locator('[href*="legacy-remediation"]')).toHaveCount(0);
 

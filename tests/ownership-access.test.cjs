@@ -12,7 +12,14 @@ const {
   canAccessBusiness,
   hasVerifiedBusinessOwner,
 } = loadTsModule("lib/auth/business-access.ts");
+const {
+  CREATE_BUSINESS_ROUTE,
+  createResolvePrivateWorkspaceEntry,
+} = loadTsModule("lib/auth/private-workspace.ts");
 const { createBusinessesRouteHandlers } = loadTsModule("app/api/businesses/route.ts");
+const { createActiveBusinessRouteHandlers } = loadTsModule(
+  "app/api/businesses/active/route.ts",
+);
 const { createOrdersRouteHandlers } = loadTsModule("app/api/orders/route.ts");
 const { createWorkspaceOrdersRouteHandlers } = loadTsModule(
   "app/api/orders/private/route.ts",
@@ -57,6 +64,17 @@ function createOwnedBusinessContext(overrides = {}) {
       email: "owner@example.com",
       user: { id: OWNER_ID, email: "owner@example.com" },
     },
+    ...overrides,
+  };
+}
+
+function createOwnedBusinessSummary(overrides = {}) {
+  return {
+    businessId: BUSINESS_ID,
+    businessSlug: "mi-tienda",
+    businessName: "Mi tienda",
+    updatedAt: "2026-03-25T21:00:00.000Z",
+    createdByUserId: OWNER_ID,
     ...overrides,
   };
 }
@@ -153,11 +171,65 @@ test("ownership: un negocio sin created_by_user_id verificable no obtiene acceso
   );
 });
 
+test("workspace privado: 0 negocios owned envia al alta de negocio", async () => {
+  const resolvePrivateWorkspaceEntry = createResolvePrivateWorkspaceEntry({
+    getOwnedBusinessesForUser: async () => [],
+  });
+
+  const result = await resolvePrivateWorkspaceEntry(OWNER_ID);
+
+  assert.deepEqual(result.ownedBusinesses, []);
+  assert.equal(result.activeBusiness, null);
+  assert.equal(result.entryHref, CREATE_BUSINESS_ROUTE);
+});
+
+test("workspace privado: 1 negocio owned entra directo a su dashboard", async () => {
+  const ownedBusiness = createOwnedBusinessSummary();
+  const resolvePrivateWorkspaceEntry = createResolvePrivateWorkspaceEntry({
+    getOwnedBusinessesForUser: async () => [ownedBusiness],
+  });
+
+  const result = await resolvePrivateWorkspaceEntry(OWNER_ID);
+
+  assert.equal(result.activeBusiness?.businessSlug, ownedBusiness.businessSlug);
+  assert.equal(result.entryHref, `/dashboard/${ownedBusiness.businessSlug}`);
+});
+
+test("workspace privado: multiples negocios respetan el activo preferido y si no existe caen a uno owned real", async () => {
+  const newestBusiness = createOwnedBusinessSummary({
+    businessId: "0f9f5d8d-1234-4f6b-8f16-6e16b14ac301",
+    businessSlug: "tienda-alpha",
+    businessName: "Tienda Alpha",
+    updatedAt: "2026-03-27T18:00:00.000Z",
+  });
+  const preferredBusiness = createOwnedBusinessSummary({
+    businessId: "0f9f5d8d-1234-4f6b-8f16-6e16b14ac302",
+    businessSlug: "tienda-beta",
+    businessName: "Tienda Beta",
+    updatedAt: "2026-03-26T18:00:00.000Z",
+  });
+  const resolvePrivateWorkspaceEntry = createResolvePrivateWorkspaceEntry({
+    getOwnedBusinessesForUser: async () => [newestBusiness, preferredBusiness],
+  });
+
+  const preferredResult = await resolvePrivateWorkspaceEntry(OWNER_ID, {
+    preferredBusinessSlug: preferredBusiness.businessSlug,
+  });
+  const fallbackResult = await resolvePrivateWorkspaceEntry(OWNER_ID, {
+    preferredBusinessSlug: "negocio-ajeno",
+  });
+
+  assert.equal(preferredResult.activeBusiness?.businessSlug, preferredBusiness.businessSlug);
+  assert.equal(preferredResult.entryHref, `/dashboard/${preferredBusiness.businessSlug}`);
+  assert.equal(fallbackResult.activeBusiness?.businessSlug, newestBusiness.businessSlug);
+  assert.equal(fallbackResult.entryHref, `/dashboard/${newestBusiness.businessSlug}`);
+});
+
 test("ownership: crear negocio exige sesion valida", async () => {
   let insertWasCalled = false;
   const handlers = createBusinessesRouteHandlers({
     requireBusinessSlug: (value) => value.trim().toLowerCase(),
-    requireAuthenticatedApiUser: async () => ({
+    requireBusinessOperatorApiUser: async () => ({
       ok: false,
       response: NextResponse.json(
         { error: "Debes iniciar sesión para usar este espacio operativo." },
@@ -189,15 +261,65 @@ test("ownership: crear negocio exige sesion valida", async () => {
   assert.equal(insertWasCalled, false);
 });
 
+test("ownership: negocio activo persiste solo un businessSlug owned", async () => {
+  let persistedBusinessSlug = null;
+  const handlers = createActiveBusinessRouteHandlers({
+    requireBusinessApiContext: async () => ({
+      ok: true,
+      context: createOwnedBusinessContext(),
+    }),
+    persistActiveWorkspaceBusinessCookie: (_response, businessSlug) => {
+      persistedBusinessSlug = businessSlug;
+    },
+  });
+
+  const response = await handlers.POST(
+    createJsonRequest("http://localhost/api/businesses/active", "POST", {
+      businessSlug: "mi-tienda",
+    }),
+  );
+  const body = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(body.activeBusiness.businessSlug, "mi-tienda");
+  assert.equal(body.activeBusiness.businessId, BUSINESS_ID);
+  assert.equal(persistedBusinessSlug, "mi-tienda");
+});
+
+test("ownership: negocio activo rechaza negocio ajeno y no persiste preferencia", async () => {
+  let persistedBusinessSlug = null;
+  const handlers = createActiveBusinessRouteHandlers({
+    requireBusinessApiContext: async () => ({
+      ok: false,
+      response: NextResponse.json({ error: "No tienes acceso a este negocio." }, { status: 403 }),
+    }),
+    persistActiveWorkspaceBusinessCookie: (_response, businessSlug) => {
+      persistedBusinessSlug = businessSlug;
+    },
+  });
+
+  const response = await handlers.POST(
+    createJsonRequest("http://localhost/api/businesses/active", "POST", {
+      businessSlug: "negocio-ajeno",
+    }),
+  );
+  const body = await response.json();
+
+  assert.equal(response.status, 403);
+  assert.equal(body.error, "No tienes acceso a este negocio.");
+  assert.equal(persistedBusinessSlug, null);
+});
+
 test("ownership: crear negocio rechaza aliases de ownership enviados por cliente", async () => {
   let insertWasCalled = false;
   const handlers = createBusinessesRouteHandlers({
     requireBusinessSlug: (value) => value.trim().toLowerCase(),
-    requireAuthenticatedApiUser: async () => ({
+    requireBusinessOperatorApiUser: async () => ({
       ok: true,
       user: {
         userId: OWNER_ID,
         email: "owner@example.com",
+        role: "business_owner",
         user: { id: OWNER_ID, email: "owner@example.com" },
       },
     }),
@@ -243,11 +365,12 @@ test("ownership: crear negocio persiste created_by_user_id desde la sesion y no 
   };
   const handlers = createBusinessesRouteHandlers({
     requireBusinessSlug: (value) => value.trim().toLowerCase(),
-    requireAuthenticatedApiUser: async () => ({
+    requireBusinessOperatorApiUser: async () => ({
       ok: true,
       user: {
         userId: OWNER_ID,
         email: "owner@example.com",
+        role: "business_owner",
         user: { id: OWNER_ID, email: "owner@example.com" },
       },
     }),

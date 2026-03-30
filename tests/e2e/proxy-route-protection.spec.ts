@@ -41,7 +41,7 @@ test.describe("Proxy route protection", () => {
     page,
   }) => {
     await loginThroughUi(page, proxyUsers.owner);
-    await expect(page).toHaveURL(/\/dashboard$/);
-    await expect(page.getByTestId("create-business-panel")).toBeVisible();
+    expect(new URL(page.url()).pathname.startsWith("/dashboard/")).toBe(true);
+    await expect(page.getByTestId("workspace-current-business-name")).toBeVisible();
   });
 });

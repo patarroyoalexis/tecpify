@@ -4,6 +4,7 @@ import { BusinessWorkspaceShell } from "@/components/dashboard/business-workspac
 import { OrdersHeaderActions } from "@/components/dashboard/orders-header-actions";
 import { OrdersWorkspace } from "@/components/dashboard/orders-workspace";
 import { requireBusinessContext } from "@/lib/auth/server";
+import { getOwnedBusinessesForUser } from "@/data/businesses";
 import { getOrdersByBusinessIdFromDatabase } from "@/lib/data/orders-server";
 import {
   createOrdersPage,
@@ -13,6 +14,7 @@ import {
 const OrdersPage = createOrdersPage({
   requireBusinessContext,
   getOrdersByBusinessIdFromDatabase,
+  getOwnedBusinessesForUser,
   BusinessWorkspaceShell:
     BusinessWorkspaceShell as ComponentType<BusinessWorkspaceShellContractProps>,
   OrdersHeaderActions,

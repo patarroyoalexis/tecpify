@@ -191,6 +191,10 @@ test("entorno: Playwright deriva fixtures dedicadas y no humanas desde un unico 
 
     assert.equal(playwrightEnv.authFixtures.namespace, "fixture-project");
     assert.equal(
+      playwrightEnv.authFixtures.admin.email,
+      "playwright-admin+fixture-project@example.com",
+    );
+    assert.equal(
       playwrightEnv.authFixtures.owner.email,
       "playwright-owner+fixture-project@example.com",
     );
@@ -198,6 +202,7 @@ test("entorno: Playwright deriva fixtures dedicadas y no humanas desde un unico 
       playwrightEnv.authFixtures.intruder.email,
       "playwright-intruder+fixture-project@example.com",
     );
+    assert.equal(playwrightEnv.authFixtures.admin.password, "fixture-password-123");
     assert.equal(playwrightEnv.authFixtures.owner.password, "fixture-password-123");
     assert.equal(playwrightEnv.authFixtures.intruder.password, "fixture-password-123");
     assert.notEqual(

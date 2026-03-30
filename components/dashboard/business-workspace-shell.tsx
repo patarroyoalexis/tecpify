@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import {
@@ -8,7 +9,9 @@ import {
 } from "@/components/dashboard/business-workspace-context";
 import { WorkspaceNavbar } from "@/components/dashboard/workspace-navbar";
 import { WorkspacePageHeader } from "@/components/dashboard/workspace-page-header";
+import { setActiveBusinessViaApi } from "@/lib/businesses/api";
 import type { Order } from "@/types/orders";
+import type { OwnedBusinessSummary } from "@/types/businesses";
 
 interface BusinessWorkspaceShellProps {
   businessName: string;
@@ -21,6 +24,8 @@ interface BusinessWorkspaceShellProps {
   operatorEmail: string | null;
   initialOrders: Order[];
   initialOrdersError?: string | null;
+  workspaceBusinesses: OwnedBusinessSummary[];
+  adminHref?: string | null;
   title: string;
   description: string;
   headerActions?: ReactNode;
@@ -31,6 +36,8 @@ function BusinessWorkspaceShellContent({
   businessName,
   businessSlug,
   operatorEmail,
+  workspaceBusinesses,
+  adminHref,
   title,
   description,
   headerActions,
@@ -45,13 +52,21 @@ function BusinessWorkspaceShellContent({
       : "dashboard";
   const isOrdersPage = activeTab === "pedidos";
 
+  useEffect(() => {
+    void setActiveBusinessViaApi(businessSlug).catch(() => {
+      return undefined;
+    });
+  }, [businessSlug]);
+
   return (
     <div className={`flex min-h-screen flex-col ${isOrdersPage ? "bg-workspace-shell" : ""}`}>
       <WorkspaceNavbar
         businessName={businessName}
         businessSlug={businessSlug}
         operatorEmail={operatorEmail}
+        workspaceBusinesses={workspaceBusinesses}
         activeTab={activeTab}
+        adminHref={adminHref}
         onSearch={openGlobalSearch}
         onNewOrder={openNewOrder}
         onNewProduct={openNewProduct}

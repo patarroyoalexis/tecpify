@@ -18,6 +18,7 @@ export interface TestUserCredentials {
 }
 
 export interface TestUsers {
+  admin: TestUserCredentials;
   owner: TestUserCredentials;
   intruder: TestUserCredentials;
 }
@@ -194,6 +195,10 @@ export function resolveTestUsers(): TestUsers {
   const fixtures = getPlaywrightAuthFixtures();
 
   return {
+    admin: {
+      email: fixtures.admin.email,
+      password: fixtures.admin.password,
+    },
     owner: {
       email: fixtures.owner.email,
       password: fixtures.owner.password,
@@ -226,8 +231,12 @@ export async function loginThroughUi(page: Page, credentials: TestUserCredential
   await page.getByTestId("login-password-input").fill(credentials.password);
   await page.getByTestId("login-submit-button").click();
 
-  await page.waitForURL((url) => url.pathname === "/dashboard");
-  await expect(page.getByTestId("create-business-panel")).toBeVisible();
+  await expect
+    .poll(() => new URL(page.url()).pathname)
+    .toMatch(/^\/dashboard(?:\/[^/]+)?$/);
+  await expect
+    .poll(() => new URL(page.url()).pathname)
+    .not.toBe("/dashboard");
 }
 
 export async function logoutThroughUi(page: Page) {
@@ -237,10 +246,17 @@ export async function logoutThroughUi(page: Page) {
   await expect(page.getByTestId("login-form")).toBeVisible();
 }
 
+export async function goToCreateBusinessFlow(page: Page) {
+  await page.goto("/dashboard/crear-negocio");
+  await expect(page).toHaveURL(/\/dashboard\/crear-negocio$/);
+  await expect(page.getByTestId("create-business-panel")).toBeVisible();
+}
+
 export async function createBusinessFromWorkspace(
   page: Page,
   scenario: CriticalFlowScenario,
 ) {
+  await goToCreateBusinessFlow(page);
   await page.getByTestId("business-name-input").fill(scenario.businessName);
   await page.getByTestId("business-slug-input").fill(scenario.businessSlug);
   await page.getByTestId("create-business-submit-button").click();
@@ -250,6 +266,16 @@ export async function createBusinessFromWorkspace(
   );
   await expect(page.getByTestId("products-management-drawer")).toBeVisible();
   await expect(page.getByTestId("product-form")).toBeVisible();
+}
+
+export async function switchBusinessFromNavbar(
+  page: Page,
+  nextBusinessSlug: string,
+) {
+  await page.getByTestId("workspace-settings-trigger").click();
+  await expect(page.getByTestId("workspace-business-switcher")).toBeVisible();
+  await page.getByTestId(`workspace-business-option-${nextBusinessSlug}`).click();
+  await page.waitForURL(new RegExp(`/dashboard/${nextBusinessSlug}$`));
 }
 
 export async function createActiveProductFromDrawer(

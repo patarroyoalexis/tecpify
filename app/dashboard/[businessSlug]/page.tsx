@@ -4,6 +4,7 @@ import { BusinessWorkspaceShell } from "@/components/dashboard/business-workspac
 import { DashboardOverview } from "@/components/dashboard/dashboard-overview";
 import { requireBusinessContext } from "@/lib/auth/server";
 import { getBusinessReadinessSnapshot } from "@/lib/businesses/readiness";
+import { getOwnedBusinessesForUser } from "@/data/businesses";
 import { getAdminProductsByBusinessId } from "@/lib/data/products";
 import { getOrdersByBusinessIdFromDatabase } from "@/lib/data/orders-server";
 import {
@@ -17,6 +18,7 @@ const BusinessDashboardPage = createBusinessDashboardPage({
   getBusinessReadinessSnapshot,
   getAdminProductsByBusinessId,
   getOrdersByBusinessIdFromDatabase,
+  getOwnedBusinessesForUser,
   BusinessWorkspaceShell:
     BusinessWorkspaceShell as ComponentType<BusinessWorkspaceShellContractProps>,
   DashboardOverview: DashboardOverview as ComponentType<DashboardOverviewContractProps>,

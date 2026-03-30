@@ -21,6 +21,14 @@ export interface BusinessRecord {
   createdByUserId: string | null;
 }
 
+export interface OwnedBusinessSummary {
+  businessId: BusinessId;
+  businessSlug: BusinessSlug;
+  businessName: string;
+  updatedAt: string;
+  createdByUserId: string;
+}
+
 export interface CreateBusinessPayload {
   name: string;
   businessSlug: string;

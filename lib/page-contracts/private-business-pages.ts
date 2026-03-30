@@ -1,7 +1,9 @@
 import { createElement, type ComponentType, type ReactNode } from "react";
 
 import type { BusinessContext } from "@/lib/auth/server";
+import { isPlatformAdminRole } from "@/lib/auth/roles";
 import type { BusinessReadinessSnapshot } from "@/lib/businesses/readiness";
+import type { OwnedBusinessSummary } from "@/types/businesses";
 import type { BusinessId, BusinessSlug } from "@/types/identifiers";
 import type { Order } from "@/types/orders";
 import type { Product } from "@/types/products";
@@ -21,6 +23,8 @@ export interface BusinessWorkspaceShellContractProps {
   operatorEmail: string | null;
   initialOrders: Order[];
   initialOrdersError?: string | null;
+  workspaceBusinesses: OwnedBusinessSummary[];
+  adminHref?: string | null;
   title: string;
   description: string;
   headerActions?: ReactNode;
@@ -101,6 +105,7 @@ interface CommonPageDependencies {
     businessId: BusinessId,
     options?: { businessSlug?: BusinessSlug },
   ) => Promise<Order[]>;
+  getOwnedBusinessesForUser: (userId: string) => Promise<OwnedBusinessSummary[]>;
   BusinessWorkspaceShell: ComponentType<BusinessWorkspaceShellContractProps>;
 }
 
@@ -122,6 +127,16 @@ interface MetricsPageDependencies extends CommonPageDependencies {
   MetricsOverview: ComponentType<MetricsOverviewProps>;
 }
 
+function toOwnedBusinessSummary(context: BusinessContext): OwnedBusinessSummary {
+  return {
+    businessId: context.businessId,
+    businessSlug: context.businessSlug,
+    businessName: context.businessName,
+    updatedAt: "",
+    createdByUserId: context.createdByUserId,
+  };
+}
+
 export function createBusinessDashboardPage(dependencies: DashboardPageDependencies) {
   return async function BusinessDashboardPage({ params }: BusinessPageParams) {
     const { businessSlug } = await params;
@@ -139,9 +154,18 @@ export function createBusinessDashboardPage(dependencies: DashboardPageDependenc
       name: businessContext.businessName,
       businessId: businessContext.businessId,
     };
+    let workspaceBusinesses: OwnedBusinessSummary[] = [];
     let initialOrders: Order[] = [];
     let initialOrdersError: string | null = null;
     let businessReadiness = dependencies.getBusinessReadinessSnapshot(0, 0);
+
+    try {
+      workspaceBusinesses = await dependencies.getOwnedBusinessesForUser(
+        businessContext.user.userId,
+      );
+    } catch {
+      workspaceBusinesses = [toOwnedBusinessSummary(businessContext)];
+    }
 
     try {
       initialOrders = await dependencies.getOrdersByBusinessIdFromDatabase(
@@ -178,6 +202,8 @@ export function createBusinessDashboardPage(dependencies: DashboardPageDependenc
         operatorEmail: businessContext.user.email || null,
         initialOrders,
         initialOrdersError,
+        workspaceBusinesses,
+        adminHref: isPlatformAdminRole(businessContext.user.role) ? "/admin" : null,
         title: "Dashboard",
         description: "Resumen rapido del negocio para priorizar el dia.",
       },
@@ -206,8 +232,17 @@ export function createOrdersPage(dependencies: OrdersPageDependencies) {
       businessSlug: businessContext.businessSlug,
       name: businessContext.businessName,
     };
+    let workspaceBusinesses: OwnedBusinessSummary[] = [];
     let initialOrders: Order[] = [];
     let initialOrdersError: string | null = null;
+
+    try {
+      workspaceBusinesses = await dependencies.getOwnedBusinessesForUser(
+        businessContext.user.userId,
+      );
+    } catch {
+      workspaceBusinesses = [toOwnedBusinessSummary(businessContext)];
+    }
 
     try {
       initialOrders = await dependencies.getOrdersByBusinessIdFromDatabase(
@@ -234,6 +269,8 @@ export function createOrdersPage(dependencies: OrdersPageDependencies) {
         operatorEmail: businessContext.user.email || null,
         initialOrders,
         initialOrdersError,
+        workspaceBusinesses,
+        adminHref: isPlatformAdminRole(businessContext.user.role) ? "/admin" : null,
         title: "Pedidos",
         description: "Operacion diaria para revisar, cobrar, preparar y entregar.",
         headerActions: createElement(dependencies.OrdersHeaderActions),
@@ -259,8 +296,17 @@ export function createMetricsPage(dependencies: MetricsPageDependencies) {
       businessSlug: businessContext.businessSlug,
       name: businessContext.businessName,
     };
+    let workspaceBusinesses: OwnedBusinessSummary[] = [];
     let initialOrders: Order[] = [];
     let initialOrdersError: string | null = null;
+
+    try {
+      workspaceBusinesses = await dependencies.getOwnedBusinessesForUser(
+        businessContext.user.userId,
+      );
+    } catch {
+      workspaceBusinesses = [toOwnedBusinessSummary(businessContext)];
+    }
 
     try {
       initialOrders = await dependencies.getOrdersByBusinessIdFromDatabase(
@@ -287,6 +333,8 @@ export function createMetricsPage(dependencies: MetricsPageDependencies) {
         operatorEmail: businessContext.user.email || null,
         initialOrders,
         initialOrdersError,
+        workspaceBusinesses,
+        adminHref: isPlatformAdminRole(businessContext.user.role) ? "/admin" : null,
         title: "Metricas",
         description: "Rendimiento del negocio en una capa separada de la operacion.",
       },

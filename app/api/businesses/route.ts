@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import {
-  requireAuthenticatedApiUser,
+  requireBusinessOperatorApiUser,
   requireBusinessApiContext,
 } from "@/lib/auth/server";
 import {
@@ -92,7 +92,7 @@ function validateUpdateBusinessSettingsPayload(
 interface BusinessesRouteDependencies {
   requireBusinessSlug: typeof requireBusinessSlug;
   requireBusinessApiContext: typeof requireBusinessApiContext;
-  requireAuthenticatedApiUser: typeof requireAuthenticatedApiUser;
+  requireBusinessOperatorApiUser: typeof requireBusinessOperatorApiUser;
   createServerSupabaseAuthClient: typeof createServerSupabaseAuthClient;
   debugError: typeof debugError;
   debugLog: typeof debugLog;
@@ -104,7 +104,7 @@ export function createBusinessesRouteHandlers(
   dependencies: BusinessesRouteDependencies = {
     requireBusinessSlug,
     requireBusinessApiContext,
-    requireAuthenticatedApiUser,
+    requireBusinessOperatorApiUser,
     createServerSupabaseAuthClient,
     debugError,
     debugLog,
@@ -115,7 +115,7 @@ export function createBusinessesRouteHandlers(
   return {
     async POST(request: Request) {
       const supabase = await dependencies.createServerSupabaseAuthClient();
-      const authResult = await dependencies.requireAuthenticatedApiUser(supabase);
+      const authResult = await dependencies.requireBusinessOperatorApiUser(supabase);
 
       if (!authResult.ok) {
         return authResult.response;

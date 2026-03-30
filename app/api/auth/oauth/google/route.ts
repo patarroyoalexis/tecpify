@@ -4,7 +4,7 @@ import {
   getGoogleAuthEntryPath,
   isGoogleAuthEnabled,
 } from "@/lib/auth/google-auth";
-import { sanitizeRedirectPath } from "@/lib/auth/redirect-path";
+import { sanitizePrivateRedirectPath } from "@/lib/auth/redirect-path";
 import { getAuthCallbackUrl } from "@/lib/site-url";
 import { createServerSupabaseAuthClient } from "@/lib/supabase/server";
 
@@ -23,7 +23,7 @@ function buildAuthEntryRedirect(
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
-  const redirectTo = sanitizeRedirectPath(requestUrl.searchParams.get("redirectTo"));
+  const redirectTo = sanitizePrivateRedirectPath(requestUrl.searchParams.get("redirectTo"));
 
   if (!isGoogleAuthEnabled()) {
     return NextResponse.redirect(

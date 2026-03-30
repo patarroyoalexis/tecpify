@@ -8,6 +8,14 @@ interface BusinessResponse {
   business: BusinessRecord;
 }
 
+interface ActiveBusinessResponse {
+  activeBusiness: {
+    businessId: BusinessRecord["businessId"];
+    businessSlug: BusinessRecord["businessSlug"];
+    businessName: string;
+  };
+}
+
 async function parseApiError(response: Response, fallbackMessage: string) {
   try {
     const payload = (await response.json()) as { error?: string };
@@ -72,4 +80,23 @@ export async function updateBusinessSettingsViaApi(
 
   const result = (await response.json()) as BusinessResponse;
   return result.business;
+}
+
+export async function setActiveBusinessViaApi(businessSlug: string) {
+  const response = await fetch("/api/businesses/active", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ businessSlug }),
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      await parseApiError(response, "No fue posible cambiar el negocio activo."),
+    );
+  }
+
+  const result = (await response.json()) as ActiveBusinessResponse;
+  return result.activeBusiness;
 }

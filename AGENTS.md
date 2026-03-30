@@ -28,6 +28,12 @@ Este archivo es el contrato operativo de consistencia del MVP. Su funcion no es 
 
 ### Invariantes adicionales
 
+- La entrada privada canonica del MVP usa `/dashboard` solo como compuerta tecnica: `0 negocios -> /dashboard/crear-negocio`, `1 negocio -> /dashboard/[businessSlug]` y `multiples negocios -> negocio activo con cambio secundario desde la navbar privada`.
+- `/dashboard` sigue siendo la entrada privada general del operador y no mezcla metricas de plataforma.
+- `/admin` es el panel interno de plataforma y existe solo para `platform_admin`.
+- `public.user_profiles.role` respaldado por `public.app_role` es la fuente canonica del rol autenticado.
+- Los roles validos del sistema son `platform_admin`, `business_owner` y `customer`; el MVP actual solo habilita operativamente `platform_admin` y `business_owner`.
+- `user` no es un rol valido para representar al dueno de negocio.
 - `localStorage` solo puede guardar estado de UI no critico.
 - `lib/supabase/server.ts` y `lib/supabase/client.ts` pertenecen al runtime normal; no deben mezclar borde privilegiado.
 - Si una regla sensible existe en DB, el runtime no debe contradecirla ni duplicarla con otro contrato.
@@ -39,10 +45,12 @@ Este archivo es el contrato operativo de consistencia del MVP. Su funcion no es 
 ### Estado real auditado del repo
 
 - El flujo operativo base respaldado hoy por runtime + tests incluye login, proteccion temprana de rutas privadas con `proxy.ts`, creacion de negocio con owner, catalogo activo, storefront publico por `businessSlug`, pedido persistido y operacion privada del owner correcto.
+- El dashboard general de seleccion deja de ser protagonista del flujo privado del MVP: el workspace del negocio es la unica entrada natural al trabajo operativo y el cambio de negocio queda dentro de la navbar privada.
 - El frente de pedidos/pagos/historial esta reforzado simultaneamente en runtime, funciones SQL/trigger/policies y guardrails automatizados; hoy es el frente con mayor cierre tecnico verificable del repo.
 - El frente de naming canonico (`businessId`, `businessSlug`, `productId`, `orderId`, `orderCode`) tiene guardrails activos en tipos, rutas, helpers y tests; no debe volver a mezclarse con slugs o ids genericos.
 - El frente de service role del runtime normal esta cerrado a nivel operativo: el flujo productivo carga con anon + SSR auth + RLS, y la unica excepcion activa es test-only para bootstrap de fixtures E2E de Auth.
 - El login por email/password con fixtures dedicadas por email/password es el unico carril oficial de acceso respaldado por evidencia fuerte del repo.
+- El panel interno `/admin` ya queda separado del workspace del negocio, respaldado por `public.user_profiles.role`, guard server-side, capa de datos admin dedicada y spec E2E real de acceso permitido/denegado por rol.
 - El registro manual por email/password puede seguir expuesto en runtime solo como carril secundario/no garantizado; mientras dependa de confirmacion de correo o configuracion incierta del entorno no debe venderse como parte cerrada del MVP.
 - Google OAuth puede existir solo como opcion secundaria de login; `/register` permanece manual y el carril tampoco forma parte del circuito cerrado mientras no tenga evidencia E2E equivalente.
 - Las metricas privadas quedan cerradas con la misma definicion efectiva en runtime, Supabase enlazado, spec E2E dedicada y documentacion; el frente no debe volver a depender de drift entre repo y proyecto remoto.
@@ -63,6 +71,11 @@ Este archivo es el contrato operativo de consistencia del MVP. Su funcion no es 
 
 ## 5. Reglas de ownership y acceso
 
+- El rol autenticado canonico vive en `public.user_profiles.role` y usa el enum `public.app_role`.
+- `platform_admin` puede entrar a `/admin` y consultar metricas globales de plataforma.
+- `business_owner` opera negocios propios y no puede acceder a `/admin`.
+- `customer` existe como contrato tipado/persistido, pero no habilita superficie operativa del MVP actual.
+- `/admin` es solo para `platform_admin`; no existe `/admin/login` ni una elevacion de privilegios por UI.
 - Ningun negocio es operable si `created_by_user_id` es `null` o no coincide con el usuario autenticado esperado.
 - En DB, el ownership canonico del negocio vive en `public.businesses.created_by_user_id`; en el runtime TypeScript se expone como `createdByUserId`.
 - El server resuelve ownership desde sesion/contexto confiable; no acepta aliases de ownership ni `business_id` del cliente como autoridad.
@@ -116,7 +129,7 @@ Este archivo es el contrato operativo de consistencia del MVP. Su funcion no es 
 - Las variables canonicas del repo son `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_GOOGLE_AUTH_ENABLED`, `NEXT_PUBLIC_SITE_URL` y `SUPABASE_SERVICE_ROLE_KEY`.
 - Si `NEXT_PUBLIC_GOOGLE_AUTH_ENABLED` falta o esta apagada, Google no se expone en `/login` ni se admite el callback OAuth con `code` dentro del runtime normal.
 - Variables de test-only para Playwright/CI (`PLAYWRIGHT_BASE_URL`, `PLAYWRIGHT_E2E_PASSWORD`, `PLAYWRIGHT_E2E_NAMESPACE`, `PLAYWRIGHT_SKIP_WEBSERVER`, `CI`) no forman parte del runtime normal del MVP ni autorizan acceso operativo; solo parametrizan la ejecucion automatizada de la suite E2E.
-- La suite E2E de Playwright bootstrapea fixtures de Auth dedicadas y no humanas al inicio; usa service role aislada de test solo en `tests/helpers/playwright-global-setup.ts`, confirma esas cuentas sin correo y falla cerrado si faltan prerequisitos o si el login real no queda operativo.
+- La suite E2E de Playwright bootstrapea fixtures de Auth dedicadas y no humanas al inicio; usa service role aislada de test solo en `tests/helpers/playwright-global-setup.ts`, confirma esas cuentas (`admin`, `owner`, `intruder`) sin correo y falla cerrado si faltan prerequisitos o si el login real no queda operativo.
 - `AGENTS.md`, `README.md`, `.env.example` y `lib/env.ts` no pueden divergir sobre variables operativas.
 - No deben aparecer lecturas directas nuevas de `process.env` fuera de `lib/env.ts`, salvo la excepcion privilegiada aislada.
 
@@ -147,6 +160,7 @@ Este archivo es el contrato operativo de consistencia del MVP. Su funcion no es 
 
 - Login real con Supabase Auth SSR y proteccion temprana de rutas privadas con `proxy.ts`.
 - Creacion de negocios con owner resuelto desde sesion y acceso privado por ownership real.
+- Panel interno `/admin` con roles persistidos (`platform_admin`, `business_owner`, `customer`), guard server-side, queries globales separadas y spec E2E real de acceso por rol.
 - Catalogo operativo basico por negocio con lectura privada, mutacion autenticada y storefront publico por `businessSlug`.
 - Borrado seguro de productos historicos: un producto ya usado en pedidos persistidos no puede eliminarse ni desde runtime ni desde deletes directos sobre DB.
 - Metricas privadas respaldadas por runtime, base Supabase enlazada y spec E2E real para ownership, aislamiento por negocio, regla de fiado y ausencia de dependencia de `localStorage`.

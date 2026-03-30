@@ -1,4 +1,4 @@
-import { sanitizeRedirectPath } from "@/lib/auth/redirect-path";
+import { sanitizePrivateRedirectPath } from "@/lib/auth/redirect-path";
 import { getOperationalEnv } from "@/lib/env";
 
 const GOOGLE_AUTH_START_PATH = "/api/auth/oauth/google";
@@ -12,7 +12,7 @@ export function buildGoogleAuthStartHref(options?: {
   redirectTo?: string | null | undefined;
 }) {
   const searchParams = new URLSearchParams({
-    redirectTo: sanitizeRedirectPath(options?.redirectTo),
+    redirectTo: sanitizePrivateRedirectPath(options?.redirectTo),
   });
 
   return `${GOOGLE_AUTH_START_PATH}?${searchParams.toString()}`;

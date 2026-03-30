@@ -4,7 +4,7 @@ import { AuthPageShell } from "@/components/auth/auth-page-shell";
 import { RegisterForm } from "@/components/auth/register-form";
 import { PublicLayoutShell } from "@/components/layout/public-layout-shell";
 import { getAuthFlowErrorMessage } from "@/lib/auth/google-auth";
-import { getCurrentUser, sanitizeRedirectPath } from "@/lib/auth/server";
+import { getCurrentUser, sanitizePrivateRedirectPath } from "@/lib/auth/server";
 
 export default async function RegisterPage({
   searchParams,
@@ -12,7 +12,7 @@ export default async function RegisterPage({
   searchParams: Promise<{ redirectTo?: string; error?: string }>;
 }) {
   const resolvedSearchParams = await searchParams;
-  const redirectTo = sanitizeRedirectPath(resolvedSearchParams.redirectTo);
+  const redirectTo = sanitizePrivateRedirectPath(resolvedSearchParams.redirectTo);
   const authErrorMessage = getAuthFlowErrorMessage(resolvedSearchParams.error);
   const operator = await getCurrentUser();
 

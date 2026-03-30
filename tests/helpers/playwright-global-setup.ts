@@ -11,6 +11,7 @@ import { createInternalServiceRoleSupabaseClient } from "../../lib/supabase/inte
 
 const PLAYWRIGHT_AUTH_FIXTURE_BOOTSTRAP_USAGE_ID = "playwright_auth_fixture_bootstrap";
 const AUTH_ADMIN_PAGE_SIZE = 200;
+type FixtureAppRole = "platform_admin" | "business_owner";
 
 function createNonPrivilegedAuthClient() {
   const operationalEnv = getOperationalEnv();
@@ -33,6 +34,10 @@ function buildFixtureUserMetadata(namespace: string, fixtureUser: PlaywrightAuth
     fixtureNamespace: namespace,
     fixtureRole: fixtureUser.role,
   };
+}
+
+function getFixtureAppRole(fixtureUser: PlaywrightAuthFixtureUser): FixtureAppRole {
+  return fixtureUser.role === "admin" ? "platform_admin" : "business_owner";
 }
 
 async function findAuthUserByEmail(email: string) {
@@ -125,6 +130,28 @@ async function upsertFixtureUser(namespace: string, fixtureUser: PlaywrightAuthF
   return updateFixtureUser(existingUser, namespace, fixtureUser);
 }
 
+async function syncFixtureUserProfileRole(userId: string, role: FixtureAppRole) {
+  const privilegedClient = createInternalServiceRoleSupabaseClient(
+    PLAYWRIGHT_AUTH_FIXTURE_BOOTSTRAP_USAGE_ID,
+  );
+  const now = new Date().toISOString();
+  const { error } = await privilegedClient.from("user_profiles").upsert(
+    {
+      user_id: userId,
+      role,
+      created_at: now,
+      updated_at: now,
+    },
+    { onConflict: "user_id" },
+  );
+
+  if (error) {
+    throw new Error(
+      `No fue posible sincronizar el role ${role} en user_profiles para la fixture ${userId}. ${error.message}`,
+    );
+  }
+}
+
 async function assertFixtureCanLogin(fixtureUser: PlaywrightAuthFixtureUser) {
   const authClient = createNonPrivilegedAuthClient();
   const { data, error } = await authClient.auth.signInWithPassword({
@@ -145,8 +172,9 @@ async function assertFixtureCanLogin(fixtureUser: PlaywrightAuthFixtureUser) {
 async function bootstrapPlaywrightAuthFixtures() {
   const fixtures = getPlaywrightAuthFixtures();
 
-  for (const fixtureUser of [fixtures.owner, fixtures.intruder]) {
-    await upsertFixtureUser(fixtures.namespace, fixtureUser);
+  for (const fixtureUser of [fixtures.admin, fixtures.owner, fixtures.intruder]) {
+    const user = await upsertFixtureUser(fixtures.namespace, fixtureUser);
+    await syncFixtureUserProfileRole(user.id, getFixtureAppRole(fixtureUser));
     await assertFixtureCanLogin(fixtureUser);
   }
 }

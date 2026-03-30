@@ -31,7 +31,7 @@ const marketingFooterGroups: FooterGroup[] = [
     links: [
       { label: "Iniciar sesion", href: "/login?redirectTo=/dashboard" },
       { label: "Registro manual secundario", href: "/register?redirectTo=/dashboard" },
-      { label: "Ir al panel", href: "/dashboard" },
+      { label: "Abrir workspace", href: "/dashboard" },
     ],
   },
   {
@@ -187,9 +187,9 @@ export function AppFooter({
 
   const links = [
     { label: "Landing", href: "/" },
-    { label: "Dashboard", href: businessSlug ? `/dashboard/${businessSlug}` : "/dashboard" },
     ...(businessSlug
       ? [
+          { label: "Dashboard", href: `/dashboard/${businessSlug}` },
           { label: "Pedidos", href: `/pedidos/${businessSlug}` },
           { label: "Metricas", href: `/metricas/${businessSlug}` },
         ]

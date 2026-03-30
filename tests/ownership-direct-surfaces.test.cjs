@@ -101,6 +101,15 @@ const pageScenarios = [
         getBusinessReadinessSnapshot: () => ({ totalProducts: 1, activeProducts: 1 }),
         getAdminProductsByBusinessId: async () => [createProductFixture()],
         getOrdersByBusinessIdFromDatabase: async () => [],
+        getOwnedBusinessesForUser: async () => [
+          {
+            businessId: BUSINESS_ID,
+            businessSlug: "mi-tienda",
+            businessName: "Mi tienda",
+            updatedAt: "2026-03-25T21:00:00.000Z",
+            createdByUserId: OWNER_ID,
+          },
+        ],
         BusinessWorkspaceShell: createWorkspaceShellComponent("dashboard-shell"),
         DashboardOverview(props) {
           return React.createElement(
@@ -123,6 +132,15 @@ const pageScenarios = [
       return {
         requireBusinessContext: async () => createOwnedBusinessContext(),
         getOrdersByBusinessIdFromDatabase: async () => [],
+        getOwnedBusinessesForUser: async () => [
+          {
+            businessId: BUSINESS_ID,
+            businessSlug: "mi-tienda",
+            businessName: "Mi tienda",
+            updatedAt: "2026-03-25T21:00:00.000Z",
+            createdByUserId: OWNER_ID,
+          },
+        ],
         BusinessWorkspaceShell: createWorkspaceShellComponent("orders-shell"),
         OrdersHeaderActions() {
           return React.createElement("div", { "data-marker": "orders-actions" }, "acciones");
@@ -148,6 +166,15 @@ const pageScenarios = [
       return {
         requireBusinessContext: async () => createOwnedBusinessContext(),
         getOrdersByBusinessIdFromDatabase: async () => [],
+        getOwnedBusinessesForUser: async () => [
+          {
+            businessId: BUSINESS_ID,
+            businessSlug: "mi-tienda",
+            businessName: "Mi tienda",
+            updatedAt: "2026-03-25T21:00:00.000Z",
+            createdByUserId: OWNER_ID,
+          },
+        ],
         BusinessWorkspaceShell: createWorkspaceShellComponent("metrics-shell"),
         MetricsOverview() {
           return React.createElement("div", { "data-marker": "metrics-overview" }, "metricas");

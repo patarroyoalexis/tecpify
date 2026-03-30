@@ -206,7 +206,7 @@ export function CreateBusinessPanel() {
         </button>
 
         <p className="text-xs leading-5 text-slate-500">
-          Despues de crear el negocio te llevamos a `/dashboard/[businessSlug]` con el drawer
+          Despues de crear el negocio te llevamos directo al workspace operativo con el drawer
           listo para cargar el primer producto.
         </p>
       </form>

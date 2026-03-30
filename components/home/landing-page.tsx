@@ -54,7 +54,7 @@ export function LandingPage({ isAuthenticated }: LandingPageProps) {
   const registerSecondaryHref = "/register?redirectTo=/dashboard";
   const secondaryHref = "#como-funciona";
   const secondaryLabel = "Ver cómo funciona";
-  const primaryLabel = isAuthenticated ? "Ir a mi panel" : "Iniciar sesion";
+  const primaryLabel = isAuthenticated ? "Abrir workspace" : "Iniciar sesion";
 
   return (
     <main className="overflow-x-clip">

@@ -115,6 +115,11 @@ function buildPlaywrightAuthFixtures(operationalEnv: OperationalEnv): Playwright
 
   return {
     namespace,
+    admin: {
+      role: "admin",
+      email: buildPlaywrightFixtureEmail("admin", namespace),
+      password,
+    },
     owner: {
       role: "owner",
       email: buildPlaywrightFixtureEmail("owner", namespace),
@@ -159,7 +164,7 @@ export interface PlaywrightEnv {
   authFixtures: PlaywrightAuthFixtures;
 }
 
-export type PlaywrightAuthFixtureRole = "owner" | "intruder";
+export type PlaywrightAuthFixtureRole = "admin" | "owner" | "intruder";
 
 export interface PlaywrightAuthFixtureUser {
   role: PlaywrightAuthFixtureRole;
@@ -169,6 +174,7 @@ export interface PlaywrightAuthFixtureUser {
 
 export interface PlaywrightAuthFixtures {
   namespace: string;
+  admin: PlaywrightAuthFixtureUser;
   owner: PlaywrightAuthFixtureUser;
   intruder: PlaywrightAuthFixtureUser;
 }

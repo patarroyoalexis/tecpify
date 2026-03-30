@@ -8,6 +8,7 @@ import { getOperationalEnv } from "@/lib/env";
 const operationalEnv = getOperationalEnv();
 
 export const PRIVATE_ROUTE_PROXY_MATCHER = [
+  "/admin/:path*",
   "/dashboard/:path*",
   "/pedidos/:path*",
   "/metricas/:path*",

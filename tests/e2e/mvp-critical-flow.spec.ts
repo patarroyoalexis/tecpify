@@ -9,6 +9,7 @@ import {
   listOrdersFromPrivateApi,
   loginThroughUi,
   resolveTestUsers,
+  switchBusinessFromNavbar,
   waitForOrderInPrivateApi,
   waitForProductInPrivateApi,
 } from "./support/mvp-critical-flow";
@@ -87,7 +88,6 @@ test.describe("MVP critical flow", () => {
         throw new Error("No fue posible resolver el productId y orderId reales del flujo critico.");
       }
 
-      await page.goto("/dashboard");
       await createBusinessFromWorkspace(page, secondBusinessScenario);
 
       const secondBusinessOrders = await listOrdersFromPrivateApi(
@@ -103,8 +103,18 @@ test.describe("MVP critical flow", () => {
             order.client === scenario.customerName ||
             order.businessSlug === scenario.businessSlug ||
             order.products?.some((product) => product.productId === ownedProductId),
-        ),
+          ),
       ).toBe(false);
+    });
+
+    await test.step("the workspace navbar switches businesses and no visible link sends the owner back to a general dashboard home", async () => {
+      await switchBusinessFromNavbar(page, scenario.businessSlug);
+
+      await expect(page).toHaveURL(new RegExp(`/dashboard/${scenario.businessSlug}$`));
+      await expect(page.getByTestId("workspace-current-business-name")).toContainText(
+        scenario.businessName,
+      );
+      await expect(page.locator('a[href="/dashboard"]')).toHaveCount(0);
     });
   });
 });

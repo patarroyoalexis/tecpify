@@ -81,13 +81,13 @@ test("google auth: el helper mantiene Google acotado a login y sanea redirectTo 
 
   assert.equal(
     googleAuthModule.buildGoogleAuthStartHref(),
-    "/api/auth/oauth/google?redirectTo=%2F",
+    "/api/auth/oauth/google?redirectTo=%2Fdashboard",
   );
   assert.equal(
     googleAuthModule.buildGoogleAuthStartHref({
       redirectTo: "https://evil.example.com/steal",
     }),
-    "/api/auth/oauth/google?redirectTo=%2F",
+    "/api/auth/oauth/google?redirectTo=%2Fdashboard",
   );
   assert.equal(googleAuthModule.getGoogleAuthEntryPath(), "/login");
 });
@@ -120,7 +120,7 @@ test("google auth: la nueva frontera runtime inicia Google solo desde cliente an
   );
   assert.match(
     routeSource,
-    /sanitizeRedirectPath/,
+    /sanitizePrivateRedirectPath/,
     "La frontera runtime debe sanear redirectTo antes de construir el callback OAuth.",
   );
   assert.match(

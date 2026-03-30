@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getGoogleAuthEntryPath, isGoogleAuthEnabled } from "@/lib/auth/google-auth";
-import { sanitizeRedirectPath } from "@/lib/auth/server";
+import { sanitizePrivateRedirectPath, sanitizeRedirectPath } from "@/lib/auth/server";
 import { getSiteUrl } from "@/lib/site-url";
 import { createServerSupabaseAuthClient } from "@/lib/supabase/server";
 
@@ -20,7 +20,10 @@ export async function GET(request: Request) {
   const code = requestUrl.searchParams.get("code");
   const tokenHash = requestUrl.searchParams.get("token_hash");
   const type = requestUrl.searchParams.get("type");
-  const next = sanitizeRedirectPath(requestUrl.searchParams.get("next"));
+  const next =
+    code || type === "signup"
+      ? sanitizePrivateRedirectPath(requestUrl.searchParams.get("next"))
+      : sanitizeRedirectPath(requestUrl.searchParams.get("next"));
   const supabase = await createServerSupabaseAuthClient();
 
   if (code) {

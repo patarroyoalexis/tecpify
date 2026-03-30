@@ -87,13 +87,14 @@ test("next proxy migration: el root proxy exporta el matcher canonico y acotado"
   );
 
   assert.deepEqual(PRIVATE_ROUTE_PROXY_MATCHER, [
+    "/admin/:path*",
     "/dashboard/:path*",
     "/pedidos/:path*",
     "/metricas/:path*",
   ]);
   assert.deepEqual(config, PRIVATE_ROUTE_PROXY_CONFIG);
   assert.deepEqual(config, {
-    matcher: ["/dashboard/:path*", "/pedidos/:path*", "/metricas/:path*"],
+    matcher: ["/admin/:path*", "/dashboard/:path*", "/pedidos/:path*", "/metricas/:path*"],
   });
 });
 
@@ -120,6 +121,30 @@ test("next proxy migration: las rutas privadas sin sesion redirigen a login pres
   assert.equal(
     response.headers.get("location"),
     "https://tecpify.test/login?redirectTo=%2Fpedidos%2Fmi-negocio%3Festado%3Dpendiente%26vista%3Dlista",
+  );
+});
+
+test("next proxy migration: /admin sin sesion redirige a login con redirectTo intacto", async () => {
+  const { enforcePrivateRouteProxyAuth } = loadTsModule("lib/auth/proxy.ts");
+  const request = new NextRequest("https://tecpify.test/admin?panel=platform");
+
+  const response = await enforcePrivateRouteProxyAuth(request, {
+    createSupabaseClient: () => ({
+      auth: {
+        async getUser() {
+          return {
+            data: { user: null },
+            error: null,
+          };
+        },
+      },
+    }),
+  });
+
+  assert.equal(response.status, 307);
+  assert.equal(
+    response.headers.get("location"),
+    "https://tecpify.test/login?redirectTo=%2Fadmin%3Fpanel%3Dplatform",
   );
 });
 

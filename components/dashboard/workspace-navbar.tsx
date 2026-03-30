@@ -3,12 +3,15 @@
 import { AppNavbar } from "@/components/layout/app-navbar";
 import { NewActionsMenu } from "@/components/dashboard/new-actions-menu";
 import { OrdersUiIcon } from "@/components/dashboard/orders-ui-icon";
+import type { OwnedBusinessSummary } from "@/types/businesses";
 
 interface WorkspaceNavbarProps {
   businessName: string;
   businessSlug: string;
   operatorEmail: string | null;
+  workspaceBusinesses: OwnedBusinessSummary[];
   activeTab?: "dashboard" | "pedidos" | "metricas";
+  adminHref?: string | null;
   onSearch: () => void;
   onNewOrder: () => void;
   onNewProduct: () => void;
@@ -18,7 +21,9 @@ export function WorkspaceNavbar({
   businessName,
   businessSlug,
   operatorEmail,
+  workspaceBusinesses,
   activeTab = "dashboard",
+  adminHref,
   onSearch,
   onNewOrder,
   onNewProduct,
@@ -31,6 +36,11 @@ export function WorkspaceNavbar({
         businessSlug={businessSlug}
         operatorEmail={operatorEmail}
         activeTab={activeTab}
+        adminHref={adminHref}
+        workspaceBusinesses={workspaceBusinesses}
+        workspaceCurrentBusinessSlug={businessSlug}
+        workspaceHomeHref={`/dashboard/${businessSlug}`}
+        workspaceCreateBusinessHref="/dashboard/crear-negocio"
         workspaceControls={
           <>
             <button

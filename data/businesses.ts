@@ -11,6 +11,7 @@ import { DELIVERY_TYPES } from "@/types/orders";
 import { requireBusinessId } from "@/types/identifiers";
 import type {
   BusinessRecord,
+  OwnedBusinessSummary,
 } from "@/types/businesses";
 import type { BusinessConfig } from "@/types/storefront";
 
@@ -39,6 +40,14 @@ type AuthenticatedSupabaseBusinessRow = {
   created_at: string;
   updated_at: string;
   created_by_user_id: string | null;
+};
+
+type OwnedBusinessSummaryRow = {
+  id: string;
+  slug: string;
+  name: string;
+  updated_at: string;
+  created_by_user_id: string;
 };
 
 export interface HomeBusinessesSnapshot {
@@ -136,6 +145,16 @@ function mapDatabaseBusinessToConfig(databaseBusiness: BusinessRecord): Business
     }),
     databaseBusiness.businessId,
   );
+}
+
+function mapOwnedBusinessSummaryRow(row: OwnedBusinessSummaryRow): OwnedBusinessSummary {
+  return {
+    businessId: requireBusinessId(row.id),
+    businessSlug: requireBusinessSlug(row.slug),
+    businessName: row.name,
+    updatedAt: row.updated_at,
+    createdByUserId: row.created_by_user_id,
+  };
 }
 
 export async function getBusinessBySlugFromDatabase(businessSlug: string) {
@@ -265,6 +284,32 @@ async function getBusinessesFromDatabase() {
   }
 
   return ((data ?? []) as AuthenticatedSupabaseBusinessRow[]).map(mapSupabaseBusinessRow);
+}
+
+export async function getOwnedBusinessesForUser(userId: string): Promise<OwnedBusinessSummary[]> {
+  const supabase = await createServerSupabaseAuthClient();
+  const { data, error } = await supabase
+    .from("businesses")
+    .select("id, slug, name, updated_at, created_by_user_id")
+    .eq("created_by_user_id", userId);
+
+  if (error) {
+    throw new Error(`Supabase owned businesses query failed: ${error.message}`);
+  }
+
+  return ((data ?? []) as OwnedBusinessSummaryRow[])
+    .filter((business) => hasVerifiedBusinessOwner(business.created_by_user_id))
+    .map(mapOwnedBusinessSummaryRow)
+    .sort((left, right) => {
+      const updatedAtDifference =
+        new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime();
+
+      if (updatedAtDifference !== 0) {
+        return updatedAtDifference;
+      }
+
+      return left.businessSlug.localeCompare(right.businessSlug);
+    });
 }
 
 async function countUnsupportedLegacyBusinesses() {

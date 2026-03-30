@@ -99,8 +99,8 @@ test("businesses api: PATCH guarda instrucciones de transferencia del owner aute
         },
       },
     }),
-    requireAuthenticatedApiUser: async () => {
-      throw new Error("requireAuthenticatedApiUser no debe usarse en PATCH");
+    requireBusinessOperatorApiUser: async () => {
+      throw new Error("requireBusinessOperatorApiUser no debe usarse en PATCH");
     },
     createServerSupabaseAuthClient: async () => ({
       from(table) {
@@ -207,8 +207,8 @@ test("businesses api: PATCH permite vaciar instrucciones y persiste null", async
         },
       },
     }),
-    requireAuthenticatedApiUser: async () => {
-      throw new Error("requireAuthenticatedApiUser no debe usarse en PATCH");
+    requireBusinessOperatorApiUser: async () => {
+      throw new Error("requireBusinessOperatorApiUser no debe usarse en PATCH");
     },
     createServerSupabaseAuthClient: async () => ({
       from() {

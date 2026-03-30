@@ -25,6 +25,8 @@ El objetivo actual del MVP es validar, de punta a punta, que un negocio pueda:
 
 Ese es el circuito hoy validado con mayor evidencia automatizada y usa Supabase como base real para auth, datos y reglas de acceso.
 
+La entrada privada canonica vive en `/dashboard` solo como compuerta tecnica, no como dashboard general visible: `0 negocios -> /dashboard/crear-negocio`, `1 negocio -> /dashboard/[businessSlug]` y `multiples negocios -> negocio activo resuelto server-side + cambio secundario desde la navbar privada`.
+
 El login por email/password si forma parte de ese carril oficial. El registro manual permanece accesible solo como carril secundario/no garantizado y no debe venderse como frente cerrado del MVP.
 
 ## 5. Estado funcional actual
@@ -32,7 +34,13 @@ El login por email/password si forma parte de ese carril oficial. El registro ma
 - Login y sesion del operador con Supabase Auth SSR por email/password; este es el carril oficial validado con evidencia automatizada fuerte mediante fixtures dedicadas.
 - El registro manual por email/password sigue accesible en runtime solo como carril secundario/no garantizado; puede requerir confirmacion de correo y configuracion real de Supabase Auth antes de dejar operativo el login.
 - Google OAuth opcional puede aparecer solo como carril secundario en `/login` cuando el proveedor esta configurado, pero no reemplaza el login por email/password ni forma parte del circuito cerrado del MVP.
+- Los roles validos del sistema quedan tipados y persistidos como `platform_admin`, `business_owner` y `customer`; el MVP actual habilita operativamente `platform_admin` y `business_owner`, mientras `customer` queda reservado en contratos y tipos para evolucion futura.
+- El rol autenticado vive en `public.user_profiles.role` respaldado por el enum `public.app_role`; el runtime no usa strings magicos ni sigue tratando al dueno de negocio como `user`.
 - Proteccion temprana de rutas privadas con `proxy.ts`, conservando `redirectTo` hacia `/login`.
+- Resolucion privada server-first desde `/dashboard`: si no existe ningun negocio owned se abre solo el alta, si existe uno se entra directo a su workspace y si existen varios el negocio activo se resuelve sin pantalla intermedia de seleccion.
+- `/dashboard` es la entrada privada general y selector de negocios; no mezcla metricas de plataforma.
+- `/dashboard/[businessSlug]` es el workspace operativo del negocio autenticado.
+- `/admin` es el panel interno de plataforma y existe solo para `platform_admin`.
 - Creacion de negocios con ownership persistido en `created_by_user_id` y expuesto en runtime como `createdByUserId`.
 - Catalogo por negocio con alta, edicion, activacion, destacado y reordenamiento.
 - Storefront publico por `businessSlug`, con solo productos activos y solo negocios con owner verificable.
@@ -63,9 +71,14 @@ Las garantias activas del MVP hoy no viven solo en UI ni solo en handlers HTTP: 
 
 ### Garantias operativas hoy activas
 
+- Los roles canonicamente validos del repo son `platform_admin`, `business_owner` y `customer`; `user` deja de ser un rol valido para representar al dueno del negocio.
+- El rol autenticado se resuelve server-side desde `public.user_profiles.role` y el enum `public.app_role`; el cliente no autoriza acceso operativo enviando un rol propio.
 - En DB, el ownership canonico del negocio vive en `public.businesses.created_by_user_id`; en el runtime TypeScript se expone como `createdByUserId`.
 - El ownership se resuelve server-side desde sesion/contexto confiable; el cliente no autoriza recursos enviando aliases de ownership ni `business_id`.
+- El workspace privado del MVP tiene una sola entrada natural: el negocio activo. El cambio de negocio existe como accion secundaria dentro de la navbar privada, no como home principal paralela.
 - El flujo normal no usa `SUPABASE_SERVICE_ROLE_KEY`; opera con cliente publico/anon acotado, cliente autenticado SSR y RLS.
+- `/dashboard` sigue siendo la entrada privada general del operador y no mezcla metricas de plataforma; `/admin` queda separado y solo para `platform_admin`.
+- El panel `/admin` queda protegido server-side y cualquier loader/query usado para metricas globales valida explicitamente `platform_admin`.
 - La creacion de pedidos ignora `status`, `paymentStatus`, `history` y cualquier campo derivable enviado por cliente.
 - `Transferencia` es el unico metodo generico de transferencia del MVP y las instrucciones reales del negocio para pagar/comprobar viven en `businesses.transfer_instructions`.
 - Los metodos publicos visibles al cliente se derivan de flags por negocio; Fiado no es un metodo publico y nunca aparece en checkout ni formularios del cliente.
@@ -78,6 +91,9 @@ Las garantias activas del MVP hoy no viven solo en UI ni solo en handlers HTTP: 
 - El historial del pedido es append-only bajo control server-side y DB; el cliente no puede reemplazar snapshots completos de `history`.
 - Un producto ya referenciado en pedidos historicos persistidos no puede borrarse: el veto vive en runtime y tambien en DB, incluso ante deletes directos sobre `public.products`.
 - Mientras un pedido este en fiado pendiente no entra a ingresos efectivos; solo vuelve a contarse cuando el negocio lo marca manualmente como `paid`.
+- El dashboard admin usa datos reales persistidos en Supabase para KPIs, series y tablas; no fabrica metricas con mocks.
+- El GMV del panel admin excluye pedidos cancelados y fiados pendientes para no inflar ventas efectivas.
+- El embudo de activacion del panel admin usa aproximaciones honestas sobre datos ya persistidos y no inventa eventos inexistentes fuera del esquema actual.
 - `localStorage` queda limitado a estado visual no critico del workspace.
 
 ### Estado real auditado del repo
@@ -86,6 +102,7 @@ Las garantias activas del MVP hoy no viven solo en UI ni solo en handlers HTTP: 
 - El frente de naming canonico (`businessId`, `businessSlug`, `productId`, `orderId`, `orderCode`) tiene guardrails activos en tipos, rutas, helpers y tests.
 - El borde privilegiado del runtime normal sigue aislado: `SUPABASE_SERVICE_ROLE_KEY` no participa en el flujo productivo y queda reservada para el helper interno autorizado y el bootstrap test-only de Playwright.
 - El login por email/password sigue siendo el unico carril de acceso respaldado hoy por evidencia E2E fuerte.
+- El panel interno `/admin` ya queda separado del workspace del negocio, respaldado por `public.user_profiles.role`, guard server-side, queries admin dedicadas y una spec E2E real de acceso permitido/denegado por rol.
 - El registro manual permanece visible solo como carril secundario/no garantizado; no forma parte del frente cerrado del MVP mientras dependa de confirmacion de correo o configuracion incierta del entorno.
 - Metricas privadas quedan cerradas: runtime, base Supabase enlazada, spec E2E dedicada y documentacion ya estan alineados con la misma definicion efectiva.
 - El veto de borrado de productos historicos queda cerrado con trigger en Supabase, runtime alineado y evidencia automatizada de guardrails + integracion real de DB.
@@ -111,9 +128,10 @@ Las garantias activas del MVP hoy no viven solo en UI ni solo en handlers HTTP: 
 ## 7. Limites actuales del producto
 
 - No es un ERP ni un backoffice completo.
-- No tiene multiusuario por negocio ni roles complejos.
+- No tiene multiusuario por negocio ni permisos granulares por negocio mas alla de `business_owner`.
 - No tiene pagos automatizados, conciliacion ni pasarela integrada.
 - No tiene inventario formal, variantes, categorias, imagenes ni logistica avanzada.
+- `customer` ya existe como contrato tipado y persistido, pero todavia no habilita un flujo funcional completo dentro del MVP.
 - No ofrece remediacion runtime ni SQL para negocios ownerless; `request/grant/claim/list` quedan retirados en la definicion final efectiva y cualquier saneamiento ocurre fuera del runtime del MVP.
 - No debe usarse como excusa para relajar naming, ownership o source of truth: el alcance es acotado, no ambiguo.
 
@@ -122,8 +140,9 @@ Las garantias activas del MVP hoy no viven solo en UI ni solo en handlers HTTP: 
 1. Mantener alineado el proyecto Supabase apuntado por Playwright con las migraciones vigentes para no reabrir la evidencia E2E real de metricas privadas.
 2. Solo si se decide volver a promover el registro manual como carril oficial, cubrirlo de punta a punta con confirmacion real y evidencia E2E equivalente al login.
 3. Mantener alineados runtime, migraciones y tests cuando el catalogo evolucione, para no reabrir el veto de borrado sobre productos historicos.
-4. Seguir simplificando el workspace sin abrir excepciones sobre ownership, naming ni source of truth.
-5. Mantener acotada la capa de `proxy.ts` y no moverle responsabilidades de dominio que deben vivir en runtime, DB y tests.
+4. Evolucionar `customer` solo si llega con contratos, RLS y evidencia automatizada equivalentes al cierre actual de `platform_admin` y `business_owner`.
+5. Mantener separado `/admin` del workspace del negocio y no volver a mezclar metricas globales con operacion por `businessSlug`.
+6. Mantener acotada la capa de `proxy.ts` y no moverle responsabilidades de dominio que deben vivir en runtime, DB y tests.
 
 ## 9. E2E del circuito critico
 
@@ -136,6 +155,7 @@ La suite inicial de Playwright ya cubre el circuito base del MVP:
 5. creacion de pedido desde el formulario publico
 6. verificacion de que el pedido aparece en `pedidos/[businessSlug]`
 7. validacion de que otro usuario autenticado no puede abrir ni operar ese negocio
+8. validacion de que `platform_admin` puede acceder a `/admin` y `business_owner` no puede entrar al panel interno
 
 Ademas, la fase actual de E2E ya protege reglas criticas del dominio de pedidos:
 
@@ -153,7 +173,8 @@ Ademas, la fase actual de E2E ya protege reglas criticas del dominio de pedidos:
 - `npm run test:e2e:headed`
 - La base enlazada debe tener aplicadas las migraciones vigentes de `supabase/migrations`. Si el proyecto remoto queda atrasado respecto del repo, el owner puede quedar bloqueado por RLS al crear negocio o publicar productos y la suite E2E no cerrara el circuito real.
 - La migracion `20260329002_rework_order_operational_flow_and_cancellation.sql` agrega `previous_status_before_cancellation`, `cancellation_reason`, `cancellation_detail` y la funcion controlada `public.update_order_with_server_history`. Si el remoto enlazado no la tiene aplicada, la cancelacion/reactivacion excepcional no queda cerrada y reaparece drift entre runtime y esquema.
-- Antes de correr specs, Playwright bootstrapea fixtures dedicadas de Auth con `tests/helpers/playwright-global-setup.ts`. Ese bootstrap usa service role aislada de test para crear o corregir dos cuentas no humanas, las confirma sin correo y luego verifica login real con password.
+- La migracion `20260330001_introduce_app_roles_and_platform_admin_access.sql` agrega `public.app_role`, `public.user_profiles`, helpers SQL controlados para rol y la superficie RLS necesaria para que `/admin` lea metricas globales solo como `platform_admin`. Si el remoto enlazado no la tiene aplicada, el panel interno vuelve a quedar no cerrado aunque el repo local tenga runtime y tests.
+- Antes de correr specs, Playwright bootstrapea fixtures dedicadas de Auth con `tests/helpers/playwright-global-setup.ts`. Ese bootstrap usa service role aislada de test para crear o corregir tres cuentas no humanas (`admin`, `owner`, `intruder`), las confirma sin correo y luego verifica login real con password.
 - La suite E2E falla cerrado si faltan prerequisitos del bootstrap, si Supabase Auth no puede dejar operativas esas fixtures o si el proyecto remoto no acepta login real con ellas.
 - La suite E2E no llama `/api/auth/register`, no usa `signUp`, no dispara correos de confirmacion, OTP, magic link, reset ni resend, no toca Google OAuth real y no depende de cuentas humanas ni de estados manuales inciertos.
 - La suite E2E ya incluye una spec dedicada para metricas privadas y hoy si cuenta como cierre efectivo: corre contra el Supabase enlazado real, valida ownership, aislamiento, regla de fiado y demuestra que el resultado no depende de `localStorage`.
@@ -163,8 +184,21 @@ Ademas, la fase actual de E2E ya protege reglas criticas del dominio de pedidos:
 
 - Playwright lee `PLAYWRIGHT_*` desde el entorno del proceso o desde `.env.local` antes de evaluar las specs.
 - `PLAYWRIGHT_BASE_URL`: por defecto `http://localhost:3000`.
-- `PLAYWRIGHT_E2E_PASSWORD`: obligatoria. Es el unico secreto de test para bootstrapear las dos fixtures de Auth (`owner` e `intruder`) con emails dedicados y deterministas bajo `example.com`.
+- `PLAYWRIGHT_E2E_PASSWORD`: obligatoria. Es el unico secreto de test para bootstrapear las tres fixtures de Auth (`admin`, `owner` e `intruder`) con emails dedicados y deterministas bajo `example.com`.
 - `PLAYWRIGHT_E2E_NAMESPACE`: opcional. Si no se define, el namespace se deriva del project ref de `NEXT_PUBLIC_SUPABASE_URL`; sirve para aislar fixtures cuando varios entornos comparten el mismo proyecto de Supabase.
 - `PLAYWRIGHT_SKIP_WEBSERVER=1`: desactiva el `webServer` de Playwright para correr contra una app ya levantada.
 - `CI`: activa el perfil de reporter/retries pensado para runners automatizados.
 - `SUPABASE_SERVICE_ROLE_KEY`: sigue fuera del runtime normal, pero es requisito test-only para el bootstrap E2E aislado. No viaja al bundle cliente ni habilita acceso operativo dentro de la app.
+
+## 10. Panel interno de plataforma
+
+- `/dashboard` es la entrada privada general del operador autenticado: lista/selector de negocios y accesos del carril normal del negocio. No mezcla metricas de plataforma.
+- `/dashboard/[businessSlug]` contiene el workspace del negocio y conserva la operacion privada por ownership real.
+- `/admin` es el panel interno de plataforma y solo para `platform_admin`; no existe `/admin/login` y el acceso depende exclusivamente del rol autenticado.
+- El modelado de roles del repo queda centralizado en `AppRole = 'platform_admin' | 'business_owner' | 'customer'`, con `platform_admin` y `business_owner` habilitados en el MVP actual.
+- Para asignar `platform_admin` de forma controlada, usa la funcion SQL privilegiada `public.upsert_user_profile_role_by_email('<tu-email>', 'platform_admin')` desde un contexto administrativo seguro. No existe flag en `.env` ni bypass por UI para elevar privilegios.
+- El dashboard admin muestra solo datos persistidos reales de Supabase: total de negocios, negocios activos recientes, negocios con catalogo publicado, negocios con al menos un pedido, pedidos totales y GMV efectivo de plataforma.
+- El GMV del dashboard admin excluye pedidos cancelados y fiados pendientes; si un fiado sigue `pending`, no entra a ventas efectivas hasta marcarse manualmente como `paid`.
+- Las graficas del panel admin hoy cubren negocios creados por dia, pedidos por dia y GMV por dia sobre una ventana reciente.
+- El embudo admin mide aproximaciones honestas sobre estado persistido real: cuenta operativa creada, negocio creado, primer producto cargado, catalogo publicado y primer pedido recibido. El funnel no inventa eventos inexistentes ni depende de telemetria ausente en el MVP.
+- Si el proyecto tiene pocos datos o ninguno, `/admin` responde con estados vacios honestos en KPIs, series y tablas; no rellena con mocks ni numeros hardcodeados.

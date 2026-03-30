@@ -2,19 +2,21 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Menu, X } from "lucide-react";
+import { ChevronDown, Menu, X } from "lucide-react";
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { LogoutButton } from "@/components/auth/logout-button";
+import type { OwnedBusinessSummary } from "@/types/businesses";
 
 type NavbarVariant = "marketing" | "workspace";
-type WorkspaceTab = "dashboard" | "pedidos" | "metricas";
-type AppNavLinkKey = "home" | "dashboard" | "pedidos" | "metricas";
+type WorkspaceTab = "dashboard" | "pedidos" | "metricas" | "admin";
+type AppNavLinkKey = "home" | WorkspaceTab;
 
 interface AppNavLink {
   key: AppNavLinkKey;
   label: string;
   href: string;
+  testId?: string;
 }
 
 interface AppNavbarProps {
@@ -23,7 +25,13 @@ interface AppNavbarProps {
   businessName?: string;
   businessSlug?: string;
   activeTab?: WorkspaceTab;
+  adminHref?: string | null;
+  workspaceEyebrow?: string;
   workspaceControls?: ReactNode;
+  workspaceBusinesses?: OwnedBusinessSummary[];
+  workspaceCurrentBusinessSlug?: string;
+  workspaceHomeHref?: string;
+  workspaceCreateBusinessHref?: string;
 }
 
 const marketingLinks: AppNavLink[] = [
@@ -32,7 +40,10 @@ const marketingLinks: AppNavLink[] = [
   { key: "home", label: "Beneficios", href: "/#beneficios" },
 ];
 
-function getWorkspaceLinks(businessSlug?: string): AppNavLink[] {
+function getWorkspaceLinks(
+  businessSlug?: string,
+  adminHref?: string | null,
+): AppNavLink[] {
   const links: AppNavLink[] = [
     {
       key: "dashboard",
@@ -56,6 +67,15 @@ function getWorkspaceLinks(businessSlug?: string): AppNavLink[] {
     );
   }
 
+  if (adminHref) {
+    links.push({
+      key: "admin",
+      label: "Admin Tecpify",
+      href: adminHref,
+      testId: "workspace-admin-link",
+    });
+  }
+
   return links;
 }
 
@@ -67,20 +87,186 @@ function workspaceNavLinkClassName(isActive: boolean) {
   }`;
 }
 
+interface CurrentWorkspaceBusiness {
+  businessName: string;
+  businessSlug: string;
+}
+
+function resolveCurrentWorkspaceBusiness(options: {
+  businessName?: string;
+  businessSlug?: string;
+  workspaceBusinesses: OwnedBusinessSummary[];
+  workspaceCurrentBusinessSlug?: string;
+}) {
+  const currentBusinessSlug = options.workspaceCurrentBusinessSlug ?? options.businessSlug;
+
+  if (currentBusinessSlug) {
+    const matchedBusiness = options.workspaceBusinesses.find(
+      (business) => business.businessSlug === currentBusinessSlug,
+    );
+
+    if (matchedBusiness) {
+      return {
+        businessName: matchedBusiness.businessName,
+        businessSlug: matchedBusiness.businessSlug,
+      } satisfies CurrentWorkspaceBusiness;
+    }
+  }
+
+  if (options.businessName && options.businessSlug) {
+    return {
+      businessName: options.businessName,
+      businessSlug: options.businessSlug,
+    } satisfies CurrentWorkspaceBusiness;
+  }
+
+  return null;
+}
+
+interface WorkspaceSettingsMenuProps {
+  currentBusiness: CurrentWorkspaceBusiness | null;
+  workspaceBusinesses: OwnedBusinessSummary[];
+  workspaceCreateBusinessHref?: string;
+}
+
+function WorkspaceSettingsMenu({
+  currentBusiness,
+  workspaceBusinesses,
+  workspaceCreateBusinessHref,
+}: WorkspaceSettingsMenuProps) {
+  const otherBusinesses = currentBusiness
+    ? workspaceBusinesses.filter((business) => business.businessSlug !== currentBusiness.businessSlug)
+    : workspaceBusinesses;
+
+  if (!currentBusiness && otherBusinesses.length === 0 && !workspaceCreateBusinessHref) {
+    return null;
+  }
+
+  return (
+    <details className="group relative" data-testid="workspace-settings-menu">
+      <summary
+        className="flex h-10 list-none items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.07] px-3.5 text-sm font-medium text-slate-100 transition hover:border-white/20 hover:bg-white/[0.12]"
+        data-testid="workspace-settings-trigger"
+      >
+        <span>Ajustes</span>
+        <ChevronDown
+          className="h-4 w-4 transition group-open:rotate-180"
+          aria-hidden="true"
+        />
+      </summary>
+
+      <div className="absolute right-0 top-[calc(100%+0.75rem)] z-50 w-[min(92vw,22rem)] rounded-[28px] border border-white/10 bg-slate-950/95 p-4 shadow-[0_28px_60px_rgba(2,6,23,0.4)] backdrop-blur-xl">
+        {currentBusiness ? (
+          <section>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+              Negocio actual
+            </p>
+            <p className="mt-2 text-sm font-semibold text-white">{currentBusiness.businessName}</p>
+            <p className="mt-1 text-xs text-slate-400">{currentBusiness.businessSlug}</p>
+
+            <div className="mt-4 grid gap-2">
+              <Link
+                href={`/dashboard/${currentBusiness.businessSlug}`}
+                className="rounded-2xl border border-white/10 bg-white/[0.05] px-3 py-2.5 text-sm font-medium text-slate-100 transition hover:border-white/20 hover:bg-white/[0.1]"
+              >
+                Abrir dashboard
+              </Link>
+              <Link
+                href={`/pedidos/${currentBusiness.businessSlug}`}
+                className="rounded-2xl border border-white/10 bg-white/[0.05] px-3 py-2.5 text-sm font-medium text-slate-100 transition hover:border-white/20 hover:bg-white/[0.1]"
+              >
+                Ir a pedidos
+              </Link>
+              <Link
+                href={`/metricas/${currentBusiness.businessSlug}`}
+                className="rounded-2xl border border-white/10 bg-white/[0.05] px-3 py-2.5 text-sm font-medium text-slate-100 transition hover:border-white/20 hover:bg-white/[0.1]"
+              >
+                Ver metricas
+              </Link>
+              <Link
+                href={`/pedido/${currentBusiness.businessSlug}`}
+                className="rounded-2xl border border-white/10 bg-white/[0.05] px-3 py-2.5 text-sm font-medium text-slate-100 transition hover:border-white/20 hover:bg-white/[0.1]"
+              >
+                Abrir formulario publico
+              </Link>
+            </div>
+          </section>
+        ) : null}
+
+        {workspaceCreateBusinessHref ? (
+          <div className={`${currentBusiness ? "mt-4 border-t border-white/10 pt-4" : ""}`}>
+            <Link
+              href={workspaceCreateBusinessHref}
+              data-testid="workspace-create-business-link"
+              className="block rounded-2xl border border-emerald-400/30 bg-emerald-500/12 px-3 py-2.5 text-sm font-semibold text-emerald-200 transition hover:border-emerald-300/40 hover:bg-emerald-500/18"
+            >
+              {currentBusiness ? "Crear otro negocio" : "Crear negocio"}
+            </Link>
+          </div>
+        ) : null}
+
+        {otherBusinesses.length > 0 ? (
+          <section className="mt-4 border-t border-white/10 pt-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+              Cambiar de negocio
+            </p>
+            <div className="mt-3 grid gap-2" data-testid="workspace-business-switcher">
+              {otherBusinesses.map((business) => (
+                <Link
+                  key={business.businessSlug}
+                  href={`/dashboard/${business.businessSlug}`}
+                  data-testid={`workspace-business-option-${business.businessSlug}`}
+                  className="rounded-2xl border border-white/10 bg-white/[0.05] px-3 py-2.5 text-sm font-medium text-slate-100 transition hover:border-white/20 hover:bg-white/[0.1]"
+                >
+                  <span className="block">{business.businessName}</span>
+                  <span className="mt-0.5 block text-xs text-slate-400">
+                    {business.businessSlug}
+                  </span>
+                </Link>
+              ))}
+            </div>
+          </section>
+        ) : null}
+      </div>
+    </details>
+  );
+}
+
 export function AppNavbar({
   variant,
   operatorEmail,
   businessName,
   businessSlug,
   activeTab = "dashboard",
+  adminHref,
+  workspaceEyebrow = "Workspace",
   workspaceControls,
+  workspaceBusinesses = [],
+  workspaceCurrentBusinessSlug,
+  workspaceHomeHref,
+  workspaceCreateBusinessHref,
 }: AppNavbarProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const isWorkspace = variant === "workspace";
-  const navLinks: AppNavLink[] = isWorkspace ? getWorkspaceLinks(businessSlug) : marketingLinks;
-  const brandHref = isWorkspace ? "/dashboard" : "/";
+  const currentWorkspaceBusiness = isWorkspace
+    ? resolveCurrentWorkspaceBusiness({
+        businessName,
+        businessSlug,
+        workspaceBusinesses,
+        workspaceCurrentBusinessSlug,
+      })
+    : null;
+  const navLinks: AppNavLink[] = isWorkspace
+    ? getWorkspaceLinks(businessSlug, adminHref)
+    : marketingLinks;
+  const brandHref = isWorkspace
+    ? workspaceHomeHref ??
+      (currentWorkspaceBusiness
+        ? `/dashboard/${currentWorkspaceBusiness.businessSlug}`
+        : "/dashboard")
+    : "/";
   const brandSubtitle = isWorkspace
-    ? businessName ?? "Centro operativo"
+    ? currentWorkspaceBusiness?.businessName ?? businessName ?? "Workspace privado"
     : "Pedidos y operacion clara para pequenos negocios";
   const loginHref = "/login?redirectTo=/dashboard";
   const registerHref = "/register?redirectTo=/dashboard";
@@ -103,14 +289,25 @@ export function AppNavbar({
               </div>
               <div className="min-w-0">
                 <p className="truncate text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300">
-                  Workspace
+                  {workspaceEyebrow}
                 </p>
-                <p className="truncate text-sm font-medium text-slate-100">{brandSubtitle}</p>
+                <p
+                  className="truncate text-sm font-medium text-slate-100"
+                  data-testid="workspace-current-business-name"
+                >
+                  {brandSubtitle}
+                </p>
               </div>
             </Link>
 
             <div className="flex flex-wrap items-center justify-end gap-2">
               {workspaceControls}
+
+              <WorkspaceSettingsMenu
+                currentBusiness={currentWorkspaceBusiness}
+                workspaceBusinesses={workspaceBusinesses}
+                workspaceCreateBusinessHref={workspaceCreateBusinessHref}
+              />
 
               {operatorEmail ? (
                 <>
@@ -143,23 +340,26 @@ export function AppNavbar({
             </div>
           </div>
 
-          <div className="mt-3 flex items-center gap-2 overflow-x-auto pb-1">
-            <nav aria-label="Navegacion privada" className="flex min-w-full items-center gap-1">
-              {navLinks.map((link) => {
-                const isActive = link.key === activeTab;
+          {navLinks.length > 0 ? (
+            <div className="mt-3 flex items-center gap-2 overflow-x-auto pb-1">
+              <nav aria-label="Navegacion privada" className="flex min-w-full items-center gap-1">
+                {navLinks.map((link) => {
+                  const isActive = link.key === activeTab;
 
-                return (
-                  <Link
-                    key={`${link.key}-${link.href}`}
-                    href={link.href}
-                    className={`${workspaceNavLinkClassName(isActive)} whitespace-nowrap`}
-                  >
-                    {link.label}
-                  </Link>
-                );
-              })}
-            </nav>
-          </div>
+                  return (
+                    <Link
+                      key={`${link.key}-${link.href}`}
+                      href={link.href}
+                      data-testid={link.testId}
+                      className={`${workspaceNavLinkClassName(isActive)} whitespace-nowrap`}
+                    >
+                      {link.label}
+                    </Link>
+                  );
+                })}
+              </nav>
+            </div>
+          ) : null}
         </div>
       </header>
     );
