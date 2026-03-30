@@ -59,11 +59,11 @@ function getWorkspaceLinks(businessSlug?: string): AppNavLink[] {
   return links;
 }
 
-function navLinkClassName(isActive: boolean) {
-  return `rounded-xl px-3 py-2 text-sm font-medium transition ${
+function workspaceNavLinkClassName(isActive: boolean) {
+  return `rounded-2xl border px-3.5 py-2 text-sm font-medium transition ${
     isActive
-      ? "bg-slate-950 text-white"
-      : "text-slate-600 hover:bg-slate-100 hover:text-slate-950"
+      ? "border-white/18 bg-white text-slate-950 shadow-[0_14px_28px_rgba(15,23,42,0.18)]"
+      : "border-white/8 bg-white/[0.06] text-slate-200 hover:border-white/14 hover:bg-white/[0.1] hover:text-white"
   }`;
 }
 
@@ -87,16 +87,25 @@ export function AppNavbar({
 
   if (isWorkspace) {
     return (
-      <header className="sticky top-0 z-40 border-b border-slate-200/70 bg-white/92 backdrop-blur-xl">
-        <div className="mx-auto flex w-full max-w-7xl flex-col px-3 py-3 sm:px-4 lg:px-5">
+      <header className="sticky top-0 z-40 border-b border-white/10 bg-[linear-gradient(180deg,rgb(var(--workspace-navbar-strong-rgb))_0%,rgb(var(--workspace-navbar-rgb))_100%)] text-white shadow-[0_16px_42px_rgba(15,23,42,0.18)] backdrop-blur-xl">
+        <div className="flex w-full flex-col px-3 py-3 sm:px-4 lg:px-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <Link href={brandHref} className="flex min-w-0 items-center gap-3">
-              <span className="inline-flex shrink-0 rounded-xl bg-slate-950 px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.24em] text-white">
-                Tecpify
-              </span>
+              <div className="flex h-12 shrink-0 items-center rounded-2xl border border-white/10 bg-slate-950/55 px-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+                <Image
+                  src="/images/landing/Logo-tecpify-dark-background.png"
+                  alt="Tecpify"
+                  width={104}
+                  height={26}
+                  priority
+                  className="h-6 w-auto"
+                />
+              </div>
               <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-slate-900">Workspace</p>
-                <p className="truncate text-xs text-slate-500">{brandSubtitle}</p>
+                <p className="truncate text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300">
+                  Workspace
+                </p>
+                <p className="truncate text-sm font-medium text-slate-100">{brandSubtitle}</p>
               </div>
             </Link>
 
@@ -105,27 +114,27 @@ export function AppNavbar({
 
               {operatorEmail ? (
                 <>
-                  <div className="hidden items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 lg:flex">
-                    <span className="text-xs font-medium text-slate-500">Sesion</span>
-                    <span className="max-w-44 truncate text-sm font-semibold text-slate-800">
+                  <div className="hidden items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.07] px-3 py-2 lg:flex">
+                    <span className="text-xs font-medium text-slate-300">Sesion</span>
+                    <span className="max-w-44 truncate text-sm font-semibold text-white">
                       {operatorEmail}
                     </span>
                   </div>
                   <LogoutButton
-                    className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                    className="inline-flex h-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.07] px-3.5 text-sm font-medium text-slate-100 transition hover:border-white/20 hover:bg-white/[0.12]"
                   />
                 </>
               ) : (
                 <>
                   <Link
                     href={loginHref}
-                    className="inline-flex h-10 items-center justify-center rounded-xl bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-slate-800"
+                    className="inline-flex h-10 items-center justify-center rounded-2xl bg-white px-4 text-sm font-semibold text-slate-950 transition hover:bg-slate-100"
                   >
                     Iniciar sesion
                   </Link>
                   <Link
                     href={registerHref}
-                    className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                    className="inline-flex h-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.07] px-4 text-sm font-medium text-slate-100 transition hover:border-white/20 hover:bg-white/[0.12]"
                   >
                     Registro manual
                   </Link>
@@ -143,7 +152,7 @@ export function AppNavbar({
                   <Link
                     key={`${link.key}-${link.href}`}
                     href={link.href}
-                    className={`${navLinkClassName(isActive)} whitespace-nowrap`}
+                    className={`${workspaceNavLinkClassName(isActive)} whitespace-nowrap`}
                   >
                     {link.label}
                   </Link>

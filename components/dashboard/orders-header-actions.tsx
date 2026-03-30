@@ -11,7 +11,7 @@ export function OrdersHeaderActions() {
     <button
       type="button"
       onClick={openProductsManager}
-      className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300 focus:ring-offset-2"
+      className="inline-flex h-11 items-center gap-2 rounded-2xl border border-workspace-border bg-white px-4 text-sm font-semibold text-workspace-ink shadow-[0_14px_28px_rgba(15,23,42,0.08)] transition hover:-translate-y-px hover:border-sky-300 hover:bg-sky-50/70 focus:outline-none focus:ring-2 focus:ring-sky-200 focus:ring-offset-2"
     >
       <Package className="h-4 w-4" />
       <span>Productos</span>

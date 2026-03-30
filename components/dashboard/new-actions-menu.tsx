@@ -122,7 +122,7 @@ export function NewActionsMenu({
           <button
             type="button"
             onClick={() => setIsOpen((currentValue) => !currentValue)}
-            className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-3.5 py-2 text-sm font-medium text-white transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-300 focus:ring-offset-2"
+            className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white px-3.5 py-2 text-sm font-semibold text-slate-950 shadow-[0_12px_24px_rgba(15,23,42,0.16)] transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-300 focus:ring-offset-2"
             aria-haspopup="menu"
             aria-expanded={isOpen}
             aria-controls={menuId}

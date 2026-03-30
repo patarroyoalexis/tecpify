@@ -99,51 +99,70 @@ export const ORDER_STATUS_VISUALS: Record<
     accentClassName: string;
     badgeClassName: string;
     boardHeaderClassName: string;
+    boardSurfaceClassName: string;
     dotClassName: string;
     softPanelClassName: string;
   }
 > = {
   nuevo: {
     accentClassName: "text-sky-700",
-    badgeClassName: "border-sky-200 bg-sky-50 text-sky-800",
-    boardHeaderClassName: "border-sky-200 bg-sky-50/90 text-sky-950",
-    dotClassName: "bg-sky-500",
-    softPanelClassName: "border-sky-200/80 bg-sky-50/60",
+    badgeClassName:
+      "border-sky-200 bg-sky-50 text-sky-800 shadow-[inset_0_1px_0_rgba(255,255,255,0.55)]",
+    boardHeaderClassName:
+      "border-sky-500/70 bg-[linear-gradient(135deg,#2563eb,#38bdf8)] text-white",
+    boardSurfaceClassName: "border-sky-200/80 bg-sky-50/75",
+    dotClassName: "bg-white",
+    softPanelClassName: "border-sky-200/80 bg-sky-50/75",
   },
   confirmado: {
     accentClassName: "text-amber-700",
-    badgeClassName: "border-amber-200 bg-amber-50 text-amber-800",
-    boardHeaderClassName: "border-amber-200 bg-amber-50/90 text-amber-950",
-    dotClassName: "bg-amber-500",
-    softPanelClassName: "border-amber-200/80 bg-amber-50/60",
+    badgeClassName:
+      "border-amber-200 bg-amber-50 text-amber-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.55)]",
+    boardHeaderClassName:
+      "border-amber-400/80 bg-[linear-gradient(135deg,#f59e0b,#facc15)] text-amber-950",
+    boardSurfaceClassName: "border-amber-200/80 bg-amber-50/80",
+    dotClassName: "bg-amber-950",
+    softPanelClassName: "border-amber-200/80 bg-amber-50/75",
   },
   "en preparación": {
-    accentClassName: "text-violet-700",
-    badgeClassName: "border-violet-200 bg-violet-50 text-violet-800",
-    boardHeaderClassName: "border-violet-200 bg-violet-50/90 text-violet-950",
-    dotClassName: "bg-violet-500",
-    softPanelClassName: "border-violet-200/80 bg-violet-50/60",
+    accentClassName: "text-orange-700",
+    badgeClassName:
+      "border-orange-200 bg-orange-50 text-orange-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.55)]",
+    boardHeaderClassName:
+      "border-orange-400/80 bg-[linear-gradient(135deg,#f97316,#fb923c)] text-white",
+    boardSurfaceClassName: "border-orange-200/80 bg-orange-50/80",
+    dotClassName: "bg-white",
+    softPanelClassName: "border-orange-200/80 bg-orange-50/75",
   },
   listo: {
     accentClassName: "text-emerald-700",
-    badgeClassName: "border-emerald-200 bg-emerald-50 text-emerald-800",
-    boardHeaderClassName: "border-emerald-200 bg-emerald-50/90 text-emerald-950",
-    dotClassName: "bg-emerald-500",
-    softPanelClassName: "border-emerald-200/80 bg-emerald-50/60",
+    badgeClassName:
+      "border-emerald-200 bg-emerald-50 text-emerald-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.55)]",
+    boardHeaderClassName:
+      "border-emerald-400/80 bg-[linear-gradient(135deg,#16a34a,#34d399)] text-white",
+    boardSurfaceClassName: "border-emerald-200/80 bg-emerald-50/80",
+    dotClassName: "bg-white",
+    softPanelClassName: "border-emerald-200/80 bg-emerald-50/75",
   },
   entregado: {
     accentClassName: "text-teal-700",
-    badgeClassName: "border-teal-200 bg-teal-50 text-teal-800",
-    boardHeaderClassName: "border-teal-200 bg-teal-50/90 text-teal-950",
-    dotClassName: "bg-teal-500",
-    softPanelClassName: "border-teal-200/80 bg-teal-50/60",
+    badgeClassName:
+      "border-teal-200 bg-teal-50 text-teal-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.55)]",
+    boardHeaderClassName:
+      "border-teal-400/80 bg-[linear-gradient(135deg,#0f766e,#2dd4bf)] text-white",
+    boardSurfaceClassName: "border-teal-200/80 bg-teal-50/80",
+    dotClassName: "bg-white",
+    softPanelClassName: "border-teal-200/80 bg-teal-50/75",
   },
   cancelado: {
     accentClassName: "text-rose-700",
-    badgeClassName: "border-rose-200 bg-rose-50 text-rose-800",
-    boardHeaderClassName: "border-rose-200 bg-rose-50/90 text-rose-950",
-    dotClassName: "bg-rose-500",
-    softPanelClassName: "border-rose-200/80 bg-rose-50/60",
+    badgeClassName:
+      "border-rose-200 bg-rose-50 text-rose-800 shadow-[inset_0_1px_0_rgba(255,255,255,0.55)]",
+    boardHeaderClassName:
+      "border-rose-400/80 bg-[linear-gradient(135deg,#dc2626,#fb7185)] text-white",
+    boardSurfaceClassName: "border-rose-200/80 bg-rose-50/80",
+    dotClassName: "bg-white",
+    softPanelClassName: "border-rose-200/80 bg-rose-50/75",
   },
 };
 

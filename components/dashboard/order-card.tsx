@@ -165,10 +165,10 @@ export function OrderCard({
   return (
     <article
       data-testid={`order-card-${order.orderId}`}
-      className={`flex h-full flex-col border border-slate-200 bg-white transition hover:border-slate-300 ${
+      className={`flex h-full flex-col border border-slate-200/85 bg-white/96 transition duration-200 hover:-translate-y-px hover:border-slate-300 ${
         isMobileCard
           ? "rounded-[20px] p-3.5 shadow-[0_12px_28px_rgba(15,23,42,0.08)]"
-          : "rounded-[24px] p-4 shadow-[0_16px_36px_rgba(15,23,42,0.05)]"
+          : "rounded-[22px] p-3.5 shadow-[0_16px_34px_rgba(15,23,42,0.07)]"
       } ${getPriorityAccent(order)}`}
     >
       <div className="flex items-start justify-between gap-3">
@@ -177,7 +177,7 @@ export function OrderCard({
             {isMobileCard ? (
               <p className="text-sm font-semibold text-slate-950">{displayCode}</p>
             ) : (
-              <h3 className="truncate text-base font-semibold text-slate-950">{order.client}</h3>
+              <h3 className="truncate text-[15px] font-semibold text-slate-950">{order.client}</h3>
             )}
             {!order.isReviewed ? (
               <span
@@ -196,7 +196,7 @@ export function OrderCard({
 
           <div
             className={`mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 font-medium text-slate-500 ${
-              isMobileCard ? "text-[11px]" : "text-xs"
+              isMobileCard ? "text-[11px]" : "text-[11px]"
             }`}
           >
             {!isMobileCard ? <span>{displayCode}</span> : null}
@@ -207,16 +207,16 @@ export function OrderCard({
           </div>
         </div>
 
-        <p className={`shrink-0 font-semibold text-slate-950 ${isMobileCard ? "text-[13px]" : "text-sm"}`}>
+        <p className={`shrink-0 font-semibold text-slate-950 ${isMobileCard ? "text-[13px]" : "text-[13px]"}`}>
           {formatCurrency(order.total)}
         </p>
       </div>
 
-      <div className="mt-3 flex flex-wrap gap-2">
+      <div className="mt-3 flex flex-wrap gap-1.5">
         <div
           data-testid={`order-card-status-${order.orderId}`}
           className={`inline-flex items-center gap-2 rounded-full border font-semibold ${
-            isMobileCard ? "px-2.5 py-1 text-[11px]" : "px-3 py-1.5 text-xs"
+            isMobileCard ? "px-2.5 py-1 text-[11px]" : "px-2.5 py-1 text-[11px]"
           } ${statusVisuals.badgeClassName}`}
         >
           <StatusBadgeIcon iconKey={getOrderStatusIconKey(order.status)} />
@@ -226,34 +226,34 @@ export function OrderCard({
         <div
           data-testid={`order-card-financial-condition-${order.orderId}`}
           className={`inline-flex items-center gap-2 rounded-full border font-semibold ${
-            isMobileCard ? "px-2.5 py-1 text-[11px]" : "px-3 py-1.5 text-xs"
+            isMobileCard ? "px-2.5 py-1 text-[11px]" : "px-2.5 py-1 text-[11px]"
           } ${financialVisuals.badgeClassName}`}
         >
           <span>{ORDER_FINANCIAL_CONDITION_LABELS[financialCondition]}</span>
         </div>
       </div>
 
-      <div className={`mt-3 space-y-2 text-slate-600 ${isMobileCard ? "text-[13px]" : "text-sm"}`}>
+      <div className={`mt-3 space-y-2 text-slate-600 ${isMobileCard ? "text-[13px]" : "text-[13px]"}`}>
         <p className={isMobileCard ? "line-clamp-1" : "line-clamp-2"}>
           {summary}
           {hiddenProductsCount > 0 ? ` +${hiddenProductsCount} más` : ""}
         </p>
 
-        <div className={`flex flex-wrap gap-x-3 gap-y-1 ${isMobileCard ? "text-[11px]" : "text-xs"}`}>
+        <div className={`flex flex-wrap gap-x-3 gap-y-1 ${isMobileCard ? "text-[11px]" : "text-[11px]"}`}>
           <span>{totalUnits} unidad{totalUnits === 1 ? "" : "es"}</span>
           <span>{order.deliveryType === "domicilio" ? "Domicilio" : "Recogida en tienda"}</span>
           <span>{paymentMethodLabel}</span>
         </div>
 
         {financialSubtitle ? (
-          <p className={`font-medium ${isMobileCard ? "text-[11px]" : "text-xs"} ${financialVisuals.accentClassName}`}>
+          <p className={`font-medium ${isMobileCard ? "text-[11px]" : "text-[11px]"} ${financialVisuals.accentClassName}`}>
             {financialSubtitle}
           </p>
         ) : null}
 
         {order.address ? (
           <p
-            className={`text-slate-500 ${isMobileCard ? "line-clamp-1 text-[11px]" : "line-clamp-2 text-xs"}`}
+            className={`text-slate-500 ${isMobileCard ? "line-clamp-1 text-[11px]" : "line-clamp-2 text-[11px]"}`}
           >
             {order.address}
           </p>
@@ -291,7 +291,7 @@ export function OrderCard({
         className={
           isMobileCard
             ? "mt-3 flex flex-1 flex-col justify-end gap-2"
-            : "mt-4 flex flex-1 flex-col justify-end gap-3"
+            : "mt-4 flex flex-1 flex-col justify-end gap-2.5"
         }
       >
         <div className="flex flex-wrap items-center gap-2">

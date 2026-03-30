@@ -8,7 +8,6 @@ import {
 } from "@/components/dashboard/business-workspace-context";
 import { WorkspaceNavbar } from "@/components/dashboard/workspace-navbar";
 import { WorkspacePageHeader } from "@/components/dashboard/workspace-page-header";
-import { AppFooter } from "@/components/layout/app-footer";
 import type { Order } from "@/types/orders";
 
 interface BusinessWorkspaceShellProps {
@@ -44,9 +43,10 @@ function BusinessWorkspaceShellContent({
     : pathname.startsWith(`/metricas/${businessSlug}`)
       ? "metricas"
       : "dashboard";
+  const isOrdersPage = activeTab === "pedidos";
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className={`flex min-h-screen flex-col ${isOrdersPage ? "bg-workspace-shell" : ""}`}>
       <WorkspaceNavbar
         businessName={businessName}
         businessSlug={businessSlug}
@@ -57,21 +57,34 @@ function BusinessWorkspaceShellContent({
         onNewProduct={openNewProduct}
       />
 
-      <main className="flex-1">
+      <main
+        className={`flex flex-1 flex-col ${isOrdersPage ? "min-h-0 bg-[linear-gradient(180deg,rgb(var(--workspace-shell-rgb))_0%,rgb(var(--workspace-panel-rgb)/0.94)_100%)]" : ""}`}
+      >
         <WorkspacePageHeader
           title={title}
           description={description}
           actions={headerActions}
+          immersive={isOrdersPage}
         />
 
-        <section className="px-3 pb-4 pt-5 sm:px-4 sm:pb-5 lg:px-5 lg:pb-6 lg:pt-6">
-          <div className="mx-auto flex w-full max-w-7xl flex-col gap-4">
+        <section
+          className={
+            isOrdersPage
+              ? "flex min-h-0 flex-1 flex-col px-3 pb-0 pt-4 sm:px-4 lg:px-5"
+              : "px-3 pb-4 pt-5 sm:px-4 sm:pb-5 lg:px-5 lg:pb-6 lg:pt-6"
+          }
+        >
+          <div
+            className={
+              isOrdersPage
+                ? "flex min-h-0 flex-1 flex-col"
+                : "mx-auto flex w-full max-w-7xl flex-col gap-4"
+            }
+          >
             {children}
           </div>
         </section>
       </main>
-
-      <AppFooter variant="workspace" businessSlug={businessSlug} />
     </div>
   );
 }

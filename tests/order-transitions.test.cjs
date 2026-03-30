@@ -455,7 +455,7 @@ test("ui: la semantica de color de estados queda centralizada", () => {
   assert.deepEqual(actualStatuses, expectedStatuses);
   assert.match(ORDER_STATUS_VISUALS.nuevo.boardHeaderClassName, /sky/i);
   assert.match(ORDER_STATUS_VISUALS.confirmado.boardHeaderClassName, /(amber|orange)/i);
-  assert.match(ORDER_STATUS_VISUALS["en preparación"].boardHeaderClassName, /violet/i);
+  assert.match(ORDER_STATUS_VISUALS["en preparación"].boardHeaderClassName, /orange/i);
   assert.match(ORDER_STATUS_VISUALS.listo.boardHeaderClassName, /emerald/i);
   assert.match(ORDER_STATUS_VISUALS.entregado.boardHeaderClassName, /teal/i);
   assert.match(ORDER_STATUS_VISUALS.cancelado.boardHeaderClassName, /rose/i);
@@ -525,9 +525,19 @@ test("ui: desktop mantiene el board horizontal solo en viewport desktop", () => 
 
   assert.match(source, /function OrdersDesktopBoard/);
   assert.match(source, /data-testid="orders-board-main"/);
-  assert.match(source, /min-w-\[1380px\]/);
+  assert.match(source, /grid-cols-5/);
   assert.match(source, /data-testid="orders-board-cancelled"/);
+  assert.match(source, /translate-y-\[calc\(100%-4\.5rem\)\]/);
   assert.match(source, /return <OrdersDesktopBoard \{\.\.\.props\} \/>;/);
+});
+
+test("ui: tablet vertical cambia a grilla de 2 o 3 columnas sin degradar a una sola lista", () => {
+  const source = getOrdersBoardSource();
+
+  assert.match(source, /function OrdersTabletBoard/);
+  assert.match(source, /TABLET_VERTICAL_MEDIA_QUERY/);
+  assert.match(source, /grid-cols-2 min-\[920px\]:grid-cols-3/);
+  assert.match(source, /return <OrdersTabletBoard \{\.\.\.props\} \/>;/);
 });
 
 test("ui: mobile reemplaza el board horizontal por tabs y lista vertical", () => {

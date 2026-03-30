@@ -36,7 +36,7 @@ export function WorkspaceNavbar({
             <button
               type="button"
               onClick={onSearch}
-              className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+              className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.07] text-slate-100 transition hover:border-white/20 hover:bg-white/[0.12]"
               aria-label="Buscar pedidos globalmente"
               title="Buscar pedidos globalmente"
             >
@@ -57,7 +57,6 @@ export function WorkspaceNavbar({
         onNewProduct={onNewProduct}
         variant="mobile"
       />
-
     </>
   );
 }

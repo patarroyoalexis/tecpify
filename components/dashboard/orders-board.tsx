@@ -6,14 +6,13 @@ import { OrderCard } from "@/components/dashboard/order-card";
 import { OrdersUiIcon } from "@/components/dashboard/orders-ui-icon";
 import { splitOrdersForOperationalBoard } from "@/lib/orders/board-model";
 import {
-  ORDER_CANCELLATION_REASON_LABELS,
   ORDER_STATUS_LABELS,
   ORDER_WORKFLOW_STATUSES,
   getOrderStatusVisuals,
 } from "@/lib/orders/status-system";
 import type { Order } from "@/types/orders";
 
-export type OrdersBoardViewport = "desktop" | "mobile";
+export type OrdersBoardViewport = "desktop" | "tablet" | "mobile";
 
 interface OrdersBoardBaseProps {
   orders: Order[];
@@ -34,7 +33,24 @@ export interface OrdersBoardViewProps extends OrdersBoardBaseProps {
   viewport: OrdersBoardViewport;
 }
 
+interface OrdersBoardColumnProps extends OrdersBoardBaseProps {
+  status: Order["status"];
+  columnOrders: Order[];
+  density: "board" | "stacked";
+}
+
+interface OrdersCancelledRailProps extends OrdersBoardBaseProps {
+  cancelledOrders: Order[];
+}
+
+interface OrdersGridBoardProps extends OrdersBoardBaseProps {
+  density: "board" | "stacked";
+  gridClassName: string;
+}
+
 const MOBILE_MEDIA_QUERY = "(max-width: 767px)";
+const TABLET_VERTICAL_MEDIA_QUERY =
+  "(min-width: 768px) and (max-width: 1023px) and (orientation: portrait)";
 
 function getCompactMobileStatusLabel(status: Order["status"]) {
   switch (status) {
@@ -61,8 +77,8 @@ function getMobileTabClassName(status: Order["status"], isActive: boolean) {
         : "border-amber-100 bg-amber-50 text-amber-700 hover:bg-amber-100";
     case "en preparación":
       return isActive
-        ? "border-violet-600 bg-violet-600 text-white shadow-[0_10px_22px_rgba(124,58,237,0.24)]"
-        : "border-violet-100 bg-violet-50 text-violet-700 hover:bg-violet-100";
+        ? "border-orange-500 bg-orange-500 text-white shadow-[0_10px_22px_rgba(249,115,22,0.24)]"
+        : "border-orange-100 bg-orange-50 text-orange-700 hover:bg-orange-100";
     case "listo":
       return isActive
         ? "border-emerald-500 bg-emerald-500 text-white shadow-[0_10px_22px_rgba(16,185,129,0.22)]"
@@ -85,7 +101,7 @@ function getMobileStatusIndicatorClassName(status: Order["status"]) {
     case "confirmado":
       return "bg-amber-400";
     case "en preparación":
-      return "bg-violet-600";
+      return "bg-orange-500";
     case "listo":
       return "bg-emerald-500";
     case "entregado":
@@ -107,27 +123,217 @@ function useOrdersBoardViewport(explicitViewport?: OrdersBoardViewport) {
       return;
     }
 
-    const mediaQuery = window.matchMedia(MOBILE_MEDIA_QUERY);
+    const mobileMediaQuery = window.matchMedia(MOBILE_MEDIA_QUERY);
+    const tabletVerticalMediaQuery = window.matchMedia(TABLET_VERTICAL_MEDIA_QUERY);
+
     const syncViewport = () => {
-      setViewport(mediaQuery.matches ? "mobile" : "desktop");
+      if (mobileMediaQuery.matches) {
+        setViewport("mobile");
+        return;
+      }
+
+      if (tabletVerticalMediaQuery.matches) {
+        setViewport("tablet");
+        return;
+      }
+
+      setViewport("desktop");
     };
 
     syncViewport();
 
-    if (typeof mediaQuery.addEventListener === "function") {
-      mediaQuery.addEventListener("change", syncViewport);
+    const addListener = (mediaQuery: MediaQueryList) => {
+      if (typeof mediaQuery.addEventListener === "function") {
+        mediaQuery.addEventListener("change", syncViewport);
+        return () => mediaQuery.removeEventListener("change", syncViewport);
+      }
 
-      return () => mediaQuery.removeEventListener("change", syncViewport);
-    }
+      mediaQuery.addListener(syncViewport);
+      return () => mediaQuery.removeListener(syncViewport);
+    };
 
-    mediaQuery.addListener(syncViewport);
-    return () => mediaQuery.removeListener(syncViewport);
+    const removeMobileListener = addListener(mobileMediaQuery);
+    const removeTabletListener = addListener(tabletVerticalMediaQuery);
+
+    return () => {
+      removeMobileListener();
+      removeTabletListener();
+    };
   }, [explicitViewport]);
 
   return explicitViewport ?? viewport;
 }
 
-function OrdersDesktopBoard({
+function OrdersBoardColumn({
+  status,
+  columnOrders,
+  onOpenDetails,
+  onOpenPaymentReviewModal,
+  onConfirmOrder,
+  onAdvanceOrderStatus,
+  onOpenCancelOrderModal,
+  onOpenReactivateOrderModal,
+  density,
+}: OrdersBoardColumnProps) {
+  const visuals = getOrderStatusVisuals(status);
+  const isStacked = density === "stacked";
+
+  return (
+    <section
+      key={status}
+      data-testid={`order-board-column-${status}`}
+      className={`flex min-h-0 flex-col overflow-hidden rounded-[26px] border shadow-[0_18px_36px_rgba(15,23,42,0.08)] ${visuals.boardSurfaceClassName}`}
+    >
+      <header
+        data-testid={`order-board-column-header-${status}`}
+        className={`border-b px-4 py-4 ${visuals.boardHeaderClassName}`}
+      >
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <span className={`h-2.5 w-2.5 rounded-full ${visuals.dotClassName}`} />
+            <h2 className={`truncate font-semibold ${isStacked ? "text-[15px]" : "text-sm"}`}>
+              {ORDER_STATUS_LABELS[status]}
+            </h2>
+          </div>
+
+          <span className="inline-flex min-w-9 items-center justify-center rounded-full border border-current/10 bg-white/75 px-2.5 py-1 text-xs font-semibold text-current shadow-[inset_0_1px_0_rgba(255,255,255,0.35)]">
+            {columnOrders.length}
+          </span>
+        </div>
+      </header>
+
+      <div className={`flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3 ${isStacked ? "pr-2.5" : "pr-3"}`}>
+        {columnOrders.length > 0 ? (
+          columnOrders.map((order) => (
+            <OrderCard
+              key={order.orderId}
+              order={order}
+              onOpenDetails={onOpenDetails}
+              onOpenPaymentReviewModal={onOpenPaymentReviewModal}
+              onConfirmOrder={onConfirmOrder}
+              onAdvanceOrderStatus={onAdvanceOrderStatus}
+              onOpenCancelOrderModal={onOpenCancelOrderModal}
+              onOpenReactivateOrderModal={onOpenReactivateOrderModal}
+            />
+          ))
+        ) : (
+          <div className="flex min-h-[180px] flex-1 items-center justify-center rounded-[20px] border border-dashed border-slate-200 bg-white/72 px-4 py-8 text-center text-sm text-slate-500">
+            No hay pedidos en {ORDER_STATUS_LABELS[status].toLowerCase()}.
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function OrdersCancelledRail({
+  cancelledOrders,
+  onOpenDetails,
+  onOpenPaymentReviewModal,
+  onConfirmOrder,
+  onAdvanceOrderStatus,
+  onOpenCancelOrderModal,
+  onOpenReactivateOrderModal,
+}: OrdersCancelledRailProps) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen || typeof window === "undefined") {
+      return;
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setIsOpen(false);
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen]);
+
+  return (
+    <>
+      {isOpen ? (
+        <button
+          type="button"
+          aria-label="Cerrar bandeja de cancelados"
+          onClick={() => setIsOpen(false)}
+          className="fixed inset-0 z-30 hidden bg-slate-950/14 backdrop-blur-[2px] md:block"
+        />
+      ) : null}
+
+      <section
+        data-testid="orders-board-cancelled"
+        className={`fixed inset-x-3 bottom-0 z-40 hidden h-[70dvh] min-h-[4.5rem] max-h-[70dvh] overflow-hidden rounded-t-[30px] border border-rose-300/80 bg-[linear-gradient(180deg,rgba(220,38,38,0.98)_0%,rgba(239,68,68,0.98)_12%,rgba(255,241,242,0.98)_34%,rgba(255,255,255,1)_100%)] shadow-[0_-26px_64px_rgba(127,29,29,0.24)] transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] md:block sm:inset-x-4 lg:inset-x-5 ${
+          isOpen ? "translate-y-0" : "translate-y-[calc(100%-4.5rem)]"
+        }`}
+      >
+        <button
+          type="button"
+          aria-expanded={isOpen}
+          aria-controls="orders-board-cancelled-panel"
+          onClick={() => setIsOpen((currentValue) => !currentValue)}
+          className="flex h-[4.5rem] w-full items-center justify-between gap-4 border-b border-white/18 bg-[linear-gradient(90deg,rgba(185,28,28,0.96)_0%,rgba(239,68,68,0.96)_100%)] px-4 text-left text-white sm:px-5"
+        >
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-rose-100/90">
+              Cancelados aparte
+            </p>
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <span className="truncate text-base font-semibold">
+                Pedidos cancelados
+              </span>
+              <span className="inline-flex min-w-8 items-center justify-center rounded-full border border-white/16 bg-white/14 px-2.5 py-1 text-xs font-semibold">
+                {cancelledOrders.length}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <span className="hidden text-sm font-medium text-rose-50/90 lg:inline">
+              {isOpen ? "Cerrar bandeja" : "Abrir bandeja"}
+            </span>
+            <span className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/16 bg-white/10">
+              <OrdersUiIcon
+                icon={isOpen ? "chevron-down" : "chevron-up"}
+                className="h-4 w-4"
+              />
+            </span>
+          </div>
+        </button>
+
+        <div
+          id="orders-board-cancelled-panel"
+          className="h-[calc(70dvh-4.5rem)] overflow-y-auto px-4 pb-5 pt-4 sm:px-5"
+        >
+          {cancelledOrders.length > 0 ? (
+            <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+              {cancelledOrders.map((order) => (
+                <OrderCard
+                  key={order.orderId}
+                  order={order}
+                  onOpenDetails={onOpenDetails}
+                  onOpenPaymentReviewModal={onOpenPaymentReviewModal}
+                  onConfirmOrder={onConfirmOrder}
+                  onAdvanceOrderStatus={onAdvanceOrderStatus}
+                  onOpenCancelOrderModal={onOpenCancelOrderModal}
+                  onOpenReactivateOrderModal={onOpenReactivateOrderModal}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="flex h-full min-h-[220px] items-center justify-center rounded-[24px] border border-dashed border-rose-300 bg-white/78 px-4 text-center text-sm text-slate-600">
+              No hay pedidos cancelados en este momento.
+            </div>
+          )}
+        </div>
+      </section>
+    </>
+  );
+}
+
+function OrdersGridBoard({
   orders,
   onOpenDetails,
   onOpenPaymentReviewModal,
@@ -135,145 +341,63 @@ function OrdersDesktopBoard({
   onAdvanceOrderStatus,
   onOpenCancelOrderModal,
   onOpenReactivateOrderModal,
-}: OrdersBoardBaseProps) {
+  density,
+  gridClassName,
+}: OrdersGridBoardProps) {
   const { cancelledOrders, columns } = splitOrdersForOperationalBoard(orders);
 
   return (
-    <div className="space-y-5">
+    <div className="flex min-h-0 flex-1 flex-col pb-20">
       <section
         data-testid="orders-board-main"
-        className="overflow-x-auto rounded-[28px] border border-slate-200 bg-white p-4 shadow-[0_18px_42px_rgba(15,23,42,0.05)]"
+        className="min-h-0 flex-1 overflow-hidden rounded-[32px] border border-workspace-border/90 bg-[linear-gradient(180deg,rgb(var(--workspace-panel-strong-rgb)/0.94)_0%,rgb(var(--workspace-panel-rgb)/0.92)_100%)] p-3 shadow-[0_24px_56px_rgba(15,23,42,0.12)] lg:p-4"
       >
-        <div className="flex min-w-[1380px] gap-4">
-          {columns.map(({ status, orders: columnOrders }) => {
-            const visuals = getOrderStatusVisuals(status);
-
-            return (
-              <section
-                key={status}
-                data-testid={`order-board-column-${status}`}
-                className="flex min-h-[520px] w-[264px] flex-col rounded-[24px] border border-slate-200 bg-slate-50/60"
-              >
-                <header
-                  data-testid={`order-board-column-header-${status}`}
-                  className={`rounded-t-[24px] border-b px-4 py-4 ${visuals.boardHeaderClassName}`}
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
-                      <span className={`h-2.5 w-2.5 rounded-full ${visuals.dotClassName}`} />
-                      <h2 className="text-sm font-semibold">{ORDER_STATUS_LABELS[status]}</h2>
-                    </div>
-                    <span className="inline-flex min-w-8 items-center justify-center rounded-full border border-current/10 bg-white/70 px-2 py-1 text-xs font-semibold">
-                      {columnOrders.length}
-                    </span>
-                  </div>
-                </header>
-
-                <div className="flex flex-1 flex-col gap-3 p-3">
-                  {columnOrders.length > 0 ? (
-                    columnOrders.map((order) => (
-                      <OrderCard
-                        key={order.orderId}
-                        order={order}
-                        onOpenDetails={onOpenDetails}
-                        onOpenPaymentReviewModal={onOpenPaymentReviewModal}
-                        onConfirmOrder={onConfirmOrder}
-                        onAdvanceOrderStatus={onAdvanceOrderStatus}
-                        onOpenCancelOrderModal={onOpenCancelOrderModal}
-                        onOpenReactivateOrderModal={onOpenReactivateOrderModal}
-                      />
-                    ))
-                  ) : (
-                    <div className="flex flex-1 items-center justify-center rounded-[20px] border border-dashed border-slate-200 bg-white/60 px-4 py-8 text-center text-sm text-slate-500">
-                      No hay pedidos en {ORDER_STATUS_LABELS[status].toLowerCase()}.
-                    </div>
-                  )}
-                </div>
-              </section>
-            );
-          })}
+        <div
+          className={`grid h-full min-h-0 auto-rows-[minmax(0,1fr)] gap-3 ${gridClassName}`}
+        >
+          {columns.map(({ status, orders: columnOrders }) => (
+            <OrdersBoardColumn
+              key={status}
+              status={status}
+              columnOrders={columnOrders}
+              density={density}
+              onOpenDetails={onOpenDetails}
+              onOpenPaymentReviewModal={onOpenPaymentReviewModal}
+              onConfirmOrder={onConfirmOrder}
+              onAdvanceOrderStatus={onAdvanceOrderStatus}
+              onOpenCancelOrderModal={onOpenCancelOrderModal}
+              onOpenReactivateOrderModal={onOpenReactivateOrderModal}
+              orders={orders}
+            />
+          ))}
         </div>
       </section>
 
-      <section
-        data-testid="orders-board-cancelled"
-        className="rounded-[28px] border border-rose-200 bg-[linear-gradient(135deg,rgba(255,241,242,0.92),rgba(255,255,255,0.98))] p-4 shadow-[0_18px_42px_rgba(15,23,42,0.05)]"
-      >
-        <header className="flex flex-col gap-2 border-b border-rose-200/70 pb-4 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-rose-700">
-              Salida excepcional
-            </p>
-            <h2 className="mt-1 text-xl font-semibold text-slate-950">Pedidos cancelados</h2>
-            <p className="mt-1 text-sm text-slate-600">
-              Permanecen fuera del flujo principal, con motivo y reactivacion exacta al estado
-              previo.
-            </p>
-          </div>
-          <span className="inline-flex w-fit items-center rounded-full border border-rose-200 bg-white px-3 py-1 text-xs font-semibold text-rose-700">
-            {cancelledOrders.length} cancelado{cancelledOrders.length === 1 ? "" : "s"}
-          </span>
-        </header>
-
-        {cancelledOrders.length > 0 ? (
-          <div className="mt-4 grid gap-4 xl:grid-cols-2">
-            {cancelledOrders.map((order) => (
-              <div
-                key={order.orderId}
-                className="rounded-[24px] border border-rose-200 bg-white p-4 shadow-[0_14px_32px_rgba(15,23,42,0.04)]"
-              >
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-base font-semibold text-slate-950">{order.client}</p>
-                      <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
-                        {ORDER_STATUS_LABELS.cancelado}
-                      </span>
-                    </div>
-                    <p className="mt-1 text-sm text-slate-600">
-                      Motivo:{" "}
-                      {order.cancellationReason
-                        ? ORDER_CANCELLATION_REASON_LABELS[order.cancellationReason]
-                        : "Sin motivo registrado"}
-                    </p>
-                    <p className="mt-1 text-sm text-slate-600">
-                      Vuelve a:{" "}
-                      {order.previousStatusBeforeCancellation
-                        ? ORDER_STATUS_LABELS[order.previousStatusBeforeCancellation]
-                        : "Sin estado previo valido"}
-                    </p>
-                    {order.cancellationDetail ? (
-                      <p className="mt-2 text-sm text-slate-700">{order.cancellationDetail}</p>
-                    ) : null}
-                  </div>
-
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={() => onOpenDetails(order.orderId)}
-                      className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-100"
-                    >
-                      Ver detalle
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onOpenReactivateOrderModal(order.orderId)}
-                      className="inline-flex items-center justify-center rounded-full border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:border-rose-300 hover:bg-rose-100"
-                    >
-                      Reactivar
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="mt-4 rounded-[22px] border border-dashed border-rose-200 bg-white/70 px-4 py-8 text-center text-sm text-slate-500">
-            No hay pedidos cancelados en este momento.
-          </div>
-        )}
-      </section>
+      <OrdersCancelledRail
+        cancelledOrders={cancelledOrders}
+        orders={orders}
+        onOpenDetails={onOpenDetails}
+        onOpenPaymentReviewModal={onOpenPaymentReviewModal}
+        onConfirmOrder={onConfirmOrder}
+        onAdvanceOrderStatus={onAdvanceOrderStatus}
+        onOpenCancelOrderModal={onOpenCancelOrderModal}
+        onOpenReactivateOrderModal={onOpenReactivateOrderModal}
+      />
     </div>
+  );
+}
+
+function OrdersDesktopBoard(props: OrdersBoardBaseProps) {
+  return <OrdersGridBoard {...props} density="board" gridClassName="grid-cols-5" />;
+}
+
+function OrdersTabletBoard(props: OrdersBoardBaseProps) {
+  return (
+    <OrdersGridBoard
+      {...props}
+      density="stacked"
+      gridClassName="grid-cols-2 min-[920px]:grid-cols-3"
+    />
   );
 }
 
@@ -297,9 +421,9 @@ function OrdersMobileBoard({
   const activeStatusLabel = ORDER_STATUS_LABELS[activeStatus];
 
   return (
-    <div data-testid="orders-mobile-board" className="space-y-3">
-      <section className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-[0_18px_40px_rgba(15,23,42,0.06)]">
-        <div className="border-b border-slate-200/80 bg-slate-50/80 px-2 pt-2">
+    <div data-testid="orders-mobile-board" className="space-y-3 pb-20">
+      <section className="overflow-hidden rounded-[26px] border border-workspace-border/90 bg-white/96 shadow-[0_20px_42px_rgba(15,23,42,0.1)]">
+        <div className="border-b border-workspace-border/80 bg-[linear-gradient(180deg,rgb(var(--workspace-panel-rgb))_0%,rgb(var(--workspace-shell-rgb)/0.82)_100%)] px-2 pt-2">
           <div
             role="tablist"
             aria-label="Estados operativos de pedidos"
@@ -366,7 +490,7 @@ function OrdersMobileBoard({
 
       <section
         data-testid="orders-mobile-cancelled-section"
-        className="overflow-hidden rounded-[22px] border border-rose-300 bg-white shadow-[0_16px_34px_rgba(15,23,42,0.05)]"
+        className="overflow-hidden rounded-[22px] border border-rose-300 bg-white shadow-[0_16px_34px_rgba(15,23,42,0.08)]"
       >
         <button
           type="button"
@@ -374,11 +498,13 @@ function OrdersMobileBoard({
           aria-expanded={isCancelledOpen}
           aria-controls="orders-mobile-panel-cancelado"
           onClick={() => setIsCancelledOpen((currentValue) => !currentValue)}
-          className="flex w-full items-center justify-between gap-3 bg-[linear-gradient(90deg,#ef4444,#f43f5e)] px-4 py-3 text-left text-white"
+          className="flex w-full items-center justify-between gap-3 bg-[linear-gradient(90deg,#dc2626,#fb7185)] px-4 py-3 text-left text-white"
         >
           <span className="min-w-0">
-            <span className="sr-only">Cancelados aparte</span>
-            <span className="block truncate text-sm font-semibold">
+            <span className="block text-[11px] font-semibold uppercase tracking-[0.18em] text-rose-100/90">
+              Cancelados aparte
+            </span>
+            <span className="mt-1 block truncate text-sm font-semibold">
               Pedidos cancelados ({cancelledOrders.length})
             </span>
           </span>
@@ -428,6 +554,10 @@ export function OrdersBoardView({ viewport, ...props }: OrdersBoardViewProps) {
     return <OrdersMobileBoard {...props} />;
   }
 
+  if (viewport === "tablet") {
+    return <OrdersTabletBoard {...props} />;
+  }
+
   return <OrdersDesktopBoard {...props} />;
 }
 
@@ -438,7 +568,7 @@ export function OrdersBoard({ viewport: explicitViewport, ...props }: OrdersBoar
     return (
       <section
         data-testid="orders-board-loading"
-        className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-[0_18px_42px_rgba(15,23,42,0.05)]"
+        className="rounded-[30px] border border-workspace-border bg-white/90 p-4 shadow-[0_18px_42px_rgba(15,23,42,0.08)]"
       >
         <div className="space-y-3">
           <div className="h-5 w-40 rounded-full bg-slate-100" />
