@@ -40,12 +40,58 @@ function getCompactMobileStatusLabel(status: Order["status"]) {
   switch (status) {
     case "confirmado":
       return "Conf.";
-    case "en preparaci\u00f3n":
+    case "en preparación":
       return "Prep.";
     case "entregado":
       return "Entreg.";
     default:
       return ORDER_STATUS_LABELS[status];
+  }
+}
+
+function getMobileTabClassName(status: Order["status"], isActive: boolean) {
+  switch (status) {
+    case "nuevo":
+      return isActive
+        ? "border-sky-500 bg-sky-500 text-white shadow-[0_10px_22px_rgba(14,165,233,0.24)]"
+        : "border-sky-100 bg-sky-50 text-sky-700 hover:bg-sky-100";
+    case "confirmado":
+      return isActive
+        ? "border-amber-400 bg-amber-400 text-amber-950 shadow-[0_10px_22px_rgba(251,191,36,0.24)]"
+        : "border-amber-100 bg-amber-50 text-amber-700 hover:bg-amber-100";
+    case "en preparación":
+      return isActive
+        ? "border-violet-600 bg-violet-600 text-white shadow-[0_10px_22px_rgba(124,58,237,0.24)]"
+        : "border-violet-100 bg-violet-50 text-violet-700 hover:bg-violet-100";
+    case "listo":
+      return isActive
+        ? "border-emerald-500 bg-emerald-500 text-white shadow-[0_10px_22px_rgba(16,185,129,0.22)]"
+        : "border-emerald-100 bg-emerald-50 text-emerald-700 hover:bg-emerald-100";
+    case "entregado":
+      return isActive
+        ? "border-teal-500 bg-teal-500 text-white shadow-[0_10px_22px_rgba(20,184,166,0.22)]"
+        : "border-teal-100 bg-teal-50 text-teal-700 hover:bg-teal-100";
+    default:
+      return isActive
+        ? "border-slate-950 bg-slate-950 text-white shadow-[0_10px_22px_rgba(15,23,42,0.18)]"
+        : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100";
+  }
+}
+
+function getMobileStatusIndicatorClassName(status: Order["status"]) {
+  switch (status) {
+    case "nuevo":
+      return "bg-sky-500";
+    case "confirmado":
+      return "bg-amber-400";
+    case "en preparación":
+      return "bg-violet-600";
+    case "listo":
+      return "bg-emerald-500";
+    case "entregado":
+      return "bg-teal-500";
+    default:
+      return "bg-slate-950";
   }
 }
 
@@ -252,49 +298,52 @@ function OrdersMobileBoard({
 
   return (
     <div data-testid="orders-mobile-board" className="space-y-3">
-      <section className="rounded-[24px] border border-slate-200 bg-white p-1 shadow-[0_16px_36px_rgba(15,23,42,0.05)]">
-        <div
-          role="tablist"
-          aria-label="Estados operativos de pedidos"
-          data-testid="orders-mobile-nav"
-          className="grid grid-cols-5 gap-1"
-        >
-          {columns.map(({ status, orders: columnOrders }) => {
-            const isActive = activeStatus === status;
+      <section className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-[0_18px_40px_rgba(15,23,42,0.06)]">
+        <div className="border-b border-slate-200/80 bg-slate-50/80 px-2 pt-2">
+          <div
+            role="tablist"
+            aria-label="Estados operativos de pedidos"
+            data-testid="orders-mobile-nav"
+            className="grid grid-cols-5 gap-1"
+          >
+            {columns.map(({ status, orders: columnOrders }) => {
+              const isActive = activeStatus === status;
 
-            return (
-              <button
-                key={status}
-                type="button"
-                role="tab"
-                aria-selected={isActive}
-                aria-controls={`orders-mobile-panel-${status}`}
-                aria-label={`${ORDER_STATUS_LABELS[status]} (${columnOrders.length})`}
-                data-testid={`orders-mobile-tab-${status}`}
-                onClick={() => setActiveStatus(status)}
-                className={`flex min-h-11 items-center justify-center rounded-[18px] px-1 py-2 text-center text-[11px] font-semibold leading-tight transition ${
-                  isActive
-                    ? "bg-slate-950 text-white shadow-[0_10px_24px_rgba(15,23,42,0.18)]"
-                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-                }`}
-              >
-                <span className="truncate">{getCompactMobileStatusLabel(status)}</span>
-              </button>
-            );
-          })}
+              return (
+                <button
+                  key={status}
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  aria-controls={`orders-mobile-panel-${status}`}
+                  aria-label={`${ORDER_STATUS_LABELS[status]} (${columnOrders.length})`}
+                  data-testid={`orders-mobile-tab-${status}`}
+                  onClick={() => setActiveStatus(status)}
+                  className={`flex min-h-[38px] items-center justify-center rounded-t-[14px] border border-b-0 px-1 py-2 text-center text-[11px] font-semibold leading-none transition ${getMobileTabClassName(
+                    status,
+                    isActive,
+                  )}`}
+                >
+                  <span className="truncate">{getCompactMobileStatusLabel(status)}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div
+            className={`mt-1.5 h-1 rounded-full ${getMobileStatusIndicatorClassName(activeStatus)}`}
+          />
         </div>
-      </section>
 
-      <section
-        id={`orders-mobile-panel-${activeStatus}`}
-        role="tabpanel"
-        aria-label={`Pedidos en ${activeStatusLabel}`}
-        data-testid={`orders-mobile-panel-${activeStatus}`}
-        className="space-y-3"
-      >
-        {activeOrders.length > 0 ? (
-          <div className="space-y-3">
-            {activeOrders.map((order) => (
+        <div
+          id={`orders-mobile-panel-${activeStatus}`}
+          role="tabpanel"
+          aria-label={`Pedidos en ${activeStatusLabel}`}
+          data-testid={`orders-mobile-panel-${activeStatus}`}
+          className="space-y-3 p-3"
+        >
+          {activeOrders.length > 0 ? (
+            activeOrders.map((order) => (
               <OrderCard
                 key={order.orderId}
                 order={order}
@@ -304,49 +353,47 @@ function OrdersMobileBoard({
                 onAdvanceOrderStatus={onAdvanceOrderStatus}
                 onOpenCancelOrderModal={onOpenCancelOrderModal}
                 onOpenReactivateOrderModal={onOpenReactivateOrderModal}
+                variant="mobile"
               />
-            ))}
-          </div>
-        ) : (
-          <div className="rounded-[22px] border border-dashed border-slate-200 bg-white px-4 py-6 text-center text-sm text-slate-500">
-            No hay pedidos en {activeStatusLabel.toLowerCase()}.
-          </div>
-        )}
+            ))
+          ) : (
+            <div className="rounded-[18px] border border-dashed border-slate-200 bg-slate-50/70 px-4 py-6 text-center text-sm text-slate-500">
+              No hay pedidos en {activeStatusLabel.toLowerCase()}.
+            </div>
+          )}
+        </div>
       </section>
 
       <section
         data-testid="orders-mobile-cancelled-section"
-        className="overflow-hidden rounded-[24px] border border-rose-200 bg-[linear-gradient(135deg,rgba(255,241,242,0.82),rgba(255,255,255,0.98))] shadow-[0_16px_36px_rgba(15,23,42,0.04)]"
+        className="overflow-hidden rounded-[22px] border border-rose-300 bg-white shadow-[0_16px_34px_rgba(15,23,42,0.05)]"
       >
         <button
           type="button"
           data-testid="orders-mobile-cancelled-toggle"
+          aria-expanded={isCancelledOpen}
+          aria-controls="orders-mobile-panel-cancelado"
           onClick={() => setIsCancelledOpen((currentValue) => !currentValue)}
-          className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+          className="flex w-full items-center justify-between gap-3 bg-[linear-gradient(90deg,#ef4444,#f43f5e)] px-4 py-3 text-left text-white"
         >
           <span className="min-w-0">
-            <span className="block text-sm font-semibold text-rose-900">Cancelados aparte</span>
-            <span className="mt-0.5 block text-xs text-rose-700">
-              {cancelledOrders.length} pedido{cancelledOrders.length === 1 ? "" : "s"}
+            <span className="sr-only">Cancelados aparte</span>
+            <span className="block truncate text-sm font-semibold">
+              Pedidos cancelados ({cancelledOrders.length})
             </span>
           </span>
 
-          <span className="inline-flex items-center gap-2 text-rose-700">
-            <span className="inline-flex min-w-8 items-center justify-center rounded-full border border-rose-200 bg-white px-2 py-1 text-xs font-semibold">
-              {cancelledOrders.length}
-            </span>
-            <OrdersUiIcon
-              icon={isCancelledOpen ? "chevron-up" : "chevron-down"}
-              className="h-4 w-4"
-            />
-          </span>
+          <OrdersUiIcon
+            icon={isCancelledOpen ? "chevron-up" : "chevron-down"}
+            className="h-4 w-4"
+          />
         </button>
 
         {isCancelledOpen ? (
           <div
             id="orders-mobile-panel-cancelado"
             data-testid="orders-mobile-panel-cancelado"
-            className="border-t border-rose-200/80 px-3 pb-3 pt-3"
+            className="border-t border-rose-200 bg-rose-50/80 px-3 pb-3 pt-3"
           >
             {cancelledOrders.length > 0 ? (
               <div className="space-y-3">
@@ -360,11 +407,12 @@ function OrdersMobileBoard({
                     onAdvanceOrderStatus={onAdvanceOrderStatus}
                     onOpenCancelOrderModal={onOpenCancelOrderModal}
                     onOpenReactivateOrderModal={onOpenReactivateOrderModal}
+                    variant="mobile"
                   />
                 ))}
               </div>
             ) : (
-              <div className="rounded-[20px] border border-dashed border-rose-200 bg-white/80 px-4 py-5 text-center text-sm text-slate-500">
+              <div className="rounded-[18px] border border-dashed border-rose-200 bg-white/90 px-4 py-5 text-center text-sm text-slate-500">
                 No hay pedidos cancelados en este momento.
               </div>
             )}

@@ -5,6 +5,7 @@ interface OrdersUiIconProps {
     | "chevron-up"
     | "clipboard"
     | "clipboard-check"
+    | "eye"
     | "edit"
     | "filter"
     | "map-pin"
@@ -98,6 +99,13 @@ export function OrdersUiIcon({
           <rect x="6" y="4" width="12" height="16" rx="2" />
           <path d="M9 4.5h6" />
           <path d="m9.5 13 1.8 1.8 3.7-3.8" />
+        </IconFrame>
+      );
+    case "eye":
+      return (
+        <IconFrame className={className}>
+          <path d="M2.8 12S6.1 6.5 12 6.5 21.2 12 21.2 12 17.9 17.5 12 17.5 2.8 12 2.8 12Z" />
+          <circle cx="12" cy="12" r="2.2" />
         </IconFrame>
       );
     case "map-pin":

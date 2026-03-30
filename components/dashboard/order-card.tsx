@@ -18,11 +18,7 @@ import {
   getOrderStatusIconKey,
   getOrderStatusVisuals,
 } from "@/lib/orders/status-system";
-import {
-  getFiadoStatusLabel,
-  getOrderDisplayCode,
-  type Order,
-} from "@/types/orders";
+import { getFiadoStatusLabel, getOrderDisplayCode, type Order } from "@/types/orders";
 
 interface OrderCardProps {
   order: Order;
@@ -32,6 +28,7 @@ interface OrderCardProps {
   onAdvanceOrderStatus: (orderId: Order["orderId"]) => Promise<Order | undefined>;
   onOpenCancelOrderModal: (orderId: Order["orderId"]) => void;
   onOpenReactivateOrderModal: (orderId: Order["orderId"]) => void;
+  variant?: "default" | "mobile";
 }
 
 type FeedbackTone = "error" | "neutral" | "success";
@@ -70,10 +67,12 @@ export function OrderCard({
   onAdvanceOrderStatus,
   onOpenCancelOrderModal,
   onOpenReactivateOrderModal,
+  variant = "default",
 }: OrderCardProps) {
   const [isRunningPrimaryAction, setIsRunningPrimaryAction] = useState(false);
   const [feedbackMessage, setFeedbackMessage] = useState("");
   const [feedbackTone, setFeedbackTone] = useState<FeedbackTone>("neutral");
+  const isMobileCard = variant === "mobile";
   const statusVisuals = getOrderStatusVisuals(order.status);
   const financialCondition = getOrderFinancialCondition(order);
   const financialVisuals = getOrderFinancialConditionVisuals(financialCondition);
@@ -81,6 +80,8 @@ export function OrderCard({
   const primaryAction = getOrderPrimaryAction(order);
   const { totalUnits, summary, hiddenProductsCount } = getProductSummary(order);
   const canCancel = canCancelOrder(order);
+  const displayCode = getOrderDisplayCode(order);
+  const showPrimaryActionButton = !isMobileCard || primaryAction.kind !== "details";
   const feedbackClassName =
     feedbackTone === "error"
       ? "text-rose-700"
@@ -164,12 +165,20 @@ export function OrderCard({
   return (
     <article
       data-testid={`order-card-${order.orderId}`}
-      className={`flex h-full flex-col rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_16px_36px_rgba(15,23,42,0.05)] transition hover:border-slate-300 ${getPriorityAccent(order)}`}
+      className={`flex h-full flex-col border border-slate-200 bg-white transition hover:border-slate-300 ${
+        isMobileCard
+          ? "rounded-[20px] p-3.5 shadow-[0_12px_28px_rgba(15,23,42,0.08)]"
+          : "rounded-[24px] p-4 shadow-[0_16px_36px_rgba(15,23,42,0.05)]"
+      } ${getPriorityAccent(order)}`}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="truncate text-base font-semibold text-slate-950">{order.client}</h3>
+            {isMobileCard ? (
+              <p className="text-sm font-semibold text-slate-950">{displayCode}</p>
+            ) : (
+              <h3 className="truncate text-base font-semibold text-slate-950">{order.client}</h3>
+            )}
             {!order.isReviewed ? (
               <span
                 className="inline-flex h-2.5 w-2.5 rounded-full bg-rose-500"
@@ -178,16 +187,27 @@ export function OrderCard({
               />
             ) : null}
           </div>
-          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-medium text-slate-500">
-            <span>{getOrderDisplayCode(order)}</span>
-            <span className="text-slate-300">•</span>
+
+          {isMobileCard ? (
+            <h3 className="mt-1 truncate text-[15px] font-semibold text-slate-800">
+              {order.client}
+            </h3>
+          ) : null}
+
+          <div
+            className={`mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 font-medium text-slate-500 ${
+              isMobileCard ? "text-[11px]" : "text-xs"
+            }`}
+          >
+            {!isMobileCard ? <span>{displayCode}</span> : null}
+            {!isMobileCard ? <span className="text-slate-300">/</span> : null}
             <span>{order.dateLabel}</span>
-            <span className="text-slate-300">•</span>
+            <span className="text-slate-300">/</span>
             <span>{formatElapsedTime(order)}</span>
           </div>
         </div>
 
-        <p className="shrink-0 text-sm font-semibold text-slate-950">
+        <p className={`shrink-0 font-semibold text-slate-950 ${isMobileCard ? "text-[13px]" : "text-sm"}`}>
           {formatCurrency(order.total)}
         </p>
       </div>
@@ -195,7 +215,9 @@ export function OrderCard({
       <div className="mt-3 flex flex-wrap gap-2">
         <div
           data-testid={`order-card-status-${order.orderId}`}
-          className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold ${statusVisuals.badgeClassName}`}
+          className={`inline-flex items-center gap-2 rounded-full border font-semibold ${
+            isMobileCard ? "px-2.5 py-1 text-[11px]" : "px-3 py-1.5 text-xs"
+          } ${statusVisuals.badgeClassName}`}
         >
           <StatusBadgeIcon iconKey={getOrderStatusIconKey(order.status)} />
           <span>{ORDER_STATUS_LABELS[order.status]}</span>
@@ -203,34 +225,47 @@ export function OrderCard({
 
         <div
           data-testid={`order-card-financial-condition-${order.orderId}`}
-          className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold ${financialVisuals.badgeClassName}`}
+          className={`inline-flex items-center gap-2 rounded-full border font-semibold ${
+            isMobileCard ? "px-2.5 py-1 text-[11px]" : "px-3 py-1.5 text-xs"
+          } ${financialVisuals.badgeClassName}`}
         >
           <span>{ORDER_FINANCIAL_CONDITION_LABELS[financialCondition]}</span>
         </div>
       </div>
 
-      <div className="mt-3 space-y-2 text-sm text-slate-600">
-        <p className="line-clamp-2">
+      <div className={`mt-3 space-y-2 text-slate-600 ${isMobileCard ? "text-[13px]" : "text-sm"}`}>
+        <p className={isMobileCard ? "line-clamp-1" : "line-clamp-2"}>
           {summary}
           {hiddenProductsCount > 0 ? ` +${hiddenProductsCount} más` : ""}
         </p>
-        <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs">
+
+        <div className={`flex flex-wrap gap-x-3 gap-y-1 ${isMobileCard ? "text-[11px]" : "text-xs"}`}>
           <span>{totalUnits} unidad{totalUnits === 1 ? "" : "es"}</span>
           <span>{order.deliveryType === "domicilio" ? "Domicilio" : "Recogida en tienda"}</span>
           <span>{paymentMethodLabel}</span>
         </div>
+
         {financialSubtitle ? (
-          <p className={`text-xs font-medium ${financialVisuals.accentClassName}`}>
+          <p className={`font-medium ${isMobileCard ? "text-[11px]" : "text-xs"} ${financialVisuals.accentClassName}`}>
             {financialSubtitle}
           </p>
         ) : null}
+
         {order.address ? (
-          <p className="line-clamp-2 text-xs text-slate-500">{order.address}</p>
+          <p
+            className={`text-slate-500 ${isMobileCard ? "line-clamp-1 text-[11px]" : "line-clamp-2 text-xs"}`}
+          >
+            {order.address}
+          </p>
         ) : null}
       </div>
 
       {order.status === "cancelado" ? (
-        <div className={`mt-3 rounded-2xl border px-3.5 py-3 text-sm ${statusVisuals.softPanelClassName}`}>
+        <div
+          className={`mt-3 rounded-2xl border px-3.5 py-3 ${
+            isMobileCard ? "text-[13px]" : "text-sm"
+          } ${statusVisuals.softPanelClassName}`}
+        >
           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-rose-700/80">
             Cancelación
           </p>
@@ -252,13 +287,21 @@ export function OrderCard({
         </div>
       ) : null}
 
-      <div className="mt-4 flex flex-1 flex-col justify-end gap-3">
-        <div className="flex flex-wrap gap-2">
+      <div
+        className={
+          isMobileCard
+            ? "mt-3 flex flex-1 flex-col justify-end gap-2"
+            : "mt-4 flex flex-1 flex-col justify-end gap-3"
+        }
+      >
+        <div className="flex flex-wrap items-center gap-2">
           {canCancel ? (
             <button
               type="button"
               onClick={() => onOpenCancelOrderModal(order.orderId)}
-              className="inline-flex items-center justify-center gap-1.5 rounded-full border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:border-rose-300 hover:bg-rose-100"
+              className={`inline-flex items-center justify-center gap-1.5 rounded-full border border-rose-200 bg-rose-50 font-semibold text-rose-700 transition hover:border-rose-300 hover:bg-rose-100 ${
+                isMobileCard ? "px-3 py-2 text-[11px]" : "px-3 py-2 text-xs"
+              }`}
             >
               <OrdersUiIcon icon="x" className="h-3.5 w-3.5" />
               Cancelar
@@ -268,30 +311,42 @@ export function OrderCard({
           <button
             type="button"
             onClick={() => onOpenDetails(order.orderId)}
-            aria-label={`Ver detalle del pedido ${getOrderDisplayCode(order)}`}
-            className="inline-flex items-center justify-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-100"
+            aria-label={`Ver detalle del pedido ${displayCode}`}
+            className={`inline-flex items-center justify-center gap-1.5 border border-slate-200 bg-slate-50 font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-100 ${
+              isMobileCard
+                ? "h-9 w-9 rounded-xl"
+                : "rounded-full px-3 py-2 text-xs"
+            }`}
           >
-            <OrdersUiIcon icon="clipboard" className="h-3.5 w-3.5" />
-            Ver detalle
+            <OrdersUiIcon icon={isMobileCard ? "eye" : "clipboard"} className="h-3.5 w-3.5" />
+            {isMobileCard ? <span className="sr-only">Ver detalle</span> : "Ver detalle"}
           </button>
+
+          {showPrimaryActionButton ? (
+            <button
+              type="button"
+              onClick={() => void runPrimaryAction()}
+              disabled={isRunningPrimaryAction}
+              data-testid={`order-card-primary-action-${order.orderId}`}
+              className={`inline-flex items-center justify-center gap-2 rounded-full border font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                isMobileCard ? "ml-auto px-3 py-2 text-[11px]" : "px-3.5 py-2 text-xs"
+              } ${statusVisuals.badgeClassName}`}
+            >
+              <OrdersUiIcon icon={primaryActionIcon} className="h-3.5 w-3.5" />
+              {primaryAction.label}
+            </button>
+          ) : null}
         </div>
 
-        <div className="flex items-center justify-between gap-3">
+        {isMobileCard ? (
+          feedbackMessage ? (
+            <p className={`text-[11px] font-medium ${feedbackClassName}`}>{feedbackMessage}</p>
+          ) : null
+        ) : (
           <p className={`min-h-[20px] text-xs font-medium ${feedbackClassName}`}>
             {feedbackMessage}
           </p>
-
-          <button
-            type="button"
-            onClick={() => void runPrimaryAction()}
-            disabled={isRunningPrimaryAction}
-            data-testid={`order-card-primary-action-${order.orderId}`}
-            className={`inline-flex items-center justify-center gap-2 rounded-full border px-3.5 py-2 text-xs font-semibold transition ${statusVisuals.badgeClassName} disabled:cursor-not-allowed disabled:opacity-60`}
-          >
-            <OrdersUiIcon icon={primaryActionIcon} className="h-3.5 w-3.5" />
-            {primaryAction.label}
-          </button>
-        </div>
+        )}
       </div>
     </article>
   );
