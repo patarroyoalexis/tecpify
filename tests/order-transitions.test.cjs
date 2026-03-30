@@ -537,20 +537,24 @@ test("ui: mobile reemplaza el board horizontal por tabs y lista vertical", () =>
   assert.match(source, /MOBILE_MEDIA_QUERY = "\(\max-width: 767px\)"/);
   assert.match(source, /data-testid="orders-mobile-board"/);
   assert.match(source, /data-testid="orders-mobile-nav"/);
+  assert.match(source, /grid-cols-5/);
   assert.match(source, /data-testid=\{`orders-mobile-tab-\$\{status\}`\}/);
   assert.match(source, /data-testid=\{`orders-mobile-panel-\$\{activeStatus\}`\}/);
-  assert.match(source, /Tabs por estado y lista vertical/);
-  assert.match(source, /Compuerta operativa principal/);
+  assert.match(source, /getCompactMobileStatusLabel/);
+  assert.doesNotMatch(source, /Operacion movil/);
+  assert.doesNotMatch(source, /Tabs por estado y lista vertical/);
+  assert.doesNotMatch(source, /Compuerta operativa principal/);
   assert.match(source, /return <OrdersMobileBoard \{\.\.\.props\} \/>;/);
 });
 
 test("ui: mobile deja cancelado en una vista secundaria separada del flujo principal", () => {
   const source = getOrdersBoardSource();
 
-  assert.match(source, /data-testid="orders-mobile-tab-cancelado"/);
-  assert.match(source, /Vista secundaria fuera del flujo principal/);
-  assert.match(source, /Salida excepcional/);
-  assert.match(source, /Cancelado queda fuera del flujo operativo/);
-  assert.match(source, /Se gestionan aparte para no contaminar la operacion diaria/);
+  assert.match(source, /data-testid="orders-mobile-cancelled-section"/);
+  assert.match(source, /data-testid="orders-mobile-cancelled-toggle"/);
+  assert.match(source, /data-testid="orders-mobile-panel-cancelado"/);
+  assert.match(source, /Cancelados aparte/);
+  assert.match(source, /chevron-up/);
+  assert.match(source, /chevron-down/);
   assert.match(source, /defaultMobileStatus = "nuevo"/);
 });

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { OrderCard } from "@/components/dashboard/order-card";
+import { OrdersUiIcon } from "@/components/dashboard/orders-ui-icon";
 import { splitOrdersForOperationalBoard } from "@/lib/orders/board-model";
 import {
   ORDER_CANCELLATION_REASON_LABELS,
@@ -34,6 +35,19 @@ export interface OrdersBoardViewProps extends OrdersBoardBaseProps {
 }
 
 const MOBILE_MEDIA_QUERY = "(max-width: 767px)";
+
+function getCompactMobileStatusLabel(status: Order["status"]) {
+  switch (status) {
+    case "confirmado":
+      return "Conf.";
+    case "en preparaci\u00f3n":
+      return "Prep.";
+    case "entregado":
+      return "Entreg.";
+    default:
+      return ORDER_STATUS_LABELS[status];
+  }
+}
 
 function useOrdersBoardViewport(explicitViewport?: OrdersBoardViewport) {
   const [viewport, setViewport] = useState<OrdersBoardViewport | null>(null);
@@ -229,99 +243,45 @@ function OrdersMobileBoard({
 }: OrdersBoardBaseProps) {
   const { cancelledOrders, columns } = splitOrdersForOperationalBoard(orders);
   const isWorkflowStatus = ORDER_WORKFLOW_STATUSES.some((status) => status === defaultMobileStatus);
-  const initialStatus =
-    defaultMobileStatus === "cancelado" || isWorkflowStatus ? defaultMobileStatus : "nuevo";
+  const initialStatus = isWorkflowStatus ? defaultMobileStatus : "nuevo";
   const [activeStatus, setActiveStatus] = useState<Order["status"]>(initialStatus);
+  const [isCancelledOpen, setIsCancelledOpen] = useState(defaultMobileStatus === "cancelado");
   const activeColumn = columns.find((column) => column.status === activeStatus);
-  const activeOrders = activeStatus === "cancelado" ? cancelledOrders : activeColumn?.orders ?? [];
+  const activeOrders = activeColumn?.orders ?? [];
   const activeStatusLabel = ORDER_STATUS_LABELS[activeStatus];
-  const activeVisuals = getOrderStatusVisuals(activeStatus);
-  const isCancelledView = activeStatus === "cancelado";
 
   return (
-    <div data-testid="orders-mobile-board" className="space-y-4">
-      <section className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-[0_18px_42px_rgba(15,23,42,0.05)]">
-        <div className="flex flex-col gap-2">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
-            Operacion movil
-          </p>
-          <h2 className="text-xl font-semibold text-slate-950">
-            Tabs por estado y lista vertical
-          </h2>
-          <p className="text-sm leading-6 text-slate-600">
-            Nuevo sigue siendo la compuerta principal. Cancelado queda fuera del flujo operativo.
-          </p>
-        </div>
-
+    <div data-testid="orders-mobile-board" className="space-y-3">
+      <section className="rounded-[24px] border border-slate-200 bg-white p-1 shadow-[0_16px_36px_rgba(15,23,42,0.05)]">
         <div
           role="tablist"
           aria-label="Estados operativos de pedidos"
           data-testid="orders-mobile-nav"
-          className="mt-4"
+          className="grid grid-cols-5 gap-1"
         >
-          <div className="grid grid-cols-2 gap-2">
-            {columns.map(({ status, orders: columnOrders }) => {
-              const visuals = getOrderStatusVisuals(status);
-              const isActive = activeStatus === status;
+          {columns.map(({ status, orders: columnOrders }) => {
+            const isActive = activeStatus === status;
 
-              return (
-                <button
-                  key={status}
-                  type="button"
-                  role="tab"
-                  aria-selected={isActive}
-                  aria-controls={`orders-mobile-panel-${status}`}
-                  data-testid={`orders-mobile-tab-${status}`}
-                  onClick={() => setActiveStatus(status)}
-                  className={`rounded-[22px] border px-3 py-3 text-left transition ${
-                    status === "entregado" ? "col-span-2" : ""
-                  } ${
-                    isActive
-                      ? visuals.badgeClassName
-                      : "border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300 hover:bg-slate-100"
-                  }`}
-                >
-                  <span className="flex items-center justify-between gap-3">
-                    <span className="text-sm font-semibold">{ORDER_STATUS_LABELS[status]}</span>
-                    <span className="inline-flex min-w-8 items-center justify-center rounded-full border border-current/10 bg-white/80 px-2 py-1 text-xs font-semibold">
-                      {columnOrders.length}
-                    </span>
-                  </span>
-                  <span className="mt-1 block text-xs opacity-80">
-                    {status === "nuevo"
-                      ? "Compuerta operativa principal."
-                      : `Pedidos en ${ORDER_STATUS_LABELS[status].toLowerCase()}.`}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="mt-3 border-t border-rose-200/80 pt-3">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={isCancelledView}
-              aria-controls="orders-mobile-panel-cancelado"
-              data-testid="orders-mobile-tab-cancelado"
-              onClick={() => setActiveStatus("cancelado")}
-              className={`flex w-full items-center justify-between gap-3 rounded-[22px] border px-3 py-3 text-left transition ${
-                isCancelledView
-                  ? "border-rose-200 bg-rose-50 text-rose-800"
-                  : "border-rose-200/80 bg-rose-50/50 text-rose-700 hover:border-rose-300 hover:bg-rose-100/70"
-              }`}
-            >
-              <span>
-                <span className="block text-sm font-semibold">{ORDER_STATUS_LABELS.cancelado}</span>
-                <span className="mt-1 block text-xs opacity-80">
-                  Vista secundaria fuera del flujo principal.
-                </span>
-              </span>
-              <span className="inline-flex min-w-8 items-center justify-center rounded-full border border-current/10 bg-white/85 px-2 py-1 text-xs font-semibold">
-                {cancelledOrders.length}
-              </span>
-            </button>
-          </div>
+            return (
+              <button
+                key={status}
+                type="button"
+                role="tab"
+                aria-selected={isActive}
+                aria-controls={`orders-mobile-panel-${status}`}
+                aria-label={`${ORDER_STATUS_LABELS[status]} (${columnOrders.length})`}
+                data-testid={`orders-mobile-tab-${status}`}
+                onClick={() => setActiveStatus(status)}
+                className={`flex min-h-11 items-center justify-center rounded-[18px] px-1 py-2 text-center text-[11px] font-semibold leading-tight transition ${
+                  isActive
+                    ? "bg-slate-950 text-white shadow-[0_10px_24px_rgba(15,23,42,0.18)]"
+                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                }`}
+              >
+                <span className="truncate">{getCompactMobileStatusLabel(status)}</span>
+              </button>
+            );
+          })}
         </div>
       </section>
 
@@ -330,42 +290,10 @@ function OrdersMobileBoard({
         role="tabpanel"
         aria-label={`Pedidos en ${activeStatusLabel}`}
         data-testid={`orders-mobile-panel-${activeStatus}`}
-        className={`rounded-[28px] border p-4 shadow-[0_18px_42px_rgba(15,23,42,0.05)] ${
-          isCancelledView
-            ? "border-rose-200 bg-[linear-gradient(135deg,rgba(255,241,242,0.92),rgba(255,255,255,0.98))]"
-            : "border-slate-200 bg-white"
-        }`}
+        className="space-y-3"
       >
-        <header
-          className={`rounded-[22px] border px-4 py-4 ${
-            isCancelledView
-              ? "border-rose-200 bg-white/70 text-slate-900"
-              : `${activeVisuals.boardHeaderClassName} bg-white/80`
-          }`}
-        >
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-current/70">
-                {isCancelledView ? "Salida excepcional" : "Estado activo"}
-              </p>
-              <h3 className="mt-1 text-lg font-semibold">{activeStatusLabel}</h3>
-              <p className="mt-1 text-sm text-slate-600">
-                {isCancelledView
-                  ? "Se gestionan aparte para no contaminar la operacion diaria."
-                  : activeStatus === "nuevo"
-                    ? "La operacion se destraba aqui antes de confirmar o avanzar."
-                    : `Lista vertical para operar pedidos en ${activeStatusLabel.toLowerCase()}.`}
-              </p>
-            </div>
-
-            <span className="inline-flex min-w-9 items-center justify-center rounded-full border border-current/10 bg-white/85 px-2.5 py-1 text-xs font-semibold">
-              {activeOrders.length}
-            </span>
-          </div>
-        </header>
-
         {activeOrders.length > 0 ? (
-          <div className="mt-4 space-y-3">
+          <div className="space-y-3">
             {activeOrders.map((order) => (
               <OrderCard
                 key={order.orderId}
@@ -380,18 +308,68 @@ function OrdersMobileBoard({
             ))}
           </div>
         ) : (
-          <div
-            className={`mt-4 rounded-[22px] border border-dashed px-4 py-8 text-center text-sm ${
-              isCancelledView
-                ? "border-rose-200 bg-white/70 text-slate-500"
-                : "border-slate-200 bg-slate-50/70 text-slate-500"
-            }`}
-          >
-            {isCancelledView
-              ? "No hay pedidos cancelados en este momento."
-              : `No hay pedidos en ${activeStatusLabel.toLowerCase()}.`}
+          <div className="rounded-[22px] border border-dashed border-slate-200 bg-white px-4 py-6 text-center text-sm text-slate-500">
+            No hay pedidos en {activeStatusLabel.toLowerCase()}.
           </div>
         )}
+      </section>
+
+      <section
+        data-testid="orders-mobile-cancelled-section"
+        className="overflow-hidden rounded-[24px] border border-rose-200 bg-[linear-gradient(135deg,rgba(255,241,242,0.82),rgba(255,255,255,0.98))] shadow-[0_16px_36px_rgba(15,23,42,0.04)]"
+      >
+        <button
+          type="button"
+          data-testid="orders-mobile-cancelled-toggle"
+          onClick={() => setIsCancelledOpen((currentValue) => !currentValue)}
+          className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+        >
+          <span className="min-w-0">
+            <span className="block text-sm font-semibold text-rose-900">Cancelados aparte</span>
+            <span className="mt-0.5 block text-xs text-rose-700">
+              {cancelledOrders.length} pedido{cancelledOrders.length === 1 ? "" : "s"}
+            </span>
+          </span>
+
+          <span className="inline-flex items-center gap-2 text-rose-700">
+            <span className="inline-flex min-w-8 items-center justify-center rounded-full border border-rose-200 bg-white px-2 py-1 text-xs font-semibold">
+              {cancelledOrders.length}
+            </span>
+            <OrdersUiIcon
+              icon={isCancelledOpen ? "chevron-up" : "chevron-down"}
+              className="h-4 w-4"
+            />
+          </span>
+        </button>
+
+        {isCancelledOpen ? (
+          <div
+            id="orders-mobile-panel-cancelado"
+            data-testid="orders-mobile-panel-cancelado"
+            className="border-t border-rose-200/80 px-3 pb-3 pt-3"
+          >
+            {cancelledOrders.length > 0 ? (
+              <div className="space-y-3">
+                {cancelledOrders.map((order) => (
+                  <OrderCard
+                    key={order.orderId}
+                    order={order}
+                    onOpenDetails={onOpenDetails}
+                    onOpenPaymentReviewModal={onOpenPaymentReviewModal}
+                    onConfirmOrder={onConfirmOrder}
+                    onAdvanceOrderStatus={onAdvanceOrderStatus}
+                    onOpenCancelOrderModal={onOpenCancelOrderModal}
+                    onOpenReactivateOrderModal={onOpenReactivateOrderModal}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-[20px] border border-dashed border-rose-200 bg-white/80 px-4 py-5 text-center text-sm text-slate-500">
+                No hay pedidos cancelados en este momento.
+              </div>
+            )}
+          </div>
+        ) : null}
       </section>
     </div>
   );
