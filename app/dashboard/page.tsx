@@ -1,8 +1,8 @@
-import { redirect } from "next/navigation";
 import Link from "next/link";
 
 import { resolvePrivateWorkspaceEntryFromCookies } from "@/lib/auth/private-workspace";
 import { requireBusinessOperatorUser } from "@/lib/auth/server";
+import { BusinessSelector } from "@/components/dashboard/business-selector";
 
 function renderUnsupportedDashboardRole() {
   return (
@@ -38,7 +38,22 @@ export default async function DashboardHomePage() {
     return renderUnsupportedDashboardRole();
   }
 
-  const workspaceEntry = await resolvePrivateWorkspaceEntryFromCookies(operator.userId);
+  const { ownedBusinesses } = await resolvePrivateWorkspaceEntryFromCookies(operator.userId);
 
-  redirect(workspaceEntry.entryHref);
+  return (
+    <main className="min-h-screen bg-slate-50/50 px-4 py-12 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl">
+        <header className="mb-12">
+          <h1 className="text-3xl font-bold tracking-tight text-slate-950">
+            Tus negocios
+          </h1>
+          <p className="mt-2 text-lg text-slate-600">
+            Selecciona un negocio para entrar a su espacio de trabajo.
+          </p>
+        </header>
+
+        <BusinessSelector businesses={ownedBusinesses} />
+      </div>
+    </main>
+  );
 }
