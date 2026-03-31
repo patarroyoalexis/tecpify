@@ -49,7 +49,6 @@ export function DashboardOverview({
     openProductsManager,
     ordersError,
     ordersState,
-    businessUrl,
     openNewOrder,
   } = useBusinessWorkspace();
 
@@ -73,11 +72,10 @@ export function DashboardOverview({
   };
 
   const handleCopyLink = () => {
-    if (businessUrl) {
-      void navigator.clipboard.writeText(businessUrl);
-      setCopyFeedback(true);
-      setTimeout(() => setCopyFeedback(false), 2000);
-    }
+    const businessUrl = `${window.location.origin}/pedido/${businessSlug}`;
+    void navigator.clipboard.writeText(businessUrl);
+    setCopyFeedback(true);
+    setTimeout(() => setCopyFeedback(false), 2000);
   };
 
   const recentOrders = [...ordersState]
