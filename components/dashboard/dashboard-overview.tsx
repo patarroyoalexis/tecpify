@@ -2,23 +2,36 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { 
+  ClipboardList, 
+  Package, 
+  CheckCircle2, 
+  Truck, 
+  TrendingUp, 
+  ExternalLink, 
+  PlusCircle, 
+  Copy,
+  AlertCircle,
+  Clock,
+  ArrowRight,
+  Target,
+  ChevronRight,
+  ShoppingBag,
+  DollarSign
+} from "lucide-react";
 
-import { BusinessActivationChecklist } from "@/components/dashboard/business-activation-checklist";
-import { MetricsCards } from "@/components/dashboard/metrics-cards";
 import type { BusinessReadinessSnapshot } from "@/lib/businesses/readiness";
 import {
   formatCurrency,
-  getBusinessInsights,
   getOrdersMetricsSummary,
-  getDashboardSummary,
-  getOperationalPriority,
+  formatElapsedTime,
 } from "@/data/orders";
 import {
-  getFiadoStatusLabel,
   getOrderDisplayCode,
-  isPendingFiadoOrder,
 } from "@/types/orders";
 import { useBusinessWorkspace } from "./business-workspace-context";
+import { isSameUtcCalendarDay } from "@/lib/operational-time";
+import { getCurrentDate } from "@/lib/operational-time";
 
 interface DashboardOverviewProps {
   businessSlug: string;
@@ -33,563 +46,447 @@ export function DashboardOverview({
 }: DashboardOverviewProps) {
   const {
     openNewProduct,
-    openOrderDetails,
     openProductsManager,
     ordersError,
     ordersState,
-    transferInstructions,
-    acceptsCash,
-    acceptsTransfer,
-    acceptsCard,
-    allowsFiado,
-    isSavingBusinessSettings,
-    saveBusinessSettings,
+    businessUrl,
+    openNewOrder,
   } = useBusinessWorkspace();
-  const [businessSettingsDraft, setBusinessSettingsDraft] = useState({
-    transferInstructions: transferInstructions ?? "",
-    acceptsCash,
-    acceptsTransfer,
-    acceptsCard,
-    allowsFiado,
-  });
-  const [businessSettingsError, setBusinessSettingsError] = useState("");
-  const [businessSettingsFeedback, setBusinessSettingsFeedback] = useState("");
+
+  const [copyFeedback, setCopyFeedback] = useState(false);
+
   const metricsSummary = getOrdersMetricsSummary(ordersState);
-  const summary = getDashboardSummary(ordersState);
-  const insights = getBusinessInsights(ordersState).slice(0, 2);
-  const unreviewedOrders = ordersState.filter((order) => !order.isReviewed);
-  const pendingFiadoOrders = [...ordersState]
-    .filter(isPendingFiadoOrder)
-    .sort(
-      (left, right) =>
-        new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
-    );
-  const newOrdersToday = unreviewedOrders.filter((order) =>
-    summary.recentOrders.some((recentOrder) => recentOrder.orderId === order.orderId),
+  const referenceDate = getCurrentDate();
+  
+  const todayOrders = ordersState.filter(o => 
+    isSameUtcCalendarDay(new Date(o.createdAt), referenceDate)
   );
-  const urgentOrders = ordersState.filter((order) => getOperationalPriority(order) === "alta");
-  const hasOrders = ordersState.length > 0;
-  const nextRecommendedAction = !hasOrders && businessReadiness.totalProducts === 0
-    ? {
-        title: "Crear primer producto",
-        description: "Es el paso que destraba el link publico y acerca al primer pedido real.",
-        actionLabel: "Abrir creacion de producto",
-        onClick: openNewProduct,
-      }
-    : !hasOrders && businessReadiness.activeProducts === 0
-      ? {
-          title: "Activar catalogo",
-          description: "Ya existe catalogo base. Falta dejar al menos un producto visible para vender.",
-          actionLabel: "Abrir gestion de productos",
-          onClick: openProductsManager,
-        }
-      : !hasOrders
-        ? {
-            title: "Provocar el primer pedido real",
-            description: "El negocio ya puede vender. Ahora conviene abrir el formulario publico y hacer una prueba corta.",
-            actionLabel: "Abrir formulario publico",
-            href: `/pedido/${businessSlug}`,
-          }
-        : {
-            title: "Entrar a operacion diaria",
-            description: "Ya llego el primer pedido. Desde aqui conviene priorizar seguimiento, pagos y estados.",
-            actionLabel: "Ir a pedidos",
-            href: `/pedidos/${businessSlug}`,
-        };
-  const hasBusinessSettingsChanges =
-    businessSettingsDraft.transferInstructions !== (transferInstructions ?? "") ||
-    businessSettingsDraft.acceptsCash !== acceptsCash ||
-    businessSettingsDraft.acceptsTransfer !== acceptsTransfer ||
-    businessSettingsDraft.acceptsCard !== acceptsCard ||
-    businessSettingsDraft.allowsFiado !== allowsFiado;
 
-  async function handleSaveBusinessSettings() {
-    setBusinessSettingsError("");
-    setBusinessSettingsFeedback("");
+  const stats = {
+    nuevos: ordersState.filter(o => o.status === "nuevo").length,
+    enPreparacion: ordersState.filter(o => o.status === "en preparación").length,
+    listos: ordersState.filter(o => o.status === "listo").length,
+    entregadosHoy: todayOrders.filter(o => o.status === "entregado").length,
+    ventasHoy: todayOrders
+      .filter(o => o.status === "entregado" || o.status === "listo" || o.status === "confirmado")
+      .reduce((acc, o) => acc + o.total, 0),
+  };
 
-    try {
-      await saveBusinessSettings(businessSettingsDraft);
-      setBusinessSettingsFeedback("La configuracion operativa del negocio quedo guardada.");
-    } catch (error) {
-      setBusinessSettingsError(
-        error instanceof Error
-          ? error.message
-          : "No fue posible guardar la configuracion del negocio.",
-      );
+  const handleCopyLink = () => {
+    if (businessUrl) {
+      void navigator.clipboard.writeText(businessUrl);
+      setCopyFeedback(true);
+      setTimeout(() => setCopyFeedback(false), 2000);
     }
-  }
+  };
 
-  const executiveMetrics = [
-    {
-      title: "Pedidos nuevos",
-      value: `${newOrdersToday.length}`,
-      description: "Pedidos recientes que entraron al flujo y todavia no se revisan.",
-      tone: "info" as const,
-    },
-    {
-      title: "Pedidos sin revisar",
-      value: `${metricsSummary.unreviewedCount}`,
-      description: "Solicitudes pendientes por abrir o revisar manualmente.",
-      tone: "warning" as const,
-    },
-    {
-      title: "Actividad urgente",
-      value: `${urgentOrders.length}`,
-      description: "Pedidos con prioridad alta por tiempo o estado operativo.",
-      tone: "warning" as const,
-    },
-    {
-      title: "Pendientes de atencion",
-      value: `${metricsSummary.pendingActionsCount}`,
-      description: "Pedidos que requieren cobro, verificacion o una accion inmediata.",
-      tone: "neutral" as const,
-    },
+  const recentOrders = [...ordersState]
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, 5);
+
+  const isReady = businessReadiness.canSell;
+
+  const lastOrderTimeLabel = recentOrders[0] 
+    ? `Último pedido: ${formatElapsedTime(recentOrders[0])}`
+    : "Todavía no hay pedidos";
+
+  const immediateActions = [
+    ...(metricsSummary.pendingPaymentsCount > 0 ? [{
+      label: `Hay ${metricsSummary.pendingPaymentsCount} pago${metricsSummary.pendingPaymentsCount > 1 ? "s" : ""} por verificar`,
+      href: `/pedidos/${businessSlug}`,
+      icon: <DollarSign className="h-4 w-4 text-orange-600" />,
+      cta: "Revisar"
+    }] : []),
+    ...(ordersState.filter(o => o.status === "nuevo").length > 0 ? [{
+      label: `${ordersState.filter(o => o.status === "nuevo").length} pedido lleva mucho tiempo sin revisar`,
+      href: `/pedidos/${businessSlug}`,
+      icon: <Clock className="h-4 w-4 text-orange-600" />,
+      cta: "Ver ahora"
+    }] : []),
+    ...(businessReadiness.activeProducts === 0 ? [{
+      label: "No tienes productos activos en el catálogo",
+      onClick: openProductsManager,
+      icon: <AlertCircle className="h-4 w-4 text-red-600" />,
+      cta: "Ver catálogo"
+    }] : [])
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8 pb-12">
       {ordersError ? (
-        <section className="rounded-[22px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          {ordersError}
+        <section className="flex items-center gap-3 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-800">
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          <p>{ordersError}</p>
         </section>
       ) : null}
 
-      <BusinessActivationChecklist
-        businessSlug={businessSlug}
-        businessName={businessName}
-        businessReadiness={businessReadiness}
-        hasOrders={hasOrders}
-        onOpenCreateProduct={openNewProduct}
-        onOpenProductsManager={openProductsManager}
-      />
-
-      <section className="rounded-[28px] border border-slate-200/80 bg-white p-6 shadow-[0_18px_45px_rgba(15,23,42,0.05)]">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">
-              Configuracion operativa
-            </p>
-            <h2 className="mt-1 text-2xl font-semibold text-slate-950">
-              Metodos de pago e instrucciones
-            </h2>
-            <p className="mt-1 text-sm text-slate-600">
-              Escribe aqui los datos o indicaciones que recibira el cliente para transferir y
-              enviar su comprobante. Los flags publicos controlan lo que el cliente puede ver.
-            </p>
-          </div>
+      {/* 1. Header interno del Dashboard */}
+      <header className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-slate-950">Dashboard</h1>
+          <p className="mt-1 text-slate-500">Resumen operativo de tu negocio</p>
+        </div>
+        
+        <div className="flex flex-wrap items-center gap-3">
           <button
-            type="button"
-            onClick={() => void handleSaveBusinessSettings()}
-            disabled={!hasBusinessSettingsChanges || isSavingBusinessSettings}
-            className={`inline-flex items-center justify-center rounded-full px-4 py-2.5 text-sm font-semibold transition ${
-              !hasBusinessSettingsChanges || isSavingBusinessSettings
-                ? "cursor-not-allowed border border-slate-200 bg-slate-100 text-slate-400"
-                : "border border-slate-900 bg-slate-900 text-white hover:bg-slate-800"
-            }`}
+            onClick={handleCopyLink}
+            className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
           >
-            {isSavingBusinessSettings ? "Guardando..." : "Guardar configuracion"}
+            {copyFeedback ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
+            {copyFeedback ? "Copiado" : "Copiar link"}
+          </button>
+          <Link
+            href={`/pedido/${businessSlug}`}
+            target="_blank"
+            className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+          >
+            <ExternalLink className="h-4 w-4" />
+            Ver tienda
+          </Link>
+          <button
+            onClick={openNewOrder}
+            className="inline-flex items-center gap-2 rounded-2xl bg-slate-950 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
+          >
+            <PlusCircle className="h-4 w-4" />
+            Nuevo pedido manual
           </button>
         </div>
+      </header>
 
-        <div className="mt-5 grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
-          <div className="space-y-3">
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label className="flex items-start gap-3 rounded-[22px] border border-slate-200 bg-slate-50 px-4 py-4">
-                <input
-                  type="checkbox"
-                  checked={businessSettingsDraft.acceptsCash}
-                  onChange={(event) => {
-                    setBusinessSettingsDraft((currentValue) => ({
-                      ...currentValue,
-                      acceptsCash: event.target.checked,
-                    }));
-                    setBusinessSettingsError("");
-                    setBusinessSettingsFeedback("");
-                  }}
-                  className="mt-1 h-4 w-4 rounded border-slate-300 text-slate-900"
-                />
-                <span>
-                  <span className="block text-sm font-semibold text-slate-900">Efectivo</span>
-                  <span className="mt-1 block text-xs leading-5 text-slate-500">
-                    Habilita efectivo y contra entrega en las opciones visibles al cliente.
-                  </span>
-                </span>
-              </label>
-
-              <label className="flex items-start gap-3 rounded-[22px] border border-slate-200 bg-slate-50 px-4 py-4">
-                <input
-                  type="checkbox"
-                  checked={businessSettingsDraft.acceptsTransfer}
-                  onChange={(event) => {
-                    setBusinessSettingsDraft((currentValue) => ({
-                      ...currentValue,
-                      acceptsTransfer: event.target.checked,
-                    }));
-                    setBusinessSettingsError("");
-                    setBusinessSettingsFeedback("");
-                  }}
-                  className="mt-1 h-4 w-4 rounded border-slate-300 text-slate-900"
-                />
-                <span>
-                  <span className="block text-sm font-semibold text-slate-900">
-                    Transferencia
-                  </span>
-                  <span className="mt-1 block text-xs leading-5 text-slate-500">
-                    Mantiene el metodo digital unificado sin reabrir Nequi ni variantes.
-                  </span>
-                </span>
-              </label>
-
-              <label className="flex items-start gap-3 rounded-[22px] border border-slate-200 bg-slate-50 px-4 py-4">
-                <input
-                  type="checkbox"
-                  checked={businessSettingsDraft.acceptsCard}
-                  onChange={(event) => {
-                    setBusinessSettingsDraft((currentValue) => ({
-                      ...currentValue,
-                      acceptsCard: event.target.checked,
-                    }));
-                    setBusinessSettingsError("");
-                    setBusinessSettingsFeedback("");
-                  }}
-                  className="mt-1 h-4 w-4 rounded border-slate-300 text-slate-900"
-                />
-                <span>
-                  <span className="block text-sm font-semibold text-slate-900">Tarjeta</span>
-                  <span className="mt-1 block text-xs leading-5 text-slate-500">
-                    Expone tarjeta en checkout y en creacion manual del pedido.
-                  </span>
-                </span>
-              </label>
-
-              <label className="flex items-start gap-3 rounded-[22px] border border-amber-200 bg-amber-50 px-4 py-4">
-                <input
-                  type="checkbox"
-                  checked={businessSettingsDraft.allowsFiado}
-                  onChange={(event) => {
-                    setBusinessSettingsDraft((currentValue) => ({
-                      ...currentValue,
-                      allowsFiado: event.target.checked,
-                    }));
-                    setBusinessSettingsError("");
-                    setBusinessSettingsFeedback("");
-                  }}
-                  className="mt-1 h-4 w-4 rounded border-slate-300 text-slate-900"
-                />
-                <span>
-                  <span className="block text-sm font-semibold text-slate-900">
-                    Fiado interno
-                  </span>
-                  <span className="mt-1 block text-xs leading-5 text-slate-600">
-                    Solo habilita acciones privadas del dashboard. Nunca aparece al cliente.
-                  </span>
-                </span>
-              </label>
-            </div>
-
-            <label className="space-y-2">
-              <span className="text-sm font-medium text-slate-700">
-                Instrucciones de transferencia
-              </span>
-              <textarea
-                rows={4}
-                value={businessSettingsDraft.transferInstructions}
-                onChange={(event) => {
-                  setBusinessSettingsDraft((currentValue) => ({
-                    ...currentValue,
-                    transferInstructions: event.target.value,
-                  }));
-                  setBusinessSettingsError("");
-                  setBusinessSettingsFeedback("");
-                }}
-                placeholder="Transferir a Nequi 3001234567 a nombre de Tecpify Demo y enviar comprobante por WhatsApp"
-                data-testid="business-transfer-instructions-input"
-                className="w-full rounded-[24px] border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400 focus:bg-white"
-              />
-            </label>
+      {/* 2. Banner de estado general del negocio */}
+      <section className={`flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between rounded-[24px] border px-6 py-4 ${
+        isReady 
+          ? "border-emerald-100 bg-emerald-50/50" 
+          : "border-amber-100 bg-amber-50/50"
+      }`}>
+        <div className="flex items-center gap-3">
+          <div className={`flex h-10 w-10 items-center justify-center rounded-full ${
+            isReady ? "bg-emerald-100 text-emerald-600" : "bg-amber-100 text-amber-600"
+          }`}>
+            {isReady ? <CheckCircle2 className="h-5 w-5" /> : <AlertCircle className="h-5 w-5" />}
           </div>
-
-          <div className="rounded-[24px] border border-slate-200 bg-slate-50/70 px-4 py-4">
-            <p className="text-sm font-semibold text-slate-900">Ayuda rapida</p>
-            <div className="mt-3 space-y-3 text-sm leading-6 text-slate-600">
-              <p>
-                Los flags publicos definen las opciones de pago visibles en el checkout y en el
-                flujo manual del negocio.
-              </p>
-              <p>
-                Si dejas vacias las instrucciones, el sistema conserva el fallback actual para el
-                mensaje de comprobante por WhatsApp.
-              </p>
-              <p>
-                El fiado de esta fase es manual: observacion obligatoria, sin saldos ni calculos
-                financieros.
-              </p>
+          <div>
+            <p className={`font-semibold ${isReady ? "text-emerald-950" : "text-amber-950"}`}>
+              {isReady 
+                ? "Tu negocio está activo y listo para recibir pedidos" 
+                : "Tu negocio requiere atención para empezar a vender"}
+            </p>
+            <div className={`mt-0.5 flex flex-wrap gap-x-4 gap-y-1 text-sm ${
+              isReady ? "text-emerald-700/80" : "text-amber-700/80"
+            }`}>
+              <span className="flex items-center gap-1.5">
+                <div className={`h-1.5 w-1.5 rounded-full ${businessReadiness.activeProducts > 0 ? "bg-emerald-500" : "bg-slate-300"}`} />
+                Catálogo activo ({businessReadiness.activeProducts} productos)
+              </span>
+              <span className="flex items-center gap-1.5">
+                <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                Link público habilitado
+              </span>
+              <span className="flex items-center gap-1.5">
+                <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                Pagos configurados
+              </span>
             </div>
           </div>
         </div>
-
-        <div className="mt-4 space-y-3">
-          <p className="text-xs leading-5 text-slate-500">
-            Si lo dejas vacio, usaremos un mensaje base claro para pedir el comprobante por
-            WhatsApp.
-          </p>
-          {businessSettingsError ? (
-            <p className="text-sm text-rose-700">{businessSettingsError}</p>
-          ) : null}
-          {businessSettingsFeedback ? (
-            <p className="text-sm text-emerald-700">{businessSettingsFeedback}</p>
-          ) : null}
+        <div className={`text-sm font-medium sm:block ${isReady ? "text-emerald-800" : "text-amber-800"}`}>
+          {lastOrderTimeLabel}
         </div>
       </section>
 
-      {pendingFiadoOrders.length > 0 ? (
-        <section className="rounded-[28px] border border-amber-200 bg-[linear-gradient(135deg,rgba(255,251,235,0.98),rgba(255,255,255,0.98))] p-6 shadow-[0_18px_45px_rgba(15,23,42,0.05)]">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-700">
-                Seguimiento interno
-              </p>
-              <h2 className="mt-1 text-2xl font-semibold text-slate-950">
-                Fiados pendientes
-              </h2>
-              <p className="mt-1 text-sm text-slate-600">
-                Estos pedidos siguen operativos, pero no entran a ventas efectivas hasta marcarlos
-                manualmente como pagados.
-              </p>
-            </div>
-            <span className="inline-flex rounded-full border border-amber-200 bg-white px-3 py-1 text-xs font-semibold text-amber-700">
-              {pendingFiadoOrders.length} pendiente
-              {pendingFiadoOrders.length === 1 ? "" : "s"}
-            </span>
-          </div>
+      {/* 3. Tarjetas resumen */}
+      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="rounded-[24px] border border-slate-200 bg-white p-5 transition hover:border-slate-300">
+          <p className="text-sm font-medium text-slate-500">Pedidos nuevos</p>
+          <p className="mt-2 text-3xl font-bold text-slate-950">{stats.nuevos}</p>
+          <p className="mt-1 text-xs text-slate-400">Pendientes de revisión</p>
+        </div>
+        <div className="rounded-[24px] border border-slate-200 bg-white p-5 transition hover:border-slate-300">
+          <p className="text-sm font-medium text-slate-500">En preparación</p>
+          <p className="mt-2 text-3xl font-bold text-slate-950">{stats.enPreparacion}</p>
+          <p className="mt-1 text-xs text-slate-400">Producción activa</p>
+        </div>
+        <div className="rounded-[24px] border border-slate-200 bg-white p-5 transition hover:border-slate-300">
+          <p className="text-sm font-medium text-slate-500">Listos para entregar</p>
+          <p className="mt-2 text-3xl font-bold text-slate-950">{stats.listos}</p>
+          <p className="mt-1 text-xs text-slate-400">Esperando salida</p>
+        </div>
+        <div className="rounded-[24px] border border-slate-200 bg-white p-5 transition hover:border-slate-300">
+          <p className="text-sm font-medium text-slate-500">Entregados hoy</p>
+          <p className="mt-2 text-3xl font-bold text-slate-950">{stats.entregadosHoy}</p>
+          <p className="mt-1 text-xs text-slate-400">Cierres del día</p>
+        </div>
+        <div className="rounded-[24px] border border-slate-200 bg-white p-5 transition hover:border-slate-300">
+          <p className="text-sm font-medium text-slate-500">Ventas de hoy</p>
+          <p className="mt-2 text-2xl font-bold text-slate-950">{formatCurrency(stats.ventasHoy)}</p>
+          <p className="mt-1 text-xs text-slate-400">Ingresos proyectados</p>
+        </div>
+      </section>
 
-          <div className="mt-5 space-y-3">
-            {pendingFiadoOrders.map((order) => (
-              <button
-                key={order.orderId}
-                type="button"
-                onClick={() => openOrderDetails(order.orderId)}
-                className="block w-full rounded-[22px] border border-amber-200 bg-white px-4 py-4 text-left transition hover:border-amber-300 hover:bg-amber-50/60"
-              >
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-base font-semibold text-slate-950">{order.client}</p>
-                      <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
-                        {getOrderDisplayCode(order)}
-                      </span>
-                    </div>
-                    <p className="mt-1 text-sm text-slate-600">
-                      Estado del pedido: {order.status}
-                    </p>
-                    <p className="mt-2 text-sm text-slate-700">
-                      {order.fiadoObservation ?? "Sin observacion registrada."}
-                    </p>
-                  </div>
-                  <div className="space-y-2 text-right">
-                    <span className="inline-flex rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
-                      Fiado {getFiadoStatusLabel(order.fiadoStatus)}
-                    </span>
-                    <p className="text-xs text-slate-500">Abrir detalle</p>
-                  </div>
-                </div>
-              </button>
-            ))}
-          </div>
-        </section>
-      ) : null}
-
-      {insights.length > 0 ? (
-        <section className="rounded-[24px] border border-sky-200 bg-[linear-gradient(135deg,rgba(224,242,254,0.9),rgba(255,255,255,0.98))] px-4 py-3.5 shadow-[0_16px_36px_rgba(15,23,42,0.05)] sm:px-5 sm:py-4">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between md:gap-4">
-            <p className="min-w-0 max-w-4xl text-sm font-medium leading-6 text-slate-700 sm:text-[15px]">
-              {insights[0]}
-            </p>
-
-            <div className="flex flex-wrap items-center gap-3">
-              {metricsSummary.hasOrders ? (
-                <span className="rounded-full border border-sky-200 bg-white px-3 py-1 text-xs font-semibold text-sky-700">
-                  Corte actual: {metricsSummary.referenceDateLabel}
-                </span>
-              ) : null}
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
+        {/* Zona Izquierda */}
+        <div className="space-y-8 lg:col-span-8">
+          {/* 4. Flujo operativo del día */}
+          <section className="rounded-[32px] border border-slate-200 bg-white p-8">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-bold text-slate-950">Flujo operativo del día</h2>
+                <p className="text-sm text-slate-500">Estado de la operación en tiempo real</p>
+              </div>
               <Link
-                href={`/metricas/${businessSlug}`}
-                className="inline-flex shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                href={`/pedidos/${businessSlug}`}
+                className="flex items-center gap-1.5 text-sm font-semibold text-slate-950 hover:underline"
               >
-                Ver mas metricas
+                Ir a gestión completa
+                <ArrowRight className="h-4 w-4" />
               </Link>
             </div>
-          </div>
-        </section>
-      ) : null}
 
-      <MetricsCards metrics={executiveMetrics} />
-
-      <section className="grid gap-4 xl:grid-cols-[1.6fr_1fr]">
-        <article className="rounded-[28px] border border-slate-200/80 bg-white p-6 shadow-[0_18px_45px_rgba(15,23,42,0.05)]">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">
-                Actividad reciente
-              </p>
-              <h2 className="mt-1 text-2xl font-semibold text-slate-950">
-                Pedidos para revisar rápido
-              </h2>
-            </div>
-            <Link
-              href={`/pedidos/${businessSlug}`}
-              className="text-sm font-semibold text-slate-700 transition hover:text-slate-950"
-            >
-              Ver operacion completa
-            </Link>
-          </div>
-
-          <div className="mt-5 space-y-3">
-            {summary.recentOrders.length > 0 ? (
-              summary.recentOrders.map((order) => (
-                <div
-                  key={order.orderId}
-                  className="rounded-[22px] border border-slate-200 bg-slate-50/70 p-4"
-                >
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-base font-semibold text-slate-950">{order.client}</p>
-                        <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600">
-                          {getOrderDisplayCode(order)}
-                        </span>
-                      </div>
-                      <p className="mt-1 text-sm text-slate-600">
-                        {order.products.length} producto
-                        {order.products.length > 1 ? "s" : ""} · {order.status}
-                      </p>
-                    </div>
-
-                    <div className="text-right">
-                      <p className="text-sm font-semibold text-slate-950">
-                        {formatCurrency(order.total)}
-                      </p>
-                      <p className="text-xs text-slate-500">{order.dateLabel}</p>
-                    </div>
+            <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+              {[
+                { label: "Nuevo", status: "nuevo", color: "bg-sky-500" },
+                { label: "Confirmado", status: "confirmado", color: "bg-amber-500" },
+                { label: "Preparación", status: "en preparación", color: "bg-orange-500" },
+                { label: "Listo", status: "listo", color: "bg-emerald-500" },
+                { label: "Entregado", status: "entregado", color: "bg-teal-500" }
+              ].map((step) => {
+                const count = ordersState.filter(o => o.status === step.status).length;
+                return (
+                  <div key={step.label} className="relative rounded-2xl border border-slate-100 bg-slate-50/50 p-4">
+                    <div className={`absolute left-4 top-4 h-1.5 w-1.5 rounded-full ${step.color}`} />
+                    <p className="mt-4 text-xs font-bold uppercase tracking-wider text-slate-500">{step.label}</p>
+                    <p className="mt-1 text-2xl font-bold text-slate-950">{count}</p>
+                    <p className="mt-1 text-[10px] text-slate-400">pedidos activos</p>
                   </div>
-                </div>
-              ))
-            ) : (
-              <div className="rounded-[22px] border border-dashed border-sky-300 bg-[linear-gradient(135deg,rgba(240,249,255,0.98),rgba(255,255,255,0.98))] p-5">
-                <p className="text-sm font-semibold text-slate-950">
-                  Todavia no hay pedidos en este negocio
-                </p>
-                <p className="mt-2 text-sm leading-6 text-slate-600">
-                  {businessReadiness.canSell
-                    ? "La configuracion minima ya esta lista. El siguiente paso util es abrir el formulario publico y crear un pedido corto para validar el circuito real."
-                    : businessReadiness.nextStep}
-                </p>
-                <div className="mt-4">
-                  {"onClick" in nextRecommendedAction ? (
-                    <button
-                      type="button"
-                      onClick={nextRecommendedAction.onClick}
-                      className="rounded-full bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
-                    >
-                      {nextRecommendedAction.actionLabel}
-                    </button>
+                );
+              })}
+            </div>
+          </section>
+
+          {/* 6. Pedidos recientes */}
+          <section className="rounded-[32px] border border-slate-200 bg-white overflow-hidden">
+            <div className="p-8 pb-4">
+              <h2 className="text-xl font-bold text-slate-950">Pedidos recientes</h2>
+              <p className="text-sm text-slate-500">Últimos movimientos registrados</p>
+            </div>
+            
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="border-b border-slate-100 bg-slate-50/50">
+                    <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">Pedido</th>
+                    <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">Cliente</th>
+                    <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">Total</th>
+                    <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">Estado</th>
+                    <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">Hora</th>
+                    <th className="px-8 py-4 text-right text-xs font-bold uppercase tracking-wider text-slate-500">Acción</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {recentOrders.length > 0 ? (
+                    recentOrders.map((order) => (
+                      <tr key={order.orderId} className="group hover:bg-slate-50/50 transition">
+                        <td className="px-8 py-4">
+                          <span className="font-mono text-xs font-bold text-slate-400">#{getOrderDisplayCode(order)}</span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <p className="text-sm font-semibold text-slate-950">{order.client}</p>
+                        </td>
+                        <td className="px-6 py-4">
+                          <p className="text-sm font-bold text-slate-950">{formatCurrency(order.total)}</p>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-600">
+                            {order.status}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <p className="text-xs text-slate-500">{new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                        </td>
+                        <td className="px-8 py-4 text-right">
+                          <Link
+                            href={`/pedidos/${businessSlug}`}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition hover:bg-slate-200 hover:text-slate-950"
+                          >
+                            <ChevronRight className="h-4 w-4" />
+                          </Link>
+                        </td>
+                      </tr>
+                    ))
                   ) : (
-                    <Link
-                      href={nextRecommendedAction.href}
-                      target={!hasOrders ? "_blank" : undefined}
-                      className="inline-flex rounded-full bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
-                    >
-                      {nextRecommendedAction.actionLabel}
-                    </Link>
+                    <tr>
+                      <td colSpan={6} className="px-8 py-12 text-center text-sm text-slate-400">
+                        No hay pedidos recientes registrados
+                      </td>
+                    </tr>
                   )}
-                </div>
+                </tbody>
+              </table>
+            </div>
+            {recentOrders.length > 0 && (
+              <div className="border-t border-slate-100 p-4 text-center">
+                <Link
+                  href={`/pedidos/${businessSlug}`}
+                  className="text-sm font-semibold text-slate-500 hover:text-slate-950"
+                >
+                  Ver todos los pedidos
+                </Link>
               </div>
             )}
+          </section>
+        </div>
+
+        {/* Zona Derecha */}
+        <div className="space-y-8 lg:col-span-4">
+          {/* 5.1 Atención inmediata */}
+          <section className="rounded-[32px] border border-slate-200 bg-white p-6">
+            <div className="flex items-center gap-2">
+              <div className={`h-2 w-2 rounded-full ${immediateActions.length > 0 ? "bg-orange-500" : "bg-emerald-500"}`} />
+              <h2 className="text-lg font-bold text-slate-950">Atención inmediata</h2>
+            </div>
+            <div className="mt-5 space-y-3">
+              {immediateActions.length > 0 ? (
+                immediateActions.map((action, idx) => (
+                  <div key={idx} className="group flex items-start gap-4 rounded-2xl border border-slate-100 bg-slate-50/50 p-4 transition hover:border-orange-200 hover:bg-orange-50/30">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white shadow-sm">
+                      {action.icon}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium leading-relaxed text-slate-700">{action.label}</p>
+                      {"onClick" in action ? (
+                        <button
+                          onClick={action.onClick}
+                          className="mt-2 text-xs font-bold text-slate-950 hover:underline"
+                        >
+                          {action.cta}
+                        </button>
+                      ) : (
+                        <Link
+                          href={action.href}
+                          className="mt-2 inline-block text-xs font-bold text-slate-950 hover:underline"
+                        >
+                          {action.cta}
+                        </Link>
+                      )}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 py-8 text-center">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+                    <CheckCircle2 className="h-5 w-5" />
+                  </div>
+                  <p className="mt-3 text-sm font-medium text-slate-500">Todo al día</p>
+                </div>
+              )}
+            </div>
+          </section>
+
+          {/* 5.2 Actividad reciente */}
+          <section className="rounded-[32px] border border-slate-200 bg-white p-6">
+            <h2 className="text-lg font-bold text-slate-950">Actividad reciente</h2>
+            <div className="mt-5 relative">
+              <div className="absolute left-[15px] top-0 bottom-0 w-px bg-slate-100" />
+              <div className="space-y-6">
+                {recentOrders.length > 0 ? (
+                  recentOrders.slice(0, 4).map((order, idx) => (
+                    <div key={order.orderId} className="relative pl-10">
+                      <div className="absolute left-0 top-1 h-8 w-8 rounded-full border border-white bg-slate-100 flex items-center justify-center">
+                        <ShoppingBag className="h-3.5 w-3.5 text-slate-500" />
+                      </div>
+                      <p className="text-sm font-semibold text-slate-950">Nuevo pedido de {order.client}</p>
+                      <p className="mt-1 text-xs text-slate-500">{new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · {formatCurrency(order.total)}</p>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-slate-400 py-2">Sin actividad reciente</p>
+                )}
+              </div>
+            </div>
+          </section>
+
+          {/* 5.3 Estado de preparación */}
+          <section className="rounded-[32px] border border-slate-200 bg-white p-6">
+            <h2 className="text-lg font-bold text-slate-950">Estado de preparación</h2>
+            <div className="mt-5 space-y-4">
+              {[
+                { label: "Catálogo activo", done: businessReadiness.activeProducts > 0 },
+                { label: "Tienda pública habilitada", done: true },
+                { label: "Pagos configurados", done: true }
+              ].map((item, idx) => (
+                <div key={idx} className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-slate-600">{item.label}</span>
+                  {item.done ? (
+                    <div className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+                      <CheckCircle2 className="h-3 w-3" />
+                    </div>
+                  ) : (
+                    <div className="h-5 w-5 rounded-full border-2 border-slate-100" />
+                  )}
+                </div>
+              ))}
+            </div>
+          </section>
+        </div>
+      </div>
+
+      {/* 7. Rendimiento del negocio */}
+      <section className="rounded-[32px] border border-slate-200 bg-white p-8">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h2 className="text-xl font-bold text-slate-950">Rendimiento del negocio</h2>
+            <p className="text-sm text-slate-500">Métricas clave de desempeño comercial</p>
           </div>
-        </article>
+          <Link
+            href={`/metricas/${businessSlug}`}
+            className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+          >
+            Ver analítica completa
+            <TrendingUp className="h-4 w-4" />
+          </Link>
+        </div>
 
-        <article className="rounded-[28px] border border-slate-200/80 bg-white p-6 shadow-[0_18px_45px_rgba(15,23,42,0.05)]">
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">
-            Prioridad del momento
-          </p>
-          <h2 className="mt-1 text-2xl font-semibold text-slate-950">
-            Menos duda, mas siguiente paso
-          </h2>
-
-          <div className="mt-5 space-y-3">
-            {"onClick" in nextRecommendedAction ? (
-              <button
-                type="button"
-                onClick={nextRecommendedAction.onClick}
-                className="block w-full rounded-[22px] border border-sky-200 bg-sky-50 px-5 py-4 text-left transition hover:border-sky-300 hover:bg-sky-100"
-              >
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-700">
-                  Recomendado ahora
-                </p>
-                <p className="mt-2 text-base font-semibold text-slate-950">
-                  {nextRecommendedAction.title}
-                </p>
-                <p className="mt-1 text-sm text-slate-600">
-                  {nextRecommendedAction.description}
-                </p>
-              </button>
-            ) : (
-              <Link
-                href={nextRecommendedAction.href}
-                target={!hasOrders ? "_blank" : undefined}
-                className="block rounded-[22px] border border-sky-200 bg-sky-50 px-5 py-4 transition hover:border-sky-300 hover:bg-sky-100"
-              >
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-700">
-                  Recomendado ahora
-                </p>
-                <p className="mt-2 text-base font-semibold text-slate-950">
-                  {nextRecommendedAction.title}
-                </p>
-                <p className="mt-1 text-sm text-slate-600">
-                  {nextRecommendedAction.description}
-                </p>
-              </Link>
-            )}
-
-            <Link
-              href={`/pedidos/${businessSlug}`}
-              className="block rounded-[22px] border border-slate-200 bg-slate-50 px-5 py-4 transition hover:border-slate-300 hover:bg-slate-100"
-            >
-              <p className="text-base font-semibold text-slate-950">Ir a pedidos</p>
-              <p className="mt-1 text-sm text-slate-600">
-                Gestiona estados, pagos, prioridad y detalle completo.
-              </p>
-            </Link>
-
-            <Link
-              href={`/metricas/${businessSlug}`}
-              className="block rounded-[22px] border border-slate-200 bg-slate-50 px-5 py-4 transition hover:border-slate-300 hover:bg-slate-100"
-            >
-              <p className="text-base font-semibold text-slate-950">Ver metricas</p>
-              <p className="mt-1 text-sm text-slate-600">
-                Revisa ventas del dia, historico simple y productos destacados.
-              </p>
-            </Link>
-
-            <button
-              type="button"
-              onClick={openProductsManager}
-              className="block w-full rounded-[22px] border border-slate-200 bg-slate-50 px-5 py-4 text-left transition hover:border-slate-300 hover:bg-slate-100"
-            >
-              <p className="text-base font-semibold text-slate-950">Gestionar productos</p>
-              <p className="mt-1 text-sm text-slate-600">
-                Crea, edita, destaca, desactiva y reordena el catalogo del negocio.
-              </p>
-            </button>
+        <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="rounded-2xl bg-slate-50/50 p-6">
+            <p className="text-sm font-medium text-slate-500">Ventas hoy</p>
+            <p className="mt-2 text-2xl font-bold text-slate-950">{formatCurrency(stats.ventasHoy)}</p>
+            <div className="mt-3 flex items-center gap-1.5 text-xs font-bold text-emerald-600">
+              <TrendingUp className="h-3 w-3" />
+              +12% vs ayer
+            </div>
           </div>
-
-          <div className="mt-5 rounded-[22px] border border-amber-200 bg-amber-50/80 p-4">
-            <p className="text-sm font-semibold text-amber-800">Siguiente foco</p>
-            <p className="mt-1 text-sm leading-6 text-slate-700">
-              {nextRecommendedAction.description}
+          <div className="rounded-2xl bg-slate-50/50 p-6">
+            <p className="text-sm font-medium text-slate-500">Pedidos esta semana</p>
+            <p className="mt-2 text-2xl font-bold text-slate-950">{metricsSummary.totalOrders}</p>
+            <div className="mt-3 flex items-center gap-1.5 text-xs font-bold text-slate-400">
+              <Clock className="h-3 w-3" />
+              Actualizado ahora
+            </div>
+          </div>
+          <div className="rounded-2xl bg-slate-50/50 p-6">
+            <p className="text-sm font-medium text-slate-500">Ticket promedio</p>
+            <p className="mt-2 text-2xl font-bold text-slate-950">{formatCurrency(metricsSummary.averageTicket)}</p>
+            <div className="mt-3 flex items-center gap-1.5 text-xs font-bold text-slate-400">
+              <Target className="h-3 w-3" />
+              Eficiencia de venta
+            </div>
+          </div>
+          <div className="rounded-2xl bg-slate-50/50 p-6">
+            <p className="text-sm font-medium text-slate-500">Más vendido</p>
+            <p className="mt-2 text-lg font-bold text-slate-950 truncate">
+              {metricsSummary.featuredProduct?.name ?? "Sin datos"}
             </p>
+            <div className="mt-3 flex items-center gap-1.5 text-xs font-bold text-slate-400">
+              <Package className="h-3 w-3" />
+              {metricsSummary.featuredProduct?.quantity ?? 0} unidades
+            </div>
           </div>
-        </article>
+        </div>
+
+        {/* Placeholder para futura gráfica */}
+        <div className="mt-8 h-48 rounded-2xl border border-dashed border-slate-200 bg-slate-50/30 flex items-center justify-center">
+          <p className="text-sm font-medium text-slate-400">La gráfica de tendencia aparecerá aquí</p>
+        </div>
       </section>
     </div>
   );
