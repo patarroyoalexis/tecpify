@@ -25,6 +25,10 @@ interface WorkspaceLayoutShellProps {
   children: ReactNode;
 }
 
+import { WorkspaceSidebar } from "@/components/layout/workspace-sidebar";
+
+// ... existing props interface ...
+
 export function WorkspaceLayoutShell({
   businessName,
   businessSlug,
@@ -58,23 +62,37 @@ export function WorkspaceLayoutShell({
         workspaceCurrentBusinessSlug={workspaceCurrentBusinessSlug}
         workspaceHomeHref={workspaceHomeHref}
         workspaceCreateBusinessHref={workspaceCreateBusinessHref}
+        pageTitle={title}
       />
 
-      <main className="flex-1">
-        <WorkspacePageHeader
-          title={title}
-          description={description}
-          actions={headerActions}
+      <div className="flex flex-1 pt-16">
+        <WorkspaceSidebar 
+          businessSlug={businessSlug ?? workspaceCurrentBusinessSlug} 
+          showAdmin={!!adminHref}
         />
 
-        <section className="px-3 pb-4 pt-5 sm:px-4 sm:pb-5 lg:px-5 lg:pb-6 lg:pt-6">
-          <div className="mx-auto flex w-full max-w-7xl flex-col gap-4">
-            {children}
-          </div>
-        </section>
-      </main>
+        <main className="flex-1 lg:pl-16">
+          {(description || headerActions) && (
+            <WorkspacePageHeader
+              title="" // Title is now in the top navbar
+              description={description}
+              actions={headerActions}
+            />
+          )}
 
-      {showFooter ? <AppFooter variant="workspace" businessSlug={businessSlug} /> : null}
+          <section className="px-3 pb-4 pt-5 sm:px-4 sm:pb-5 lg:px-5 lg:pb-6 lg:pt-6">
+            <div className="mx-auto flex w-full max-w-7xl flex-col gap-4">
+              {children}
+            </div>
+          </section>
+        </main>
+      </div>
+
+      {showFooter ? (
+        <div className="lg:pl-16">
+          <AppFooter variant="workspace" businessSlug={businessSlug} />
+        </div>
+      ) : null}
     </div>
   );
 }

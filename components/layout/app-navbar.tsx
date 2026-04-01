@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Image from "next/image";
 import Link from "next/link";
@@ -43,6 +43,7 @@ interface AppNavbarProps {
   workspaceCurrentBusinessSlug?: string;
   workspaceHomeHref?: string;
   workspaceCreateBusinessHref?: string;
+  pageTitle?: string;
 }
 
 const marketingLinks: AppNavLink[] = [
@@ -95,14 +96,6 @@ function getWorkspaceLinks(
   return links;
 }
 
-function workspaceNavLinkClassName(isActive: boolean) {
-  return `rounded-2xl border px-3.5 py-2 text-sm font-medium transition ${
-    isActive
-      ? "border-white/18 bg-white text-slate-950 shadow-[0_14px_28px_rgba(15,23,42,0.18)]"
-      : "border-white/8 bg-white/[0.06] text-slate-200 hover:border-white/14 hover:bg-white/[0.1] hover:text-white"
-  }`;
-}
-
 interface CurrentWorkspaceBusiness {
   businessName: string;
   businessSlug: string;
@@ -139,121 +132,6 @@ function resolveCurrentWorkspaceBusiness(options: {
   return null;
 }
 
-interface WorkspaceSettingsMenuProps {
-  currentBusiness: CurrentWorkspaceBusiness | null;
-  workspaceBusinesses: OwnedBusinessSummary[];
-  workspaceCreateBusinessHref?: string;
-}
-
-function WorkspaceSettingsMenu({
-  currentBusiness,
-  workspaceBusinesses,
-  workspaceCreateBusinessHref,
-}: WorkspaceSettingsMenuProps) {
-  const otherBusinesses = currentBusiness
-    ? workspaceBusinesses.filter((business) => business.businessSlug !== currentBusiness.businessSlug)
-    : workspaceBusinesses;
-
-  if (!currentBusiness && otherBusinesses.length === 0 && !workspaceCreateBusinessHref) {
-    return null;
-  }
-
-  return (
-    <details className="group relative" data-testid="workspace-settings-menu">
-      <summary
-        className="flex h-10 list-none items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.07] px-3.5 text-sm font-medium text-slate-100 transition hover:border-white/20 hover:bg-white/[0.12]"
-        data-testid="workspace-settings-trigger"
-      >
-        <span>Ajustes</span>
-        <ChevronDown
-          className="h-4 w-4 transition group-open:rotate-180"
-          aria-hidden="true"
-        />
-      </summary>
-
-      <div className="absolute right-0 top-[calc(100%+0.75rem)] z-50 w-[min(92vw,22rem)] rounded-[28px] border border-white/10 bg-slate-950/95 p-4 shadow-[0_28px_60px_rgba(2,6,23,0.4)] backdrop-blur-xl">
-        {currentBusiness ? (
-          <section>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
-              Negocio actual
-            </p>
-            <p className="mt-2 text-sm font-semibold text-white">{currentBusiness.businessName}</p>
-            <p className="mt-1 text-xs text-slate-400">{currentBusiness.businessSlug}</p>
-
-            <div className="mt-4 grid gap-2">
-              <Link
-                href="/ajustes"
-                className="rounded-2xl border border-emerald-400/30 bg-emerald-500/12 px-3 py-2.5 text-sm font-semibold text-emerald-200 transition hover:border-emerald-300/40 hover:bg-emerald-500/18"
-              >
-                Ajustes de cuenta y negocios
-              </Link>
-              <Link
-                href={`/dashboard/${currentBusiness.businessSlug}`}
-                className="rounded-2xl border border-white/10 bg-white/[0.05] px-3 py-2.5 text-sm font-medium text-slate-100 transition hover:border-white/20 hover:bg-white/[0.1]"
-              >
-                Abrir dashboard
-              </Link>
-              <Link
-                href={`/pedidos/${currentBusiness.businessSlug}`}
-                className="rounded-2xl border border-white/10 bg-white/[0.05] px-3 py-2.5 text-sm font-medium text-slate-100 transition hover:border-white/20 hover:bg-white/[0.1]"
-              >
-                Ir a pedidos
-              </Link>
-              <Link
-                href={`/metricas/${currentBusiness.businessSlug}`}
-                className="rounded-2xl border border-white/10 bg-white/[0.05] px-3 py-2.5 text-sm font-medium text-slate-100 transition hover:border-white/20 hover:bg-white/[0.1]"
-              >
-                Ver metricas
-              </Link>
-              <Link
-                href={`/pedido/${currentBusiness.businessSlug}`}
-                className="rounded-2xl border border-white/10 bg-white/[0.05] px-3 py-2.5 text-sm font-medium text-slate-100 transition hover:border-white/20 hover:bg-white/[0.1]"
-              >
-                Abrir formulario publico
-              </Link>
-            </div>
-          </section>
-        ) : null}
-
-        {workspaceCreateBusinessHref ? (
-          <div className={`${currentBusiness ? "mt-4 border-t border-white/10 pt-4" : ""}`}>
-            <Link
-              href={workspaceCreateBusinessHref}
-              data-testid="workspace-create-business-link"
-              className="block rounded-2xl border border-emerald-400/30 bg-emerald-500/12 px-3 py-2.5 text-sm font-semibold text-emerald-200 transition hover:border-emerald-300/40 hover:bg-emerald-500/18"
-            >
-              {currentBusiness ? "Crear otro negocio" : "Crear negocio"}
-            </Link>
-          </div>
-        ) : null}
-
-        {otherBusinesses.length > 0 ? (
-          <section className="mt-4 border-t border-white/10 pt-4">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
-              Cambiar de negocio
-            </p>
-            <div className="mt-3 grid gap-2" data-testid="workspace-business-switcher">
-              {otherBusinesses.map((business) => (
-                <Link
-                  key={business.businessSlug}
-                  href={`/dashboard/${business.businessSlug}`}
-                  data-testid={`workspace-business-option-${business.businessSlug}`}
-                  className="rounded-2xl border border-white/10 bg-white/[0.05] px-3 py-2.5 text-sm font-medium text-slate-100 transition hover:border-white/20 hover:bg-white/[0.1]"
-                >
-                  <span className="block">{business.businessName}</span>
-                  <span className="mt-0.5 block text-xs text-slate-400">
-                    {business.businessSlug}
-                  </span>
-                </Link>
-              ))}
-            </div>
-          </section>
-        ) : null}
-      </div>
-    </details>
-  );
-}
-
 export function AppNavbar({
   variant,
   operatorEmail,
@@ -267,6 +145,7 @@ export function AppNavbar({
   workspaceCurrentBusinessSlug,
   workspaceHomeHref,
   workspaceCreateBusinessHref,
+  pageTitle,
 }: AppNavbarProps) {
   const loginHref = "/login?redirectTo=/ajustes";
   const registerHref = "/register?redirectTo=/ajustes";
@@ -302,14 +181,14 @@ export function AppNavbar({
     admin: "Administración",
   };
 
-  const currentSectionLabel = tabLabelMap[activeTab];
+  const currentSectionLabel = pageTitle ?? tabLabelMap[activeTab];
 
   if (isWorkspace) {
     return (
-      <header className="sticky top-0 z-40 border-b border-white/10 bg-[linear-gradient(180deg,rgb(var(--workspace-navbar-strong-rgb))_0%,rgb(var(--workspace-navbar-rgb))_100%)] text-white shadow-[0_16px_42px_rgba(15,23,42,0.18)] backdrop-blur-xl">
-        <div className="flex w-full flex-col px-3 py-3 sm:px-4 lg:px-5">
+      <header className="fixed top-0 z-50 h-16 w-full border-b border-white/10 bg-[linear-gradient(180deg,rgb(var(--workspace-navbar-strong-rgb))_0%,rgb(var(--workspace-navbar-rgb))_100%)] text-white shadow-[0_16px_42px_rgba(15,23,42,0.18)] backdrop-blur-xl">
+        <div className="flex h-full w-full flex-col px-3 sm:px-4 lg:px-5">
           {/* Mobile Header (Workspace) */}
-          <div className="flex items-center justify-between gap-3 lg:hidden">
+          <div className="flex h-full items-center justify-between gap-3 lg:hidden">
             <Link href={brandHref} className="flex min-w-0 items-center gap-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-slate-950/55 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
                 <Image
@@ -332,7 +211,6 @@ export function AppNavbar({
             </Link>
 
             <div className="flex items-center gap-3">
-              {workspaceControls}
               <button
                 type="button"
                 onClick={() => setIsWorkspaceMobileMenuOpen((curr) => !curr)}
@@ -349,39 +227,45 @@ export function AppNavbar({
           </div>
 
           {/* Desktop Header (Workspace) */}
-          <div className="hidden items-center justify-between gap-3 lg:flex">
-            <Link href={brandHref} className="flex min-w-0 items-center gap-3">
-              <div className="flex h-12 shrink-0 items-center rounded-2xl border border-white/10 bg-slate-950/55 px-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
-                <Image
-                  src="/images/landing/Logo-tecpify-dark-background.png"
-                  alt="Tecpify"
-                  width={104}
-                  height={26}
-                  priority
-                  className="h-6 w-auto"
-                />
-              </div>
-              <div className="min-w-0">
-                <p className="truncate text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300">
-                  {workspaceEyebrow}
-                </p>
+          <div className="hidden h-full items-center justify-between gap-3 lg:flex">
+            <div className="flex items-center gap-3 overflow-hidden">
+              <Link href={brandHref} className="shrink-0">
+                <div className="flex h-10 shrink-0 items-center rounded-2xl border border-white/10 bg-slate-950/55 px-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+                  <Image
+                    src="/images/landing/Logo-tecpify-dark-background.png"
+                    alt="Tecpify"
+                    width={84}
+                    height={21}
+                    priority
+                    className="h-5 w-auto"
+                  />
+                </div>
+              </Link>
+
+              <div className="flex items-center gap-3">
+                <div className="h-6 w-px bg-white/20" />
                 <p
-                  className="truncate text-sm font-medium text-slate-100"
+                  className="truncate text-sm font-medium text-slate-400"
                   data-testid="workspace-current-business-name"
                 >
                   {brandSubtitle}
                 </p>
+                {currentSectionLabel && (
+                  <>
+                    <div className="h-6 w-px bg-white/20" />
+                    <p 
+                      className="truncate text-sm font-semibold text-white"
+                      data-testid="workspace-page-title"
+                    >
+                      {currentSectionLabel}
+                    </p>
+                  </>
+                )}
               </div>
-            </Link>
+            </div>
 
-            <div className="flex flex-wrap items-center justify-end gap-2">
+            <div className="flex items-center justify-end gap-3">
               {workspaceControls}
-
-              <WorkspaceSettingsMenu
-                currentBusiness={currentWorkspaceBusiness}
-                workspaceBusinesses={workspaceBusinesses}
-                workspaceCreateBusinessHref={workspaceCreateBusinessHref}
-              />
 
               {operatorEmail ? (
                 <>
@@ -413,28 +297,6 @@ export function AppNavbar({
               )}
             </div>
           </div>
-
-          {/* Desktop Navigation Tabs (Workspace) */}
-          {navLinks.length > 0 ? (
-            <div className="mt-3 hidden items-center gap-2 overflow-x-auto pb-1 lg:flex">
-              <nav aria-label="Navegacion privada" className="flex min-w-full items-center gap-1">
-                {navLinks.map((link) => {
-                  const isActive = link.key === activeTab;
-
-                  return (
-                    <Link
-                      key={`${link.key}-${link.href}`}
-                      href={link.href}
-                      data-testid={link.testId}
-                      className={`${workspaceNavLinkClassName(isActive)} whitespace-nowrap`}
-                    >
-                      {link.label}
-                    </Link>
-                  );
-                })}
-              </nav>
-            </div>
-          ) : null}
         </div>
 
         {/* Workspace Mobile Menu Panel */}

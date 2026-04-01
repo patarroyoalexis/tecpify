@@ -32,6 +32,10 @@ interface BusinessWorkspaceShellProps {
   children: ReactNode;
 }
 
+import { WorkspaceSidebar } from "@/components/layout/workspace-sidebar";
+
+// ... existing code ...
+
 function BusinessWorkspaceShellContent({
   businessName,
   businessSlug,
@@ -68,38 +72,43 @@ function BusinessWorkspaceShellContent({
         activeTab={activeTab}
         adminHref={adminHref}
         onSearch={openGlobalSearch}
-        onNewOrder={openNewOrder}
-        onNewProduct={openNewProduct}
+        pageTitle={title}
       />
 
-      <main
-        className={`flex flex-1 flex-col ${isOrdersPage ? "min-h-0 bg-[linear-gradient(180deg,rgb(var(--workspace-shell-rgb))_0%,rgb(var(--workspace-panel-rgb)/0.94)_100%)]" : ""}`}
-      >
-        <WorkspacePageHeader
-          title={title}
-          description={description}
-          actions={headerActions}
-          immersive={isOrdersPage}
-        />
+      <div className="flex flex-1 pt-16">
+        <WorkspaceSidebar businessSlug={businessSlug} showAdmin={!!adminHref} />
 
-        <section
-          className={
-            isOrdersPage
-              ? "flex min-h-0 flex-1 flex-col px-3 pb-0 pt-4 sm:px-4 lg:px-5"
-              : "px-3 pb-4 pt-5 sm:px-4 sm:pb-5 lg:px-5 lg:pb-6 lg:pt-6"
-          }
+        <main
+          className={`flex flex-1 flex-col lg:pl-16 ${isOrdersPage ? "min-h-0 bg-[linear-gradient(180deg,rgb(var(--workspace-shell-rgb))_0%,rgb(var(--workspace-panel-rgb)/0.94)_100%)]" : ""}`}
         >
-          <div
+          {(description || headerActions) && (
+            <WorkspacePageHeader
+              title="" // Title is now in the top navbar
+              description={description}
+              actions={headerActions}
+              immersive={isOrdersPage}
+            />
+          )}
+
+          <section
             className={
               isOrdersPage
-                ? "flex min-h-0 flex-1 flex-col"
-                : "mx-auto flex w-full max-w-7xl flex-col gap-4"
+                ? "flex min-h-0 flex-1 flex-col px-3 pb-0 pt-4 sm:px-4 lg:px-5"
+                : "px-3 pb-4 pt-5 sm:px-4 sm:pb-5 lg:px-5 lg:pb-6 lg:pt-6"
             }
           >
-            {children}
-          </div>
-        </section>
-      </main>
+            <div
+              className={
+                isOrdersPage
+                  ? "flex min-h-0 flex-1 flex-col"
+                  : "mx-auto flex w-full max-w-7xl flex-col gap-4"
+              }
+            >
+              {children}
+            </div>
+          </section>
+        </main>
+      </div>
     </div>
   );
 }
