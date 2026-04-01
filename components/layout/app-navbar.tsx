@@ -2,7 +2,18 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { ChevronDown, Menu, X } from "lucide-react";
+import { 
+  BarChart3, 
+  ChevronDown, 
+  ClipboardList, 
+  ExternalLink, 
+  LogOut, 
+  Menu, 
+  RefreshCw, 
+  Settings, 
+  X 
+} from "lucide-react";
+import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { LogoutButton } from "@/components/auth/logout-button";
@@ -257,7 +268,11 @@ export function AppNavbar({
   workspaceHomeHref,
   workspaceCreateBusinessHref,
 }: AppNavbarProps) {
+  const loginHref = "/login?redirectTo=/ajustes";
+  const registerHref = "/register?redirectTo=/ajustes";
+  const pathname = usePathname();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isWorkspaceMobileMenuOpen, setIsWorkspaceMobileMenuOpen] = useState(false);
   const isWorkspace = variant === "workspace";
   const currentWorkspaceBusiness = isWorkspace
     ? resolveCurrentWorkspaceBusiness({
@@ -279,14 +294,62 @@ export function AppNavbar({
   const brandSubtitle = isWorkspace
     ? currentWorkspaceBusiness?.businessName ?? businessName ?? "Workspace privado"
     : "Pedidos y operacion clara para pequenos negocios";
-  const loginHref = "/login?redirectTo=/ajustes";
-  const registerHref = "/register?redirectTo=/ajustes";
+
+  const tabLabelMap: Record<WorkspaceTab, string> = {
+    dashboard: "Dashboard",
+    pedidos: "Pedidos",
+    metricas: "Métricas",
+    admin: "Administración",
+  };
+
+  const currentSectionLabel = tabLabelMap[activeTab];
 
   if (isWorkspace) {
     return (
       <header className="sticky top-0 z-40 border-b border-white/10 bg-[linear-gradient(180deg,rgb(var(--workspace-navbar-strong-rgb))_0%,rgb(var(--workspace-navbar-rgb))_100%)] text-white shadow-[0_16px_42px_rgba(15,23,42,0.18)] backdrop-blur-xl">
         <div className="flex w-full flex-col px-3 py-3 sm:px-4 lg:px-5">
-          <div className="flex flex-wrap items-center justify-between gap-3">
+          {/* Mobile Header (Workspace) */}
+          <div className="flex items-center justify-between gap-3 lg:hidden">
+            <Link href={brandHref} className="flex min-w-0 items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-slate-950/55 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+                <Image
+                  src="/images/landing/Isotipo-Tecpify.png"
+                  alt="Tecpify"
+                  width={24}
+                  height={24}
+                  priority
+                  className="h-6 w-auto"
+                />
+              </div>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-bold text-white">
+                  {currentSectionLabel}
+                </p>
+                <p className="truncate text-[11px] font-medium text-slate-400">
+                  {brandSubtitle}
+                </p>
+              </div>
+            </Link>
+
+            <div className="flex items-center gap-3">
+              {workspaceControls}
+              <button
+                type="button"
+                onClick={() => setIsWorkspaceMobileMenuOpen((curr) => !curr)}
+                className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.07] text-slate-100 transition hover:border-white/20 hover:bg-white/[0.12]"
+                aria-label={isWorkspaceMobileMenuOpen ? "Cerrar menú" : "Abrir menú"}
+              >
+                {isWorkspaceMobileMenuOpen ? (
+                  <X className="h-5 w-5" />
+                ) : (
+                  <Menu className="h-5 w-5" />
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* Desktop Header (Workspace) */}
+          <div className="hidden items-center justify-between gap-3 lg:flex">
             <Link href={brandHref} className="flex min-w-0 items-center gap-3">
               <div className="flex h-12 shrink-0 items-center rounded-2xl border border-white/10 bg-slate-950/55 px-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
                 <Image
@@ -335,13 +398,13 @@ export function AppNavbar({
               ) : (
                 <>
                   <Link
-                    href={loginHref}
+                    href={"/login?redirectTo=/ajustes"}
                     className="inline-flex h-10 items-center justify-center rounded-2xl bg-white px-4 text-sm font-semibold text-slate-950 transition hover:bg-slate-100"
                   >
                     Iniciar sesion
                   </Link>
                   <Link
-                    href={registerHref}
+                    href={"/register?redirectTo=/ajustes"}
                     className="inline-flex h-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.07] px-4 text-sm font-medium text-slate-100 transition hover:border-white/20 hover:bg-white/[0.12]"
                   >
                     Registro manual
@@ -351,8 +414,9 @@ export function AppNavbar({
             </div>
           </div>
 
+          {/* Desktop Navigation Tabs (Workspace) */}
           {navLinks.length > 0 ? (
-            <div className="mt-3 flex items-center gap-2 overflow-x-auto pb-1">
+            <div className="mt-3 hidden items-center gap-2 overflow-x-auto pb-1 lg:flex">
               <nav aria-label="Navegacion privada" className="flex min-w-full items-center gap-1">
                 {navLinks.map((link) => {
                   const isActive = link.key === activeTab;
@@ -371,6 +435,114 @@ export function AppNavbar({
               </nav>
             </div>
           ) : null}
+        </div>
+
+        {/* Workspace Mobile Menu Panel */}
+        <div
+          className={`${
+            isWorkspaceMobileMenuOpen ? "flex" : "hidden"
+          } flex-col border-t border-white/10 bg-slate-950/95 p-4 backdrop-blur-xl lg:hidden`}
+        >
+          <nav className="grid gap-1">
+            {/* 1. Pedidos */}
+            <Link
+              href={`/pedidos/${businessSlug}`}
+              onClick={() => setIsWorkspaceMobileMenuOpen(false)}
+              className={`flex items-center gap-3 rounded-2xl px-4 py-3.5 text-sm font-medium transition ${
+                activeTab === "pedidos"
+                  ? "bg-white/[0.12] text-white shadow-sm"
+                  : "text-slate-400 hover:bg-white/5 hover:text-white"
+              }`}
+            >
+              <ClipboardList className="h-4 w-4" />
+              <span>Pedidos</span>
+              {activeTab === "pedidos" && (
+                <div className="ml-auto h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]" />
+              )}
+            </Link>
+
+            {/* 2. Métricas */}
+            <Link
+              href={`/metricas/${businessSlug}`}
+              onClick={() => setIsWorkspaceMobileMenuOpen(false)}
+              className={`flex items-center gap-3 rounded-2xl px-4 py-3.5 text-sm font-medium transition ${
+                activeTab === "metricas"
+                  ? "bg-white/[0.12] text-white shadow-sm"
+                  : "text-slate-400 hover:bg-white/5 hover:text-white"
+              }`}
+            >
+              <BarChart3 className="h-4 w-4" />
+              <span>Métricas</span>
+              {activeTab === "metricas" && (
+                <div className="ml-auto h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]" />
+              )}
+            </Link>
+
+            {/* 3. Ajustes */}
+            <Link
+              href="/ajustes"
+              onClick={() => setIsWorkspaceMobileMenuOpen(false)}
+              className={`flex items-center gap-3 rounded-2xl px-4 py-3.5 text-sm font-medium transition ${
+                pathname === "/ajustes"
+                  ? "bg-white/[0.12] text-white shadow-sm"
+                  : "text-slate-400 hover:bg-white/5 hover:text-white"
+              }`}
+            >
+              <Settings className="h-4 w-4" />
+              <span>Ajustes</span>
+            </Link>
+
+            <div className="my-2 border-t border-white/10" />
+
+            {/* 4. Cambiar negocio */}
+            <details className="group px-1">
+              <summary className="flex cursor-pointer list-none items-center gap-3 rounded-2xl px-3 py-3 text-sm font-medium text-slate-400 transition hover:bg-white/5 hover:text-white">
+                <RefreshCw className="h-4 w-4 transition group-open:rotate-180" />
+                <span>Cambiar negocio</span>
+                <ChevronDown className="ml-auto h-4 w-4 opacity-50 transition group-open:rotate-180" />
+              </summary>
+              <div className="mt-1 grid gap-1 pl-11 pr-2">
+                {workspaceBusinesses
+                  .filter((b) => b.businessSlug !== businessSlug)
+                  .map((b) => (
+                    <Link
+                      key={b.businessSlug}
+                      href={`/dashboard/${b.businessSlug}`}
+                      onClick={() => setIsWorkspaceMobileMenuOpen(false)}
+                      className="rounded-xl py-2 text-xs font-medium text-slate-500 hover:text-white"
+                    >
+                      {b.businessName}
+                    </Link>
+                  ))}
+                {workspaceCreateBusinessHref && (
+                  <Link
+                    href={workspaceCreateBusinessHref}
+                    onClick={() => setIsWorkspaceMobileMenuOpen(false)}
+                    className="py-2 text-xs font-semibold text-emerald-400/80 hover:text-emerald-400"
+                  >
+                    + Crear nuevo negocio
+                  </Link>
+                )}
+              </div>
+            </details>
+
+            {/* 5. Ver tienda pública */}
+            <Link
+              href={`/pedido/${businessSlug}`}
+              onClick={() => setIsWorkspaceMobileMenuOpen(false)}
+              className="flex items-center gap-3 rounded-2xl px-4 py-3.5 text-sm font-medium text-slate-400 transition hover:bg-white/5 hover:text-white"
+            >
+              <ExternalLink className="h-4 w-4" />
+              <span>Ver tienda pública</span>
+            </Link>
+
+            <div className="my-2 border-t border-white/10" />
+
+            {/* 6. Cerrar sesión */}
+            {operatorEmail && (
+              <LogoutButton className="mt-1 flex w-full items-center gap-3 rounded-2xl px-4 py-3.5 text-sm font-semibold text-slate-300 hover:bg-white/5 hover:text-white" />
+            )}
+          </nav>
         </div>
       </header>
     );

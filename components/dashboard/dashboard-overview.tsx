@@ -39,6 +39,13 @@ interface DashboardOverviewProps {
   businessReadiness: BusinessReadinessSnapshot;
 }
 
+function formatTimeStable(value: string) {
+  const date = new Date(value);
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  return `${hours}:${minutes}`;
+}
+
 export function DashboardOverview({
   businessSlug,
   businessName,
@@ -299,7 +306,7 @@ export function DashboardOverview({
                           </span>
                         </td>
                         <td className="px-6 py-4">
-                          <p className="text-xs text-slate-500">{new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                          <p className="text-xs text-slate-500">{formatTimeStable(order.createdAt)}</p>
                         </td>
                         <td className="px-8 py-4 text-right">
                           <Link
@@ -393,7 +400,9 @@ export function DashboardOverview({
                         <ShoppingBag className="h-3.5 w-3.5 text-slate-500" />
                       </div>
                       <p className="text-sm font-semibold text-slate-950">Nuevo pedido de {order.client}</p>
-                      <p className="mt-1 text-xs text-slate-500">{new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · {formatCurrency(order.total)}</p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {formatTimeStable(order.createdAt)} · {formatCurrency(order.total)}
+                      </p>
                     </div>
                   ))
                 ) : (
