@@ -132,6 +132,7 @@ function toOwnedBusinessSummary(context: BusinessContext): OwnedBusinessSummary 
     businessId: context.businessId,
     businessSlug: context.businessSlug,
     businessName: context.businessName,
+    isActive: context.isActive,
     updatedAt: "",
     createdByUserId: context.createdByUserId,
   };

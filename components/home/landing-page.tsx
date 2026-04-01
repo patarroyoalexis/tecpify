@@ -50,8 +50,8 @@ const benefits = [
 ];
 
 export function LandingPage({ isAuthenticated }: LandingPageProps) {
-  const primaryHref = isAuthenticated ? "/dashboard" : "/login?redirectTo=/dashboard";
-  const registerSecondaryHref = "/register?redirectTo=/dashboard";
+  const primaryHref = isAuthenticated ? "/ajustes" : "/login?redirectTo=/ajustes";
+  const registerSecondaryHref = "/register?redirectTo=/ajustes";
   const secondaryHref = "#como-funciona";
   const secondaryLabel = "Ver cómo funciona";
   const primaryLabel = isAuthenticated ? "Abrir workspace" : "Iniciar sesion";

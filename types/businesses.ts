@@ -7,15 +7,12 @@ export interface BusinessPaymentSettings {
   allowsFiado: boolean;
 }
 
-export interface BusinessRecord {
+export interface BusinessRecord extends BusinessPaymentSettings {
   businessId: BusinessId;
   businessSlug: BusinessSlug;
   name: string;
   transferInstructions: string | null;
-  acceptsCash: boolean;
-  acceptsTransfer: boolean;
-  acceptsCard: boolean;
-  allowsFiado: boolean;
+  isActive: boolean;
   createdAt: string;
   updatedAt: string;
   createdByUserId: string | null;
@@ -25,6 +22,7 @@ export interface OwnedBusinessSummary {
   businessId: BusinessId;
   businessSlug: BusinessSlug;
   businessName: string;
+  isActive: boolean;
   updatedAt: string;
   createdByUserId: string;
 }

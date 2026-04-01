@@ -22,6 +22,7 @@ import type {
 const CREATE_BUSINESS_ALLOWED_FIELDS = new Set(["name", "businessSlug"]);
 const UPDATE_BUSINESS_SETTINGS_ALLOWED_FIELDS = new Set([
   "businessSlug",
+  "name",
   "transferInstructions",
   "acceptsCash",
   "acceptsTransfer",
@@ -38,6 +39,8 @@ interface SupabaseBusinessRow {
   accepts_transfer: boolean | null;
   accepts_card: boolean | null;
   allows_fiado: boolean | null;
+  is_active: boolean;
+  deactivated_at: string | null;
   created_at: string;
   updated_at: string;
   created_by_user_id: string | null;
@@ -54,6 +57,7 @@ function mapBusinessRow(row: SupabaseBusinessRow): BusinessRecord {
       row.accepts_transfer ?? DEFAULT_BUSINESS_PAYMENT_SETTINGS.acceptsTransfer,
     acceptsCard: row.accepts_card ?? DEFAULT_BUSINESS_PAYMENT_SETTINGS.acceptsCard,
     allowsFiado: row.allows_fiado ?? DEFAULT_BUSINESS_PAYMENT_SETTINGS.allowsFiado,
+    isActive: row.is_active,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     createdByUserId: row.created_by_user_id,
@@ -72,20 +76,23 @@ function validateCreateBusinessPayload(payload: unknown): payload is CreateBusin
 
 function validateUpdateBusinessSettingsPayload(
   payload: unknown,
-): payload is UpdateBusinessSettingsPayload {
+): payload is UpdateBusinessSettingsPayload & { name?: string } {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
     return false;
   }
 
-  const candidate = payload as Partial<UpdateBusinessSettingsPayload>;
+  const candidate = payload as Partial<UpdateBusinessSettingsPayload & { name?: string }>;
 
   return (
     typeof candidate.businessSlug === "string" &&
-    typeof candidate.transferInstructions === "string" &&
-    typeof candidate.acceptsCash === "boolean" &&
-    typeof candidate.acceptsTransfer === "boolean" &&
-    typeof candidate.acceptsCard === "boolean" &&
-    typeof candidate.allowsFiado === "boolean"
+    (candidate.name === undefined || typeof candidate.name === "string") &&
+    (candidate.transferInstructions === undefined ||
+      typeof candidate.transferInstructions === "string") &&
+    (candidate.acceptsCash === undefined || typeof candidate.acceptsCash === "boolean") &&
+    (candidate.acceptsTransfer === undefined ||
+      typeof candidate.acceptsTransfer === "boolean") &&
+    (candidate.acceptsCard === undefined || typeof candidate.acceptsCard === "boolean") &&
+    (candidate.allowsFiado === undefined || typeof candidate.allowsFiado === "boolean")
   );
 }
 
@@ -250,7 +257,7 @@ export function createBusinessesRouteHandlers(
         return NextResponse.json(
           {
             error:
-              "Invalid business payload. businessSlug, transferInstructions y los flags operativos son obligatorios.",
+              "Invalid business payload. businessSlug es obligatorio.",
           },
           { status: 400 },
         );
@@ -285,11 +292,13 @@ export function createBusinessesRouteHandlers(
         );
       }
 
-      const normalizedTransferInstructions = normalizeTransferInstructions(
-        payload.transferInstructions,
-      );
+      const normalizedTransferInstructions =
+        payload.transferInstructions !== undefined
+          ? normalizeTransferInstructions(payload.transferInstructions)
+          : undefined;
 
       if (
+        normalizedTransferInstructions !== undefined &&
         normalizedTransferInstructions !== null &&
         normalizedTransferInstructions.length > 600
       ) {
@@ -302,20 +311,22 @@ export function createBusinessesRouteHandlers(
         );
       }
 
-      const paymentSettings = readBusinessPaymentSettings(payload);
+      const normalizedName =
+        payload.name !== undefined ? payload.name.trim().replace(/\s+/g, " ") : undefined;
 
-      if (
-        !paymentSettings.acceptsCash &&
-        !paymentSettings.acceptsTransfer &&
-        !paymentSettings.acceptsCard
-      ) {
-        return NextResponse.json(
-          {
-            error:
-              "Activa al menos un metodo de pago publico para el negocio.",
-          },
-          { status: 400 },
-        );
+      if (normalizedName !== undefined) {
+        if (!normalizedName) {
+          return NextResponse.json(
+            { error: "El nombre del negocio es obligatorio." },
+            { status: 400 },
+          );
+        }
+        if (normalizedName.length > 80) {
+          return NextResponse.json(
+            { error: "El nombre del negocio no puede superar 80 caracteres." },
+            { status: 400 },
+          );
+        }
       }
 
       const businessContextResult =
@@ -327,19 +338,26 @@ export function createBusinessesRouteHandlers(
 
       const supabase = await dependencies.createServerSupabaseAuthClient();
       const now = dependencies.getNow();
+
+      const updatePayload: any = {
+        updated_at: now,
+      };
+
+      if (normalizedTransferInstructions !== undefined)
+        updatePayload.transfer_instructions = normalizedTransferInstructions;
+      if (payload.acceptsCash !== undefined) updatePayload.accepts_cash = payload.acceptsCash;
+      if (payload.acceptsTransfer !== undefined)
+        updatePayload.accepts_transfer = payload.acceptsTransfer;
+      if (payload.acceptsCard !== undefined) updatePayload.accepts_card = payload.acceptsCard;
+      if (payload.allowsFiado !== undefined) updatePayload.allows_fiado = payload.allowsFiado;
+      if (normalizedName !== undefined) updatePayload.name = normalizedName;
+
       const { data, error } = await supabase
         .from("businesses")
-        .update({
-          transfer_instructions: normalizedTransferInstructions,
-          accepts_cash: payload.acceptsCash,
-          accepts_transfer: payload.acceptsTransfer,
-          accepts_card: payload.acceptsCard,
-          allows_fiado: payload.allowsFiado,
-          updated_at: now,
-        })
+        .update(updatePayload)
         .eq("id", businessContextResult.context.businessId)
         .select(
-          "id, slug, name, transfer_instructions, accepts_cash, accepts_transfer, accepts_card, allows_fiado, created_at, updated_at, created_by_user_id",
+          "id, slug, name, transfer_instructions, accepts_cash, accepts_transfer, accepts_card, allows_fiado, is_active, deactivated_at, created_at, updated_at, created_by_user_id",
         )
         .single<SupabaseBusinessRow>();
 
@@ -360,14 +378,46 @@ export function createBusinessesRouteHandlers(
       dependencies.debugLog("[businesses-api] Updated business settings", {
         businessSlug: normalizedBusinessSlug,
         businessId: businessContextResult.context.businessId,
-        hasTransferInstructions: normalizedTransferInstructions !== null,
-        acceptsCash: payload.acceptsCash,
-        acceptsTransfer: payload.acceptsTransfer,
-        acceptsCard: payload.acceptsCard,
-        allowsFiado: payload.allowsFiado,
       });
 
       return NextResponse.json({ business: mapBusinessRow(data) }, { status: 200 });
+    },
+    async DELETE(request: Request) {
+      const supabase = await dependencies.createServerSupabaseAuthClient();
+      const authResult = await dependencies.requireBusinessOperatorApiUser(supabase);
+
+      if (!authResult.ok) {
+        return authResult.response;
+      }
+
+      let payload: unknown;
+
+      try {
+        payload = await request.json();
+      } catch {
+        return NextResponse.json(
+          { error: "Invalid JSON body for business deactivation." },
+          { status: 400 },
+        );
+      }
+
+      if (!payload || typeof payload !== "object" || !("businessSlug" in payload)) {
+        return NextResponse.json({ error: "El businessSlug es obligatorio." }, { status: 400 });
+      }
+
+      const businessSlug = (payload as { businessSlug: string }).businessSlug;
+      const { error } = await supabase.rpc("deactivate_business", {
+        target_business_slug: businessSlug,
+      });
+
+      if (error) {
+        return NextResponse.json(
+          { error: `No fue posible desactivar el negocio: ${error.message}` },
+          { status: 500 },
+        );
+      }
+
+      return NextResponse.json({ ok: true }, { status: 200 });
     },
   };
 }
@@ -376,3 +426,4 @@ const businessesRouteHandlers = createBusinessesRouteHandlers();
 
 export const POST = businessesRouteHandlers.POST;
 export const PATCH = businessesRouteHandlers.PATCH;
+export const DELETE = businessesRouteHandlers.DELETE;

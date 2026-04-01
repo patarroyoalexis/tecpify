@@ -13,7 +13,7 @@ test("docs admin: README y AGENTS documentan roles validos y separacion entre da
   assert.match(readmeSource, /platform_admin/i);
   assert.match(readmeSource, /business_owner/i);
   assert.match(readmeSource, /customer/i);
-  assert.match(readmeSource, /`\/dashboard`[\s\S]*selector|entrada privada/i);
+  assert.match(readmeSource, /`\/ajustes`[\s\S]*selector|entrada privada/i);
   assert.match(readmeSource, /`\/admin`[\s\S]*solo para `platform_admin`/i);
   assert.match(readmeSource, /asignar `platform_admin`|upsert_user_profile_role_by_email/i);
   assert.match(readmeSource, /GMV[\s\S]*excluye pedidos cancelados y fiados? pendientes/i);
@@ -23,7 +23,7 @@ test("docs admin: README y AGENTS documentan roles validos y separacion entre da
   assert.match(agentsSource, /business_owner/i);
   assert.match(agentsSource, /customer/i);
   assert.match(agentsSource, /`\/admin`[\s\S]*solo para `platform_admin`/i);
-  assert.match(agentsSource, /`\/dashboard`[\s\S]*no mezcla metricas de plataforma/i);
+  assert.match(agentsSource, /`\/ajustes`[\s\S]*no mezcla metricas de plataforma/i);
   assert.match(agentsSource, /user_profiles|app_role/i);
 });
 

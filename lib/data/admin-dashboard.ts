@@ -24,6 +24,9 @@ interface AdminDashboardViewer {
 export interface AdminDashboardUserProfileRow {
   userId: string;
   role: AppRole;
+  fullName: string | null;
+  isActive: boolean;
+  deactivatedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -59,6 +62,9 @@ export interface AdminDashboardOrderRow {
 interface UserProfileRow {
   user_id: string;
   role: string;
+  full_name: string | null;
+  is_active: boolean;
+  deactivated_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -285,6 +291,9 @@ function mapUserProfiles(rows: UserProfileRow[]): AdminDashboardUserProfileRow[]
     return {
       userId: row.user_id,
       role: row.role,
+      fullName: row.full_name,
+      isActive: row.is_active,
+      deactivatedAt: row.deactivated_at,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };
@@ -618,7 +627,7 @@ export async function getAdminDashboardSnapshot(
   ] = await Promise.all([
     supabase
       .from("user_profiles")
-      .select("user_id, role, created_at, updated_at"),
+      .select("user_id, role, full_name, is_active, deactivated_at, created_at, updated_at"),
     supabase
       .from("businesses")
       .select("id, slug, name, created_by_user_id, created_at, updated_at"),

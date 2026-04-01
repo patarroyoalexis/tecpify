@@ -23,6 +23,7 @@ type PublicSupabaseBusinessRow = {
   accepts_cash?: boolean | null;
   accepts_transfer?: boolean | null;
   accepts_card?: boolean | null;
+  is_active: boolean;
   created_at: string;
   updated_at: string;
   created_by_user_id?: string | null;
@@ -37,6 +38,7 @@ type AuthenticatedSupabaseBusinessRow = {
   accepts_transfer: boolean | null;
   accepts_card: boolean | null;
   allows_fiado: boolean | null;
+  is_active: boolean;
   created_at: string;
   updated_at: string;
   created_by_user_id: string | null;
@@ -46,6 +48,7 @@ type OwnedBusinessSummaryRow = {
   id: string;
   slug: string;
   name: string;
+  is_active: boolean;
   updated_at: string;
   created_by_user_id: string;
 };
@@ -77,36 +80,37 @@ function mapSupabaseBusinessRow(
   row: PublicSupabaseBusinessRow | AuthenticatedSupabaseBusinessRow,
 ): BusinessRecord {
   return {
-    businessId: requireBusinessId(row.id),
-    businessSlug: requireBusinessSlug(row.slug),
-    name: row.name,
-    transferInstructions:
-      "transfer_instructions" in row && typeof row.transfer_instructions === "string"
-        ? row.transfer_instructions
-        : null,
-    acceptsCash:
-      "accepts_cash" in row && typeof row.accepts_cash === "boolean"
-        ? row.accepts_cash
-        : true,
-    acceptsTransfer:
-      "accepts_transfer" in row && typeof row.accepts_transfer === "boolean"
-        ? row.accepts_transfer
-        : true,
-    acceptsCard:
-      "accepts_card" in row && typeof row.accepts_card === "boolean"
-        ? row.accepts_card
-        : true,
-    allowsFiado:
-      "allows_fiado" in row && typeof row.allows_fiado === "boolean"
-        ? row.allows_fiado
-        : false,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-    createdByUserId:
-      "created_by_user_id" in row && typeof row.created_by_user_id === "string"
-        ? row.created_by_user_id
-        : null,
-  };
+  businessId: requireBusinessId(row.id),
+  businessSlug: requireBusinessSlug(row.slug),
+  name: row.name,
+  transferInstructions:
+    "transfer_instructions" in row && typeof row.transfer_instructions === "string"
+      ? row.transfer_instructions
+      : null,
+  acceptsCash:
+    "accepts_cash" in row && typeof row.accepts_cash === "boolean"
+      ? row.accepts_cash
+      : true,
+  acceptsTransfer:
+    "accepts_transfer" in row && typeof row.accepts_transfer === "boolean"
+      ? row.accepts_transfer
+      : true,
+  acceptsCard:
+    "accepts_card" in row && typeof row.accepts_card === "boolean"
+      ? row.accepts_card
+      : true,
+  allowsFiado:
+    "allows_fiado" in row && typeof row.allows_fiado === "boolean"
+      ? row.allows_fiado
+      : false,
+  isActive: row.is_active,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+  createdByUserId:
+    "created_by_user_id" in row && typeof row.created_by_user_id === "string"
+      ? row.created_by_user_id
+      : null,
+};
 }
 
 function createBaseBusinessConfig(
@@ -152,6 +156,7 @@ function mapOwnedBusinessSummaryRow(row: OwnedBusinessSummaryRow): OwnedBusiness
     businessId: requireBusinessId(row.id),
     businessSlug: requireBusinessSlug(row.slug),
     businessName: row.name,
+    isActive: row.is_active,
     updatedAt: row.updated_at,
     createdByUserId: row.created_by_user_id,
   };
@@ -290,7 +295,7 @@ export async function getOwnedBusinessesForUser(userId: string): Promise<OwnedBu
   const supabase = await createServerSupabaseAuthClient();
   const { data, error } = await supabase
     .from("businesses")
-    .select("id, slug, name, updated_at, created_by_user_id")
+    .select("id, slug, name, is_active, updated_at, created_by_user_id")
     .eq("created_by_user_id", userId);
 
   if (error) {

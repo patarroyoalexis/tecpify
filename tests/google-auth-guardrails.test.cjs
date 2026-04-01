@@ -43,7 +43,7 @@ test("google auth: el flag opcional del entorno permanece deshabilitado por defe
       const envModule = loadTsModule("lib/env.ts");
       const googleAuthModule = loadTsModule("lib/auth/google-auth.ts");
       assert.equal(envModule.getOperationalEnv().nextPublicGoogleAuthEnabled, false);
-      assert.equal(googleAuthModule.getGoogleAuthHref({ redirectTo: "/dashboard" }), null);
+      assert.equal(googleAuthModule.getGoogleAuthHref({ redirectTo: "/ajustes" }), null);
     },
   );
 
@@ -56,8 +56,8 @@ test("google auth: el flag opcional del entorno permanece deshabilitado por defe
       const googleAuthModule = loadTsModule("lib/auth/google-auth.ts");
       assert.equal(envModule.getOperationalEnv().nextPublicGoogleAuthEnabled, true);
       assert.equal(
-        googleAuthModule.getGoogleAuthHref({ redirectTo: "/dashboard" }),
-        "/api/auth/oauth/google?redirectTo=%2Fdashboard",
+        googleAuthModule.getGoogleAuthHref({ redirectTo: "/ajustes" }),
+        "/api/auth/oauth/google?redirectTo=%2Fajustes",
       );
     },
   );
@@ -81,13 +81,13 @@ test("google auth: el helper mantiene Google acotado a login y sanea redirectTo 
 
   assert.equal(
     googleAuthModule.buildGoogleAuthStartHref(),
-    "/api/auth/oauth/google?redirectTo=%2Fdashboard",
+    "/api/auth/oauth/google?redirectTo=%2Fajustes",
   );
   assert.equal(
     googleAuthModule.buildGoogleAuthStartHref({
       redirectTo: "https://evil.example.com/steal",
     }),
-    "/api/auth/oauth/google?redirectTo=%2Fdashboard",
+    "/api/auth/oauth/google?redirectTo=%2Fajustes",
   );
   assert.equal(googleAuthModule.getGoogleAuthEntryPath(), "/login");
 });

@@ -44,16 +44,15 @@ function getWorkspaceLinks(
   businessSlug?: string,
   adminHref?: string | null,
 ): AppNavLink[] {
-  const links: AppNavLink[] = [
-    {
-      key: "dashboard",
-      label: "Dashboard",
-      href: businessSlug ? `/dashboard/${businessSlug}` : "/dashboard",
-    },
-  ];
+  const links: AppNavLink[] = [];
 
   if (businessSlug) {
     links.push(
+      {
+        key: "dashboard",
+        label: "Workspace",
+        href: `/dashboard/${businessSlug}`,
+      },
       {
         key: "pedidos",
         label: "Pedidos",
@@ -66,6 +65,12 @@ function getWorkspaceLinks(
       },
     );
   }
+
+  links.push({
+    key: "dashboard",
+    label: "Ajustes",
+    href: "/ajustes",
+  });
 
   if (adminHref) {
     links.push({
@@ -166,6 +171,12 @@ function WorkspaceSettingsMenu({
 
             <div className="mt-4 grid gap-2">
               <Link
+                href="/ajustes"
+                className="rounded-2xl border border-emerald-400/30 bg-emerald-500/12 px-3 py-2.5 text-sm font-semibold text-emerald-200 transition hover:border-emerald-300/40 hover:bg-emerald-500/18"
+              >
+                Ajustes de cuenta y negocios
+              </Link>
+              <Link
                 href={`/dashboard/${currentBusiness.businessSlug}`}
                 className="rounded-2xl border border-white/10 bg-white/[0.05] px-3 py-2.5 text-sm font-medium text-slate-100 transition hover:border-white/20 hover:bg-white/[0.1]"
               >
@@ -263,13 +274,13 @@ export function AppNavbar({
     ? workspaceHomeHref ??
       (currentWorkspaceBusiness
         ? `/dashboard/${currentWorkspaceBusiness.businessSlug}`
-        : "/dashboard")
+        : "/ajustes")
     : "/";
   const brandSubtitle = isWorkspace
     ? currentWorkspaceBusiness?.businessName ?? businessName ?? "Workspace privado"
     : "Pedidos y operacion clara para pequenos negocios";
-  const loginHref = "/login?redirectTo=/dashboard";
-  const registerHref = "/register?redirectTo=/dashboard";
+  const loginHref = "/login?redirectTo=/ajustes";
+  const registerHref = "/register?redirectTo=/ajustes";
 
   if (isWorkspace) {
     return (

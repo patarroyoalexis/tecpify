@@ -1,4 +1,4 @@
-export const DEFAULT_PRIVATE_REDIRECT_PATH = "/dashboard";
+export const DEFAULT_PRIVATE_REDIRECT_PATH = "/ajustes";
 
 export function sanitizeRedirectPath(
   redirectTo: string | null | undefined,

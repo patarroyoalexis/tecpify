@@ -5,7 +5,7 @@ import { getOwnedBusinessesForUser } from "@/data/businesses";
 import type { OwnedBusinessSummary } from "@/types/businesses";
 
 export const ACTIVE_WORKSPACE_BUSINESS_COOKIE = "tecpify-active-business-slug";
-export const CREATE_BUSINESS_ROUTE = "/dashboard/crear-negocio";
+export const CREATE_BUSINESS_ROUTE = "/ajustes/crear-negocio";
 
 const ACTIVE_WORKSPACE_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 180;
 

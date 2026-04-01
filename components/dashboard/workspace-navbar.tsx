@@ -40,7 +40,7 @@ export function WorkspaceNavbar({
         workspaceBusinesses={workspaceBusinesses}
         workspaceCurrentBusinessSlug={businessSlug}
         workspaceHomeHref={`/dashboard/${businessSlug}`}
-        workspaceCreateBusinessHref="/dashboard/crear-negocio"
+        workspaceCreateBusinessHref="/ajustes/crear-negocio"
         workspaceControls={
           <>
             <button

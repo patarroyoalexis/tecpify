@@ -37,7 +37,7 @@ function renderUnsupportedDashboardRole() {
 }
 
 export default async function CreateBusinessPage() {
-  const operator = await requireBusinessOperatorUser("/dashboard/crear-negocio");
+  const operator = await requireBusinessOperatorUser("/ajustes/crear-negocio");
 
   if (!operator) {
     return renderUnsupportedDashboardRole();
@@ -63,9 +63,9 @@ export default async function CreateBusinessPage() {
       workspaceHomeHref={
         activeBusiness
           ? getBusinessDashboardHref(activeBusiness.businessSlug)
-          : "/dashboard/crear-negocio"
+          : "/ajustes/crear-negocio"
       }
-      workspaceCreateBusinessHref={hasExistingBusinesses ? "/dashboard/crear-negocio" : undefined}
+      workspaceCreateBusinessHref={hasExistingBusinesses ? "/ajustes/crear-negocio" : undefined}
       showFooter={false}
     >
       <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">

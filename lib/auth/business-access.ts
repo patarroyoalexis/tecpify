@@ -21,6 +21,7 @@ interface BusinessOwnershipRow {
   accepts_transfer: boolean | null;
   accepts_card: boolean | null;
   allows_fiado: boolean | null;
+  is_active: boolean;
   created_by_user_id: string | null;
 }
 
@@ -40,6 +41,7 @@ export interface BusinessAccessResult {
   acceptsTransfer: boolean;
   acceptsCard: boolean;
   allowsFiado: boolean;
+  isActive: boolean;
   createdByUserId: string;
   accessLevel: BusinessAccessLevel;
 }
@@ -99,6 +101,7 @@ function mapBusinessAccessResult(row: BusinessOwnershipRow, userId: string): Bus
     acceptsTransfer: row.accepts_transfer ?? true,
     acceptsCard: row.accepts_card ?? true,
     allowsFiado: row.allows_fiado ?? false,
+    isActive: row.is_active,
     createdByUserId: row.created_by_user_id,
     accessLevel,
   };
@@ -109,7 +112,7 @@ async function getOwnedBusinessRowBySlug(businessSlug: BusinessSlug) {
   const { data, error } = await supabase
     .from("businesses")
     .select(
-      "id, slug, name, transfer_instructions, accepts_cash, accepts_transfer, accepts_card, allows_fiado, created_by_user_id",
+      "id, slug, name, transfer_instructions, accepts_cash, accepts_transfer, accepts_card, allows_fiado, is_active, created_by_user_id",
     )
     .eq("slug", businessSlug)
     .maybeSingle<BusinessOwnershipRow>();
@@ -127,7 +130,7 @@ async function getOwnedBusinessRowById(businessId: BusinessId | string) {
   const { data, error } = await supabase
     .from("businesses")
     .select(
-      "id, slug, name, transfer_instructions, accepts_cash, accepts_transfer, accepts_card, allows_fiado, created_by_user_id",
+      "id, slug, name, transfer_instructions, accepts_cash, accepts_transfer, accepts_card, allows_fiado, is_active, created_by_user_id",
     )
     .eq("id", normalizedBusinessId)
     .maybeSingle<BusinessOwnershipRow>();

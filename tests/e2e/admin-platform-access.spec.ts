@@ -52,7 +52,7 @@ test.describe("Platform admin panel", () => {
     }
 
     await test.step("business owner crea datos reales persistidos para la plataforma", async () => {
-      await loginWithRedirect(page, adminUsers.owner, "/dashboard/crear-negocio", "/dashboard/crear-negocio");
+      await loginWithRedirect(page, adminUsers.owner, "/ajustes/crear-negocio", "/ajustes/crear-negocio");
 
       const businessAttempt = await createBusinessThroughPrivateApi(page, {
         name: scenario.businessName,
@@ -120,7 +120,7 @@ test.describe("Platform admin panel", () => {
       const ownerPage = await ownerContext.newPage();
 
       try {
-        await loginWithRedirect(ownerPage, adminUsers.owner, "/dashboard/crear-negocio", "/dashboard/crear-negocio");
+        await loginWithRedirect(ownerPage, adminUsers.owner, "/ajustes/crear-negocio", "/ajustes/crear-negocio");
         await ownerPage.goto("/admin");
         await expect(ownerPage.getByTestId("unauthorized-admin-access")).toBeVisible();
       } finally {

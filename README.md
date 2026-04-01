@@ -25,7 +25,7 @@ El objetivo actual del MVP es validar, de punta a punta, que un negocio pueda:
 
 Ese es el circuito hoy validado con mayor evidencia automatizada y usa Supabase como base real para auth, datos y reglas de acceso.
 
-La entrada privada canonica vive en `/dashboard` solo como compuerta tecnica, no como dashboard general visible: `0 negocios -> /dashboard/crear-negocio`, `1 negocio -> /dashboard/[businessSlug]` y `multiples negocios -> negocio activo resuelto server-side + cambio secundario desde la navbar privada`.
+La entrada privada canonica vive en `/dashboard` solo como compuerta técnica, no como dashboard general visible: `0 negocios -> /ajustes/crear-negocio`, `1 negocio -> /dashboard/[businessSlug]` y `multiples negocios -> negocio activo resuelto server-side + cambio secundario desde la navbar privada`.
 
 El login por email/password si forma parte de ese carril oficial. El registro manual permanece accesible solo como carril secundario/no garantizado y no debe venderse como frente cerrado del MVP.
 
@@ -37,8 +37,8 @@ El login por email/password si forma parte de ese carril oficial. El registro ma
 - Los roles validos del sistema quedan tipados y persistidos como `platform_admin`, `business_owner` y `customer`; el MVP actual habilita operativamente `platform_admin` y `business_owner`, mientras `customer` queda reservado en contratos y tipos para evolucion futura.
 - El rol autenticado vive en `public.user_profiles.role` respaldado por el enum `public.app_role`; el runtime no usa strings magicos ni sigue tratando al dueno de negocio como `user`.
 - Proteccion temprana de rutas privadas con `proxy.ts`, conservando `redirectTo` hacia `/login`.
-- Resolucion privada server-first desde `/dashboard`: si no existe ningun negocio owned se abre solo el alta, si existe uno se entra directo a su workspace y si existen varios el negocio activo se resuelve sin pantalla intermedia de seleccion.
-- `/dashboard` es la entrada privada general y selector de negocios; no mezcla metricas de plataforma.
+- Resolucion privada server-first desde `/dashboard`: si no existe un negocio activo configurado se redirige a `/ajustes`.
+- `/ajustes` es la entrada privada general para administrar la cuenta y los negocios; no mezcla metricas de plataforma.
 - `/dashboard/[businessSlug]` es el workspace operativo del negocio autenticado.
 - `/admin` es el panel interno de plataforma y existe solo para `platform_admin`.
 - Creacion de negocios con ownership persistido en `created_by_user_id` y expuesto en runtime como `createdByUserId`.
@@ -75,7 +75,9 @@ Las garantias activas del MVP hoy no viven solo en UI ni solo en handlers HTTP: 
 - El rol autenticado se resuelve server-side desde `public.user_profiles.role` y el enum `public.app_role`; el cliente no autoriza acceso operativo enviando un rol propio.
 - En DB, el ownership canonico del negocio vive en `public.businesses.created_by_user_id`; en el runtime TypeScript se expone como `createdByUserId`.
 - El ownership se resuelve server-side desde sesion/contexto confiable; el cliente no autoriza recursos enviando aliases de ownership ni `business_id`.
-- El workspace privado del MVP tiene una sola entrada natural: el negocio activo. El cambio de negocio existe como accion secundaria dentro de la navbar privada, no como home principal paralela.
+- El workspace privado del MVP tiene una sola entrada natural: el negocio activo. La administracion centralizada vive en `/ajustes`.
+- Un negocio desactivado (logicamente) no es operable ni aparece en listas activas, pero conserva sus historicos.
+- El perfil de usuario permite editar el nombre y cerrar la cuenta de forma segura preservando analiticas.
 - El flujo normal no usa `SUPABASE_SERVICE_ROLE_KEY`; opera con cliente publico/anon acotado, cliente autenticado SSR y RLS.
 - `/dashboard` sigue siendo la entrada privada general del operador y no mezcla metricas de plataforma; `/admin` queda separado y solo para `platform_admin`.
 - El panel `/admin` queda protegido server-side y cualquier loader/query usado para metricas globales valida explicitamente `platform_admin`.

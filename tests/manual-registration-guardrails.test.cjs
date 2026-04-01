@@ -21,7 +21,7 @@ test("manual register: el runtime visible lo mantiene como carril secundario y n
 
   assert.match(
     landingSource,
-    /const primaryHref = isAuthenticated \? "\/dashboard" : "\/login\?redirectTo=\/dashboard";/,
+    /const primaryHref = isAuthenticated \? "\/ajustes" : "\/login\?redirectTo=\/ajustes";/,
     "La landing no debe mandar usuarios anonimos al registro manual como CTA principal.",
   );
   assert.match(

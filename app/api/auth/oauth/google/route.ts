@@ -35,6 +35,8 @@ export async function GET(request: Request) {
   }
 
   const supabase = await createServerSupabaseAuthClient();
+
+
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
     options: {
@@ -52,5 +54,7 @@ export async function GET(request: Request) {
     );
   }
 
+
   return NextResponse.redirect(data.url);
-}
+} 
+

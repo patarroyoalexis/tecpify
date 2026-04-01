@@ -82,6 +82,64 @@ export async function updateBusinessSettingsViaApi(
   return result.business;
 }
 
+export async function updateBusinessNameViaApi(
+  payload: { businessSlug: string; name: string },
+) {
+  let response: Response;
+
+  try {
+    response = await fetch("/api/businesses", {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+  } catch {
+    throw new Error(
+      "No pudimos conectar con el servidor para cambiar el nombre del negocio.",
+    );
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      await parseApiError(
+        response,
+        "No fue posible cambiar el nombre del negocio.",
+      ),
+    );
+  }
+
+  const result = (await response.json()) as BusinessResponse;
+  return result.business;
+}
+
+export async function deactivateBusinessViaApi(businessSlug: string) {
+  let response: Response;
+
+  try {
+    response = await fetch("/api/businesses", {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ businessSlug }),
+    });
+  } catch {
+    throw new Error(
+      "No pudimos conectar con el servidor para desactivar el negocio.",
+    );
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      await parseApiError(response, "No fue posible desactivar el negocio."),
+    );
+  }
+
+  return true;
+}
+
 export async function setActiveBusinessViaApi(businessSlug: string) {
   const response = await fetch("/api/businesses/active", {
     method: "POST",

@@ -28,8 +28,10 @@ Este archivo es el contrato operativo de consistencia del MVP. Su funcion no es 
 
 ### Invariantes adicionales
 
-- La entrada privada canonica del MVP usa `/dashboard` solo como compuerta tecnica: `0 negocios -> /dashboard/crear-negocio`, `1 negocio -> /dashboard/[businessSlug]` y `multiples negocios -> negocio activo con cambio secundario desde la navbar privada`.
-- `/dashboard` sigue siendo la entrada privada general del operador y no mezcla metricas de plataforma.
+- La administracion centralizada de la cuenta y los negocios vive en `/ajustes`; no mezcla metricas de plataforma.
+- `/dashboard` redirige a `/ajustes` o resuelve directo al workspace del negocio activo si corresponde.
+- `/ajustes` permite listar negocios, crear nuevos, editar nombres, desactivar negocios (logicamente) y gestionar el perfil de usuario.
+- Un negocio desactivado no es operable publicamente ni aparece como opcion activa, pero conserva sus pedidos e historicos.
 - `/admin` es el panel interno de plataforma y existe solo para `platform_admin`.
 - `public.user_profiles.role` respaldado por `public.app_role` es la fuente canonica del rol autenticado.
 - Los roles validos del sistema son `platform_admin`, `business_owner` y `customer`; el MVP actual solo habilita operativamente `platform_admin` y `business_owner`.

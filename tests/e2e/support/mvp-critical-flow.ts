@@ -247,8 +247,8 @@ export async function logoutThroughUi(page: Page) {
 }
 
 export async function goToCreateBusinessFlow(page: Page) {
-  await page.goto("/dashboard/crear-negocio");
-  await expect(page).toHaveURL(/\/dashboard\/crear-negocio$/);
+  await page.goto("/ajustes/crear-negocio");
+  await expect(page).toHaveURL(/\/ajustes\/crear-negocio$/);
   await expect(page.getByTestId("create-business-panel")).toBeVisible();
 }
 
