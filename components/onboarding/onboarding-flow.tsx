@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { 
   Store, 
@@ -49,7 +50,16 @@ export function OnboardingFlow() {
   const businessNameInputRef = useRef<HTMLInputElement | null>(null);
   const businessTypeSelectRef = useRef<HTMLSelectElement | null>(null);
   const productNameInputRef = useRef<HTMLInputElement | null>(null);
+  const keyboardViewportBaselineRef = useRef<number | null>(null);
+  const keyboardUpdateFrameRef = useRef<number | null>(null);
+  const progressRewardTimeoutRef = useRef<number | null>(null);
+  const progressRewardPreviousCountRef = useRef<number>(0);
+  const publishRedirectTimeoutRef = useRef<number | null>(null);
   const [isMobileKeyboardOpen, setIsMobileKeyboardOpen] = useState(false);
+  const [progressRewardActive, setProgressRewardActive] = useState(false);
+  const [progressRewardSeed, setProgressRewardSeed] = useState(0);
+  const [publishSuccessVisible, setPublishSuccessVisible] = useState(false);
+  const [publishSuccessExpanded, setPublishSuccessExpanded] = useState(false);
   
   // Estado del formulario
   const [businessName, setBusinessName] = useState("");
@@ -98,7 +108,7 @@ export function OnboardingFlow() {
       helper: "Ya tienes lo esencial. Solo falta dar el paso final.",
       ctaLabel: "Publicar negocio",
       target: "publish",
-      isDone: canPublish,
+      isDone: false,
     },
   ];
   const firstPendingStepIndex = onboardingSteps.findIndex((step) => !step.isDone);
@@ -124,7 +134,7 @@ export function OnboardingFlow() {
   });
   const currentStep = stepsWithStatus[currentStepIndex] ?? stepsWithStatus[0];
   const completedStepsCount = stepsWithStatus.filter(
-    (step) => step.status === "completed" || step.status === "ready",
+    (step) => step.status === "completed",
   ).length;
   const progressHeadline = canPublish
     ? "Todo listo para publicar"
@@ -144,24 +154,27 @@ export function OnboardingFlow() {
   };
   const mobileFooterMode = isMobileKeyboardOpen ? "compact" : "full";
   const mobileContentPaddingBottom = isMobileKeyboardOpen
-    ? "pb-[calc(8.25rem+env(safe-area-inset-bottom))]"
+    ? "pb-[calc(7rem+env(safe-area-inset-bottom))]"
     : "pb-[calc(13rem+env(safe-area-inset-bottom))]";
   const mobileFooterShellClassName =
     mobileFooterMode === "compact"
-      ? "py-2.5 pb-[calc(0.45rem+env(safe-area-inset-bottom))]"
+      ? "py-1.5 pb-[calc(0.35rem+env(safe-area-inset-bottom))]"
       : "py-[0.68rem] pb-[calc(0.78rem+env(safe-area-inset-bottom))]";
   const mobileFooterCardClassName =
     mobileFooterMode === "compact"
-      ? "px-4 py-2.5 shadow-[0_-8px_22px_rgba(15,23,42,0.07)]"
+      ? "px-4 py-2 shadow-[0_-6px_18px_rgba(15,23,42,0.06)]"
       : "px-4 py-3 shadow-[0_-12px_30px_rgba(15,23,42,0.08)]";
   const mobileFooterHeaderClassName =
-    mobileFooterMode === "compact" ? "mb-1.5" : "mb-2.5";
+    mobileFooterMode === "compact" ? "mb-1" : "mb-2.5";
   const mobileFooterProgressClassName =
-    mobileFooterMode === "compact" ? "mb-[5px]" : "mb-2.5";
+    mobileFooterMode === "compact" ? "mb-1" : "mb-2.5";
   const mobileFooterDescriptionClassName =
-    mobileFooterMode === "compact" ? "mb-0 truncate opacity-[0.85]" : "mb-3 opacity-100";
+    mobileFooterMode === "compact" ? "mb-0 text-[11px] leading-4 opacity-[0.88]" : "mb-3 opacity-100";
   const mobileFooterActionWrapperClassName =
-    mobileFooterMode === "compact" ? "max-h-0 overflow-hidden opacity-0" : "max-h-16 opacity-100";
+    mobileFooterMode === "compact" ? "max-h-0 overflow-hidden opacity-0 pointer-events-none" : "max-h-16 opacity-100";
+  const progressRewardCardClassName = progressRewardActive
+    ? "ring-1 ring-emerald-300/80 shadow-[0_0_0_1px_rgba(16,185,129,0.18),0_0_0_14px_rgba(16,185,129,0.10),0_24px_54px_rgba(16,185,129,0.18)]"
+    : "";
 
   useEffect(() => {
     const isEditableElement = (element: Element | null) =>
@@ -171,20 +184,49 @@ export function OnboardingFlow() {
             element.closest("input, select, textarea, [contenteditable='true']")),
       );
 
+    const getViewportHeight = () => window.visualViewport?.height ?? window.innerHeight;
+
+    const updateKeyboardBaseline = () => {
+      const currentHeight = getViewportHeight();
+
+      if (
+        keyboardViewportBaselineRef.current === null ||
+        currentHeight > keyboardViewportBaselineRef.current
+      ) {
+        keyboardViewportBaselineRef.current = currentHeight;
+      }
+    };
+
     const updateKeyboardState = () => {
       if (typeof window === "undefined") {
         return;
       }
 
-      const viewport = window.visualViewport;
+      const viewportHeight = getViewportHeight();
       const activeElement = document.activeElement;
+      updateKeyboardBaseline();
+      const baselineHeight = keyboardViewportBaselineRef.current ?? viewportHeight;
       const isKeyboardLikelyOpen =
-        Boolean(viewport) &&
         window.innerWidth < 1024 &&
         isEditableElement(activeElement) &&
-        viewport!.height < window.innerHeight - 120;
+        (baselineHeight - viewportHeight > 90 || window.innerHeight - viewportHeight > 90);
 
       setIsMobileKeyboardOpen(isKeyboardLikelyOpen);
+
+      if (!isKeyboardLikelyOpen) {
+        updateKeyboardBaseline();
+      }
+    };
+
+    const scheduleKeyboardStateUpdate = () => {
+      if (keyboardUpdateFrameRef.current !== null) {
+        window.cancelAnimationFrame(keyboardUpdateFrameRef.current);
+      }
+
+      keyboardUpdateFrameRef.current = window.requestAnimationFrame(() => {
+        keyboardUpdateFrameRef.current = null;
+        updateKeyboardState();
+      });
     };
 
     const onFocusIn = (event: FocusEvent) => {
@@ -193,31 +235,87 @@ export function OnboardingFlow() {
       }
 
       setIsMobileKeyboardOpen(window.innerWidth < 1024);
-      window.setTimeout(updateKeyboardState, 80);
+      window.setTimeout(scheduleKeyboardStateUpdate, 80);
     };
 
     const onFocusOut = () => {
-      window.setTimeout(updateKeyboardState, 120);
+      window.setTimeout(scheduleKeyboardStateUpdate, 120);
     };
 
     const onViewportChange = () => {
-      window.setTimeout(updateKeyboardState, 50);
+      scheduleKeyboardStateUpdate();
     };
 
     document.addEventListener("focusin", onFocusIn);
     document.addEventListener("focusout", onFocusOut);
     window.visualViewport?.addEventListener("resize", onViewportChange);
     window.visualViewport?.addEventListener("scroll", onViewportChange);
+    window.addEventListener("resize", onViewportChange);
+    window.addEventListener("orientationchange", onViewportChange);
 
     updateKeyboardState();
 
     return () => {
+      if (keyboardUpdateFrameRef.current !== null) {
+        window.cancelAnimationFrame(keyboardUpdateFrameRef.current);
+      }
+
       document.removeEventListener("focusin", onFocusIn);
       document.removeEventListener("focusout", onFocusOut);
       window.visualViewport?.removeEventListener("resize", onViewportChange);
       window.visualViewport?.removeEventListener("scroll", onViewportChange);
+      window.removeEventListener("resize", onViewportChange);
+      window.removeEventListener("orientationchange", onViewportChange);
     };
   }, []);
+
+  useEffect(() => {
+    const previousCount = progressRewardPreviousCountRef.current;
+    progressRewardPreviousCountRef.current = completedStepsCount;
+
+    if (completedStepsCount <= previousCount) {
+      return;
+    }
+
+    if (progressRewardTimeoutRef.current !== null) {
+      window.clearTimeout(progressRewardTimeoutRef.current);
+      progressRewardTimeoutRef.current = null;
+    }
+
+    setProgressRewardActive(false);
+    setProgressRewardSeed((currentSeed) => currentSeed + 1);
+
+    const animationFrame = window.requestAnimationFrame(() => {
+      setProgressRewardActive(true);
+      progressRewardTimeoutRef.current = window.setTimeout(() => {
+        setProgressRewardActive(false);
+        progressRewardTimeoutRef.current = null;
+      }, 760);
+    });
+
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+    };
+  }, [completedStepsCount]);
+
+  useEffect(() => {
+    return () => {
+      if (progressRewardTimeoutRef.current !== null) {
+        window.clearTimeout(progressRewardTimeoutRef.current);
+        progressRewardTimeoutRef.current = null;
+      }
+      if (publishRedirectTimeoutRef.current !== null) {
+        window.clearTimeout(publishRedirectTimeoutRef.current);
+        publishRedirectTimeoutRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!publishSuccessVisible) {
+      setPublishSuccessExpanded(false);
+    }
+  }, [publishSuccessVisible]);
 
   const addProduct = () => {
     setProducts([...products, { id: crypto.randomUUID(), name: "", price: "" }]);
@@ -253,7 +351,7 @@ export function OnboardingFlow() {
   };
 
   const handlePublish = async () => {
-    if (!canPublish) return;
+    if (!canPublish || isSubmitting || publishSuccessVisible) return;
     
     setIsSubmitting(true);
     setError(null);
@@ -305,11 +403,27 @@ export function OnboardingFlow() {
       }
 
       // 4. Redirigir al dashboard del negocio creado
-      router.push(`/dashboard/${createdBusinessSlug}`);
-      router.refresh();
+      setPublishSuccessVisible(true);
+      setPublishSuccessExpanded(false);
+      setIsSubmitting(false);
+
+      if (publishRedirectTimeoutRef.current !== null) {
+        window.clearTimeout(publishRedirectTimeoutRef.current);
+      }
+
+      window.requestAnimationFrame(() => {
+        setPublishSuccessExpanded(true);
+      });
+
+      publishRedirectTimeoutRef.current = window.setTimeout(() => {
+        router.push(`/dashboard/${createdBusinessSlug}`);
+        router.refresh();
+      }, 850);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Ocurrió un error inesperado.");
       setIsSubmitting(false);
+      setPublishSuccessVisible(false);
+      setPublishSuccessExpanded(false);
     }
   };
 
@@ -321,6 +435,12 @@ export function OnboardingFlow() {
         {/* Columna Izquierda: Mensaje amigable */}
         <div className="lg:flex lg:h-full lg:items-center">
           <div className="space-y-4 lg:max-w-md">
+            <Link
+              href="/login"
+              className="inline-flex items-center rounded-full border border-white/70 bg-white/80 px-3 py-1.5 text-[11px] font-semibold text-slate-500 shadow-sm backdrop-blur-sm transition hover:border-slate-300 hover:text-slate-900 hover:shadow-md sm:px-3.5 sm:py-2 sm:text-xs"
+            >
+              Volver al login
+            </Link>
             <h1 className="text-2xl font-extrabold tracking-tight text-slate-900 sm:text-[2.1rem] sm:leading-tight">
               Crea tu espacio de pedidos
             </h1>
@@ -464,12 +584,20 @@ export function OnboardingFlow() {
         <div className="hidden lg:flex lg:h-full lg:items-center">
           <div className="space-y-5 w-full">
             <div
-              className={`rounded-[1.75rem] border p-5 shadow-sm transition-all duration-300 ${
+              className={`relative overflow-hidden rounded-[1.75rem] border p-5 shadow-sm transition-all duration-300 ${progressRewardCardClassName} ${
                 canPublish
                   ? "border-emerald-200 bg-[linear-gradient(180deg,_rgba(236,253,245,0.95),_rgba(255,255,255,0.96))] shadow-emerald-100/60"
                   : "border-slate-200 bg-slate-50"
               }`}
             >
+              <div
+                key={progressRewardSeed}
+                aria-hidden="true"
+                className={`pointer-events-none absolute inset-0 rounded-[1.75rem] bg-[radial-gradient(circle_at_top,_rgba(74,222,128,0.40),_transparent_58%),radial-gradient(circle_at_bottom,_rgba(167,243,208,0.24),_transparent_72%)] transition-opacity duration-700 ease-out ${
+                  progressRewardActive ? "opacity-100" : "opacity-0"
+                }`}
+              />
+              <div className="relative z-10">
               <div className="mb-4">
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
@@ -499,20 +627,26 @@ export function OnboardingFlow() {
                   />
                 ))}
               </ul>
+              </div>
             </div>
 
             <div className="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm">
               <button
                 type="button"
                 onClick={handlePublish}
-                disabled={!canPublish || isSubmitting}
+                disabled={!canPublish || isSubmitting || publishSuccessVisible}
                 className={`group flex h-12 w-full items-center justify-center gap-3 rounded-xl px-6 font-bold text-white transition-all ${
                   canPublish && !isSubmitting
                     ? "bg-[linear-gradient(135deg,#047857_0%,#10b981_100%)] shadow-[0_18px_34px_rgba(4,120,87,0.24)] ring-1 ring-emerald-700/10 hover:brightness-[1.02] active:scale-[0.99]"
                     : "cursor-not-allowed bg-slate-300 shadow-none"
                 }`}
               >
-                {isSubmitting ? (
+                {publishSuccessVisible ? (
+                  <>
+                    <CheckCircle2 className="h-5 w-5" />
+                    <span>Publicado</span>
+                  </>
+                ) : isSubmitting ? (
                   <>
                     <Loader2 className="h-5 w-5 animate-spin" />
                     <span>Publicando...</span>
@@ -544,8 +678,8 @@ export function OnboardingFlow() {
           <div
             className={`mx-auto max-w-7xl px-4 transition-[padding,opacity,transform] duration-200 ease-out sm:px-6 ${mobileFooterShellClassName}`}
           >
-            <div
-            className={`rounded-[1.35rem] border transition-[padding,box-shadow,background-color,border-color,transform,opacity] duration-200 ease-out ${mobileFooterCardClassName} ${
+          <div
+            className={`relative overflow-hidden rounded-[1.35rem] border transition-[padding,box-shadow,background-color,border-color,transform,opacity] duration-200 ease-out ${progressRewardCardClassName} ${mobileFooterCardClassName} ${
               mobileFooterMode === "compact" ? "translate-y-[1px]" : "translate-y-0"
             } ${
               canPublish
@@ -553,6 +687,14 @@ export function OnboardingFlow() {
                 : "border-slate-200 bg-white/95"
             }`}
           >
+            <div
+              key={`mobile-${progressRewardSeed}`}
+              aria-hidden="true"
+              className={`pointer-events-none absolute inset-0 rounded-[1.35rem] bg-[radial-gradient(circle_at_top,_rgba(74,222,128,0.42),_transparent_56%),radial-gradient(circle_at_bottom,_rgba(167,243,208,0.26),_transparent_72%)] transition-opacity duration-700 ease-out ${
+                progressRewardActive ? "opacity-100" : "opacity-0"
+              }`}
+            />
+            <div className="relative z-10">
             <div
               className={`flex items-start justify-between gap-3 transition-[margin,opacity] duration-200 ease-out ${mobileFooterHeaderClassName} ${
                 mobileFooterMode === "compact" ? "opacity-[0.92]" : "opacity-100"
@@ -563,7 +705,7 @@ export function OnboardingFlow() {
                   Tu progreso
                 </p>
                 <p className="mt-1 text-sm font-semibold text-slate-900">
-                  {canPublish ? "4 de 4 pasos listos" : progressHeadline}
+                  {canPublish ? "3 de 4 pasos listos" : progressHeadline}
                 </p>
               </div>
               <span
@@ -573,7 +715,7 @@ export function OnboardingFlow() {
                     : "bg-slate-100 text-slate-600"
                 }`}
               >
-                {canPublish ? "4 de 4" : `${completedStepsCount} de 4`}
+                {`${completedStepsCount} de 4`}
               </span>
             </div>
 
@@ -608,7 +750,7 @@ export function OnboardingFlow() {
               {mobileFooterMode === "compact"
                 ? `${completedStepsCount} de 4 · ${canPublish ? "Listo para publicar." : currentStep.label}`
                 : canPublish
-                  ? "Todo listo para publicar."
+                  ? "3 de 4 pasos listos"
                   : progressDetail}
             </p>
 
@@ -619,14 +761,19 @@ export function OnboardingFlow() {
               <button
                 type="button"
                 onClick={() => focusMobileTarget(mobilePrimaryAction.target)}
-                disabled={isSubmitting}
+                disabled={isSubmitting || publishSuccessVisible}
                 className={`flex h-12 w-full items-center justify-center rounded-xl px-4 text-sm font-bold transition-all duration-200 ${
                   canPublish && !isSubmitting
                     ? "bg-[linear-gradient(135deg,#047857_0%,#10b981_100%)] text-white shadow-[0_18px_34px_rgba(4,120,87,0.24)] ring-1 ring-emerald-700/10 active:scale-[0.99]"
                     : "bg-slate-100 text-slate-900"
                 } ${mobileFooterMode === "compact" ? "pointer-events-none" : ""}`}
               >
-                {isSubmitting ? (
+                {publishSuccessVisible ? (
+                  <>
+                    <CheckCircle2 className="mr-2 h-[18px] w-[18px]" />
+                    <span>Publicado</span>
+                  </>
+                ) : isSubmitting ? (
                   "Publicando..."
                 ) : canPublish ? (
                   <>
@@ -638,9 +785,35 @@ export function OnboardingFlow() {
                 )}
               </button>
             </div>
+            </div>
           </div>
         </div>
       </div>
+
+      {publishSuccessVisible ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/30 px-4 backdrop-blur-sm"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          <div
+            className={`relative w-full max-w-md overflow-hidden rounded-[2rem] border border-emerald-200 bg-white/96 px-6 py-8 text-center shadow-[0_28px_80px_rgba(15,23,42,0.18)] transition-all duration-300 ${
+              publishSuccessExpanded ? "scale-100 opacity-100" : "scale-95 opacity-0"
+            }`}
+          >
+            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-[linear-gradient(135deg,#047857_0%,#10b981_100%)] text-white shadow-[0_18px_36px_rgba(4,120,87,0.26)]">
+              <CheckCircle2 className="h-11 w-11" />
+            </div>
+            <h2 className="mt-5 text-2xl font-extrabold tracking-tight text-slate-900">
+              Negocio publicado
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              Todo listo. Te llevamos a tu panel.
+            </p>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
