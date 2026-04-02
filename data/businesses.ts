@@ -19,6 +19,7 @@ type PublicSupabaseBusinessRow = {
   id: string;
   slug: string;
   name: string;
+  business_type?: string | null;
   transfer_instructions?: string | null;
   accepts_cash?: boolean | null;
   accepts_transfer?: boolean | null;
@@ -33,6 +34,7 @@ type AuthenticatedSupabaseBusinessRow = {
   id: string;
   slug: string;
   name: string;
+  business_type: string | null;
   transfer_instructions: string | null;
   accepts_cash: boolean | null;
   accepts_transfer: boolean | null;
@@ -80,37 +82,41 @@ function mapSupabaseBusinessRow(
   row: PublicSupabaseBusinessRow | AuthenticatedSupabaseBusinessRow,
 ): BusinessRecord {
   return {
-  businessId: requireBusinessId(row.id),
-  businessSlug: requireBusinessSlug(row.slug),
-  name: row.name,
-  transferInstructions:
-    "transfer_instructions" in row && typeof row.transfer_instructions === "string"
-      ? row.transfer_instructions
-      : null,
-  acceptsCash:
-    "accepts_cash" in row && typeof row.accepts_cash === "boolean"
-      ? row.accepts_cash
-      : true,
-  acceptsTransfer:
-    "accepts_transfer" in row && typeof row.accepts_transfer === "boolean"
-      ? row.accepts_transfer
-      : true,
-  acceptsCard:
-    "accepts_card" in row && typeof row.accepts_card === "boolean"
-      ? row.accepts_card
-      : true,
-  allowsFiado:
-    "allows_fiado" in row && typeof row.allows_fiado === "boolean"
-      ? row.allows_fiado
-      : false,
-  isActive: row.is_active,
-  createdAt: row.created_at,
-  updatedAt: row.updated_at,
-  createdByUserId:
-    "created_by_user_id" in row && typeof row.created_by_user_id === "string"
-      ? row.created_by_user_id
-      : null,
-};
+    businessId: requireBusinessId(row.id),
+    businessSlug: requireBusinessSlug(row.slug),
+    name: row.name,
+    businessType:
+      "business_type" in row && typeof row.business_type === "string"
+        ? row.business_type
+        : null,
+    transferInstructions:
+      "transfer_instructions" in row && typeof row.transfer_instructions === "string"
+        ? row.transfer_instructions
+        : null,
+    acceptsCash:
+      "accepts_cash" in row && typeof row.accepts_cash === "boolean"
+        ? row.accepts_cash
+        : true,
+    acceptsTransfer:
+      "accepts_transfer" in row && typeof row.accepts_transfer === "boolean"
+        ? row.accepts_transfer
+        : true,
+    acceptsCard:
+      "accepts_card" in row && typeof row.accepts_card === "boolean"
+        ? row.accepts_card
+        : true,
+    allowsFiado:
+      "allows_fiado" in row && typeof row.allows_fiado === "boolean"
+        ? row.allows_fiado
+        : false,
+    isActive: row.is_active,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    createdByUserId:
+      "created_by_user_id" in row && typeof row.created_by_user_id === "string"
+        ? row.created_by_user_id
+        : null,
+  };
 }
 
 function createBaseBusinessConfig(
@@ -210,7 +216,7 @@ export async function getStorefrontBusinessLookupBySlug(
   const fallbackResult = await supabase
     .from("businesses")
     .select(
-      "id, slug, name, transfer_instructions, accepts_cash, accepts_transfer, accepts_card, created_at, updated_at, created_by_user_id",
+      "id, slug, name, business_type, transfer_instructions, accepts_cash, accepts_transfer, accepts_card, created_at, updated_at, created_by_user_id",
     )
     .eq("slug", normalizedBusinessSlug)
     .maybeSingle<PublicSupabaseBusinessRow>();
@@ -255,7 +261,7 @@ export async function getBusinessByIdFromDatabase(businessId: string) {
   const { data, error } = await supabase
     .from("businesses")
     .select(
-      "id, slug, name, transfer_instructions, accepts_cash, accepts_transfer, accepts_card, allows_fiado, created_at, updated_at, created_by_user_id",
+      "id, slug, name, business_type, transfer_instructions, accepts_cash, accepts_transfer, accepts_card, allows_fiado, created_at, updated_at, created_by_user_id",
     )
     .eq("id", normalizedBusinessId)
     .maybeSingle<AuthenticatedSupabaseBusinessRow>();
@@ -280,7 +286,7 @@ async function getBusinessesFromDatabase() {
   const { data, error } = await supabase
     .from("businesses")
     .select(
-      "id, slug, name, transfer_instructions, accepts_cash, accepts_transfer, accepts_card, allows_fiado, created_at, updated_at, created_by_user_id",
+      "id, slug, name, business_type, transfer_instructions, accepts_cash, accepts_transfer, accepts_card, allows_fiado, created_at, updated_at, created_by_user_id",
     )
     .order("slug", { ascending: true });
 

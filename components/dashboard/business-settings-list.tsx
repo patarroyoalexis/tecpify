@@ -27,14 +27,14 @@ export function BusinessSettingsList({ businesses }: BusinessSettingsListProps) 
       setEditingSlug(null);
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al actualizar el nombre");
+      setError(err instanceof Error ? err.message : "No fue posible actualizar el nombre.");
     } finally {
       setIsSubmitting(false);
     }
   }
 
   async function handleDeactivate(businessSlug: string) {
-    if (!confirm("¿Estás seguro de que deseas desactivar este negocio? Podrás reactivarlo después, pero no podrá operar públicamente mientras esté desactivado.")) {
+    if (!confirm("¿Quieres desactivar este negocio? Podrás activarlo de nuevo más adelante, pero mientras tanto no aparecerá para el público.")) {
       return;
     }
     setIsSubmitting(true);
@@ -43,7 +43,7 @@ export function BusinessSettingsList({ businesses }: BusinessSettingsListProps) 
       await deactivateBusinessViaApi(businessSlug);
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al desactivar el negocio");
+      setError(err instanceof Error ? err.message : "No fue posible desactivar el negocio.");
     } finally {
       setIsSubmitting(false);
     }
@@ -55,10 +55,10 @@ export function BusinessSettingsList({ businesses }: BusinessSettingsListProps) 
   return (
     <div className="space-y-8">
       <section>
-        <h2 className="text-xl font-semibold text-slate-950">Negocios Activos</h2>
+        <h2 className="text-xl font-semibold text-slate-950">Negocios activos</h2>
         <div className="mt-4 grid gap-4">
           {activeBusinesses.length === 0 ? (
-            <p className="text-sm text-slate-500 italic">No tienes negocios activos.</p>
+            <p className="text-sm text-slate-500 italic">Aún no tienes negocios activos.</p>
           ) : (
             activeBusinesses.map((business) => (
               <div
@@ -115,7 +115,7 @@ export function BusinessSettingsList({ businesses }: BusinessSettingsListProps) 
                     href={`/dashboard/${business.businessSlug}`}
                     className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
                   >
-                    Abrir Workspace
+                    Abrir espacio de trabajo
                   </Link>
                   <button
                     onClick={() => handleDeactivate(business.businessSlug)}
@@ -134,7 +134,7 @@ export function BusinessSettingsList({ businesses }: BusinessSettingsListProps) 
 
       {inactiveBusinesses.length > 0 && (
         <section>
-          <h2 className="text-xl font-semibold text-slate-950 opacity-60">Negocios Archivados</h2>
+          <h2 className="text-xl font-semibold text-slate-950 opacity-60">Negocios desactivados</h2>
           <div className="mt-4 grid gap-4">
             {inactiveBusinesses.map((business) => (
               <div
@@ -146,11 +146,11 @@ export function BusinessSettingsList({ businesses }: BusinessSettingsListProps) 
                     {business.businessName}
                   </h3>
                   <p className="text-xs text-slate-400 mt-0.5">
-                    Estado: {business.isActive ? "Activo" : "Inactivo"}
+                    Estado: {business.isActive ? "Activo" : "Desactivado"}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                   <p className="text-xs font-medium text-slate-400 italic">Desactivado</p>
+                   <p className="text-xs font-medium text-slate-400 italic">No está disponible para operar</p>
                 </div>
               </div>
             ))}

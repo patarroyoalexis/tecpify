@@ -121,7 +121,7 @@ export function OrderCancelModal({
             Cancelar pedido
           </h2>
           <p className="mt-2 text-sm leading-6 text-slate-600">
-            El pedido saldrá del flujo principal y quedará en la sección de cancelados hasta que lo reactivas.
+            El pedido saldrá del flujo principal y quedará en cancelados hasta que lo reactives.
           </p>
 
           <div className="mt-5 rounded-[22px] border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-700">
@@ -165,7 +165,7 @@ export function OrderCancelModal({
                   setDetail(event.target.value);
                   setError("");
                 }}
-                placeholder="Explica el motivo de forma breve y operativa."
+                placeholder="Explica el motivo de forma breve y clara."
                 className="w-full rounded-[18px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-rose-300"
               />
             </label>

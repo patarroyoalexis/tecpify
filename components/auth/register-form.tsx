@@ -41,7 +41,7 @@ export function RegisterForm({
     event.preventDefault();
 
     if (password !== confirmPassword) {
-      setError("Las passwords no coinciden.");
+      setError("Las contraseñas no coinciden.");
       return;
     }
 
@@ -76,7 +76,7 @@ export function RegisterForm({
       if (payload.requiresEmailConfirmation) {
         setSuccessMessage(
           payload.message ??
-            "Tu cuenta fue creada. Revisa tu correo para confirmar e iniciar sesion.",
+            "Tu cuenta fue creada. Revisa tu correo para confirmarla e iniciar sesión.",
         );
         return;
       }
@@ -100,15 +100,13 @@ export function RegisterForm({
         data-testid="register-secondary-warning"
         className="rounded-[1.35rem] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
       >
-        Este registro manual permanece disponible solo como carril secundario.
-        Puede requerir confirmacion de correo y configuracion real de Supabase Auth
-        antes de dejar operativo el login. Si este entorno habilita Google, ese
-        carril opcional se intenta solo desde /login.
+        Este registro manual está disponible como alternativa. Puede requerir confirmar el correo
+        antes de dejar la cuenta lista para entrar.
       </div>
 
       <AuthInputField
         type="email"
-        label="Email"
+        label="Correo"
         icon={<Mail className="h-4 w-4" aria-hidden="true" />}
         value={email}
         onChange={(event) => setEmail(event.target.value)}
@@ -118,7 +116,7 @@ export function RegisterForm({
 
       <AuthInputField
         type="password"
-        label="Contrasena"
+        label="Contraseña"
         icon={<LockKeyhole className="h-4 w-4" aria-hidden="true" />}
         value={password}
         onChange={(event) => setPassword(event.target.value)}
@@ -128,7 +126,7 @@ export function RegisterForm({
 
       <AuthInputField
         type="password"
-        label="Confirmar contrasena"
+        label="Confirmar contraseña"
         icon={<ShieldCheck className="h-4 w-4" aria-hidden="true" />}
         value={confirmPassword}
         onChange={(event) => setConfirmPassword(event.target.value)}
@@ -146,16 +144,16 @@ export function RegisterForm({
         dataTestId="register-submit-button"
         variant="register"
       >
-        {isSubmitting ? "Intentando registro..." : "Intentar registro manual"}
+        {isSubmitting ? "Creando cuenta..." : "Crear cuenta"}
       </AuthPrimaryButton>
 
       <p className="text-sm leading-6 text-brand-text-muted">
-        Si ya tienes un acceso operativo,{" "}
+        Si ya tienes una cuenta activa,{" "}
         <Link
           href={`/login?redirectTo=${encodeURIComponent(redirectTo)}`}
           className="font-semibold text-brand-primary-green underline-offset-4 transition hover:text-brand-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--brand-focus-rgb)/0.5)]"
         >
-          inicia sesion
+          inicia sesión
         </Link>
         .
       </p>

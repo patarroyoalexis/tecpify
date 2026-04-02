@@ -1,3 +1,5 @@
+import type { ComponentType } from "react";
+import type { LucideProps } from "lucide-react";
 import { 
   BarChart3, 
   ClipboardList, 
@@ -10,7 +12,7 @@ export interface WorkspaceNavItem {
   key: string;
   label: string;
   href: (businessSlug?: string) => string;
-  icon: any;
+  icon: ComponentType<LucideProps>;
   testId?: string;
 }
 
@@ -24,13 +26,13 @@ export const WORKSPACE_NAV_ITEMS: WorkspaceNavItem[] = [
   {
     key: "pedidos",
     label: "Pedidos",
-    href: (businessSlug) => `/pedidos/${businessSlug}`,
+    href: (businessSlug) => businessSlug ? `/pedidos/${businessSlug}` : "/ajustes",
     icon: ClipboardList,
   },
   {
     key: "metricas",
     label: "Métricas",
-    href: (businessSlug) => `/metricas/${businessSlug}`,
+    href: (businessSlug) => businessSlug ? `/metricas/${businessSlug}` : "/ajustes",
     icon: BarChart3,
   },
   {

@@ -62,7 +62,7 @@ function getWorkspaceLinks(
     links.push(
       {
         key: "dashboard",
-        label: "Workspace",
+        label: "Espacio de trabajo",
         href: `/dashboard/${businessSlug}`,
       },
       {
@@ -72,7 +72,7 @@ function getWorkspaceLinks(
       },
       {
         key: "metricas",
-        label: "Metricas",
+        label: "Métricas",
         href: `/metricas/${businessSlug}`,
       },
     );
@@ -87,7 +87,7 @@ function getWorkspaceLinks(
   if (adminHref) {
     links.push({
       key: "admin",
-      label: "Admin Tecpify",
+      label: "Panel interno",
       href: adminHref,
       testId: "workspace-admin-link",
     });
@@ -139,7 +139,7 @@ export function AppNavbar({
   businessSlug,
   activeTab = "dashboard",
   adminHref,
-  workspaceEyebrow = "Workspace",
+  workspaceEyebrow = "Espacio de trabajo",
   workspaceControls,
   workspaceBusinesses = [],
   workspaceCurrentBusinessSlug,
@@ -171,11 +171,11 @@ export function AppNavbar({
         : "/ajustes")
     : "/";
   const brandSubtitle = isWorkspace
-    ? currentWorkspaceBusiness?.businessName ?? businessName ?? "Workspace privado"
-    : "Pedidos y operacion clara para pequenos negocios";
+    ? currentWorkspaceBusiness?.businessName ?? businessName ?? "Espacio privado"
+    : "Pedidos y operación clara para pequeños negocios";
 
   const tabLabelMap: Record<WorkspaceTab, string> = {
-    dashboard: "Dashboard",
+    dashboard: "Resumen",
     pedidos: "Pedidos",
     metricas: "Métricas",
     admin: "Administración",
@@ -270,7 +270,7 @@ export function AppNavbar({
               {operatorEmail ? (
                 <>
                   <div className="hidden items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.07] px-3 py-2 lg:flex">
-                    <span className="text-xs font-medium text-slate-300">Sesion</span>
+                    <span className="text-xs font-medium text-slate-300">Sesión</span>
                     <span className="max-w-44 truncate text-sm font-semibold text-white">
                       {operatorEmail}
                     </span>
@@ -285,13 +285,13 @@ export function AppNavbar({
                     href={"/login?redirectTo=/ajustes"}
                     className="inline-flex h-10 items-center justify-center rounded-2xl bg-white px-4 text-sm font-semibold text-slate-950 transition hover:bg-slate-100"
                   >
-                    Iniciar sesion
+                    Entrar
                   </Link>
                   <Link
                     href={"/register?redirectTo=/ajustes"}
                     className="inline-flex h-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.07] px-4 text-sm font-medium text-slate-100 transition hover:border-white/20 hover:bg-white/[0.12]"
                   >
-                    Registro manual
+                    Crear cuenta
                   </Link>
                 </>
               )}
@@ -395,7 +395,7 @@ export function AppNavbar({
               className="flex items-center gap-3 rounded-2xl px-4 py-3.5 text-sm font-medium text-slate-400 transition hover:bg-white/5 hover:text-white"
             >
               <ExternalLink className="h-4 w-4" />
-              <span>Ver tienda pública</span>
+              <span>Ver enlace público</span>
             </Link>
 
             <div className="my-2 border-t border-white/10" />
@@ -443,7 +443,7 @@ export function AppNavbar({
           {operatorEmail ? (
             <>
               <div className="flex items-center gap-2 rounded-full border border-brand-border bg-brand-surface-muted px-3 py-2">
-                <span className="text-xs font-medium text-brand-text-muted">Sesion</span>
+                <span className="text-xs font-medium text-brand-text-muted">Sesión</span>
                 <span className="max-w-44 truncate text-sm font-semibold text-brand-primary-blue">
                   {operatorEmail}
                 </span>
@@ -452,18 +452,18 @@ export function AppNavbar({
             </>
           ) : (
             <>
-              <Link
-                href={loginHref}
-                className="inline-flex h-11 items-center justify-center rounded-2xl bg-brand-primary-green px-4 text-sm font-semibold text-white shadow-[0_14px_30px_rgb(var(--brand-primary-green-rgb)/0.22)] transition hover:brightness-95"
-              >
-                Iniciar sesion
-              </Link>
-              <Link
-                href={registerHref}
-                className="inline-flex h-11 items-center justify-center rounded-2xl border border-brand-border bg-brand-surface px-5 text-sm font-semibold text-brand-primary-blue transition hover:border-brand-focus hover:bg-brand-surface-muted"
-              >
-                Registro manual
-              </Link>
+                <Link
+                  href={loginHref}
+                  className="inline-flex h-11 items-center justify-center rounded-2xl bg-brand-primary-green px-4 text-sm font-semibold text-white shadow-[0_14px_30px_rgb(var(--brand-primary-green-rgb)/0.22)] transition hover:brightness-95"
+                >
+                  Entrar
+                </Link>
+                <Link
+                  href={registerHref}
+                  className="inline-flex h-11 items-center justify-center rounded-2xl border border-brand-border bg-brand-surface px-5 text-sm font-semibold text-brand-primary-blue transition hover:border-brand-focus hover:bg-brand-surface-muted"
+                >
+                  Crear cuenta
+                </Link>
             </>
           )}
         </div>
@@ -506,7 +506,7 @@ export function AppNavbar({
             {operatorEmail ? (
               <>
                 <div className="rounded-2xl border border-brand-border bg-brand-surface-muted px-4 py-3">
-                  <p className="text-xs font-medium text-brand-text-muted">Sesion activa</p>
+                  <p className="text-xs font-medium text-brand-text-muted">Sesión activa</p>
                   <p className="mt-1 truncate text-sm font-semibold text-brand-primary-blue">
                     {operatorEmail}
                   </p>
@@ -520,14 +520,14 @@ export function AppNavbar({
                   onClick={() => setIsMobileMenuOpen(false)}
                   className="inline-flex h-11 items-center justify-center rounded-2xl bg-brand-primary-green px-4 text-sm font-semibold text-white transition hover:brightness-95"
                 >
-                  Iniciar sesion
+                   Entrar
                 </Link>
                 <Link
                   href={registerHref}
                   onClick={() => setIsMobileMenuOpen(false)}
                   className="inline-flex h-11 items-center justify-center rounded-2xl border border-brand-border bg-brand-surface px-4 text-sm font-semibold text-brand-primary-blue transition hover:border-brand-focus hover:bg-brand-surface-muted"
                 >
-                  Registro manual
+                   Crear cuenta
                 </Link>
               </>
             )}

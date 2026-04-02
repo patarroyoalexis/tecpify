@@ -28,11 +28,12 @@ export default async function LoginPage({
     <PublicLayoutShell>
       <AuthPageShell
         variant="login"
-        formEyebrow="Ingreso rápido"
-        formTitle="Iniciar sesión"
+        formEyebrow="Acceso al negocio"
+        formTitle="Entra a tu espacio de trabajo"
         formDescription={
           <>
-            Accede con un usuario ya operativo para gestionar pedidos, actualizar estados y llevar el control del negocio. Este es el carril validado del MVP para entrar al workspace.
+            Usa una cuenta ya activa para revisar pedidos, mover estados y seguir el día a día del
+            negocio desde un solo lugar.
           </>
         }
       >

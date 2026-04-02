@@ -8,6 +8,7 @@ import {
   resolvePrivateWorkspaceEntryFromCookies,
 } from "@/lib/auth/private-workspace";
 import { requireBusinessOperatorUser } from "@/lib/auth/server";
+import { BackButton } from "@/components/layout/back-button";
 
 function renderUnsupportedDashboardRole() {
   return (
@@ -15,21 +16,15 @@ function renderUnsupportedDashboardRole() {
       <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-xl items-center">
         <section className="w-full rounded-[32px] border border-white/70 bg-white/95 p-8 text-center shadow-[0_24px_80px_rgba(15,23,42,0.12)]">
           <p className="text-sm font-semibold uppercase tracking-[0.24em] text-orange-600">
-            Rol sin workspace
+            Rol sin acceso operativo
           </p>
           <h1 className="mt-3 text-3xl font-semibold text-slate-950">
-            Esta cuenta no puede operar negocios en el MVP actual
+            Esta cuenta no puede operar negocios todavía
           </h1>
           <p className="mt-3 text-sm leading-6 text-slate-600">
-            Tecpify solo habilita workspaces privados para `business_owner` y `platform_admin`.
-            El rol `customer` queda contemplado en contratos, pero todavia no tiene flujo activo.
+            Solo las cuentas operativas pueden crear y administrar negocios desde esta vista.
           </p>
-          <Link
-            href="/"
-            className="mt-6 inline-flex rounded-full bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
-          >
-            Volver al inicio
-          </Link>
+          <BackButton fallbackPath="/" />
         </section>
       </div>
     </main>
@@ -52,11 +47,11 @@ export default async function CreateBusinessPage() {
       businessName={activeBusiness?.businessName ?? "Crear negocio"}
       operatorEmail={operator.email ?? null}
       adminHref={isPlatformAdminRole(operator.role) ? "/admin" : null}
-      title={hasExistingBusinesses ? "Crear otro negocio" : "Crea tu primer negocio"}
+      title={hasExistingBusinesses ? "Añadir otro negocio" : "Crea tu primer negocio"}
       description={
         hasExistingBusinesses
-          ? "Esta vista solo existe para dar de alta un negocio adicional. El trabajo diario sigue entrando directo al negocio activo."
-          : "Esta es la unica parada previa al workspace cuando todavia no existe ningun negocio para tu sesion."
+          ? "Esta vista te ayuda a sumar otro negocio cuando lo necesites. Tu negocio activo sigue siendo la entrada principal."
+          : "Cuando guardes el primer negocio, entrarás directo a su espacio de trabajo para seguir con productos y pedidos."
       }
       workspaceBusinesses={workspaceEntry.ownedBusinesses}
       workspaceCurrentBusinessSlug={activeBusiness?.businessSlug}
@@ -75,13 +70,13 @@ export default async function CreateBusinessPage() {
           </p>
           <h2 className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">
             {hasExistingBusinesses
-              ? "El workspace manda; crear negocio es secundario"
-              : "Primero creas el negocio, despues entras directo a operar"}
+              ? "Añade otro negocio sin salir del trabajo diario"
+              : "Crea tu negocio para empezar a operar"}
           </h2>
           <p className="mt-3 text-sm leading-6 text-slate-600">
             {hasExistingBusinesses
-              ? "Tecpify ya no expone un dashboard general como home principal. Desde ahora el negocio activo vive en la navbar privada y esta vista queda solo para ampliar el portafolio cuando haga falta."
-              : "En cuanto exista un negocio valido, la entrada privada deja de caer aqui y pasa a resolver directo al workspace operativo de ese negocio."}
+              ? "Esta vista te ayuda a sumar otro negocio cuando lo necesites. Tu negocio activo sigue siendo la entrada principal."
+              : "Cuando guardes el primer negocio, entrarás directo a su espacio de trabajo para seguir con productos y pedidos."}
           </p>
 
           <div className="mt-5 space-y-3 rounded-[24px] border border-slate-200 bg-slate-50/80 p-4">
@@ -90,11 +85,10 @@ export default async function CreateBusinessPage() {
                 Regla del MVP
               </p>
               <p className="mt-2 text-sm font-semibold text-slate-950">
-                0 negocios = alta
+                Sin negocio, primero toca crear uno
               </p>
               <p className="mt-1 text-sm leading-6 text-slate-600">
-                La compuerta privada solo trae al alta cuando no hay ningun negocio owned para la
-                sesion actual.
+                Si la sesión todavía no tiene negocios, esta pantalla te guía para crear el primero.
               </p>
             </div>
 
@@ -103,11 +97,10 @@ export default async function CreateBusinessPage() {
                 Cambio de negocio
               </p>
               <p className="mt-2 text-sm font-semibold text-slate-950">
-                Vive en Ajustes de la navbar
+                Cambia desde la barra privada
               </p>
               <p className="mt-1 text-sm leading-6 text-slate-600">
-                Si en el futuro operas mas de un negocio, el switcher queda como accion secundaria
-                dentro del mismo workspace.
+                Si operas más de un negocio, puedes alternar entre ellos sin perder el contexto.
               </p>
             </div>
 
@@ -124,7 +117,7 @@ export default async function CreateBusinessPage() {
                   href={getBusinessDashboardHref(activeBusiness.businessSlug)}
                   className="mt-4 inline-flex rounded-full bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
                 >
-                  Volver al workspace
+                  Ir al espacio de trabajo
                 </Link>
               </div>
             ) : null}

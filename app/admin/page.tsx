@@ -14,21 +14,19 @@ function renderUnauthorizedAdminAccess() {
           className="w-full rounded-[32px] border border-white/70 bg-white/95 p-8 text-center shadow-[0_24px_80px_rgba(15,23,42,0.12)]"
         >
           <p className="text-sm font-semibold uppercase tracking-[0.24em] text-sky-600">
-            Panel interno bloqueado
+            Acceso restringido
           </p>
           <h1 className="mt-3 text-3xl font-semibold text-slate-950">
-            Esta sesion no tiene rol `platform_admin`
+            Esta sesión no tiene rol `platform_admin`
           </h1>
           <p className="mt-3 text-sm leading-6 text-slate-600">
-            El panel `/admin` solo existe para operar Tecpify como producto. Si tu cuenta es
-            `business_owner`, el trabajo diario sigue viviendo en `/dashboard` y en los workspaces
-            por negocio.
+            El panel /admin solo está disponible para cuentas de plataforma.
           </p>
           <Link
-            href="/dashboard"
+            href="/ajustes"
             className="mt-6 inline-flex rounded-full bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
           >
-            Volver al dashboard
+            Volver a ajustes
           </Link>
         </section>
       </div>
@@ -53,7 +51,7 @@ export default async function AdminPage() {
       adminHref="/admin"
       workspaceEyebrow="Plataforma"
       title="Panel de plataforma"
-      description="Lectura global de activacion, demanda y operacion de Tecpify sin mezclarla con el workspace de un negocio."
+      description="Vista global de activación, demanda y operación de Tecpify, separada del trabajo de cada negocio."
       workspaceHomeHref="/dashboard"
       showFooter={false}
     >

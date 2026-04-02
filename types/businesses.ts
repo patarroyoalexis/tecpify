@@ -11,6 +11,7 @@ export interface BusinessRecord extends BusinessPaymentSettings {
   businessId: BusinessId;
   businessSlug: BusinessSlug;
   name: string;
+  businessType: string | null;
   transferInstructions: string | null;
   isActive: boolean;
   createdAt: string;
@@ -30,6 +31,7 @@ export interface OwnedBusinessSummary {
 export interface CreateBusinessPayload {
   name: string;
   businessSlug: string;
+  businessType?: string;
 }
 
 export interface UpdateBusinessSettingsPayload extends BusinessPaymentSettings {

@@ -7,6 +7,7 @@ import { BusinessSettingsList } from "@/components/dashboard/business-settings-l
 import { UserSettingsForm } from "@/components/dashboard/user-settings-form";
 import Link from "next/link";
 import { PlusCircle } from "lucide-react";
+import { BackButton } from "@/components/layout/back-button";
 
 export default async function AjustesPage() {
   const operator = await requireBusinessOperatorUser("/ajustes");
@@ -15,9 +16,9 @@ export default async function AjustesPage() {
     return (
       <main className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="text-center p-8 bg-white rounded-3xl border border-slate-200 shadow-xl max-w-md">
-          <h1 className="text-2xl font-bold text-slate-900">Acceso Denegado</h1>
-          <p className="mt-4 text-slate-600">No tienes permisos para acceder a esta sección.</p>
-          <Link href="/" className="mt-6 inline-block bg-slate-900 text-white px-6 py-2.5 rounded-full font-semibold">Volver al inicio</Link>
+          <h1 className="text-2xl font-bold text-slate-900">No tienes acceso</h1>
+          <p className="mt-4 text-slate-600">Esta sección solo está disponible para cuentas operativas.</p>
+          <BackButton fallbackPath="/" />
         </div>
       </main>
     );
@@ -37,8 +38,8 @@ export default async function AjustesPage() {
       businessName={activeBusiness?.businessName ?? "Ajustes"}
       operatorEmail={operator.email ?? null}
       adminHref={isPlatformAdminRole(operator.role) ? "/admin" : null}
-      title="Ajustes de Cuenta y Negocios"
-      description="Gestiona tu información personal y los negocios vinculados a tu cuenta."
+      title="Ajustes"
+      description="Actualiza tu perfil y administra los negocios vinculados a tu cuenta."
       workspaceBusinesses={workspaceEntry.ownedBusinesses}
       workspaceCurrentBusinessSlug={activeBusiness?.businessSlug}
       workspaceHomeHref="/ajustes"
@@ -50,62 +51,59 @@ export default async function AjustesPage() {
           <section className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
             <div className="flex items-center justify-between mb-8">
               <div>
-                <h2 className="text-2xl font-bold text-slate-950">Mis Negocios</h2>
-                <p className="text-slate-500 mt-1">Lista de negocios que administras en Tecpify.</p>
+                <h2 className="text-2xl font-bold text-slate-950">Mis negocios</h2>
+                <p className="text-slate-500 mt-1">Revisa, edita o desactiva los negocios que operas.</p>
               </div>
               <Link
                 href="/ajustes/crear-negocio"
                 className="flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 transition"
               >
                 <PlusCircle className="h-4 w-4" />
-                <span>Nuevo Negocio</span>
+                <span>Crear negocio</span>
               </Link>
             </div>
-            
-            {/* We pass a key to force re-render when we might need it, 
-                though onRefresh will usually handle it via router.refresh() if used */}
+
             <BusinessSettingsList businesses={workspaceEntry.ownedBusinesses} />
           </section>
 
           <section className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-            <h2 className="text-2xl font-bold text-slate-950">Perfil de Usuario</h2>
-            <p className="text-slate-500 mt-1 mb-8">Información de tu cuenta de operador.</p>
-            
+            <h2 className="text-2xl font-bold text-slate-950">Tu perfil</h2>
+            <p className="text-slate-500 mt-1 mb-8">Mantén actualizados los datos de tu cuenta.</p>
+
             <UserSettingsForm profile={profile} email={operator.email} />
           </section>
         </div>
 
         <aside className="space-y-6">
           <div className="rounded-[32px] border border-slate-200 bg-slate-50 p-6">
-            <h3 className="font-bold text-slate-900">Resumen de Cuenta</h3>
+            <h3 className="font-bold text-slate-900">Resumen de cuenta</h3>
             <div className="mt-4 space-y-4">
               <div className="flex justify-between text-sm">
-                <span className="text-slate-500">Rol:</span>
+                <span className="text-slate-500">Rol</span>
                 <span className="font-semibold text-slate-900">{operator.role}</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-slate-500">Negocios:</span>
+                <span className="text-slate-500">Negocios</span>
                 <span className="font-semibold text-slate-900">{workspaceEntry.ownedBusinesses.length}</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-slate-500">Activos:</span>
+                <span className="text-slate-500">Activos</span>
                 <span className="font-semibold text-emerald-600">{workspaceEntry.ownedBusinesses.filter(b => b.isActive).length}</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-slate-500">Miembro desde:</span>
+                <span className="text-slate-500">Miembro desde</span>
                 <span className="font-semibold text-slate-900">{new Date(profile.createdAt).toLocaleDateString()}</span>
               </div>
             </div>
           </div>
 
           <div className="rounded-[32px] border border-blue-100 bg-blue-50/50 p-6">
-            <h3 className="font-bold text-blue-900">¿Necesitas Ayuda?</h3>
+            <h3 className="font-bold text-blue-900">¿Necesitas ayuda?</h3>
             <p className="mt-2 text-sm text-blue-800/80 leading-6">
-              Si tienes problemas para gestionar tus negocios o necesitas soporte técnico, 
-              revisa nuestra documentación o contacta al administrador de la plataforma.
+              Si algo no se ve como esperas, revisa la ayuda disponible o contacta al equipo de soporte.
             </p>
             <Link href="/" className="mt-4 inline-block text-sm font-semibold text-blue-700 underline underline-offset-4">
-              Ir al centro de ayuda
+              Ir al inicio
             </Link>
           </div>
         </aside>

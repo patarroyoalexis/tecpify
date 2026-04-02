@@ -227,7 +227,7 @@ export function OrderDetailDrawer({
     setFiadoFeedback("");
 
     if (normalizedObservation.length === 0) {
-      setFiadoError("La observación de fiado es obligatoria.");
+      setFiadoError("La nota de fiado es obligatoria.");
       return;
     }
 
@@ -252,7 +252,7 @@ export function OrderDetailDrawer({
     setFiadoFeedback("");
 
     if (normalizedObservation.length === 0) {
-      setFiadoError("La observación de fiado es obligatoria.");
+      setFiadoError("La nota de fiado es obligatoria.");
       return;
     }
 
@@ -284,7 +284,7 @@ export function OrderDetailDrawer({
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                Pedido operativo
+                Detalle del pedido
               </p>
               <h2 className="mt-1 text-2xl font-semibold text-slate-950">{order.client}</h2>
               <p className="mt-1 text-sm text-slate-600">
@@ -392,10 +392,10 @@ export function OrderDetailDrawer({
                       : "Sin motivo registrado"}
                   </p>
                   <p className="mt-1 text-sm text-slate-700">
-                    Estado previo:{" "}
+                    Estado anterior:{" "}
                     {order.previousStatusBeforeCancellation
                       ? ORDER_STATUS_LABELS[order.previousStatusBeforeCancellation]
-                      : "Sin estado previo válido"}
+                      : "Sin estado anterior válido"}
                   </p>
                   {order.cancellationDetail ? (
                     <p className="mt-1 text-sm text-slate-700">{order.cancellationDetail}</p>
@@ -406,14 +406,14 @@ export function OrderDetailDrawer({
                 <div className="rounded-[20px] border border-amber-200 bg-amber-50 px-4 py-3 sm:col-span-2">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-700">
-                      Fiado interno
+                      Fiado del negocio
                     </p>
                     <span className="rounded-full border border-amber-200 bg-white px-3 py-1 text-xs font-semibold text-amber-700">
                       {getFiadoStatusLabel(order.fiadoStatus)}
                     </span>
                   </div>
                   <p className="mt-2 text-sm font-medium text-slate-900">
-                    {order.fiadoObservation ?? "Sin observación registrada."}
+                    {order.fiadoObservation ?? "Sin nota registrada."}
                   </p>
                 </div>
               ) : null}
@@ -421,10 +421,10 @@ export function OrderDetailDrawer({
           </section>
 
           <section className="rounded-[26px] border border-slate-200 bg-white p-5 shadow-[0_16px_34px_rgba(15,23,42,0.04)]">
-            <h3 className="text-lg font-semibold text-slate-950">Acciones operativas</h3>
+            <h3 className="text-lg font-semibold text-slate-950">Acciones del pedido</h3>
             <p className="mt-1 text-sm text-slate-600">
-              El pedido avanza por estado operativo. La revisión de pago vive dentro de Nuevo y no
-              reemplaza el flujo principal.
+              El pedido avanza por estado. La revisión de pago vive dentro de Nuevo y no reemplaza
+              el flujo principal.
             </p>
 
             {actionError ? (
@@ -458,7 +458,7 @@ export function OrderDetailDrawer({
               </div>
 
               <div className={`rounded-[22px] border p-4 ${statusVisuals.softPanelClassName}`}>
-                <p className="text-sm font-semibold">Pedido</p>
+                <p className="text-sm font-semibold">Acciones disponibles</p>
                 <div className="mt-4 grid gap-3">
                   {order.status === "cancelado" ? (
                     canReactivate ? (
@@ -468,11 +468,11 @@ export function OrderDetailDrawer({
                         className="inline-flex items-center justify-center gap-2 rounded-full border border-teal-200 bg-teal-50 px-4 py-3 text-sm font-semibold text-teal-700 transition hover:border-teal-300 hover:bg-teal-100"
                       >
                         <OrdersUiIcon icon="save" className="h-4 w-4" />
-                        Reactivar al estado previo
+                        Volver al estado anterior
                       </button>
                     ) : (
                       <div className="rounded-[18px] border border-rose-200 bg-white px-4 py-3 text-sm text-rose-700">
-                        Este pedido no puede reactivarse porque no conserva un estado previo válido.
+                        Este pedido no puede reactivarse porque no guarda un estado anterior.
                       </div>
                     )
                   ) : (
@@ -488,7 +488,7 @@ export function OrderDetailDrawer({
                         </button>
                       ) : order.status === "nuevo" && requiresPaymentReview ? (
                         <div className="rounded-[18px] border border-sky-200 bg-white px-4 py-3 text-sm text-sky-800">
-                          Revisa la condición financiera antes de mover este pedido a Confirmado.
+                          Revisa primero el pago antes de mover este pedido a Confirmado.
                         </div>
                       ) : null}
                       {canAdvance && nextWorkflowStatus ? (
@@ -513,7 +513,7 @@ export function OrderDetailDrawer({
                       ) : null}
                       {!canConfirm && !canAdvance && !canCancel ? (
                         <div className="rounded-[18px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
-                          No hay acciones operativas adicionales en este estado.
+                          No hay más acciones disponibles para este pedido.
                         </div>
                       ) : null}
                     </>
@@ -526,9 +526,9 @@ export function OrderDetailDrawer({
               <div className="mt-4 rounded-[22px] border border-amber-200 bg-amber-50/80 p-4">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                   <div>
-                    <p className="text-sm font-semibold text-slate-900">Fiado interno</p>
+                    <p className="text-sm font-semibold text-slate-900">Fiado del negocio</p>
                     <p className="mt-1 text-sm text-slate-600">
-                      Operación privada del negocio. Nunca aparece como método público para el cliente.
+                      Uso interno del negocio. Nunca aparece como método público para el cliente.
                     </p>
                   </div>
                   <span className="inline-flex rounded-full border border-amber-200 bg-white px-3 py-1 text-xs font-semibold text-amber-700">
@@ -549,7 +549,7 @@ export function OrderDetailDrawer({
 
                 <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_auto]">
                   <label className="space-y-2">
-                    <span className="text-sm font-medium text-slate-700">Observación de fiado</span>
+                    <span className="text-sm font-medium text-slate-700">Nota de fiado</span>
                     <textarea
                       rows={3}
                       value={fiadoObservationDraft}
@@ -558,7 +558,7 @@ export function OrderDetailDrawer({
                         setFiadoError("");
                         setFiadoFeedback("");
                       }}
-                      placeholder="No pagó y prometió cancelar mañana."
+                      placeholder="No pagó hoy y quedó en cancelar mañana."
                       className="w-full rounded-[18px] border border-amber-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-amber-300"
                     />
                   </label>
@@ -576,7 +576,7 @@ export function OrderDetailDrawer({
                         }`}
                       >
                         <OrdersUiIcon icon="clipboard" className="h-4 w-4" />
-                        Marcar fiado
+                        Guardar como fiado
                       </button>
                     ) : null}
                     {isPendingFiado ? (

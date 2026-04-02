@@ -22,9 +22,9 @@ function validateForm(name: string, businessSlug: string): FormErrors {
   }
 
   if (!normalizeBusinessSlug(businessSlug)) {
-    errors.businessSlug = "Ingresa un slug publico valido con letras o numeros.";
+    errors.businessSlug = "Ingresa un slug público válido con letras o números.";
   } else if (normalizeBusinessSlug(businessSlug).length > 60) {
-    errors.businessSlug = "El slug publico no puede superar 60 caracteres.";
+    errors.businessSlug = "El slug público no puede superar 60 caracteres.";
   }
 
   return errors;
@@ -88,12 +88,11 @@ export function CreateBusinessPanel() {
     >
       <div className="flex flex-col gap-2">
         <p className="text-sm font-semibold uppercase tracking-[0.24em] text-emerald-600">
-          Alta basica
+          Alta rápida
         </p>
-        <h2 className="text-2xl font-semibold text-slate-950">Crear negocio real</h2>
+        <h2 className="text-2xl font-semibold text-slate-950">Crea tu negocio</h2>
         <p className="text-sm leading-6 text-slate-600">
-          Crea el negocio y te llevamos directo al primer producto. La ruta mas corta al primer
-          pedido empieza aqui.
+          Crea tu negocio y avanza enseguida al primer producto. Así dejas todo listo para recibir pedidos más rápido.
         </p>
       </div>
 
@@ -102,16 +101,16 @@ export function CreateBusinessPanel() {
           <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-700">
             Paso 1
           </p>
-          <p className="mt-2 text-sm font-semibold text-slate-950">Crear negocio</p>
+          <p className="mt-2 text-sm font-semibold text-slate-950">Abrir negocio</p>
           <p className="mt-1 text-xs leading-5 text-slate-600">
-            Nombre y slug publico para abrir el espacio operativo.
+            Nombre y slug público para abrir tu espacio de trabajo.
           </p>
         </article>
         <article className="rounded-[18px] border border-white/80 bg-white/90 p-3">
           <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-700">
             Paso 2
           </p>
-          <p className="mt-2 text-sm font-semibold text-slate-950">Cargar primer producto</p>
+          <p className="mt-2 text-sm font-semibold text-slate-950">Agregar primer producto</p>
           <p className="mt-1 text-xs leading-5 text-slate-600">
             Solo necesitas nombre, precio y dejarlo activo.
           </p>
@@ -120,9 +119,9 @@ export function CreateBusinessPanel() {
           <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-700">
             Paso 3
           </p>
-          <p className="mt-2 text-sm font-semibold text-slate-950">Probar el link publico</p>
+          <p className="mt-2 text-sm font-semibold text-slate-950">Probar el link público</p>
           <p className="mt-1 text-xs leading-5 text-slate-600">
-            Haces un pedido corto y ya validas el circuito real.
+            Haces un pedido de prueba y confirmas que todo quedó listo.
           </p>
         </article>
       </div>
@@ -142,7 +141,7 @@ export function CreateBusinessPanel() {
                 }));
               }
             }}
-            placeholder="Ej. Panaderia La Estacion"
+            placeholder="Ej. Panadería La Estación"
             data-testid="business-name-input"
             className={`w-full rounded-2xl border px-4 py-3 text-sm text-slate-950 outline-none transition ${
               errors.name ? "border-rose-300 bg-rose-50/60" : "border-slate-200 focus:border-slate-400"
@@ -152,7 +151,7 @@ export function CreateBusinessPanel() {
         </label>
 
         <label className="block space-y-2">
-          <span className="text-sm font-medium text-slate-700">Slug publico</span>
+          <span className="text-sm font-medium text-slate-700">Slug público</span>
           <input
             value={businessSlug}
             onChange={(event) => {
@@ -178,8 +177,8 @@ export function CreateBusinessPanel() {
             }`}
           />
           <p className="text-xs leading-5 text-slate-500">
-            Se normaliza en minusculas, con guiones y sin caracteres invalidos. Si no lo editas,
-            se genera automaticamente desde el nombre.
+            Se normaliza en minúsculas, con guiones y sin caracteres inválidos. Si no lo editas,
+            se genera automáticamente desde el nombre.
           </p>
           {errors.businessSlug ? (
             <p className="text-sm text-rose-600">{errors.businessSlug}</p>
@@ -202,12 +201,11 @@ export function CreateBusinessPanel() {
               : "bg-slate-950 hover:bg-slate-800"
           }`}
         >
-          {isSubmitting ? "Creando negocio..." : "Crear negocio y abrir primer producto"}
+          {isSubmitting ? "Creando negocio..." : "Crear negocio y seguir"}
         </button>
 
         <p className="text-xs leading-5 text-slate-500">
-          Despues de crear el negocio te llevamos directo al workspace operativo con el drawer
-          listo para cargar el primer producto.
+          Después de crear el negocio te llevamos al espacio de trabajo para continuar con el primer producto.
         </p>
       </form>
     </section>

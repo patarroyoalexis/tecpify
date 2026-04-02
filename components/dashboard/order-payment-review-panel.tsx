@@ -50,7 +50,7 @@ export function OrderPaymentReviewPanel({
       setError(
         actionError instanceof Error
           ? actionError.message
-          : "No fue posible actualizar la condicion financiera del pedido.",
+          : "No fue posible actualizar la condición financiera del pedido.",
       );
     } finally {
       setIsSubmitting(false);
@@ -64,7 +64,7 @@ export function OrderPaymentReviewPanel({
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-sm font-semibold">Revision de pago</p>
+          <p className="text-sm font-semibold">Pago del pedido</p>
           <p className="mt-1 text-sm leading-6 text-slate-600">
             {getOrderPaymentGateMessage(order)}
           </p>
@@ -101,13 +101,13 @@ export function OrderPaymentReviewPanel({
           <p className="font-semibold text-slate-900">
             Fiado visible: {getFiadoStatusLabel(order.fiadoStatus)}
           </p>
-          <p className="mt-1">{order.fiadoObservation ?? "Sin observacion registrada."}</p>
+          <p className="mt-1">{order.fiadoObservation ?? "Sin observación registrada."}</p>
         </div>
       ) : null}
 
       {financialCondition === "pendiente" && !order.isReviewed ? (
         <div className="mt-4 rounded-[18px] border border-sky-200 bg-sky-50/80 px-4 py-3 text-sm text-sky-800">
-          Al revisar este pedido, la condicion pasa a visible como Por verificar hasta que lo resuelvas.
+          Cuando revises este pedido, pasará a verse como Por verificar hasta que lo resuelvas.
         </div>
       ) : null}
 
@@ -146,7 +146,7 @@ export function OrderPaymentReviewPanel({
           </>
         ) : (
           <div className="sm:col-span-2 rounded-[18px] border border-white/70 bg-white/80 px-4 py-3 text-sm text-slate-700">
-            Esta condicion financiera no requiere validacion manual previa antes de confirmar el pedido.
+            Este pedido no necesita una validación manual antes de confirmarse.
           </div>
         )}
       </div>

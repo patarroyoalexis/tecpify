@@ -35,17 +35,17 @@ function BusinessSelectorCard({ business }: { business: OwnedBusinessSummary }) 
             {business.businessSlug}
           </span>
         </div>
-        
+
         <h3 className="text-xl font-bold text-slate-950 group-hover:text-slate-900 transition-colors">
           {business.businessName}
         </h3>
-        
+
         <p className="mt-2 text-sm text-slate-500 line-clamp-2">
-          Entrar al espacio de trabajo para gestionar pedidos y catálogo.
+          Entra al espacio de trabajo para revisar pedidos, productos y ventas.
         </p>
 
         <div className="mt-8 flex items-center gap-2 text-sm font-bold text-slate-950">
-          <span>Abrir workspace</span>
+          <span>Abrir espacio de trabajo</span>
           <span className="transition-transform group-hover:translate-x-1">→</span>
         </div>
       </div>
@@ -67,7 +67,7 @@ function CreateBusinessCard() {
           Crear otro negocio
         </h3>
         <p className="mt-1 text-sm text-slate-500">
-          Agrega una nueva marca a tu cuenta.
+          Agrega otra marca para administrarla desde la misma cuenta.
         </p>
       </div>
     </Link>

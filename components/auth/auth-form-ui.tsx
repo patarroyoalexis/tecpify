@@ -110,7 +110,7 @@ export function AuthGoogleButton({
   );
 }
 
-export function AuthDivider({ label = "o sigue con email" }: AuthDividerProps) {
+export function AuthDivider({ label = "o sigue con correo" }: AuthDividerProps) {
   return (
     <div className="flex items-center gap-3 text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-brand-text-muted/75">
       <span className="h-px flex-1 bg-brand-border" />

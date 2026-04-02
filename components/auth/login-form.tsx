@@ -61,7 +61,7 @@ export function LoginForm({
       };
 
       if (!response.ok) {
-        throw new Error(payload.error ?? "No fue posible iniciar sesion.");
+        throw new Error(payload.error ?? "No fue posible iniciar sesión.");
       }
 
       router.push(payload.redirectTo ?? redirectTo);
@@ -70,7 +70,7 @@ export function LoginForm({
       setError(
         loginError instanceof Error
           ? loginError.message
-          : "No fue posible iniciar sesion.",
+          : "No fue posible iniciar sesión.",
       );
     } finally {
       setIsSubmitting(false);
@@ -81,7 +81,7 @@ export function LoginForm({
     <form onSubmit={handleSubmit} className="space-y-5" data-testid="login-form">
       <AuthInputField
         type="email"
-        label="Email"
+        label="Correo"
         icon={<Mail className="h-4 w-4" aria-hidden="true" />}
         value={email}
         onChange={(event) => setEmail(event.target.value)}
@@ -92,12 +92,12 @@ export function LoginForm({
 
       <AuthInputField
         type="password"
-        label="Password"
+        label="Contraseña"
         icon={<LockKeyhole className="h-4 w-4" aria-hidden="true" />}
         value={password}
         onChange={(event) => setPassword(event.target.value)}
         autoComplete="current-password"
-        placeholder="Tu contrasena"
+        placeholder="Tu contraseña"
         dataTestId="login-password-input"
       />
 
@@ -109,35 +109,45 @@ export function LoginForm({
         dataTestId="login-submit-button"
         variant="login"
       >
-        {isSubmitting ? "Ingresando..." : "Iniciar sesion"}
+        {isSubmitting ? "Ingresando..." : "Entrar"}
       </AuthPrimaryButton>
 
       {googleAuthHref ? (
         <>
-          <AuthDivider label="o usa la opcion secundaria" />
+          <AuthDivider label="o usa la opción secundaria" />
           <AuthGoogleButton
             href={googleAuthHref}
             dataTestId="login-google-auth-link"
-            label="Intentar con Google"
+            label="Entrar con Google"
           />
           <p
             data-testid="login-google-auth-secondary-copy"
             className="text-sm leading-6 text-brand-text-muted"
           >
-            Google es opcional en este entorno. Si falla o no esta habilitado,
-            sigue entrando con email y password.
+            Google es opcional en este entorno. Si no está habilitado, sigue con correo y contraseña.
           </p>
         </>
       ) : null}
 
       <p className="text-sm leading-6 text-brand-text-muted">
-        Si necesitas probar el registro manual, usa el{" "}
+        ¿Eres nuevo? Empieza por el{" "}
+        <Link
+          href="/onboarding"
+          className="font-semibold text-brand-primary-blue underline-offset-4 transition hover:text-brand-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--brand-focus-rgb)/0.5)]"
+        >
+          onboarding rápido
+        </Link>
+        .
+      </p>
+
+      <p className="text-sm leading-6 text-brand-text-muted">
+        Si necesitas abrir una cuenta nueva, usa el{" "}
         <Link
           href={`/register?redirectTo=${encodeURIComponent(redirectTo)}`}
           data-testid="login-register-secondary-link"
           className="font-semibold text-brand-primary-blue underline-offset-4 transition hover:text-brand-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--brand-focus-rgb)/0.5)]"
         >
-          carril secundario
+          registro manual
         </Link>
         .
       </p>

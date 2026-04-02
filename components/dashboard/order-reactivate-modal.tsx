@@ -87,7 +87,7 @@ export function OrderReactivateModal({
           onClick={(event) => event.stopPropagation()}
         >
           <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-teal-700">
-            Reactivación controlada
+            Reactivación
           </p>
           <h2
             id="order-reactivate-modal-title"

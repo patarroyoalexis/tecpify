@@ -19,10 +19,11 @@ import type {
   UpdateBusinessSettingsPayload,
 } from "@/types/businesses";
 
-const CREATE_BUSINESS_ALLOWED_FIELDS = new Set(["name", "businessSlug"]);
+const CREATE_BUSINESS_ALLOWED_FIELDS = new Set(["name", "businessSlug", "businessType"]);
 const UPDATE_BUSINESS_SETTINGS_ALLOWED_FIELDS = new Set([
   "businessSlug",
   "name",
+  "businessType",
   "transferInstructions",
   "acceptsCash",
   "acceptsTransfer",
@@ -34,6 +35,7 @@ interface SupabaseBusinessRow {
   id: string;
   slug: string;
   name: string;
+  business_type: string | null;
   transfer_instructions: string | null;
   accepts_cash: boolean | null;
   accepts_transfer: boolean | null;
@@ -51,6 +53,7 @@ function mapBusinessRow(row: SupabaseBusinessRow): BusinessRecord {
     businessId: requireBusinessId(row.id),
     businessSlug: requireBusinessSlug(row.slug),
     name: row.name,
+    businessType: row.business_type,
     transferInstructions: row.transfer_instructions,
     acceptsCash: row.accepts_cash ?? DEFAULT_BUSINESS_PAYMENT_SETTINGS.acceptsCash,
     acceptsTransfer:
@@ -71,21 +74,28 @@ function validateCreateBusinessPayload(payload: unknown): payload is CreateBusin
 
   const candidate = payload as Partial<CreateBusinessPayload>;
 
-  return typeof candidate.name === "string" && typeof candidate.businessSlug === "string";
+  return (
+    typeof candidate.name === "string" &&
+    typeof candidate.businessSlug === "string" &&
+    (candidate.businessType === undefined || typeof candidate.businessType === "string")
+  );
 }
 
 function validateUpdateBusinessSettingsPayload(
   payload: unknown,
-): payload is UpdateBusinessSettingsPayload & { name?: string } {
+): payload is UpdateBusinessSettingsPayload & { name?: string; businessType?: string } {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
     return false;
   }
 
-  const candidate = payload as Partial<UpdateBusinessSettingsPayload & { name?: string }>;
+  const candidate = payload as Partial<
+    UpdateBusinessSettingsPayload & { name?: string; businessType?: string }
+  >;
 
   return (
     typeof candidate.businessSlug === "string" &&
     (candidate.name === undefined || typeof candidate.name === "string") &&
+    (candidate.businessType === undefined || typeof candidate.businessType === "string") &&
     (candidate.transferInstructions === undefined ||
       typeof candidate.transferInstructions === "string") &&
     (candidate.acceptsCash === undefined || typeof candidate.acceptsCash === "boolean") &&
@@ -198,12 +208,19 @@ export function createBusinessesRouteHandlers(
 
       const now = dependencies.getNow();
       const businessId = dependencies.createBusinessId();
-      const { data, error } = await supabase
+      
+      let finalSlug = normalizedBusinessSlug;
+      let data: SupabaseBusinessRow | null = null;
+      let error: any = null;
+
+      // Intentar insertar con el slug original, si falla por colision, intentar con sufijo
+      const { data: firstTryData, error: firstTryError } = await supabase
         .from("businesses")
         .insert({
           id: businessId,
-          slug: normalizedBusinessSlug,
+          slug: finalSlug,
           name: normalizedName,
+          business_type: payload.businessType || null,
           transfer_instructions: null,
           accepts_cash: DEFAULT_BUSINESS_PAYMENT_SETTINGS.acceptsCash,
           accepts_transfer: DEFAULT_BUSINESS_PAYMENT_SETTINGS.acceptsTransfer,
@@ -214,19 +231,52 @@ export function createBusinessesRouteHandlers(
           updated_at: now,
         })
         .select(
-          "id, slug, name, transfer_instructions, accepts_cash, accepts_transfer, accepts_card, allows_fiado, created_at, updated_at, created_by_user_id",
+          "id, slug, name, business_type, transfer_instructions, accepts_cash, accepts_transfer, accepts_card, allows_fiado, created_at, updated_at, created_by_user_id",
         )
         .single<SupabaseBusinessRow>();
+
+      data = firstTryData;
+      error = firstTryError;
+
+      // Si falla por colision de slug, intentamos una vez mas con un sufijo corto aleatorio
+      if (error && error.code === "23505" && error.message.includes("slug")) {
+        const suffix = Math.random().toString(36).substring(2, 6);
+        finalSlug = `${normalizedBusinessSlug}-${suffix}`;
+        
+        const { data: secondTryData, error: secondTryError } = await supabase
+          .from("businesses")
+          .insert({
+            id: businessId, // Reutilizamos el mismo ID
+            slug: finalSlug,
+            name: normalizedName,
+            business_type: payload.businessType || null,
+            transfer_instructions: null,
+            accepts_cash: DEFAULT_BUSINESS_PAYMENT_SETTINGS.acceptsCash,
+            accepts_transfer: DEFAULT_BUSINESS_PAYMENT_SETTINGS.acceptsTransfer,
+            accepts_card: DEFAULT_BUSINESS_PAYMENT_SETTINGS.acceptsCard,
+            allows_fiado: DEFAULT_BUSINESS_PAYMENT_SETTINGS.allowsFiado,
+            created_by_user_id: authResult.user.userId,
+            created_at: now,
+            updated_at: now,
+          })
+          .select(
+            "id, slug, name, business_type, transfer_instructions, accepts_cash, accepts_transfer, accepts_card, allows_fiado, created_at, updated_at, created_by_user_id",
+          )
+          .single<SupabaseBusinessRow>();
+        
+        data = secondTryData;
+        error = secondTryError;
+      }
 
       if (error) {
         const statusCode = error.code === "23505" ? 409 : 500;
         const message =
           error.code === "23505"
-            ? `El businessSlug "${normalizedBusinessSlug}" ya existe. Prueba con otro.`
+            ? `El businessSlug "${finalSlug}" ya existe. Prueba con otro.`
             : `No fue posible crear el negocio en este momento. Revisa la configuracion de Supabase e intenta de nuevo. ${error.message}`;
 
         dependencies.debugError("[businesses-api] Failed to create business", {
-          businessSlug: normalizedBusinessSlug,
+          businessSlug: finalSlug,
           code: error.code ?? null,
           statusCode,
         });
@@ -236,10 +286,10 @@ export function createBusinessesRouteHandlers(
 
       dependencies.debugLog("[businesses-api] Created business", {
         businessId,
-        businessSlug: normalizedBusinessSlug,
+        businessSlug: finalSlug,
       });
 
-      return NextResponse.json({ business: mapBusinessRow(data) }, { status: 201 });
+      return NextResponse.json({ business: mapBusinessRow(data!) }, { status: 201 });
     },
     async PATCH(request: Request) {
       let payload: unknown;
@@ -351,13 +401,14 @@ export function createBusinessesRouteHandlers(
       if (payload.acceptsCard !== undefined) updatePayload.accepts_card = payload.acceptsCard;
       if (payload.allowsFiado !== undefined) updatePayload.allows_fiado = payload.allowsFiado;
       if (normalizedName !== undefined) updatePayload.name = normalizedName;
+      if (payload.businessType !== undefined) updatePayload.business_type = payload.businessType;
 
       const { data, error } = await supabase
         .from("businesses")
         .update(updatePayload)
         .eq("id", businessContextResult.context.businessId)
         .select(
-          "id, slug, name, transfer_instructions, accepts_cash, accepts_transfer, accepts_card, allows_fiado, is_active, deactivated_at, created_at, updated_at, created_by_user_id",
+          "id, slug, name, business_type, transfer_instructions, accepts_cash, accepts_transfer, accepts_card, allows_fiado, is_active, deactivated_at, created_at, updated_at, created_by_user_id",
         )
         .single<SupabaseBusinessRow>();
 

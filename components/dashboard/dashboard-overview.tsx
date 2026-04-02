@@ -2,14 +2,12 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { 
-  ClipboardList, 
-  Package, 
-  CheckCircle2, 
-  Truck, 
-  TrendingUp, 
-  ExternalLink, 
-  PlusCircle, 
+import {
+  Package,
+  CheckCircle2,
+  TrendingUp,
+  ExternalLink,
+  PlusCircle,
   Copy,
   AlertCircle,
   Clock,
@@ -17,7 +15,7 @@ import {
   Target,
   ChevronRight,
   ShoppingBag,
-  DollarSign
+  DollarSign,
 } from "lucide-react";
 
 import type { BusinessReadinessSnapshot } from "@/lib/businesses/readiness";
@@ -52,7 +50,6 @@ export function DashboardOverview({
   businessReadiness,
 }: DashboardOverviewProps) {
   const {
-    openNewProduct,
     openProductsManager,
     ordersError,
     ordersState,
@@ -93,17 +90,17 @@ export function DashboardOverview({
 
   const lastOrderTimeLabel = recentOrders[0] 
     ? `Último pedido: ${formatElapsedTime(recentOrders[0])}`
-    : "Todavía no hay pedidos";
+    : "Aún no hay pedidos";
 
   const immediateActions = [
     ...(metricsSummary.pendingPaymentsCount > 0 ? [{
-      label: `Hay ${metricsSummary.pendingPaymentsCount} pago${metricsSummary.pendingPaymentsCount > 1 ? "s" : ""} por verificar`,
+      label: `Hay ${metricsSummary.pendingPaymentsCount} pago${metricsSummary.pendingPaymentsCount > 1 ? "s" : ""} por revisar`,
       href: `/pedidos/${businessSlug}`,
       icon: <DollarSign className="h-4 w-4 text-orange-600" />,
       cta: "Revisar"
     }] : []),
     ...(ordersState.filter(o => o.status === "nuevo").length > 0 ? [{
-      label: `${ordersState.filter(o => o.status === "nuevo").length} pedido lleva mucho tiempo sin revisar`,
+      label: `${ordersState.filter(o => o.status === "nuevo").length} pedido${ordersState.filter(o => o.status === "nuevo").length > 1 ? "s" : ""} sigue sin revisar`,
       href: `/pedidos/${businessSlug}`,
       icon: <Clock className="h-4 w-4 text-orange-600" />,
       cta: "Ver ahora"
@@ -112,7 +109,7 @@ export function DashboardOverview({
       label: "No tienes productos activos en el catálogo",
       onClick: openProductsManager,
       icon: <AlertCircle className="h-4 w-4 text-red-600" />,
-      cta: "Ver catálogo"
+      cta: "Abrir catálogo"
     }] : [])
   ];
 
@@ -125,11 +122,11 @@ export function DashboardOverview({
         </section>
       ) : null}
 
-      {/* 1. Header interno del Dashboard */}
+      {/* 1. Resumen principal */}
       <header className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-slate-950">Dashboard</h1>
-          <p className="mt-1 text-slate-500">Resumen operativo de tu negocio</p>
+          <h1 className="text-3xl font-bold tracking-tight text-slate-950">Resumen del negocio</h1>
+          <p className="mt-1 text-slate-500">Lo esencial para seguir el día sin perder el control.</p>
         </div>
         
         <div className="flex flex-wrap items-center gap-3">
@@ -138,7 +135,7 @@ export function DashboardOverview({
             className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
           >
             {copyFeedback ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
-            {copyFeedback ? "Copiado" : "Copiar link"}
+            {copyFeedback ? "Copiado" : "Copiar enlace"}
           </button>
           <Link
             href={`/pedido/${businessSlug}`}
@@ -146,14 +143,14 @@ export function DashboardOverview({
             className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
           >
             <ExternalLink className="h-4 w-4" />
-            Ver tienda
+            Ver enlace público
           </Link>
           <button
             onClick={openNewOrder}
             className="inline-flex items-center gap-2 rounded-2xl bg-slate-950 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
           >
             <PlusCircle className="h-4 w-4" />
-            Nuevo pedido manual
+            Nuevo pedido
           </button>
         </div>
       </header>
@@ -173,8 +170,8 @@ export function DashboardOverview({
           <div>
             <p className={`font-semibold ${isReady ? "text-emerald-950" : "text-amber-950"}`}>
               {isReady 
-                ? "Tu negocio está activo y listo para recibir pedidos" 
-                : "Tu negocio requiere atención para empezar a vender"}
+                ? "Tu negocio ya está listo para recibir pedidos"
+                : "Tu negocio necesita algunos ajustes para empezar a vender"}
             </p>
             <div className={`mt-0.5 flex flex-wrap gap-x-4 gap-y-1 text-sm ${
               isReady ? "text-emerald-700/80" : "text-amber-700/80"
@@ -185,11 +182,11 @@ export function DashboardOverview({
               </span>
               <span className="flex items-center gap-1.5">
                 <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                Link público habilitado
+                Enlace público habilitado
               </span>
               <span className="flex items-center gap-1.5">
                 <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                Pagos configurados
+                Medios de pago configurados
               </span>
             </div>
           </div>
@@ -204,17 +201,17 @@ export function DashboardOverview({
         <div className="rounded-[24px] border border-slate-200 bg-white p-5 transition hover:border-slate-300">
           <p className="text-sm font-medium text-slate-500">Pedidos nuevos</p>
           <p className="mt-2 text-3xl font-bold text-slate-950">{stats.nuevos}</p>
-          <p className="mt-1 text-xs text-slate-400">Pendientes de revisión</p>
+          <p className="mt-1 text-xs text-slate-400">Pendientes de revisar</p>
         </div>
         <div className="rounded-[24px] border border-slate-200 bg-white p-5 transition hover:border-slate-300">
           <p className="text-sm font-medium text-slate-500">En preparación</p>
           <p className="mt-2 text-3xl font-bold text-slate-950">{stats.enPreparacion}</p>
-          <p className="mt-1 text-xs text-slate-400">Producción activa</p>
+          <p className="mt-1 text-xs text-slate-400">Producción en curso</p>
         </div>
         <div className="rounded-[24px] border border-slate-200 bg-white p-5 transition hover:border-slate-300">
           <p className="text-sm font-medium text-slate-500">Listos para entregar</p>
           <p className="mt-2 text-3xl font-bold text-slate-950">{stats.listos}</p>
-          <p className="mt-1 text-xs text-slate-400">Esperando salida</p>
+          <p className="mt-1 text-xs text-slate-400">Listos para salir</p>
         </div>
         <div className="rounded-[24px] border border-slate-200 bg-white p-5 transition hover:border-slate-300">
           <p className="text-sm font-medium text-slate-500">Entregados hoy</p>
@@ -224,25 +221,25 @@ export function DashboardOverview({
         <div className="rounded-[24px] border border-slate-200 bg-white p-5 transition hover:border-slate-300">
           <p className="text-sm font-medium text-slate-500">Ventas de hoy</p>
           <p className="mt-2 text-2xl font-bold text-slate-950">{formatCurrency(stats.ventasHoy)}</p>
-          <p className="mt-1 text-xs text-slate-400">Ingresos proyectados</p>
+          <p className="mt-1 text-xs text-slate-400">Ventas registradas hoy</p>
         </div>
       </section>
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
         {/* Zona Izquierda */}
         <div className="space-y-8 lg:col-span-8">
-          {/* 4. Flujo operativo del día */}
+          {/* 4. Movimiento del día */}
           <section className="rounded-[32px] border border-slate-200 bg-white p-8">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-bold text-slate-950">Flujo operativo del día</h2>
-                <p className="text-sm text-slate-500">Estado de la operación en tiempo real</p>
+                <h2 className="text-xl font-bold text-slate-950">Movimiento del día</h2>
+                <p className="text-sm text-slate-500">Sigue los pedidos en tiempo real.</p>
               </div>
               <Link
                 href={`/pedidos/${businessSlug}`}
                 className="flex items-center gap-1.5 text-sm font-semibold text-slate-950 hover:underline"
               >
-                Ir a gestión completa
+                Ir a pedidos
                 <ArrowRight className="h-4 w-4" />
               </Link>
             </div>
@@ -261,7 +258,7 @@ export function DashboardOverview({
                     <div className={`absolute left-4 top-4 h-1.5 w-1.5 rounded-full ${step.color}`} />
                     <p className="mt-4 text-xs font-bold uppercase tracking-wider text-slate-500">{step.label}</p>
                     <p className="mt-1 text-2xl font-bold text-slate-950">{count}</p>
-                    <p className="mt-1 text-[10px] text-slate-400">pedidos activos</p>
+                    <p className="mt-1 text-[10px] text-slate-400">pedidos en curso</p>
                   </div>
                 );
               })}
@@ -272,7 +269,7 @@ export function DashboardOverview({
           <section className="rounded-[32px] border border-slate-200 bg-white overflow-hidden">
             <div className="p-8 pb-4">
               <h2 className="text-xl font-bold text-slate-950">Pedidos recientes</h2>
-              <p className="text-sm text-slate-500">Últimos movimientos registrados</p>
+              <p className="text-sm text-slate-500">Lo último que entró al negocio</p>
             </div>
             
             <div className="overflow-x-auto">
@@ -321,7 +318,7 @@ export function DashboardOverview({
                   ) : (
                     <tr>
                       <td colSpan={6} className="px-8 py-12 text-center text-sm text-slate-400">
-                        No hay pedidos recientes registrados
+                        Aún no hay pedidos recientes
                       </td>
                     </tr>
                   )}
@@ -406,7 +403,7 @@ export function DashboardOverview({
                     </div>
                   ))
                 ) : (
-                  <p className="text-sm text-slate-400 py-2">Sin actividad reciente</p>
+                  <p className="text-sm text-slate-400 py-2">Todavía no hay actividad reciente</p>
                 )}
               </div>
             </div>
@@ -441,14 +438,14 @@ export function DashboardOverview({
       <section className="rounded-[32px] border border-slate-200 bg-white p-8">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h2 className="text-xl font-bold text-slate-950">Rendimiento del negocio</h2>
-            <p className="text-sm text-slate-500">Métricas clave de desempeño comercial</p>
+            <h2 className="text-xl font-bold text-slate-950">Resultados del negocio</h2>
+            <p className="text-sm text-slate-500">Métricas clave para tomar mejores decisiones.</p>
           </div>
           <Link
             href={`/metricas/${businessSlug}`}
             className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
           >
-            Ver analítica completa
+            Ver métricas completas
             <TrendingUp className="h-4 w-4" />
           </Link>
         </div>

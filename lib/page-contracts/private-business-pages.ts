@@ -7,6 +7,7 @@ import type { OwnedBusinessSummary } from "@/types/businesses";
 import type { BusinessId, BusinessSlug } from "@/types/identifiers";
 import type { Order } from "@/types/orders";
 import type { Product } from "@/types/products";
+import { BackButton } from "@/components/layout/back-button";
 
 interface BusinessPageParams {
   params: Promise<{ businessSlug: string }>;
@@ -90,6 +91,10 @@ function renderUnauthorizedBusinessAccess() {
             },
             "Solo el owner autenticado puede operar este workspace. Si el negocio sigue legacy y no tiene owner real, el acceso privado queda bloqueado.",
           ),
+          createElement(BackButton, {
+            key: "back-button",
+            fallbackPath: "/ajustes",
+          }),
         ],
       ),
     ),

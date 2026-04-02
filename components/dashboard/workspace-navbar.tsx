@@ -44,8 +44,8 @@ export function WorkspaceNavbar({
             type="button"
             onClick={onSearch}
             className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.07] text-slate-100 transition hover:border-white/20 hover:bg-white/[0.12]"
-            aria-label="Buscar pedidos globalmente"
-            title="Buscar pedidos globalmente"
+            aria-label="Buscar pedidos"
+            title="Buscar pedidos"
           >
             <OrdersUiIcon icon="search" className="h-4 w-4" />
           </button>

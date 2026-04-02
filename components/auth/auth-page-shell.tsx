@@ -11,7 +11,6 @@ interface AuthPageShellProps {
   variant: AuthPageVariant;
 }
 
-
 function getAccentStyles(variant: AuthPageVariant) {
   if (variant === "login") {
     return {
@@ -82,14 +81,14 @@ export function AuthPageShell({
             <div className="mt-6">{children}</div>
           </div>
           <aside className="relative overflow-hidden rounded-[2rem] border border-brand-border/70 bg-[linear-gradient(160deg,rgb(var(--brand-surface-rgb)/0.96)_0%,rgb(var(--brand-surface-muted-rgb)/0.94)_48%,rgb(var(--brand-surface-rgb)/0.98)_100%)] p-0 shadow-[0_28px_70px_rgb(var(--brand-primary-blue-rgb)/0.12)] sm:p-8 lg:p-8">
-                  <Image
-                    src="/images/landing/login-tecpify.png"
-                    alt="Vista de Tecpify con dashboard, catalogo y pedidos."
-                    width={1200}
-                    height={1200}
-                    priority
-                    className="h-auto w-full rounded-[1.3rem] object-cover shadow-[0_28px_70px_rgb(var(--brand-primary-blue-rgb)/0.12)]"
-                  />
+            <Image
+              src="/images/landing/login-tecpify.png"
+              alt="Vista de Tecpify con espacio de trabajo, catálogo y pedidos."
+              width={1200}
+              height={1200}
+              priority
+              className="h-auto w-full rounded-[1.3rem] object-cover shadow-[0_28px_70px_rgb(var(--brand-primary-blue-rgb)/0.12)]"
+            />
           </aside>
         </section>
       </div>

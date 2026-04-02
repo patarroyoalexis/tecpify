@@ -39,14 +39,14 @@ export function MetricsOverview() {
           className="rounded-[28px] border border-dashed border-slate-300 bg-white/90 p-6 shadow-[0_18px_45px_rgba(15,23,42,0.04)]"
         >
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">
-            Metricas iniciales
+            Primeras señales
           </p>
           <h2 className="mt-2 text-2xl font-semibold text-slate-950">
-            Aun no tienes pedidos
+            Aún no tienes pedidos
           </h2>
           <p className="mt-2 text-sm leading-6 text-slate-600">
-            Cuando empiecen a entrar pedidos reales, aqui veras solo las señales clave
-            para operar y validar el negocio sin depender de analitica compleja.
+            Cuando entren pedidos reales, aquí verás las señales clave para tomar decisiones sin
+            perder claridad.
           </p>
         </section>
       ) : null}
@@ -78,14 +78,13 @@ export function MetricsOverview() {
         <article className="rounded-[28px] border border-slate-200/80 bg-white p-6 shadow-[0_18px_45px_rgba(15,23,42,0.05)]">
           <div className="flex flex-col gap-2">
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">
-              Lectura operativa
+              Qué revisar ahora
             </p>
             <h2 className="text-2xl font-semibold text-slate-950">
-              Donde enfocarte ahora
+              Dónde enfocarte ahora
             </h2>
             <p className="text-sm leading-6 text-slate-600">
-              Senales cortas construidas sobre pedidos reales del negocio para priorizar
-              cobro, produccion y validacion comercial.
+              Señales breves basadas en pedidos reales para priorizar cobro, preparación y ventas.
             </p>
           </div>
 
@@ -139,14 +138,14 @@ export function MetricsOverview() {
           <div className="flex flex-col gap-2">
             <div>
               <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">
-                Demanda real
+                Lo que más se vende
               </p>
               <h2 className="mt-1 text-2xl font-semibold text-slate-950">
-                Lo que mas se esta moviendo
+                Lo que más se está moviendo
               </h2>
             </div>
             <p className="text-sm leading-6 text-slate-600">
-              Lectura simple de productos que mas salen en pedidos no cancelados.
+              Lectura simple de productos que más salen en pedidos no cancelados.
             </p>
           </div>
 
@@ -182,13 +181,13 @@ export function MetricsOverview() {
                 data-testid="metrics-top-products-empty"
                 className="rounded-[22px] border border-dashed border-slate-300 bg-slate-50 p-5 text-sm text-slate-600"
               >
-                Aun no hay suficiente historial para detectar productos con demanda clara.
+                Aún no hay suficiente historial para detectar productos con demanda clara.
               </div>
             )}
           </div>
 
           <div className="mt-5 rounded-[22px] border border-slate-200 bg-slate-50/80 p-4">
-            <p className="text-sm font-semibold text-slate-950">Referencia de valor</p>
+            <p className="text-sm font-semibold text-slate-950">Ticket promedio</p>
             <p
               data-testid="metrics-average-ticket-value"
               className="mt-2 text-2xl font-semibold tracking-tight text-slate-950"
@@ -197,7 +196,7 @@ export function MetricsOverview() {
             </p>
             <p className="mt-2 text-sm leading-6 text-slate-600">
               Ticket promedio actual sobre pedidos no cancelados que ya cuentan como venta
-              efectiva. Sirve para validar si el volumen viene acompanado de buen valor por pedido.
+              efectiva. Sirve para ver si el volumen viene acompañado de buen valor por pedido.
             </p>
           </div>
         </article>

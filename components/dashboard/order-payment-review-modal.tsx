@@ -53,7 +53,7 @@ export function OrderPaymentReviewModal({
           onClick={(event) => event.stopPropagation()}
         >
           <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
-            Compuerta financiera
+            Revisión de pago
           </p>
           <h2
             id="order-payment-review-modal-title"
@@ -62,7 +62,7 @@ export function OrderPaymentReviewModal({
             Revisar pago
           </h2>
           <p className="mt-2 text-sm leading-6 text-slate-600">
-            El pago se evalua dentro de Nuevo. Solo despues de esta compuerta el pedido puede pasar a Confirmado.
+            Revisa el pago desde este pedido para decidir si puede avanzar a Confirmado.
           </p>
 
           <div className="mt-5">
