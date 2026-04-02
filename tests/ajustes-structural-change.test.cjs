@@ -20,32 +20,18 @@ function createJsonRequest(url, method, body) {
   });
 }
 
-function createOwnedBusinessSummary(overrides = {}) {
-  return {
-    businessId: BUSINESS_ID,
-    businessSlug: "mi-tienda",
-    businessName: "Mi tienda",
-    isActive: true,
-    deactivatedAt: null,
-    updatedAt: "2026-03-25T21:00:00.000Z",
-    createdByUserId: OWNER_ID,
-    ...overrides,
-  };
-}
-
 test("ajustes: DEFAULT_PRIVATE_REDIRECT_PATH es /ajustes", () => {
   assert.equal(DEFAULT_PRIVATE_REDIRECT_PATH, "/ajustes");
 });
 
-test("ajustes: resolvePrivateWorkspaceEntry envia al alta si no hay negocios", async () => {
+test("ajustes: resolvePrivateWorkspaceEntry envia al onboarding si no hay negocios", async () => {
   const resolvePrivateWorkspaceEntry = createResolvePrivateWorkspaceEntry({
     getOwnedBusinessesForUser: async () => [],
   });
 
   const result = await resolvePrivateWorkspaceEntry(OWNER_ID);
-  // CREATE_BUSINESS_ROUTE should be /ajustes/crear-negocio
   assert.equal(result.ownedBusinesses.length, 0);
-  assert.equal(result.entryHref, "/ajustes/crear-negocio");
+  assert.equal(result.entryHref, "/onboarding");
 });
 
 test("ajustes: PATCH /api/businesses permite cambiar el nombre", async () => {

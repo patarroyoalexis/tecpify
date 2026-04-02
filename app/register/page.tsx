@@ -4,7 +4,9 @@ import { AuthPageShell } from "@/components/auth/auth-page-shell";
 import { RegisterForm } from "@/components/auth/register-form";
 import { PublicLayoutShell } from "@/components/layout/public-layout-shell";
 import { getAuthFlowErrorMessage } from "@/lib/auth/google-auth";
-import { getCurrentUser, sanitizePrivateRedirectPath } from "@/lib/auth/server";
+import { resolvePrivateWorkspaceEntryFromCookies } from "@/lib/auth/private-workspace";
+import { getCurrentUser } from "@/lib/auth/server";
+import { sanitizeRedirectPath } from "@/lib/auth/redirect-path";
 
 export default async function RegisterPage({
   searchParams,
@@ -12,12 +14,16 @@ export default async function RegisterPage({
   searchParams: Promise<{ redirectTo?: string; error?: string }>;
 }) {
   const resolvedSearchParams = await searchParams;
-  const redirectTo = sanitizePrivateRedirectPath(resolvedSearchParams.redirectTo);
+  const hasExplicitRedirectTo = resolvedSearchParams.redirectTo !== undefined;
+  const redirectTo = hasExplicitRedirectTo
+    ? sanitizeRedirectPath(resolvedSearchParams.redirectTo, "") || null
+    : null;
   const authErrorMessage = getAuthFlowErrorMessage(resolvedSearchParams.error);
   const operator = await getCurrentUser();
 
   if (operator) {
-    redirect(redirectTo);
+    const workspaceEntry = await resolvePrivateWorkspaceEntryFromCookies(operator.userId);
+    redirect(workspaceEntry.entryHref);
   }
 
   return (
@@ -37,6 +43,7 @@ export default async function RegisterPage({
       >
         <RegisterForm
           redirectTo={redirectTo}
+          hasExplicitRedirectTo={hasExplicitRedirectTo && Boolean(redirectTo)}
           initialError={authErrorMessage}
         />
       </AuthPageShell>

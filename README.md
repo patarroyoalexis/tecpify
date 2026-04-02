@@ -25,7 +25,7 @@ El objetivo actual del MVP es validar, de punta a punta, que un negocio pueda:
 
 Ese es el circuito hoy validado con mayor evidencia automatizada y usa Supabase como base real para auth, datos y reglas de acceso.
 
-La entrada privada canonica vive en `/dashboard` solo como compuerta técnica, no como dashboard general visible: `0 negocios -> /ajustes/crear-negocio`, `1 negocio -> /dashboard/[businessSlug]` y `multiples negocios -> negocio activo resuelto server-side + cambio secundario desde la navbar privada`.
+La entrada privada canonica vive en `/dashboard` solo como compuerta técnica, no como dashboard general visible: `0 negocios -> /onboarding`, `1 negocio -> /dashboard/[businessSlug]` y `multiples negocios -> negocio activo resuelto server-side + cambio secundario desde la navbar privada`.
 
 El login por email/password si forma parte de ese carril oficial. El registro manual permanece accesible solo como carril secundario/no garantizado y no debe venderse como frente cerrado del MVP.
 
@@ -37,7 +37,7 @@ El login por email/password si forma parte de ese carril oficial. El registro ma
 - Los roles validos del sistema quedan tipados y persistidos como `platform_admin`, `business_owner` y `customer`; el MVP actual habilita operativamente `platform_admin` y `business_owner`, mientras `customer` queda reservado en contratos y tipos para evolucion futura.
 - El rol autenticado vive en `public.user_profiles.role` respaldado por el enum `public.app_role`; el runtime no usa strings magicos ni sigue tratando al dueno de negocio como `user`.
 - Proteccion temprana de rutas privadas con `proxy.ts`, conservando `redirectTo` hacia `/login`.
-- Resolucion privada server-first desde `/dashboard`: si no existe un negocio activo configurado se redirige a `/ajustes`.
+- Resolucion privada server-first desde `/dashboard`: si no existe un negocio activo configurado se redirige a `/onboarding`.
 - `/ajustes` es la entrada privada general para administrar la cuenta y los negocios; no mezcla metricas de plataforma.
 - `/dashboard/[businessSlug]` es el workspace operativo del negocio autenticado.
 - `/admin` es el panel interno de plataforma y existe solo para `platform_admin`.

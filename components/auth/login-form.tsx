@@ -17,13 +17,15 @@ import {
 } from "@/components/auth/auth-form-ui";
 
 interface LoginFormProps {
-  redirectTo: string;
+  redirectTo: string | null;
+  hasExplicitRedirectTo: boolean;
   initialError?: string | null;
   googleAuthHref?: string | null;
 }
 
 export function LoginForm({
   redirectTo,
+  hasExplicitRedirectTo,
   initialError = null,
   googleAuthHref = null,
 }: LoginFormProps) {
@@ -36,6 +38,16 @@ export function LoginForm({
   useEffect(() => {
     setError(initialError ?? "");
   }, [initialError]);
+
+  function navigateAfterAuth(destination: string) {
+    if (destination === "/onboarding") {
+      window.location.assign(destination);
+      return;
+    }
+
+    router.push(destination);
+    router.refresh();
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -51,7 +63,8 @@ export function LoginForm({
         body: JSON.stringify({
           email,
           password,
-          redirectTo,
+          redirectTo: hasExplicitRedirectTo ? redirectTo : null,
+          hasExplicitRedirectTo,
         }),
       });
 
@@ -64,8 +77,7 @@ export function LoginForm({
         throw new Error(payload.error ?? "No fue posible iniciar sesión.");
       }
 
-      router.push(payload.redirectTo ?? redirectTo);
-      router.refresh();
+      navigateAfterAuth(payload.redirectTo ?? "/onboarding");
     } catch (loginError) {
       setError(
         loginError instanceof Error
@@ -133,6 +145,7 @@ export function LoginForm({
         ¿Eres nuevo? Empieza por el{" "}
         <Link
           href="/onboarding"
+          prefetch={false}
           className="font-semibold text-brand-primary-blue underline-offset-4 transition hover:text-brand-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--brand-focus-rgb)/0.5)]"
         >
           onboarding rápido
@@ -143,7 +156,11 @@ export function LoginForm({
       <p className="text-sm leading-6 text-brand-text-muted">
         Si necesitas abrir una cuenta nueva, usa el{" "}
         <Link
-          href={`/register?redirectTo=${encodeURIComponent(redirectTo)}`}
+          href={
+            hasExplicitRedirectTo && redirectTo
+              ? `/register?redirectTo=${encodeURIComponent(redirectTo)}`
+              : "/register"
+          }
           data-testid="login-register-secondary-link"
           className="font-semibold text-brand-primary-blue underline-offset-4 transition hover:text-brand-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--brand-focus-rgb)/0.5)]"
         >

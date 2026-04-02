@@ -1,5 +1,16 @@
 import { redirect } from "next/navigation";
 
-export default function DashboardRedirect() {
-  redirect("/ajustes");
+import { resolvePrivateWorkspaceEntryFromCookies } from "@/lib/auth/private-workspace";
+import { getCurrentUser } from "@/lib/auth/server";
+
+export default async function DashboardRedirect() {
+  const operator = await getCurrentUser();
+
+  if (!operator) {
+    redirect("/login?redirectTo=/dashboard");
+  }
+
+  const workspaceEntry = await resolvePrivateWorkspaceEntryFromCookies(operator.userId);
+
+  redirect(workspaceEntry.entryHref);
 }

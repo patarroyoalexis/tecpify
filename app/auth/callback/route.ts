@@ -1,15 +1,24 @@
 import { NextResponse } from "next/server";
 
 import { getGoogleAuthEntryPath, isGoogleAuthEnabled } from "@/lib/auth/google-auth";
+import {
+  isAllowedPostAuthRedirectPath,
+  resolvePrivateWorkspaceEntryFromCookies,
+} from "@/lib/auth/private-workspace";
 import { sanitizePrivateRedirectPath, sanitizeRedirectPath } from "@/lib/auth/server";
 import { getSiteUrl } from "@/lib/site-url";
 import { createServerSupabaseAuthClient } from "@/lib/supabase/server";
 
-function buildRedirectUrl(path: string, searchParams?: Record<string, string>) {
+function buildRedirectUrl(
+  path: string,
+  searchParams?: Record<string, string | null | undefined>,
+) {
   const redirectUrl = new URL(path, getSiteUrl());
 
   for (const [key, value] of Object.entries(searchParams ?? {})) {
-    redirectUrl.searchParams.set(key, value);
+    if (value) {
+      redirectUrl.searchParams.set(key, value);
+    }
   }
 
   return redirectUrl;
@@ -20,6 +29,10 @@ export async function GET(request: Request) {
   const code = requestUrl.searchParams.get("code");
   const tokenHash = requestUrl.searchParams.get("token_hash");
   const type = requestUrl.searchParams.get("type");
+  const hasExplicitNext = requestUrl.searchParams.has("next");
+  const explicitNext = hasExplicitNext
+    ? sanitizeRedirectPath(requestUrl.searchParams.get("next"), "") || null
+    : null;
   const next =
     code || type === "signup"
       ? sanitizePrivateRedirectPath(requestUrl.searchParams.get("next"))
@@ -30,7 +43,7 @@ export async function GET(request: Request) {
     if (!isGoogleAuthEnabled()) {
       return NextResponse.redirect(
         buildRedirectUrl(getGoogleAuthEntryPath(), {
-          redirectTo: next,
+          redirectTo: explicitNext,
           error: "google_auth_unavailable",
         }),
       );
@@ -43,11 +56,17 @@ export async function GET(request: Request) {
         throw new Error(error?.message || "No fue posible confirmar la sesion.");
       }
 
-      return NextResponse.redirect(buildRedirectUrl(next));
+      const workspaceEntry = await resolvePrivateWorkspaceEntryFromCookies(data.user.id);
+      const redirectTo =
+        hasExplicitNext && explicitNext && isAllowedPostAuthRedirectPath(explicitNext)
+          ? explicitNext
+          : workspaceEntry.entryHref;
+
+      return NextResponse.redirect(buildRedirectUrl(redirectTo));
     } catch {
       return NextResponse.redirect(
         buildRedirectUrl(getGoogleAuthEntryPath(), {
-          redirectTo: next,
+          redirectTo: explicitNext,
           error: "auth_callback_failed",
         }),
       );

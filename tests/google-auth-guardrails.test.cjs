@@ -43,7 +43,7 @@ test("google auth: el flag opcional del entorno permanece deshabilitado por defe
       const envModule = loadTsModule("lib/env.ts");
       const googleAuthModule = loadTsModule("lib/auth/google-auth.ts");
       assert.equal(envModule.getOperationalEnv().nextPublicGoogleAuthEnabled, false);
-      assert.equal(googleAuthModule.getGoogleAuthHref({ redirectTo: "/ajustes" }), null);
+      assert.equal(googleAuthModule.getGoogleAuthHref(), null);
     },
   );
 
@@ -55,10 +55,7 @@ test("google auth: el flag opcional del entorno permanece deshabilitado por defe
       const envModule = loadTsModule("lib/env.ts");
       const googleAuthModule = loadTsModule("lib/auth/google-auth.ts");
       assert.equal(envModule.getOperationalEnv().nextPublicGoogleAuthEnabled, true);
-      assert.equal(
-        googleAuthModule.getGoogleAuthHref({ redirectTo: "/ajustes" }),
-        "/api/auth/oauth/google?redirectTo=%2Fajustes",
-      );
+      assert.equal(googleAuthModule.getGoogleAuthHref(), "/api/auth/oauth/google");
     },
   );
 
@@ -79,15 +76,20 @@ test("google auth: el flag opcional del entorno permanece deshabilitado por defe
 test("google auth: el helper mantiene Google acotado a login y sanea redirectTo antes de iniciar OAuth", () => {
   const googleAuthModule = loadTsModule("lib/auth/google-auth.ts");
 
+  assert.equal(googleAuthModule.buildGoogleAuthStartHref(), "/api/auth/oauth/google");
   assert.equal(
-    googleAuthModule.buildGoogleAuthStartHref(),
-    "/api/auth/oauth/google?redirectTo=%2Fajustes",
+    googleAuthModule.buildGoogleAuthStartHref({
+      hasExplicitRedirectTo: true,
+      redirectTo: "https://evil.example.com/steal",
+    }),
+    "/api/auth/oauth/google",
   );
   assert.equal(
     googleAuthModule.buildGoogleAuthStartHref({
-      redirectTo: "https://evil.example.com/steal",
+      hasExplicitRedirectTo: true,
+      redirectTo: "/pedidos/mi-tienda",
     }),
-    "/api/auth/oauth/google?redirectTo=%2Fajustes",
+    "/api/auth/oauth/google?redirectTo=%2Fpedidos%2Fmi-tienda",
   );
   assert.equal(googleAuthModule.getGoogleAuthEntryPath(), "/login");
 });
@@ -95,6 +97,10 @@ test("google auth: el helper mantiene Google acotado a login y sanea redirectTo 
 test("google auth: la nueva frontera runtime inicia Google solo desde cliente anon/SSR normal y lo acota a /login", () => {
   const routeSource = fs.readFileSync(
     path.join(repoRoot, "app", "api", "auth", "oauth", "google", "route.ts"),
+    "utf8",
+  );
+  const callbackSource = fs.readFileSync(
+    path.join(repoRoot, "app", "auth", "callback", "route.ts"),
     "utf8",
   );
 
@@ -120,18 +126,18 @@ test("google auth: la nueva frontera runtime inicia Google solo desde cliente an
   );
   assert.match(
     routeSource,
-    /sanitizePrivateRedirectPath/,
+    /sanitizeRedirectPath/,
     "La frontera runtime debe sanear redirectTo antes de construir el callback OAuth.",
   );
   assert.match(
     routeSource,
-    /getAuthCallbackUrl\(\{\s*next:\s*redirectTo\s*\}\)/,
+    /getAuthCallbackUrl\(\{\s*next:\s*redirectTo\s*\}\)|getAuthCallbackUrl\(\)/,
     "Google OAuth debe reutilizar el callback canonico del auth flow sin abrir una rama paralela de register.",
   );
   assert.match(
-    routeSource,
-    /getGoogleAuthEntryPath/,
-    "Google OAuth debe redirigir de vuelta al acceso secundario de login.",
+    callbackSource,
+    /resolvePrivateWorkspaceEntryFromCookies|resolvePostAuthRedirectPath/,
+    "Google OAuth debe resolver la entrada privada real al volver del provider.",
   );
   assert.doesNotMatch(
     routeSource,

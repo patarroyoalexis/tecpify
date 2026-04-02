@@ -4,26 +4,31 @@ import {
   getGoogleAuthEntryPath,
   isGoogleAuthEnabled,
 } from "@/lib/auth/google-auth";
-import { sanitizePrivateRedirectPath } from "@/lib/auth/redirect-path";
+import { sanitizeRedirectPath } from "@/lib/auth/redirect-path";
 import { getAuthCallbackUrl } from "@/lib/site-url";
 import { createServerSupabaseAuthClient } from "@/lib/supabase/server";
 
 function buildAuthEntryRedirect(
   requestUrl: URL,
   options: {
-    redirectTo: string;
+    redirectTo?: string | null;
     error: string;
   },
 ) {
   const redirectUrl = new URL(getGoogleAuthEntryPath(), requestUrl);
-  redirectUrl.searchParams.set("redirectTo", options.redirectTo);
+  if (options.redirectTo) {
+    redirectUrl.searchParams.set("redirectTo", options.redirectTo);
+  }
   redirectUrl.searchParams.set("error", options.error);
   return redirectUrl;
 }
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
-  const redirectTo = sanitizePrivateRedirectPath(requestUrl.searchParams.get("redirectTo"));
+  const hasExplicitRedirectTo = requestUrl.searchParams.has("redirectTo");
+  const redirectTo = hasExplicitRedirectTo
+    ? sanitizeRedirectPath(requestUrl.searchParams.get("redirectTo"), "") || null
+    : null;
 
   if (!isGoogleAuthEnabled()) {
     return NextResponse.redirect(
@@ -35,12 +40,14 @@ export async function GET(request: Request) {
   }
 
   const supabase = await createServerSupabaseAuthClient();
-
+  const callbackUrl = redirectTo
+    ? getAuthCallbackUrl({ next: redirectTo })
+    : getAuthCallbackUrl();
 
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
     options: {
-      redirectTo: getAuthCallbackUrl({ next: redirectTo }),
+      redirectTo: callbackUrl,
       skipBrowserRedirect: true,
     },
   });
@@ -57,4 +64,3 @@ export async function GET(request: Request) {
 
   return NextResponse.redirect(data.url);
 } 
-

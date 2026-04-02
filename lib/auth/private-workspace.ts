@@ -2,10 +2,19 @@ import { cookies } from "next/headers";
 import type { NextResponse } from "next/server";
 
 import { getOwnedBusinessesForUser } from "@/data/businesses";
+import { sanitizeRedirectPath } from "@/lib/auth/redirect-path";
 import type { OwnedBusinessSummary } from "@/types/businesses";
 
 export const ACTIVE_WORKSPACE_BUSINESS_COOKIE = "tecpify-active-business-slug";
 export const CREATE_BUSINESS_ROUTE = "/ajustes/crear-negocio";
+const ALLOWED_POST_AUTH_REDIRECT_PATH_PREFIXES = [
+  "/admin",
+  "/ajustes",
+  "/dashboard",
+  "/metricas",
+  "/onboarding",
+  "/pedidos",
+];
 
 const ACTIVE_WORKSPACE_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 180;
 
@@ -17,6 +26,14 @@ export interface PrivateWorkspaceEntryResolution {
 
 export function getBusinessDashboardHref(businessSlug: string) {
   return `/dashboard/${businessSlug}`;
+}
+
+export function isAllowedPostAuthRedirectPath(redirectTo: string) {
+  const pathname = redirectTo.split(/[?#]/, 1)[0];
+
+  return ALLOWED_POST_AUTH_REDIRECT_PATH_PREFIXES.some(
+    (allowedPrefix) => pathname === allowedPrefix || pathname.startsWith(`${allowedPrefix}/`),
+  );
 }
 
 export function pickActiveWorkspaceBusiness(
@@ -62,7 +79,7 @@ export function createResolvePrivateWorkspaceEntry(
       activeBusiness,
       entryHref: activeBusiness
         ? getBusinessDashboardHref(activeBusiness.businessSlug)
-        : CREATE_BUSINESS_ROUTE,
+        : "/onboarding",
     };
   };
 }
@@ -75,6 +92,45 @@ export async function resolvePrivateWorkspaceEntryFromCookies(userId: string) {
     preferredBusinessSlug: cookieStore.get(ACTIVE_WORKSPACE_BUSINESS_COOKIE)?.value ?? null,
   });
 }
+
+export function createResolvePostAuthRedirectPath(dependencies: {
+  resolvePrivateWorkspaceEntry?: typeof resolvePrivateWorkspaceEntry;
+} = {}) {
+  const resolveWorkspaceEntry =
+    dependencies.resolvePrivateWorkspaceEntry ?? resolvePrivateWorkspaceEntry;
+
+  return async function resolvePostAuthRedirectPath(
+    userId: string,
+    options: {
+      hasExplicitRedirectTo?: boolean;
+      redirectTo?: string | null | undefined;
+      preferredBusinessSlug?: string | null;
+    } = {},
+  ) {
+    const workspaceEntry = await resolveWorkspaceEntry(userId, {
+      preferredBusinessSlug: options.preferredBusinessSlug ?? null,
+    });
+    const explicitRedirectTo = sanitizeRedirectPath(options.redirectTo, "");
+
+    if (
+      options.hasExplicitRedirectTo &&
+      explicitRedirectTo &&
+      isAllowedPostAuthRedirectPath(explicitRedirectTo)
+    ) {
+      return {
+        workspaceEntry,
+        redirectTo: explicitRedirectTo,
+      };
+    }
+
+    return {
+      workspaceEntry,
+      redirectTo: workspaceEntry.entryHref,
+    };
+  };
+}
+
+export const resolvePostAuthRedirectPath = createResolvePostAuthRedirectPath();
 
 export function persistActiveWorkspaceBusinessCookie(
   response: NextResponse,

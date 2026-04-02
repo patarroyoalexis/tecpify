@@ -1,4 +1,4 @@
-import { sanitizePrivateRedirectPath } from "@/lib/auth/redirect-path";
+import { sanitizeRedirectPath } from "@/lib/auth/redirect-path";
 import { getOperationalEnv } from "@/lib/env";
 
 const GOOGLE_AUTH_START_PATH = "/api/auth/oauth/google";
@@ -9,13 +9,21 @@ export function isGoogleAuthEnabled() {
 }
 
 export function buildGoogleAuthStartHref(options?: {
+  hasExplicitRedirectTo?: boolean;
   redirectTo?: string | null | undefined;
 }) {
-  const searchParams = new URLSearchParams({
-    redirectTo: sanitizePrivateRedirectPath(options?.redirectTo),
-  });
+  const searchParams = new URLSearchParams();
 
-  return `${GOOGLE_AUTH_START_PATH}?${searchParams.toString()}`;
+  if (options?.hasExplicitRedirectTo) {
+    const redirectTo = sanitizeRedirectPath(options.redirectTo, "");
+
+    if (redirectTo) {
+      searchParams.set("redirectTo", redirectTo);
+    }
+  }
+
+  const queryString = searchParams.toString();
+  return queryString ? `${GOOGLE_AUTH_START_PATH}?${queryString}` : GOOGLE_AUTH_START_PATH;
 }
 
 export function getGoogleAuthEntryPath() {
@@ -23,6 +31,7 @@ export function getGoogleAuthEntryPath() {
 }
 
 export function getGoogleAuthHref(options?: {
+  hasExplicitRedirectTo?: boolean;
   redirectTo?: string | null | undefined;
 }) {
   return isGoogleAuthEnabled() ? buildGoogleAuthStartHref(options) : null;

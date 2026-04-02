@@ -12,10 +12,7 @@ const {
   canAccessBusiness,
   hasVerifiedBusinessOwner,
 } = loadTsModule("lib/auth/business-access.ts");
-const {
-  CREATE_BUSINESS_ROUTE,
-  createResolvePrivateWorkspaceEntry,
-} = loadTsModule("lib/auth/private-workspace.ts");
+const { createResolvePrivateWorkspaceEntry } = loadTsModule("lib/auth/private-workspace.ts");
 const { createBusinessesRouteHandlers } = loadTsModule("app/api/businesses/route.ts");
 const { createActiveBusinessRouteHandlers } = loadTsModule(
   "app/api/businesses/active/route.ts",
@@ -171,7 +168,7 @@ test("ownership: un negocio sin created_by_user_id verificable no obtiene acceso
   );
 });
 
-test("workspace privado: 0 negocios owned envia al alta de negocio", async () => {
+test("workspace privado: 0 negocios owned envia al onboarding", async () => {
   const resolvePrivateWorkspaceEntry = createResolvePrivateWorkspaceEntry({
     getOwnedBusinessesForUser: async () => [],
   });
@@ -180,7 +177,7 @@ test("workspace privado: 0 negocios owned envia al alta de negocio", async () =>
 
   assert.deepEqual(result.ownedBusinesses, []);
   assert.equal(result.activeBusiness, null);
-  assert.equal(result.entryHref, CREATE_BUSINESS_ROUTE);
+  assert.equal(result.entryHref, "/onboarding");
 });
 
 test("workspace privado: 1 negocio owned entra directo a su dashboard", async () => {

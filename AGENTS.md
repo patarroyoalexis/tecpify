@@ -29,7 +29,7 @@ Este archivo es el contrato operativo de consistencia del MVP. Su funcion no es 
 ### Invariantes adicionales
 
 - La administracion centralizada de la cuenta y los negocios vive en `/ajustes`; no mezcla metricas de plataforma.
-- `/dashboard` redirige a `/ajustes` o resuelve directo al workspace del negocio activo si corresponde.
+- `/dashboard` redirige a `/onboarding` cuando no hay negocio activo o resuelve directo al workspace del negocio activo si corresponde.
 - `/ajustes` permite listar negocios, crear nuevos, editar nombres, desactivar negocios (logicamente) y gestionar el perfil de usuario.
 - Un negocio desactivado no es operable publicamente ni aparece como opcion activa, pero conserva sus pedidos e historicos.
 - `/admin` es el panel interno de plataforma y existe solo para `platform_admin`.

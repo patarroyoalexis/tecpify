@@ -16,12 +16,14 @@ import {
 } from "@/components/auth/auth-form-ui";
 
 interface RegisterFormProps {
-  redirectTo: string;
+  redirectTo: string | null;
+  hasExplicitRedirectTo: boolean;
   initialError?: string | null;
 }
 
 export function RegisterForm({
   redirectTo,
+  hasExplicitRedirectTo,
   initialError = null,
 }: RegisterFormProps) {
   const router = useRouter();
@@ -36,6 +38,16 @@ export function RegisterForm({
     setError(initialError ?? "");
     setSuccessMessage("");
   }, [initialError]);
+
+  function navigateAfterAuth(destination: string) {
+    if (destination === "/onboarding") {
+      window.location.assign(destination);
+      return;
+    }
+
+    router.push(destination);
+    router.refresh();
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -58,7 +70,8 @@ export function RegisterForm({
         body: JSON.stringify({
           email,
           password,
-          redirectTo,
+          redirectTo: hasExplicitRedirectTo ? redirectTo : null,
+          hasExplicitRedirectTo,
         }),
       });
 
@@ -81,8 +94,7 @@ export function RegisterForm({
         return;
       }
 
-      router.push(payload.redirectTo ?? redirectTo);
-      router.refresh();
+      navigateAfterAuth(payload.redirectTo ?? "/onboarding");
     } catch (registerError) {
       setError(
         registerError instanceof Error
@@ -150,7 +162,11 @@ export function RegisterForm({
       <p className="text-sm leading-6 text-brand-text-muted">
         Si ya tienes una cuenta activa,{" "}
         <Link
-          href={`/login?redirectTo=${encodeURIComponent(redirectTo)}`}
+          href={
+            hasExplicitRedirectTo && redirectTo
+              ? `/login?redirectTo=${encodeURIComponent(redirectTo)}`
+              : "/login"
+          }
           className="font-semibold text-brand-primary-green underline-offset-4 transition hover:text-brand-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--brand-focus-rgb)/0.5)]"
         >
           inicia sesión

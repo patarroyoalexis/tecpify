@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 
 import { authenticateOperatorCredentials } from "@/lib/auth/operator-auth";
-import { sanitizePrivateRedirectPath } from "@/lib/auth/server";
+import { resolvePostAuthRedirectPath } from "@/lib/auth/private-workspace";
 
 interface LoginPayload {
   email: string;
   password: string;
   redirectTo?: string;
+  hasExplicitRedirectTo?: boolean;
 }
 
 function isValidLoginPayload(payload: unknown): payload is LoginPayload {
@@ -40,7 +41,7 @@ export async function POST(request: Request) {
 
   const email = payload.email.trim().toLowerCase();
   const password = payload.password;
-  const redirectTo = sanitizePrivateRedirectPath(payload.redirectTo);
+  const hasExplicitRedirectTo = payload.hasExplicitRedirectTo === true;
 
   if (!email || !password) {
     return NextResponse.json(
@@ -51,11 +52,15 @@ export async function POST(request: Request) {
 
   try {
     const identity = await authenticateOperatorCredentials(email, password);
+    const resolvedRedirect = await resolvePostAuthRedirectPath(identity.user.id, {
+      hasExplicitRedirectTo,
+      redirectTo: payload.redirectTo,
+    });
 
     return NextResponse.json(
       {
         ok: true,
-        redirectTo,
+        redirectTo: resolvedRedirect.redirectTo,
         operator: {
           id: identity.user.id,
           email: identity.user.email ?? email,

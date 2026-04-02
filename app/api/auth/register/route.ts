@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 
 import { registerOperatorCredentials } from "@/lib/auth/operator-auth";
-import { sanitizePrivateRedirectPath } from "@/lib/auth/server";
+import { resolvePostAuthRedirectPath } from "@/lib/auth/private-workspace";
 
 interface RegisterPayload {
   email: string;
   password: string;
   redirectTo?: string;
+  hasExplicitRedirectTo?: boolean;
 }
 
 function isValidRegisterPayload(payload: unknown): payload is RegisterPayload {
@@ -40,7 +41,7 @@ export async function POST(request: Request) {
 
   const email = payload.email.trim().toLowerCase();
   const password = payload.password;
-  const redirectTo = sanitizePrivateRedirectPath(payload.redirectTo);
+  const hasExplicitRedirectTo = payload.hasExplicitRedirectTo === true;
 
   if (!email || !password) {
     return NextResponse.json(
@@ -60,7 +61,7 @@ export async function POST(request: Request) {
 
   try {
     identity = await registerOperatorCredentials(email, password, {
-      redirectTo,
+      redirectTo: hasExplicitRedirectTo ? payload.redirectTo : null,
     });
   } catch (error) {
     return NextResponse.json(
@@ -73,10 +74,15 @@ export async function POST(request: Request) {
   }
 
   if (identity.hasSupabaseSession && identity.user.id) {
+    const resolvedRedirect = await resolvePostAuthRedirectPath(identity.user.id, {
+      hasExplicitRedirectTo,
+      redirectTo: payload.redirectTo,
+    });
+
     return NextResponse.json(
       {
         ok: true,
-        redirectTo,
+        redirectTo: resolvedRedirect.redirectTo,
         operator: {
           id: identity.user.id,
           email: identity.user.email ?? email,
