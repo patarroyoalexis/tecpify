@@ -16,6 +16,7 @@ test("auth redirect: prioridad final respetada entre redirectTo explicito y entr
               businessId: "biz-1",
               businessSlug: "mi-tienda",
               businessName: "Mi tienda",
+              isActive: true,
               updatedAt: "2026-04-02T10:00:00.000Z",
               createdByUserId: userId,
             },
@@ -24,10 +25,28 @@ test("auth redirect: prioridad final respetada entre redirectTo explicito y entr
             businessId: "biz-1",
             businessSlug: "mi-tienda",
             businessName: "Mi tienda",
+            isActive: true,
             updatedAt: "2026-04-02T10:00:00.000Z",
             createdByUserId: userId,
           },
           entryHref: "/dashboard/mi-tienda",
+        };
+      }
+
+      if (userId === "archived-only") {
+        return {
+          ownedBusinesses: [
+            {
+              businessId: "biz-archived",
+              businessSlug: "mi-tienda-archivada",
+              businessName: "Mi tienda archivada",
+              isActive: false,
+              updatedAt: "2026-04-02T09:00:00.000Z",
+              createdByUserId: userId,
+            },
+          ],
+          activeBusiness: null,
+          entryHref: "/onboarding",
         };
       }
 
@@ -60,4 +79,9 @@ test("auth redirect: prioridad final respetada entre redirectTo explicito y entr
     redirectTo: "/ajustes",
   });
   assert.equal(implicitWithoutBusiness.redirectTo, "/onboarding");
+
+  const archivedOnlyBusiness = await resolvePostAuthRedirectPath("archived-only", {
+    redirectTo: "/ajustes",
+  });
+  assert.equal(archivedOnlyBusiness.redirectTo, "/onboarding");
 });

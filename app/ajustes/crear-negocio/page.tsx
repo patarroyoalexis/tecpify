@@ -1,14 +1,12 @@
 import Link from "next/link";
 
+import { BackButton } from "@/components/layout/back-button";
 import { CreateBusinessPanel } from "@/components/home/create-business-panel";
 import { WorkspaceLayoutShell } from "@/components/layout/workspace-layout-shell";
+import { resolvePrivateWorkspaceEntryFromCookies } from "@/lib/auth/private-workspace";
 import { isPlatformAdminRole } from "@/lib/auth/roles";
-import {
-  getBusinessDashboardHref,
-  resolvePrivateWorkspaceEntryFromCookies,
-} from "@/lib/auth/private-workspace";
 import { requireBusinessOperatorUser } from "@/lib/auth/server";
-import { BackButton } from "@/components/layout/back-button";
+import { getBusinessDashboardHref } from "@/lib/auth/private-workspace";
 
 function renderUnsupportedDashboardRole() {
   return (
@@ -19,7 +17,7 @@ function renderUnsupportedDashboardRole() {
             Rol sin acceso operativo
           </p>
           <h1 className="mt-3 text-3xl font-semibold text-slate-950">
-            Esta cuenta no puede operar negocios todavía
+            Esta cuenta no puede operar negocios todavia
           </h1>
           <p className="mt-3 text-sm leading-6 text-slate-600">
             Solo las cuentas operativas pueden crear y administrar negocios desde esta vista.
@@ -40,18 +38,18 @@ export default async function CreateBusinessPage() {
 
   const workspaceEntry = await resolvePrivateWorkspaceEntryFromCookies(operator.userId);
   const activeBusiness = workspaceEntry.activeBusiness;
-  const hasExistingBusinesses = workspaceEntry.ownedBusinesses.length > 0;
+  const hasActiveBusinesses = workspaceEntry.ownedBusinesses.some((business) => business.isActive);
 
   return (
     <WorkspaceLayoutShell
       businessName={activeBusiness?.businessName ?? "Crear negocio"}
       operatorEmail={operator.email ?? null}
       adminHref={isPlatformAdminRole(operator.role) ? "/admin" : null}
-      title={hasExistingBusinesses ? "Añadir otro negocio" : "Crea tu primer negocio"}
+      title={hasActiveBusinesses ? "Anadir otro negocio" : "Crea tu negocio"}
       description={
-        hasExistingBusinesses
+        hasActiveBusinesses
           ? "Esta vista te ayuda a sumar otro negocio cuando lo necesites. Tu negocio activo sigue siendo la entrada principal."
-          : "Cuando guardes el primer negocio, entrarás directo a su espacio de trabajo para seguir con productos y pedidos."
+          : "Cuando guardes el negocio, entraras directo a su espacio de trabajo para seguir con productos y pedidos."
       }
       workspaceBusinesses={workspaceEntry.ownedBusinesses}
       workspaceCurrentBusinessSlug={activeBusiness?.businessSlug}
@@ -60,7 +58,7 @@ export default async function CreateBusinessPage() {
           ? getBusinessDashboardHref(activeBusiness.businessSlug)
           : "/ajustes/crear-negocio"
       }
-      workspaceCreateBusinessHref={hasExistingBusinesses ? "/ajustes/crear-negocio" : undefined}
+      workspaceCreateBusinessHref={hasActiveBusinesses ? "/ajustes/crear-negocio" : undefined}
       showFooter={false}
     >
       <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
@@ -69,14 +67,14 @@ export default async function CreateBusinessPage() {
             Entrada privada
           </p>
           <h2 className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">
-            {hasExistingBusinesses
-              ? "Añade otro negocio sin salir del trabajo diario"
+            {hasActiveBusinesses
+              ? "Anade otro negocio sin salir del trabajo diario"
               : "Crea tu negocio para empezar a operar"}
           </h2>
           <p className="mt-3 text-sm leading-6 text-slate-600">
-            {hasExistingBusinesses
+            {hasActiveBusinesses
               ? "Esta vista te ayuda a sumar otro negocio cuando lo necesites. Tu negocio activo sigue siendo la entrada principal."
-              : "Cuando guardes el primer negocio, entrarás directo a su espacio de trabajo para seguir con productos y pedidos."}
+              : "Cuando guardes el negocio, entraras directo a su espacio de trabajo para seguir con productos y pedidos."}
           </p>
 
           <div className="mt-5 space-y-3 rounded-[24px] border border-slate-200 bg-slate-50/80 p-4">
@@ -85,10 +83,11 @@ export default async function CreateBusinessPage() {
                 Regla del MVP
               </p>
               <p className="mt-2 text-sm font-semibold text-slate-950">
-                Sin negocio, primero toca crear uno
+                Sin negocio activo, primero toca crear uno
               </p>
               <p className="mt-1 text-sm leading-6 text-slate-600">
-                Si la sesión todavía no tiene negocios, esta pantalla te guía para crear el primero.
+                Si la sesion ya no tiene negocios activos, esta pantalla te guia para crear el
+                siguiente.
               </p>
             </div>
 
@@ -100,7 +99,7 @@ export default async function CreateBusinessPage() {
                 Cambia desde la barra privada
               </p>
               <p className="mt-1 text-sm leading-6 text-slate-600">
-                Si operas más de un negocio, puedes alternar entre ellos sin perder el contexto.
+                Si operas mas de un negocio, puedes alternar entre ellos sin perder el contexto.
               </p>
             </div>
 

@@ -192,6 +192,7 @@ test("documentacion: las afirmaciones contractuales siguen alineadas con el codi
   const serviceRoleClientSource = readFile("lib/supabase/internal/service-role-client.ts");
   const businessesDataSource = readFile("data/businesses.ts");
   const businessAccessSource = readFile("lib/auth/business-access.ts");
+  const privateWorkspaceSource = readFile("lib/auth/private-workspace.ts");
   const operationalHomeSource = readFile("components/home/operational-home.tsx");
   const legacyBusinessAccessSource = readFile("lib/auth/legacy-business-access.ts");
   const privateBusinessPagesSource = readFile("lib/page-contracts/private-business-pages.ts");
@@ -221,6 +222,12 @@ test("documentacion: las afirmaciones contractuales siguen alineadas con el codi
   );
   const productDeleteMigrationSource = getLatestMigrationSourceByPattern(
     /create(?:\s+or\s+replace)?\s+function\s+public\.products_block_delete_when_referenced_by_orders/i,
+  );
+  const businessArchiveSlugMigrationSource = getLatestMigrationSourceByPattern(
+    /create\s+unique\s+index\s+if\s+not\s+exists\s+businesses_active_slug_unique_idx|drop\s+constraint\s+if\s+exists\s+businesses_slug_key/i,
+  );
+  const businessArchiveReactivationMigrationSource = getLatestMigrationSourceByPattern(
+    /revoke\s+execute\s+on\s+function\s+public\.reactivate_business\(text\)\s+from\s+authenticated/i,
   );
   const legacyOwnerlessSqlClosureState = getLegacyOwnerlessSqlClosureState();
 
@@ -365,6 +372,41 @@ test("documentacion: las afirmaciones contractuales siguen alineadas con el codi
     "AGENTS.md no puede seguir describiendo el veto de borrado historico como un frente abierto.",
   );
   assert.match(
+    readmeSource,
+    /baja de negocio es logica[\s\S]*public\.businesses\.is_active[\s\S]*deactivated_at[\s\S]*businessId/i,
+    "README.md debe documentar que dar de baja un negocio es archivar la fila real sin perder identidad.",
+  );
+  assert.match(
+    agentsSource,
+    /public\.businesses\.is_active[\s\S]*deactivated_at[\s\S]*negocio vigente e historico/i,
+    "AGENTS.md debe fijar el contrato real entre negocio activo y negocio historico.",
+  );
+  assert.match(
+    readmeSource,
+    /0 negocios activos -> \/onboarding/i,
+    "README.md debe documentar que la redireccion privada se resuelve por negocios activos y no por cualquier negocio existente.",
+  );
+  assert.match(
+    agentsSource,
+    /si un usuario no tiene negocios activos[\s\S]*\/onboarding/i,
+    "AGENTS.md debe documentar que un owner con solo negocios archivados vuelve a onboarding.",
+  );
+  assert.match(
+    readmeSource,
+    /unicidad publica del `businessSlug` aplica solo sobre negocios activos/i,
+    "README.md debe documentar que archivar libera el slug publico para una nueva entidad activa.",
+  );
+  assert.match(
+    agentsSource,
+    /unicidad publica de `businessSlug` aplica solo entre negocios activos/i,
+    "AGENTS.md debe documentar que el slug se libera sin borrar la entidad archivada.",
+  );
+  assert.match(
+    readmeSource,
+    /nuevo `businessId`/i,
+    "README.md debe dejar explicito que crear despues de archivar genera una nueva entidad con nuevo businessId.",
+  );
+  assert.match(
     productDeleteMigrationSource,
     /create trigger products_block_delete_when_referenced_by_orders/i,
     "Las docs no pueden declarar cerrado el veto de borrado historico si la migracion efectiva no cablea el trigger en DB.",
@@ -414,6 +456,51 @@ test("documentacion: las afirmaciones contractuales siguen alineadas con el codi
     businessAccessSource,
     FORBIDDEN_RUNTIME_OWNERSHIP_ALIAS_PATTERN,
     "La capa de acceso no debe conservar aliases paralelos de ownership.",
+  );
+  assert.match(
+    businessesApiSource,
+    /rpc\("deactivate_business"/,
+    "La baja de negocio debe ejecutarse por la funcion SQL controlada y no por un delete fisico desde runtime.",
+  );
+  assert.match(
+    privateWorkspaceSource,
+    /const activeOwnedBusinesses = ownedBusinesses\.filter\(\(business\) => business\.isActive\)/,
+    "La resolucion post-auth debe elegir solo negocios activos para construir la entrada privada.",
+  );
+  assert.match(
+    privateWorkspaceSource,
+    /entryHref:\s*activeBusiness\s*\?\s*getBusinessDashboardHref\(activeBusiness\.businessSlug\)\s*:\s*"\/onboarding"/,
+    "La entrada privada debe caer a onboarding cuando no quedan negocios activos.",
+  );
+  assert.match(
+    businessAccessSource,
+    /\.eq\("is_active",\s*true\)/,
+    "La capa de acceso privada debe excluir negocios archivados desde la consulta autentificada.",
+  );
+  assert.match(
+    businessesDataSource,
+    /\.eq\("is_active",\s*true\)/,
+    "La capa de datos publica debe excluir negocios archivados del storefront y de las superficies operativas activas.",
+  );
+  assert.match(
+    businessesDataSource,
+    /business\.isActive === true[\s\S]*business\.createdByUserId === operatorUserId/i,
+    "La home operativa solo debe contar negocios activos del owner autenticado.",
+  );
+  assert.match(
+    businessArchiveSlugMigrationSource,
+    /drop\s+constraint\s+if\s+exists\s+businesses_slug_key/i,
+    "La migracion efectiva debe retirar la constraint global heredada para que el slug archivado vuelva a estar disponible.",
+  );
+  assert.match(
+    businessArchiveSlugMigrationSource,
+    /create\s+unique\s+index\s+if\s+not\s+exists\s+businesses_active_slug_unique_idx[\s\S]*on\s+public\.businesses\s*\(slug\)\s*where\s+is_active\s*=\s*true/i,
+    "La migracion efectiva debe mover la unicidad del slug al subconjunto de negocios activos.",
+  );
+  assert.match(
+    businessArchiveReactivationMigrationSource,
+    /revoke\s+execute\s+on\s+function\s+public\.reactivate_business\(text\)\s+from\s+authenticated/i,
+    "La migracion efectiva no debe dejar reactivacion runtime abierta para reciclar entidades archivadas.",
   );
   assert.match(
     businessesApiSource,

@@ -128,6 +128,13 @@ export interface OwnedBusinessResourceIds {
   orderId: string;
 }
 
+export interface SettingsBusinessCardRecord {
+  businessId: string;
+  businessSlug: string;
+  businessName: string;
+  state: "active" | "inactive";
+}
+
 function isPrivateProductsApiPayload(
   payload: SessionApiAttempt<PrivateProductsApiPayload>["payload"],
 ): payload is PrivateProductsApiPayload {
@@ -223,25 +230,54 @@ export function createCriticalFlowScenario(): CriticalFlowScenario {
   };
 }
 
-export async function loginThroughUi(page: Page, credentials: TestUserCredentials) {
-  await page.goto("/login?redirectTo=/dashboard");
+export async function loginThroughUiExpectPath(
+  page: Page,
+  credentials: TestUserCredentials,
+  options: {
+    redirectTo: string;
+    expectedPathname: RegExp | string;
+    rejectPathname?: string;
+  },
+) {
+  const navigationTimeoutMs = 20_000;
+
+  await page.goto(`/login?redirectTo=${encodeURIComponent(options.redirectTo)}`);
   await expect(page.getByTestId("login-form")).toBeVisible();
 
   await page.getByTestId("login-email-input").fill(credentials.email);
   await page.getByTestId("login-password-input").fill(credentials.password);
   await page.getByTestId("login-submit-button").click();
 
-  await expect
-    .poll(() => new URL(page.url()).pathname)
-    .toMatch(/^\/dashboard(?:\/[^/]+)?$/);
-  await expect
-    .poll(() => new URL(page.url()).pathname)
-    .not.toBe("/dashboard");
+  if (options.expectedPathname instanceof RegExp) {
+    await expect
+      .poll(() => new URL(page.url()).pathname, { timeout: navigationTimeoutMs })
+      .toMatch(options.expectedPathname);
+  } else {
+    await expect
+      .poll(() => new URL(page.url()).pathname, { timeout: navigationTimeoutMs })
+      .toBe(options.expectedPathname);
+  }
+
+  if (options.rejectPathname) {
+    await expect
+      .poll(() => new URL(page.url()).pathname, { timeout: navigationTimeoutMs })
+      .not.toBe(options.rejectPathname);
+  }
+}
+
+export async function loginThroughUi(page: Page, credentials: TestUserCredentials) {
+  await loginThroughUiExpectPath(page, credentials, {
+    redirectTo: "/dashboard",
+    expectedPathname: /^\/dashboard(?:\/[^/]+)?$/,
+    rejectPathname: "/dashboard",
+  });
 }
 
 export async function logoutThroughUi(page: Page) {
-  await expect(page.getByTestId("logout-button")).toBeVisible();
-  await page.getByTestId("logout-button").click();
+  const visibleLogoutButton = page.locator('[data-testid="logout-button"]:visible').first();
+
+  await expect(visibleLogoutButton).toBeVisible();
+  await visibleLogoutButton.click();
   await page.waitForURL((url) => url.pathname === "/login");
   await expect(page.getByTestId("login-form")).toBeVisible();
 }
@@ -250,6 +286,12 @@ export async function goToCreateBusinessFlow(page: Page) {
   await page.goto("/ajustes/crear-negocio");
   await expect(page).toHaveURL(/\/ajustes\/crear-negocio$/);
   await expect(page.getByTestId("create-business-panel")).toBeVisible();
+}
+
+export async function goToSettingsPage(page: Page) {
+  await page.goto("/ajustes");
+  await expect(page).toHaveURL(/\/ajustes$/);
+  await expect(page.getByRole("heading", { name: "Mis negocios" })).toBeVisible();
 }
 
 export async function createBusinessFromWorkspace(
@@ -266,6 +308,39 @@ export async function createBusinessFromWorkspace(
   );
   await expect(page.getByTestId("products-management-drawer")).toBeVisible();
   await expect(page.getByTestId("product-form")).toBeVisible();
+}
+
+export async function createBusinessFromOnboarding(
+  page: Page,
+  scenario: CriticalFlowScenario,
+  options?: { businessType?: string },
+) {
+  const businessType = options?.businessType ?? "Tienda / Retail";
+
+  await expect(page).toHaveURL(/\/onboarding$/);
+  await expect(page.getByTestId("onboarding-flow")).toBeVisible();
+  await page.waitForTimeout(1_500);
+  await page.getByTestId("onboarding-business-name-input").fill(scenario.businessName);
+  await expect(
+    page.getByRole("heading", { level: 3, name: "Tu negocio va tomando forma" }),
+  ).toBeVisible();
+  await page
+    .getByTestId("onboarding-business-type-select")
+    .selectOption({ label: businessType });
+  await expect(page.getByTestId("onboarding-business-type-select")).toHaveValue(businessType);
+  await expect(
+    page.getByRole("heading", { level: 3, name: "Ya tienes lo esencial" }),
+  ).toBeVisible();
+  await page.getByTestId("onboarding-product-name-input-0").fill(scenario.productName);
+  await page
+    .getByTestId("onboarding-product-price-input-0")
+    .fill(`${scenario.productPrice}`);
+  await expect(
+    page.getByRole("heading", { level: 3, name: "Todo listo para publicar" }),
+  ).toBeVisible();
+  await expect(page.getByTestId("onboarding-publish-button")).toBeEnabled();
+  await page.getByTestId("onboarding-publish-button").click();
+  await page.waitForURL(new RegExp(`/dashboard/${scenario.businessSlug}$`));
 }
 
 export async function switchBusinessFromNavbar(
@@ -334,6 +409,13 @@ export async function openPublicStorefront(
   );
 }
 
+export async function expectStorefrontBusinessNotFound(page: Page, businessSlug: string) {
+  await page.goto(`/pedido/${businessSlug}`);
+  await expect(page).toHaveURL(new RegExp(`/pedido/${businessSlug}$`));
+  await expect(page.getByTestId("storefront-business-not-found")).toBeVisible();
+  await expect(page.getByTestId("storefront-order-wizard")).toHaveCount(0);
+}
+
 export async function createOrderFromPublicStorefront(
   page: Page,
   scenario: CriticalFlowScenario,
@@ -351,7 +433,9 @@ export async function createOrderFromPublicStorefront(
   await inlineProducts.getByRole("button", { name: `Sumar ${scenario.productName}` }).click();
   await page.getByTestId("storefront-customer-phone-input").fill(customerPhone);
   await page.getByTestId("storefront-customer-name-input").fill(customerName);
-  await page.getByTestId("storefront-delivery-type-select").selectOption(deliveryType);
+  await page
+    .getByTestId(`storefront-delivery-option-${deliveryType === "domicilio" ? "domicilio" : "recogida-en-tienda"}`)
+    .click();
 
   if (deliveryType === "domicilio") {
     await page
@@ -359,7 +443,9 @@ export async function createOrderFromPublicStorefront(
       .fill(options?.deliveryAddress ?? "Calle 10 # 20-30");
   }
 
-  await page.getByTestId("storefront-payment-method-select").selectOption(paymentMethod);
+  await page
+    .getByTestId(`storefront-payment-option-${paymentMethod.toLowerCase().replace(/[^\w]+/g, "-")}`)
+    .click();
 
   if (options?.notes) {
     await page.getByTestId("storefront-order-notes-input").fill(options.notes);
@@ -540,6 +626,79 @@ export async function updateBusinessSettingsThroughPrivateApi(
     path: "/api/businesses",
     body: payload,
   });
+}
+
+export async function readBusinessCardsFromSettings(
+  page: Page,
+): Promise<SettingsBusinessCardRecord[]> {
+  return page.evaluate(() => {
+    const readCards = (
+      selector: string,
+      state: "active" | "inactive",
+    ): SettingsBusinessCardRecord[] => {
+      return Array.from(document.querySelectorAll<HTMLElement>(selector)).map((element) => ({
+        businessId: element.dataset.businessId ?? "",
+        businessSlug: element.dataset.businessSlug ?? "",
+        businessName:
+          element.querySelector("h3")?.textContent?.trim() ?? "",
+        state,
+      }));
+    };
+
+    return [
+      ...readCards('[data-testid^="business-settings-active-card-"]', "active"),
+      ...readCards('[data-testid^="business-settings-inactive-card-"]', "inactive"),
+    ].filter((card) => card.businessId.length > 0 && card.businessSlug.length > 0);
+  });
+}
+
+export async function archiveBusinessFromSettings(page: Page, businessId: string) {
+  const archiveButton = page.getByTestId(`business-settings-archive-button-${businessId}`);
+
+  await expect(archiveButton).toBeVisible();
+  page.once("dialog", (dialog) => dialog.accept());
+  const archiveRequest = page.waitForResponse(
+    (response) =>
+      response.url().includes("/api/businesses") &&
+      response.request().method() === "DELETE",
+  );
+  await archiveButton.click();
+
+  const archiveResponse = await archiveRequest;
+  expect(archiveResponse.ok()).toBe(true);
+
+  await expect
+    .poll(async () => {
+      const cards = await readBusinessCardsFromSettings(page);
+      return {
+        isStillActive: cards.some(
+          (card) => card.businessId === businessId && card.state === "active",
+        ),
+        isArchived: cards.some(
+          (card) => card.businessId === businessId && card.state === "inactive",
+        ),
+      };
+    })
+    .toEqual({
+      isStillActive: false,
+      isArchived: true,
+    });
+}
+
+export async function archiveAllActiveBusinessesFromSettings(page: Page) {
+  await goToSettingsPage(page);
+
+  while (true) {
+    const cards = await readBusinessCardsFromSettings(page);
+    const activeCard = cards.find((card) => card.state === "active");
+
+    if (!activeCard) {
+      return;
+    }
+
+    await archiveBusinessFromSettings(page, activeCard.businessId);
+    await goToSettingsPage(page);
+  }
 }
 
 export async function waitForProductInPrivateApi(

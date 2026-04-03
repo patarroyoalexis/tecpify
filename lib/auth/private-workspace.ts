@@ -40,12 +40,14 @@ export function pickActiveWorkspaceBusiness(
   ownedBusinesses: OwnedBusinessSummary[],
   preferredBusinessSlug?: string | null,
 ) {
-  if (ownedBusinesses.length === 0) {
+  const activeOwnedBusinesses = ownedBusinesses.filter((business) => business.isActive);
+
+  if (activeOwnedBusinesses.length === 0) {
     return null;
   }
 
   if (preferredBusinessSlug) {
-    const preferredBusiness = ownedBusinesses.find(
+    const preferredBusiness = activeOwnedBusinesses.find(
       (business) => business.businessSlug === preferredBusinessSlug,
     );
 
@@ -54,7 +56,7 @@ export function pickActiveWorkspaceBusiness(
     }
   }
 
-  return ownedBusinesses[0] ?? null;
+  return activeOwnedBusinesses[0] ?? null;
 }
 
 export function createResolvePrivateWorkspaceEntry(

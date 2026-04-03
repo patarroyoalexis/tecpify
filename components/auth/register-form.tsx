@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
 import {
   LockKeyhole,
   Mail,
@@ -26,7 +25,6 @@ export function RegisterForm({
   hasExplicitRedirectTo,
   initialError = null,
 }: RegisterFormProps) {
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -40,13 +38,7 @@ export function RegisterForm({
   }, [initialError]);
 
   function navigateAfterAuth(destination: string) {
-    if (destination === "/onboarding") {
-      window.location.assign(destination);
-      return;
-    }
-
-    router.push(destination);
-    router.refresh();
+    window.location.assign(destination);
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -112,8 +104,7 @@ export function RegisterForm({
         data-testid="register-secondary-warning"
         className="rounded-[1.35rem] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
       >
-        Este registro manual está disponible como alternativa. Puede requerir confirmar el correo
-        antes de dejar la cuenta lista para entrar.
+        Este registro manual esta disponible como alternativa. Google, si existe, se intenta solo desde /login y este carril puede requerir confirmar el correo antes de dejar la cuenta lista para entrar.
       </div>
 
       <AuthInputField
@@ -156,7 +147,7 @@ export function RegisterForm({
         dataTestId="register-submit-button"
         variant="register"
       >
-        {isSubmitting ? "Creando cuenta..." : "Crear cuenta"}
+        {isSubmitting ? "Creando cuenta..." : "Intentar registro manual"}
       </AuthPrimaryButton>
 
       <p className="text-sm leading-6 text-brand-text-muted">

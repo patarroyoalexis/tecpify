@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
 import {
   LockKeyhole,
   Mail,
@@ -29,7 +28,6 @@ export function LoginForm({
   initialError = null,
   googleAuthHref = null,
 }: LoginFormProps) {
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState(initialError ?? "");
@@ -40,13 +38,7 @@ export function LoginForm({
   }, [initialError]);
 
   function navigateAfterAuth(destination: string) {
-    if (destination === "/onboarding") {
-      window.location.assign(destination);
-      return;
-    }
-
-    router.push(destination);
-    router.refresh();
+    window.location.assign(destination);
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -166,7 +158,7 @@ export function LoginForm({
         >
           registro manual
         </Link>
-        .
+        {" "}como carril secundario.
       </p>
     </form>
   );

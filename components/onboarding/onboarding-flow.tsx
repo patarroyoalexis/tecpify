@@ -428,7 +428,10 @@ export function OnboardingFlow() {
   };
 
   return (
-    <div className={`mx-auto max-w-7xl px-4 pt-6 sm:px-6 sm:pt-8 lg:h-full lg:min-h-0 lg:px-0 lg:pt-0 ${mobileContentPaddingBottom}`}>
+    <div
+      className={`mx-auto max-w-7xl px-4 pt-6 sm:px-6 sm:pt-8 lg:h-full lg:min-h-0 lg:px-0 lg:pt-0 ${mobileContentPaddingBottom}`}
+      data-testid="onboarding-flow"
+    >
       {/* Layout Responsivo: 1 col en movil, 3 cols en desktop */}
       <div className="grid gap-6 lg:h-full lg:min-h-0 lg:grid-cols-[0.95fr_minmax(0,1.38fr)_0.9fr] xl:gap-8">
         
@@ -477,6 +480,7 @@ export function OnboardingFlow() {
                 </label>
                 <input
                   id="businessName"
+                  data-testid="onboarding-business-name-input"
                   ref={businessNameInputRef}
                   type="text"
                   placeholder="Ej: Pastelería Doña Rosa"
@@ -493,6 +497,7 @@ export function OnboardingFlow() {
                 </label>
                 <select
                   id="businessType"
+                  data-testid="onboarding-business-type-select"
                   ref={businessTypeSelectRef}
                   className="h-12 w-full appearance-none rounded-xl border border-slate-200 bg-slate-50 px-4 text-slate-900 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
                   value={businessType}
@@ -528,6 +533,7 @@ export function OnboardingFlow() {
                       <Package className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                       <input
                         id={index === 0 ? "productName-0" : undefined}
+                        data-testid={`onboarding-product-name-input-${index}`}
                         ref={index === 0 ? productNameInputRef : undefined}
                         type="text"
                         placeholder="Nombre del producto"
@@ -546,6 +552,7 @@ export function OnboardingFlow() {
                       <DollarSign className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                       <input
                         type="number"
+                        data-testid={`onboarding-product-price-input-${index}`}
                         placeholder="0.00"
                         className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-4 text-slate-900 outline-none transition focus:border-blue-500 focus:bg-white"
                         value={product.price}
@@ -633,6 +640,7 @@ export function OnboardingFlow() {
             <div className="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm">
               <button
                 type="button"
+                data-testid="onboarding-publish-button"
                 onClick={handlePublish}
                 disabled={!canPublish || isSubmitting || publishSuccessVisible}
                 className={`group flex h-12 w-full items-center justify-center gap-3 rounded-xl px-6 font-bold text-white transition-all ${

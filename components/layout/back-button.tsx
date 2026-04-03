@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { createElement } from "react";
 import { ChevronLeft } from "lucide-react";
 
 interface BackButtonProps {
@@ -8,29 +8,29 @@ interface BackButtonProps {
   className?: string;
 }
 
-export function BackButton({ 
-  fallbackPath = "/ajustes", 
-  className = "mt-8 inline-flex items-center gap-2 rounded-full bg-slate-900 px-6 py-3 text-sm font-semibold text-white transition hover:bg-slate-800" 
+const DEFAULT_BACK_BUTTON_CLASS_NAME =
+  "mt-8 inline-flex items-center gap-2 rounded-full bg-slate-900 px-6 py-3 text-sm font-semibold text-white transition hover:bg-slate-800";
+
+export function BackButton({
+  fallbackPath = "/ajustes",
+  className = DEFAULT_BACK_BUTTON_CLASS_NAME,
 }: BackButtonProps) {
-  const router = useRouter();
-
-  const handleBack = () => {
-    // Intentar volver atrás en el historial
+  function handleBack() {
     if (window.history.length > 1) {
-      router.back();
-    } else {
-      // Si no hay historial, usar el fallback
-      router.push(fallbackPath);
+      window.history.back();
+      return;
     }
-  };
 
-  return (
-    <button
-      onClick={handleBack}
-      className={className}
-    >
-      <ChevronLeft className="h-4 w-4" />
-      <span>Volver</span>
-    </button>
+    window.location.assign(fallbackPath);
+  }
+
+  return createElement(
+    "button",
+    {
+      onClick: handleBack,
+      className,
+    },
+    createElement(ChevronLeft, { className: "h-4 w-4" }),
+    createElement("span", null, "Volver"),
   );
 }

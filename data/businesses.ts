@@ -24,7 +24,7 @@ type PublicSupabaseBusinessRow = {
   accepts_cash?: boolean | null;
   accepts_transfer?: boolean | null;
   accepts_card?: boolean | null;
-  is_active: boolean;
+  is_active?: boolean | null;
   created_at: string;
   updated_at: string;
   created_by_user_id?: string | null;
@@ -109,7 +109,7 @@ function mapSupabaseBusinessRow(
       "allows_fiado" in row && typeof row.allows_fiado === "boolean"
         ? row.allows_fiado
         : false,
-    isActive: row.is_active,
+    isActive: typeof row.is_active === "boolean" ? row.is_active : true,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     createdByUserId:
@@ -216,9 +216,10 @@ export async function getStorefrontBusinessLookupBySlug(
   const fallbackResult = await supabase
     .from("businesses")
     .select(
-      "id, slug, name, business_type, transfer_instructions, accepts_cash, accepts_transfer, accepts_card, created_at, updated_at, created_by_user_id",
+      "id, slug, name, business_type, transfer_instructions, accepts_cash, accepts_transfer, accepts_card, is_active, created_at, updated_at, created_by_user_id",
     )
     .eq("slug", normalizedBusinessSlug)
+    .eq("is_active", true)
     .maybeSingle<PublicSupabaseBusinessRow>();
 
   if (fallbackResult.error) {
@@ -261,7 +262,7 @@ export async function getBusinessByIdFromDatabase(businessId: string) {
   const { data, error } = await supabase
     .from("businesses")
     .select(
-      "id, slug, name, business_type, transfer_instructions, accepts_cash, accepts_transfer, accepts_card, allows_fiado, created_at, updated_at, created_by_user_id",
+      "id, slug, name, business_type, transfer_instructions, accepts_cash, accepts_transfer, accepts_card, allows_fiado, is_active, created_at, updated_at, created_by_user_id",
     )
     .eq("id", normalizedBusinessId)
     .maybeSingle<AuthenticatedSupabaseBusinessRow>();
@@ -286,7 +287,7 @@ async function getBusinessesFromDatabase() {
   const { data, error } = await supabase
     .from("businesses")
     .select(
-      "id, slug, name, business_type, transfer_instructions, accepts_cash, accepts_transfer, accepts_card, allows_fiado, created_at, updated_at, created_by_user_id",
+      "id, slug, name, business_type, transfer_instructions, accepts_cash, accepts_transfer, accepts_card, allows_fiado, is_active, created_at, updated_at, created_by_user_id",
     )
     .order("slug", { ascending: true });
 
@@ -363,7 +364,10 @@ export async function getHomeBusinesses(
 
   const accessibleBusinesses = operatorUserId
     ? databaseBusinesses.filter(
-        (business) => business.createdByUserId === operatorUserId && hasVerifiedBusinessOwner(business.createdByUserId),
+        (business) =>
+          business.isActive === true &&
+          business.createdByUserId === operatorUserId &&
+          hasVerifiedBusinessOwner(business.createdByUserId),
       )
     : [];
 
@@ -388,7 +392,7 @@ async function buildBusinessProductsLookupResult(
     options?.ownershipVerified === true ||
     hasVerifiedBusinessOwner(databaseBusiness?.createdByUserId ?? null);
 
-  if (!databaseBusiness || !isOwnershipVerified) {
+  if (!databaseBusiness || !isOwnershipVerified || databaseBusiness.isActive !== true) {
     return { status: "not_found" };
   }
 

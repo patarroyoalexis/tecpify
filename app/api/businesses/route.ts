@@ -6,7 +6,6 @@ import {
 } from "@/lib/auth/server";
 import {
   DEFAULT_BUSINESS_PAYMENT_SETTINGS,
-  readBusinessPaymentSettings,
 } from "@/lib/businesses/payment-settings";
 import { requireBusinessSlug } from "@/lib/businesses/slug";
 import { normalizeTransferInstructions } from "@/lib/businesses/transfer-instructions";
@@ -117,6 +116,11 @@ interface BusinessesRouteDependencies {
   getNow: () => string;
 }
 
+interface SupabaseMutationError {
+  code?: string;
+  message: string;
+}
+
 export function createBusinessesRouteHandlers(
   dependencies: BusinessesRouteDependencies = {
     requireBusinessSlug,
@@ -211,7 +215,7 @@ export function createBusinessesRouteHandlers(
       
       let finalSlug = normalizedBusinessSlug;
       let data: SupabaseBusinessRow | null = null;
-      let error: any = null;
+      let error: SupabaseMutationError | null = null;
 
       // Intentar insertar con el slug original, si falla por colision, intentar con sufijo
       const { data: firstTryData, error: firstTryError } = await supabase
@@ -231,7 +235,7 @@ export function createBusinessesRouteHandlers(
           updated_at: now,
         })
         .select(
-          "id, slug, name, business_type, transfer_instructions, accepts_cash, accepts_transfer, accepts_card, allows_fiado, created_at, updated_at, created_by_user_id",
+          "id, slug, name, business_type, transfer_instructions, accepts_cash, accepts_transfer, accepts_card, allows_fiado, is_active, deactivated_at, created_at, updated_at, created_by_user_id",
         )
         .single<SupabaseBusinessRow>();
 
@@ -260,7 +264,7 @@ export function createBusinessesRouteHandlers(
             updated_at: now,
           })
           .select(
-            "id, slug, name, business_type, transfer_instructions, accepts_cash, accepts_transfer, accepts_card, allows_fiado, created_at, updated_at, created_by_user_id",
+            "id, slug, name, business_type, transfer_instructions, accepts_cash, accepts_transfer, accepts_card, allows_fiado, is_active, deactivated_at, created_at, updated_at, created_by_user_id",
           )
           .single<SupabaseBusinessRow>();
         
@@ -389,7 +393,7 @@ export function createBusinessesRouteHandlers(
       const supabase = await dependencies.createServerSupabaseAuthClient();
       const now = dependencies.getNow();
 
-      const updatePayload: any = {
+      const updatePayload: Record<string, string | boolean | null> = {
         updated_at: now,
       };
 
@@ -456,15 +460,38 @@ export function createBusinessesRouteHandlers(
         return NextResponse.json({ error: "El businessSlug es obligatorio." }, { status: 400 });
       }
 
-      const businessSlug = (payload as { businessSlug: string }).businessSlug;
+      let normalizedBusinessSlug: string;
+
+      try {
+        normalizedBusinessSlug = dependencies.requireBusinessSlug(
+          (payload as { businessSlug: string }).businessSlug,
+        );
+      } catch (error) {
+        return NextResponse.json(
+          {
+            error:
+              error instanceof Error
+                ? error.message
+                : "El businessSlug es obligatorio y debe ser un slug publico valido.",
+          },
+          { status: 400 },
+        );
+      }
+
       const { error } = await supabase.rpc("deactivate_business", {
-        target_business_slug: businessSlug,
+        target_business_slug: normalizedBusinessSlug,
       });
 
       if (error) {
+        const statusCode =
+          error.message.includes("No tienes acceso")
+            ? 403
+            : error.message.includes("not found")
+              ? 404
+              : 500;
         return NextResponse.json(
           { error: `No fue posible desactivar el negocio: ${error.message}` },
-          { status: 500 },
+          { status: statusCode },
         );
       }
 

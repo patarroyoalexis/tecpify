@@ -31,7 +31,10 @@ Este archivo es el contrato operativo de consistencia del MVP. Su funcion no es 
 - La administracion centralizada de la cuenta y los negocios vive en `/ajustes`; no mezcla metricas de plataforma.
 - `/dashboard` redirige a `/onboarding` cuando no hay negocio activo o resuelve directo al workspace del negocio activo si corresponde.
 - `/ajustes` permite listar negocios, crear nuevos, editar nombres, desactivar negocios (logicamente) y gestionar el perfil de usuario.
+- `public.businesses.is_active` y `deactivated_at` son la frontera canonica entre negocio vigente e historico.
 - Un negocio desactivado no es operable publicamente ni aparece como opcion activa, pero conserva sus pedidos e historicos.
+- Archivar un negocio conserva `businessId`, `created_by_user_id` y trazabilidad; no lo borra ni lo reactiva en silencio.
+- La unicidad publica de `businessSlug` aplica solo entre negocios activos; archivar libera el slug sin reciclar la entidad historica.
 - `/admin` es el panel interno de plataforma y existe solo para `platform_admin`.
 - `public.user_profiles.role` respaldado por `public.app_role` es la fuente canonica del rol autenticado.
 - Los roles validos del sistema son `platform_admin`, `business_owner` y `customer`; el MVP actual solo habilita operativamente `platform_admin` y `business_owner`.
@@ -57,6 +60,7 @@ Este archivo es el contrato operativo de consistencia del MVP. Su funcion no es 
 - Google OAuth puede existir solo como opcion secundaria de login; `/register` permanece manual y el carril tampoco forma parte del circuito cerrado mientras no tenga evidencia E2E equivalente.
 - Las metricas privadas quedan cerradas con la misma definicion efectiva en runtime, Supabase enlazado, spec E2E dedicada y documentacion; el frente no debe volver a depender de drift entre repo y proyecto remoto.
 - La gestion de productos existe en runtime para crear, editar, activar, destacar, reordenar y borrar, y el veto de borrado por uso historico ya queda reforzado en runtime, trigger de DB y pruebas automatizadas; no debe volver a vivir solo en runtime.
+- La baja logica de negocios queda cerrada con la misma definicion efectiva: runtime, migraciones, RLS, guardrails y spec E2E coinciden en archivar sin borrar, conservar owner e identidad, liberar slug y mandar a `/onboarding` cuando ya no quedan negocios activos.
 
 ## 4. Reglas de contratos y naming
 
@@ -81,6 +85,8 @@ Este archivo es el contrato operativo de consistencia del MVP. Su funcion no es 
 - Ningun negocio es operable si `created_by_user_id` es `null` o no coincide con el usuario autenticado esperado.
 - En DB, el ownership canonico del negocio vive en `public.businesses.created_by_user_id`; en el runtime TypeScript se expone como `createdByUserId`.
 - El server resuelve ownership desde sesion/contexto confiable; no acepta aliases de ownership ni `business_id` del cliente como autoridad.
+- Un negocio archivado conserva owner historico obligatorio; `created_by_user_id` no se limpia ni se reemplaza para darlo de baja.
+- Si un usuario no tiene negocios activos, su entrada privada canonica vuelve a `/onboarding` aunque conserve negocios archivados.
 - Un negocio ownerless no puede abrir workspace privado.
 - Un negocio ownerless no puede exponerse en storefront publico.
 - Un negocio ownerless no puede recibir ni operar pedidos normales.
@@ -169,6 +175,7 @@ Este archivo es el contrato operativo de consistencia del MVP. Su funcion no es 
 - Pedido publico y pedido manual persistidos en Supabase con estado, pago e historial bajo control server-side + DB.
 - Aislamiento del borde privilegiado: sin service role en runtime normal y con bootstrap E2E aislado solo para test.
 - Cierre legacy ownerless: runtime, UI, definicion final efectiva de migraciones SQL y guardrails automatizados coinciden en retirar `request/grant/claim/list` y bloquear `ownerless -> owned` dentro del MVP.
+- Baja logica de negocios: runtime, migracion final, RLS y spec E2E real coinciden en archivar sin borrado fisico, conservar owner e identidad historica, liberar `businessSlug` y enviar al owner a `/onboarding` cuando se queda sin negocios activos.
 
 ### Frentes hoy parciales o abiertos
 

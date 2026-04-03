@@ -1,15 +1,26 @@
 import type { User } from "@supabase/supabase-js";
 
 import { getAuthCallbackUrl } from "@/lib/site-url";
-import { createServerSupabaseAuthClient } from "@/lib/supabase/server";
+import {
+  createServerSupabaseAuthClient,
+  type SupabaseAuthCookieMutation,
+} from "@/lib/supabase/server";
 
 export interface OperatorIdentityResult {
   user: User;
   hasSupabaseSession: boolean;
 }
 
-export async function authenticateOperatorCredentials(email: string, password: string) {
-  const supabase = await createServerSupabaseAuthClient();
+interface OperatorAuthOptions {
+  onCookiesSet?: (cookiesToSet: SupabaseAuthCookieMutation[]) => void;
+}
+
+export async function authenticateOperatorCredentials(
+  email: string,
+  password: string,
+  options?: OperatorAuthOptions,
+) {
+  const supabase = await createServerSupabaseAuthClient(options);
   const { data, error } = await supabase.auth.signInWithPassword({
     email,
     password,
@@ -29,8 +40,9 @@ export async function registerOperatorCredentials(
   email: string,
   password: string,
   options?: { redirectTo?: string | null | undefined },
+  authOptions?: OperatorAuthOptions,
 ) {
-  const supabase = await createServerSupabaseAuthClient();
+  const supabase = await createServerSupabaseAuthClient(authOptions);
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
@@ -53,8 +65,8 @@ export async function registerOperatorCredentials(
   } satisfies OperatorIdentityResult;
 }
 
-export async function signOutAuthenticatedOperator() {
-  const supabase = await createServerSupabaseAuthClient();
+export async function signOutAuthenticatedOperator(options?: OperatorAuthOptions) {
+  const supabase = await createServerSupabaseAuthClient(options);
   const { error } = await supabase.auth.signOut();
 
   if (error) {

@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 
 interface LogoutButtonProps {
   className?: string;
@@ -11,7 +10,6 @@ export function LogoutButton({
   className,
   label = "Cerrar sesión",
 }: LogoutButtonProps) {
-  const router = useRouter();
   const fallbackHref = "/login";
 
   async function handleLogout() {
@@ -20,8 +18,7 @@ export function LogoutButton({
         method: "POST",
       });
     } finally {
-      router.push(fallbackHref);
-      router.refresh();
+      window.location.assign(fallbackHref);
     }
   }
 

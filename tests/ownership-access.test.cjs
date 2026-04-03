@@ -54,6 +54,7 @@ function createOwnedBusinessContext(overrides = {}) {
     acceptsTransfer: true,
     acceptsCard: true,
     allowsFiado: false,
+    isActive: true,
     createdByUserId: OWNER_ID,
     accessLevel: "owned",
     user: {
@@ -70,6 +71,7 @@ function createOwnedBusinessSummary(overrides = {}) {
     businessId: BUSINESS_ID,
     businessSlug: "mi-tienda",
     businessName: "Mi tienda",
+    isActive: true,
     updatedAt: "2026-03-25T21:00:00.000Z",
     createdByUserId: OWNER_ID,
     ...overrides,
@@ -133,6 +135,7 @@ test("ownership: un negocio sin created_by_user_id verificable no obtiene acceso
       {
         businessId: BUSINESS_ID,
         businessSlug: "mi-tienda",
+        isActive: true,
         createdByUserId: OWNER_ID,
       },
       OWNER_ID,
@@ -144,6 +147,7 @@ test("ownership: un negocio sin created_by_user_id verificable no obtiene acceso
       {
         businessId: LEGACY_BUSINESS_ID,
         businessSlug: "legacy",
+        isActive: true,
         createdByUserId: null,
       },
       OWNER_ID,
@@ -154,6 +158,7 @@ test("ownership: un negocio sin created_by_user_id verificable no obtiene acceso
     canAccessBusiness(OWNER_ID, {
       businessId: LEGACY_BUSINESS_ID,
       businessSlug: "legacy",
+      isActive: true,
       createdByUserId: null,
     }),
     false,
@@ -162,6 +167,16 @@ test("ownership: un negocio sin created_by_user_id verificable no obtiene acceso
     canAccessBusiness(NON_OWNER_ID, {
       businessId: BUSINESS_ID,
       businessSlug: "mi-tienda",
+      isActive: true,
+      createdByUserId: OWNER_ID,
+    }),
+    false,
+  );
+  assert.equal(
+    canAccessBusiness(OWNER_ID, {
+      businessId: BUSINESS_ID,
+      businessSlug: "mi-tienda",
+      isActive: false,
       createdByUserId: OWNER_ID,
     }),
     false,
@@ -192,6 +207,25 @@ test("workspace privado: 1 negocio owned entra directo a su dashboard", async ()
   assert.equal(result.entryHref, `/dashboard/${ownedBusiness.businessSlug}`);
 });
 
+test("workspace privado: solo negocios archivados envia al onboarding", async () => {
+  const archivedBusiness = createOwnedBusinessSummary({
+    businessId: "0f9f5d8d-1234-4f6b-8f16-6e16b14ac350",
+    businessSlug: "mi-tienda-archivada",
+    isActive: false,
+  });
+  const resolvePrivateWorkspaceEntry = createResolvePrivateWorkspaceEntry({
+    getOwnedBusinessesForUser: async () => [archivedBusiness],
+  });
+
+  const result = await resolvePrivateWorkspaceEntry(OWNER_ID, {
+    preferredBusinessSlug: archivedBusiness.businessSlug,
+  });
+
+  assert.equal(result.ownedBusinesses.length, 1);
+  assert.equal(result.activeBusiness, null);
+  assert.equal(result.entryHref, "/onboarding");
+});
+
 test("workspace privado: multiples negocios respetan el activo preferido y si no existe caen a uno owned real", async () => {
   const newestBusiness = createOwnedBusinessSummary({
     businessId: "0f9f5d8d-1234-4f6b-8f16-6e16b14ac301",
@@ -220,6 +254,32 @@ test("workspace privado: multiples negocios respetan el activo preferido y si no
   assert.equal(preferredResult.entryHref, `/dashboard/${preferredBusiness.businessSlug}`);
   assert.equal(fallbackResult.activeBusiness?.businessSlug, newestBusiness.businessSlug);
   assert.equal(fallbackResult.entryHref, `/dashboard/${newestBusiness.businessSlug}`);
+});
+
+test("workspace privado: una preferencia archivada no vuelve operativo un negocio inactivo", async () => {
+  const archivedBusiness = createOwnedBusinessSummary({
+    businessId: "0f9f5d8d-1234-4f6b-8f16-6e16b14ac399",
+    businessSlug: "tienda-archivada",
+    businessName: "Tienda Archivada",
+    isActive: false,
+    updatedAt: "2026-03-28T18:00:00.000Z",
+  });
+  const activeBusiness = createOwnedBusinessSummary({
+    businessId: "0f9f5d8d-1234-4f6b-8f16-6e16b14ac302",
+    businessSlug: "tienda-activa",
+    businessName: "Tienda Activa",
+    updatedAt: "2026-03-27T18:00:00.000Z",
+  });
+  const resolvePrivateWorkspaceEntry = createResolvePrivateWorkspaceEntry({
+    getOwnedBusinessesForUser: async () => [archivedBusiness, activeBusiness],
+  });
+
+  const result = await resolvePrivateWorkspaceEntry(OWNER_ID, {
+    preferredBusinessSlug: archivedBusiness.businessSlug,
+  });
+
+  assert.equal(result.activeBusiness?.businessSlug, activeBusiness.businessSlug);
+  assert.equal(result.entryHref, `/dashboard/${activeBusiness.businessSlug}`);
 });
 
 test("ownership: crear negocio exige sesion valida", async () => {

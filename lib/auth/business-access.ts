@@ -49,17 +49,22 @@ export interface BusinessAccessResult {
 interface BusinessAccessInput {
   businessId: BusinessId;
   businessSlug: BusinessSlug;
+  isActive: boolean;
   createdByUserId: string | null;
 }
 
 export const hasVerifiedBusinessOwner = hasLegacyBusinessOwner;
 
 export function getBusinessAccessLevel(
-  { businessId, businessSlug, createdByUserId }: BusinessAccessInput,
+  { businessId, businessSlug, isActive, createdByUserId }: BusinessAccessInput,
   userId: string,
 ): BusinessAccessLevel | null {
   void businessId;
   void businessSlug;
+
+  if (!isActive) {
+    return null;
+  }
 
   if (isLegacyBusinessBlocked(createdByUserId) || !hasVerifiedBusinessOwner(createdByUserId)) {
     return null;
@@ -80,12 +85,13 @@ function mapBusinessAccessResult(row: BusinessOwnershipRow, userId: string): Bus
   const businessId = requireBusinessId(row.id);
   const businessSlug = requireBusinessSlug(row.slug);
   const accessLevel = getBusinessAccessLevel(
-    {
-      businessId,
-      businessSlug,
-      createdByUserId: row.created_by_user_id,
-    },
-    userId,
+      {
+        businessId,
+        businessSlug,
+        isActive: row.is_active,
+        createdByUserId: row.created_by_user_id,
+      },
+      userId,
   );
 
   if (!accessLevel) {
@@ -115,6 +121,7 @@ async function getOwnedBusinessRowBySlug(businessSlug: BusinessSlug) {
       "id, slug, name, transfer_instructions, accepts_cash, accepts_transfer, accepts_card, allows_fiado, is_active, created_by_user_id",
     )
     .eq("slug", businessSlug)
+    .eq("is_active", true)
     .maybeSingle<BusinessOwnershipRow>();
 
   if (error) {
@@ -133,6 +140,7 @@ async function getOwnedBusinessRowById(businessId: BusinessId | string) {
       "id, slug, name, transfer_instructions, accepts_cash, accepts_transfer, accepts_card, allows_fiado, is_active, created_by_user_id",
     )
     .eq("id", normalizedBusinessId)
+    .eq("is_active", true)
     .maybeSingle<BusinessOwnershipRow>();
 
   if (error) {
@@ -209,6 +217,7 @@ export function canAccessBusiness(
   business: {
     businessId: BusinessId;
     businessSlug: BusinessSlug;
+    isActive: boolean;
     createdByUserId: string | null;
   },
 ) {

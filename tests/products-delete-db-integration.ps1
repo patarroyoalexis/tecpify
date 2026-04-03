@@ -398,14 +398,78 @@ grant usage on schema auth to public, anon, authenticated;
 grant execute on function auth.uid() to public, anon, authenticated;
 grant execute on function auth.role() to public, anon, authenticated;
 
+create table if not exists public.user_profiles (
+  user_id uuid primary key,
+  role text null,
+  full_name text null,
+  is_active boolean not null default true,
+  deactivated_at timestamptz null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create or replace function public.is_platform_admin()
+returns boolean
+language sql
+stable
+as $$
+  select false;
+$$;
+
+create or replace function public.orders_insert_request_is_valid(
+  delivery_type text,
+  payment_method text
+)
+returns boolean
+language sql
+stable
+as $$
+  select true;
+$$;
+
+create or replace function public.orders_payment_write_is_valid(
+  delivery_type text,
+  payment_method text,
+  payment_status text,
+  order_status text,
+  is_fiado boolean,
+  fiado_status text
+)
+returns boolean
+language sql
+stable
+as $$
+  select true;
+$$;
+
+create or replace function public.reactivate_business(target_business_slug text)
+returns void
+language plpgsql
+security definer
+as $$
+begin
+  return;
+end;
+$$;
+
 create table if not exists public.businesses (
   id uuid primary key,
-  slug text not null unique,
+  slug text not null,
   name text not null,
+  business_type text null,
+  transfer_instructions text null,
+  accepts_cash boolean null default true,
+  accepts_transfer boolean null default true,
+  accepts_card boolean null default true,
+  allows_fiado boolean null default false,
+  is_active boolean not null default true,
+  deactivated_at timestamptz null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   created_by_user_id uuid null
 );
+
+create unique index if not exists businesses_slug_unique_idx on public.businesses (slug);
 
 create table if not exists public.products (
   id uuid primary key,
@@ -425,6 +489,13 @@ create table if not exists public.orders (
   order_code text not null unique,
   business_id uuid not null references public.businesses(id) on delete cascade,
   customer_name text not null,
+  customer_whatsapp text null,
+  delivery_type text not null default 'domicilio',
+  payment_method text not null default 'Efectivo',
+  payment_status text not null default 'pendiente',
+  status text not null default 'nuevo',
+  is_fiado boolean not null default false,
+  fiado_status text null,
   products jsonb not null default '[]'::jsonb
 );
 '@,

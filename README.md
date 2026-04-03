@@ -25,7 +25,7 @@ El objetivo actual del MVP es validar, de punta a punta, que un negocio pueda:
 
 Ese es el circuito hoy validado con mayor evidencia automatizada y usa Supabase como base real para auth, datos y reglas de acceso.
 
-La entrada privada canonica vive en `/dashboard` solo como compuerta técnica, no como dashboard general visible: `0 negocios -> /onboarding`, `1 negocio -> /dashboard/[businessSlug]` y `multiples negocios -> negocio activo resuelto server-side + cambio secundario desde la navbar privada`.
+La entrada privada canonica vive en `/dashboard` solo como compuerta tecnica, no como dashboard general visible: `0 negocios activos -> /onboarding`, `1 negocio activo -> /dashboard/[businessSlug]` y `multiples negocios activos -> negocio activo resuelto server-side + cambio secundario desde la navbar privada`.
 
 El login por email/password si forma parte de ese carril oficial. El registro manual permanece accesible solo como carril secundario/no garantizado y no debe venderse como frente cerrado del MVP.
 
@@ -37,11 +37,16 @@ El login por email/password si forma parte de ese carril oficial. El registro ma
 - Los roles validos del sistema quedan tipados y persistidos como `platform_admin`, `business_owner` y `customer`; el MVP actual habilita operativamente `platform_admin` y `business_owner`, mientras `customer` queda reservado en contratos y tipos para evolucion futura.
 - El rol autenticado vive en `public.user_profiles.role` respaldado por el enum `public.app_role`; el runtime no usa strings magicos ni sigue tratando al dueno de negocio como `user`.
 - Proteccion temprana de rutas privadas con `proxy.ts`, conservando `redirectTo` hacia `/login`.
-- Resolucion privada server-first desde `/dashboard`: si no existe un negocio activo configurado se redirige a `/onboarding`.
+- Resolucion privada server-first desde `/dashboard`: si no existe un negocio activo configurado se redirige a `/onboarding`, aunque el owner conserve negocios archivados en historico.
 - `/ajustes` es la entrada privada general para administrar la cuenta y los negocios; no mezcla metricas de plataforma.
 - `/dashboard/[businessSlug]` es el workspace operativo del negocio autenticado.
 - `/admin` es el panel interno de plataforma y existe solo para `platform_admin`.
 - Creacion de negocios con ownership persistido en `created_by_user_id` y expuesto en runtime como `createdByUserId`.
+- La baja de negocio es logica: `public.businesses.is_active` y `deactivated_at` sacan al negocio del flujo vigente sin borrar la fila, sin mover el owner historico y sin cambiar su `businessId`.
+- Un negocio archivado deja de resolver storefront, workspace, pedidos, metricas y seleccion operativa normal, pero conserva pedidos, productos e identidad historica.
+- La unicidad publica del `businessSlug` aplica solo sobre negocios activos; archivar libera el slug para que un negocio nuevo vigente pueda reutilizarlo sin reciclar la entidad archivada.
+- Si el owner queda con `0` negocios activos, el siguiente ingreso autenticado cae en `/onboarding`; si mantiene al menos `1` activo, vuelve al flujo privado normal.
+- Crear un negocio nuevo despues de archivar otro genera un nuevo `businessId`; no reactiva silenciosamente el negocio archivado.
 - Catalogo por negocio con alta, edicion, activacion, destacado y reordenamiento.
 - Storefront publico por `businessSlug`, con solo productos activos y solo negocios con owner verificable.
 - Creacion de pedidos desde el formulario publico y tambien desde el workspace privado.
@@ -76,7 +81,11 @@ Las garantias activas del MVP hoy no viven solo en UI ni solo en handlers HTTP: 
 - En DB, el ownership canonico del negocio vive en `public.businesses.created_by_user_id`; en el runtime TypeScript se expone como `createdByUserId`.
 - El ownership se resuelve server-side desde sesion/contexto confiable; el cliente no autoriza recursos enviando aliases de ownership ni `business_id`.
 - El workspace privado del MVP tiene una sola entrada natural: el negocio activo. La administracion centralizada vive en `/ajustes`.
+- `public.businesses.is_active` y `deactivated_at` distinguen negocio vigente vs historico; la baja logica conserva `businessId`, `created_by_user_id` e historicos.
 - Un negocio desactivado (logicamente) no es operable ni aparece en listas activas, pero conserva sus historicos.
+- La redireccion post-auth y el bootstrap privado se resuelven contra negocios activos; `0` activos manda a `/onboarding` aunque existan negocios archivados.
+- La unicidad publica del slug vive solo sobre negocios activos; archivar un negocio libera `businessSlug` sin borrar la fila archivada.
+- La baja logica no reactiva ni recicla entidades: un negocio nuevo posterior nace con nuevo `businessId`.
 - El perfil de usuario permite editar el nombre y cerrar la cuenta de forma segura preservando analiticas.
 - El flujo normal no usa `SUPABASE_SERVICE_ROLE_KEY`; opera con cliente publico/anon acotado, cliente autenticado SSR y RLS.
 - `/dashboard` sigue siendo la entrada privada general del operador y no mezcla metricas de plataforma; `/admin` queda separado y solo para `platform_admin`.
@@ -109,6 +118,7 @@ Las garantias activas del MVP hoy no viven solo en UI ni solo en handlers HTTP: 
 - Metricas privadas quedan cerradas: runtime, base Supabase enlazada, spec E2E dedicada y documentacion ya estan alineados con la misma definicion efectiva.
 - El veto de borrado de productos historicos queda cerrado con trigger en Supabase, runtime alineado y evidencia automatizada de guardrails + integracion real de DB.
 - El frente ownerless queda cerrado tambien en la definicion final efectiva: runtime, UI, migraciones SQL finales y guardrails automatizados coinciden en retirar `request/grant/claim/list` y mantener bloqueado `ownerless -> owned` dentro del MVP.
+- La baja logica de negocios tambien queda cerrada con la misma definicion efectiva: runtime, migracion final, RLS, guardrails y spec E2E coinciden en archivar sin borrar, conservar owner e identidad, liberar slug y mandar a `/onboarding` cuando ya no quedan negocios activos.
 
 ### Variables de entorno vigentes
 
@@ -168,6 +178,16 @@ Ademas, la fase actual de E2E ya protege reglas criticas del dominio de pedidos:
 5. `Contra entrega` queda bloqueado para `recogida en tienda` en el formulario y tambien en el endpoint real
 6. un pedido valido a domicilio con `Contra entrega` nace en `Nuevo` con condicion financiera `Contra entrega`, sin abrir una columna paralela de pago
 7. la revision de pago se resuelve dentro de `Nuevo` mediante una superficie dedicada y luego habilita `Confirmado` sin mezclar pago con columnas del board
+
+La suite E2E tambien cubre el circuito de baja logica de negocio:
+
+1. crear un negocio operativo nuevo
+2. verificar que su storefront publico responde por `businessSlug`
+3. archivarlo desde `/ajustes` sin borrado fisico
+4. comprobar que el slug archivado deja de resolver storefront operativo
+5. volver a autenticarse con el mismo owner y caer a `/onboarding` si ya no quedan negocios activos
+6. crear un negocio nuevo con nuevo `businessId`
+7. confirmar que el negocio archivado sigue existiendo en historico y que el slug liberado puede volver a usarse por la nueva entidad activa
 
 ### Ejecucion
 

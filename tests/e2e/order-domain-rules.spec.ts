@@ -24,10 +24,9 @@ async function readPaymentMethodOptionValues(
   page: Parameters<typeof openPublicStorefront>[0],
 ) {
   return page
-    .getByTestId("storefront-payment-method-select")
-    .locator("option")
+    .locator('[data-testid^="storefront-payment-option-"]')
     .evaluateAll((options) =>
-      options.map((option) => (option as HTMLOptionElement).value),
+      options.map((option) => (option as HTMLElement).dataset.choiceValue ?? ""),
     );
 }
 
@@ -233,8 +232,8 @@ test.describe("Order domain rules", () => {
       await test.step("the storefront blocks contra entrega while the order is configured for pickup", async () => {
         await openPublicStorefront(storefrontPage, scenario);
         await storefrontPage
-          .getByTestId("storefront-delivery-type-select")
-          .selectOption("recogida en tienda");
+          .getByTestId("storefront-delivery-option-recogida-en-tienda")
+          .click();
 
         const pickupPaymentOptions = await readPaymentMethodOptionValues(storefrontPage);
 
@@ -268,8 +267,8 @@ test.describe("Order domain rules", () => {
       await test.step("a domicilio order can use contra entrega and starts in the expected cash state", async () => {
         await openPublicStorefront(storefrontPage, scenario);
         await storefrontPage
-          .getByTestId("storefront-delivery-type-select")
-          .selectOption("domicilio");
+          .getByTestId("storefront-delivery-option-domicilio")
+          .click();
 
         const domicilioPaymentOptions = await readPaymentMethodOptionValues(storefrontPage);
 

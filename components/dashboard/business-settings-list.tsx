@@ -3,9 +3,10 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Edit2, Archive, Check, X } from "lucide-react";
+import { Archive, Check, Edit2, X } from "lucide-react";
+
+import { deactivateBusinessViaApi, updateBusinessNameViaApi } from "@/lib/businesses/api";
 import type { OwnedBusinessSummary } from "@/types/businesses";
-import { updateBusinessNameViaApi, deactivateBusinessViaApi } from "@/lib/businesses/api";
 
 interface BusinessSettingsListProps {
   businesses: OwnedBusinessSummary[];
@@ -20,8 +21,10 @@ export function BusinessSettingsList({ businesses }: BusinessSettingsListProps) 
 
   async function handleUpdateName(businessSlug: string) {
     if (!newName.trim()) return;
+
     setIsSubmitting(true);
     setError(null);
+
     try {
       await updateBusinessNameViaApi({ businessSlug, name: newName });
       setEditingSlug(null);
@@ -34,23 +37,29 @@ export function BusinessSettingsList({ businesses }: BusinessSettingsListProps) 
   }
 
   async function handleDeactivate(businessSlug: string) {
-    if (!confirm("¿Quieres desactivar este negocio? Podrás activarlo de nuevo más adelante, pero mientras tanto no aparecerá para el público.")) {
+    if (
+      !confirm(
+        "Esta baja es logica: el negocio conserva su businessId, owner e historico, deja de ser operable y libera su slug publico. Quieres darlo de baja ahora?",
+      )
+    ) {
       return;
     }
+
     setIsSubmitting(true);
     setError(null);
+
     try {
       await deactivateBusinessViaApi(businessSlug);
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No fue posible desactivar el negocio.");
+      setError(err instanceof Error ? err.message : "No fue posible dar de baja el negocio.");
     } finally {
       setIsSubmitting(false);
     }
   }
 
-  const activeBusinesses = businesses.filter(b => b.isActive);
-  const inactiveBusinesses = businesses.filter(b => !b.isActive);
+  const activeBusinesses = businesses.filter((business) => business.isActive);
+  const inactiveBusinesses = businesses.filter((business) => !business.isActive);
 
   return (
     <div className="space-y-8">
@@ -58,20 +67,23 @@ export function BusinessSettingsList({ businesses }: BusinessSettingsListProps) 
         <h2 className="text-xl font-semibold text-slate-950">Negocios activos</h2>
         <div className="mt-4 grid gap-4">
           {activeBusinesses.length === 0 ? (
-            <p className="text-sm text-slate-500 italic">Aún no tienes negocios activos.</p>
+            <p className="text-sm italic text-slate-500">Aun no tienes negocios activos.</p>
           ) : (
             activeBusinesses.map((business) => (
               <div
-                key={business.businessSlug}
+                key={business.businessId}
                 className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+                data-testid={`business-settings-active-card-${business.businessId}`}
+                data-business-id={business.businessId}
+                data-business-slug={business.businessSlug}
               >
-                <div className="flex-1 min-w-0 pr-4">
+                <div className="min-w-0 flex-1 pr-4">
                   {editingSlug === business.businessSlug ? (
                     <div className="flex items-center gap-2">
                       <input
                         type="text"
                         value={newName}
-                        onChange={(e) => setNewName(e.target.value)}
+                        onChange={(event) => setNewName(event.target.value)}
                         className="flex-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:border-slate-500 focus:outline-none"
                         autoFocus
                       />
@@ -93,7 +105,7 @@ export function BusinessSettingsList({ businesses }: BusinessSettingsListProps) 
                   ) : (
                     <div>
                       <div className="flex items-center gap-2">
-                        <h3 className="font-semibold text-slate-900 truncate">
+                        <h3 className="truncate font-semibold text-slate-900">
                           {business.businessName}
                         </h3>
                         <button
@@ -106,7 +118,7 @@ export function BusinessSettingsList({ businesses }: BusinessSettingsListProps) 
                           <Edit2 className="h-3.5 w-3.5" />
                         </button>
                       </div>
-                      <p className="text-xs text-slate-500 mt-0.5">{business.businessSlug}</p>
+                      <p className="mt-0.5 text-xs text-slate-500">{business.businessSlug}</p>
                     </div>
                   )}
                 </div>
@@ -121,7 +133,8 @@ export function BusinessSettingsList({ businesses }: BusinessSettingsListProps) 
                     onClick={() => handleDeactivate(business.businessSlug)}
                     disabled={isSubmitting}
                     className="rounded-xl border border-red-100 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-100 disabled:opacity-50"
-                    title="Desactivar negocio"
+                    title="Dar de baja negocio"
+                    data-testid={`business-settings-archive-button-${business.businessId}`}
                   >
                     <Archive className="h-3.5 w-3.5" />
                   </button>
@@ -132,37 +145,43 @@ export function BusinessSettingsList({ businesses }: BusinessSettingsListProps) 
         </div>
       </section>
 
-      {inactiveBusinesses.length > 0 && (
+      {inactiveBusinesses.length > 0 ? (
         <section>
-          <h2 className="text-xl font-semibold text-slate-950 opacity-60">Negocios desactivados</h2>
+          <h2 className="text-xl font-semibold text-slate-950 opacity-60">
+            Negocios archivados
+          </h2>
           <div className="mt-4 grid gap-4">
             {inactiveBusinesses.map((business) => (
               <div
-                key={business.businessSlug}
+                key={business.businessId}
                 className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50/50 p-4 opacity-70"
+                data-testid={`business-settings-inactive-card-${business.businessId}`}
+                data-business-id={business.businessId}
+                data-business-slug={business.businessSlug}
               >
-                <div className="flex-1 min-w-0 pr-4">
-                  <h3 className="font-semibold text-slate-600 truncate">
-                    {business.businessName}
-                  </h3>
-                  <p className="text-xs text-slate-400 mt-0.5">
-                    Estado: {business.isActive ? "Activo" : "Desactivado"}
+                <div className="min-w-0 flex-1 pr-4">
+                  <h3 className="truncate font-semibold text-slate-600">{business.businessName}</h3>
+                  <p className="mt-0.5 text-xs text-slate-400">
+                    Estado: {business.isActive ? "Activo" : "Archivado"}
                   </p>
+                  <p className="mt-0.5 text-xs text-slate-400">{business.businessSlug}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                   <p className="text-xs font-medium text-slate-400 italic">No está disponible para operar</p>
+                  <p className="text-xs font-medium italic text-slate-400">
+                    Historico conservado; ya no esta disponible para operar
+                  </p>
                 </div>
               </div>
             ))}
           </div>
         </section>
-      )}
+      ) : null}
 
-      {error && (
+      {error ? (
         <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
           {error}
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

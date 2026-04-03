@@ -61,6 +61,7 @@ interface BusinessLookupRow {
   id: BusinessId;
   slug: BusinessSlug;
   created_by_user_id: string | null;
+  is_active?: boolean | null;
   accepts_cash?: boolean | null;
   accepts_transfer?: boolean | null;
   accepts_card?: boolean | null;
@@ -297,9 +298,10 @@ async function getAuthenticatedBusinessDatabaseRecordBySlug(businessSlug: string
   const { data, error } = await supabase
     .from("businesses")
     .select(
-      "id, slug, created_by_user_id, accepts_cash, accepts_transfer, accepts_card, allows_fiado",
+      "id, slug, created_by_user_id, is_active, accepts_cash, accepts_transfer, accepts_card, allows_fiado",
     )
     .eq("slug", normalizedBusinessSlug)
+    .eq("is_active", true)
     .maybeSingle<BusinessLookupRow>();
 
   if (error) {
@@ -349,8 +351,9 @@ async function getBusinessPaymentSettingsByDatabaseId(businessDatabaseId: Busine
   const supabase = await createServerSupabaseAuthClient();
   const { data, error } = await supabase
     .from("businesses")
-    .select("accepts_cash, accepts_transfer, accepts_card, allows_fiado")
+    .select("is_active, accepts_cash, accepts_transfer, accepts_card, allows_fiado")
     .eq("id", normalizedBusinessId)
+    .eq("is_active", true)
     .maybeSingle<BusinessLookupRow>();
 
   if (error) {

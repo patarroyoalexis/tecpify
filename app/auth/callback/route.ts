@@ -7,7 +7,11 @@ import {
 } from "@/lib/auth/private-workspace";
 import { sanitizePrivateRedirectPath, sanitizeRedirectPath } from "@/lib/auth/server";
 import { getSiteUrl } from "@/lib/site-url";
-import { createServerSupabaseAuthClient } from "@/lib/supabase/server";
+import {
+  applySupabaseAuthCookies,
+  createServerSupabaseAuthClient,
+  type SupabaseAuthCookieMutation,
+} from "@/lib/supabase/server";
 
 function buildRedirectUrl(
   path: string,
@@ -37,7 +41,12 @@ export async function GET(request: Request) {
     code || type === "signup"
       ? sanitizePrivateRedirectPath(requestUrl.searchParams.get("next"))
       : sanitizeRedirectPath(requestUrl.searchParams.get("next"));
-  const supabase = await createServerSupabaseAuthClient();
+  const authCookiesToSet: SupabaseAuthCookieMutation[] = [];
+  const supabase = await createServerSupabaseAuthClient({
+    onCookiesSet(cookiesToSet) {
+      authCookiesToSet.push(...cookiesToSet);
+    },
+  });
 
   if (code) {
     if (!isGoogleAuthEnabled()) {
@@ -62,7 +71,8 @@ export async function GET(request: Request) {
           ? explicitNext
           : workspaceEntry.entryHref;
 
-      return NextResponse.redirect(buildRedirectUrl(redirectTo));
+      const response = NextResponse.redirect(buildRedirectUrl(redirectTo));
+      return applySupabaseAuthCookies(response, authCookiesToSet);
     } catch {
       return NextResponse.redirect(
         buildRedirectUrl(getGoogleAuthEntryPath(), {
@@ -84,7 +94,8 @@ export async function GET(request: Request) {
         throw new Error(error?.message || "No fue posible confirmar el correo.");
       }
 
-      return NextResponse.redirect(buildRedirectUrl(next));
+      const response = NextResponse.redirect(buildRedirectUrl(next));
+      return applySupabaseAuthCookies(response, authCookiesToSet);
     } catch {
       return NextResponse.redirect(
         buildRedirectUrl(getGoogleAuthEntryPath(), {

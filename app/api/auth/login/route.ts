@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 
 import { authenticateOperatorCredentials } from "@/lib/auth/operator-auth";
 import { resolvePostAuthRedirectPath } from "@/lib/auth/private-workspace";
+import {
+  applySupabaseAuthCookies,
+  type SupabaseAuthCookieMutation,
+} from "@/lib/supabase/server";
 
 interface LoginPayload {
   email: string;
@@ -51,13 +55,18 @@ export async function POST(request: Request) {
   }
 
   try {
-    const identity = await authenticateOperatorCredentials(email, password);
+    const authCookiesToSet: SupabaseAuthCookieMutation[] = [];
+    const identity = await authenticateOperatorCredentials(email, password, {
+      onCookiesSet(cookiesToSet) {
+        authCookiesToSet.push(...cookiesToSet);
+      },
+    });
     const resolvedRedirect = await resolvePostAuthRedirectPath(identity.user.id, {
       hasExplicitRedirectTo,
       redirectTo: payload.redirectTo,
     });
 
-    return NextResponse.json(
+    const response = NextResponse.json(
       {
         ok: true,
         redirectTo: resolvedRedirect.redirectTo,
@@ -68,6 +77,8 @@ export async function POST(request: Request) {
       },
       { status: 200 },
     );
+
+    return applySupabaseAuthCookies(response, authCookiesToSet);
   } catch (error) {
     return NextResponse.json(
       {

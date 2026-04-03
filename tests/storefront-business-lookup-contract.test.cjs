@@ -72,6 +72,11 @@ test("storefront business lookup: la ultima migracion mantiene el owner en el co
     /select[\s\S]*businesses\.transfer_instructions[\s\S]*businesses\.accepts_cash[\s\S]*businesses\.accepts_transfer[\s\S]*businesses\.accepts_card/i,
     `La ultima definicion de get_storefront_business_by_slug debe seleccionar transfer_instructions y los flags publicos. Revision requerida en ${latestMigration.filename}.`,
   );
+  assert.match(
+    functionSource,
+    /where[\s\S]*businesses\.slug = requested_slug[\s\S]*businesses\.is_active = true[\s\S]*businesses\.created_by_user_id is not null/i,
+    `La ultima definicion de get_storefront_business_by_slug debe excluir negocios archivados y ownerless del storefront operativo. Revision requerida en ${latestMigration.filename}.`,
+  );
   assert.doesNotMatch(
     functionSource,
     /allows_fiado/i,

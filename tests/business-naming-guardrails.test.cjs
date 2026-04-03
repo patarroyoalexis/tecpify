@@ -22,6 +22,7 @@ function createBusinessRecord(overrides = {}) {
     acceptsTransfer: true,
     acceptsCard: true,
     allowsFiado: false,
+    isActive: true,
     createdAt: "2026-03-25T21:00:00.000Z",
     updatedAt: "2026-03-25T21:00:00.000Z",
     createdByUserId: "user-owner",
@@ -173,6 +174,57 @@ test("naming: helper por slug consulta por businessSlug real de URL", async () =
   assert.equal(result.status, "ok");
   assert.equal(result.business.businessId, "0f9f5d8d-1234-4f6b-8f16-6e16b14ac101");
   assert.equal(result.business.businessSlug, "mi-tienda");
+});
+
+test("naming: helper por slug o por id no vuelve operable un negocio archivado", async () => {
+  const inactiveBusiness = createBusinessRecord({ isActive: false });
+  const getBusinessBySlugWithProducts = createGetBusinessBySlugWithProducts({
+    getBusinessBySlugFromDatabase: async () => inactiveBusiness,
+    getProductsByBusinessId: async () => [createProductRow()],
+    mapProductToBusinessProduct,
+    debugLog: () => {},
+  });
+  const getBusinessByIdWithProducts = createGetBusinessByIdWithProducts({
+    getBusinessByIdFromDatabase: async () => inactiveBusiness,
+    getProductsByBusinessId: async () => [createProductRow()],
+    mapProductToBusinessProduct,
+    debugLog: () => {},
+  });
+
+  const bySlugResult = await getBusinessBySlugWithProducts("mi-tienda");
+  const byIdResult = await getBusinessByIdWithProducts(
+    "0f9f5d8d-1234-4f6b-8f16-6e16b14ac101",
+  );
+
+  assert.deepEqual(bySlugResult, { status: "not_found" });
+  assert.deepEqual(byIdResult, { status: "not_found" });
+});
+
+test("naming: la definicion efectiva del slug publico solo es unica entre negocios activos", () => {
+  const archiveMigrationSource = fs.readFileSync(
+    path.join(
+      repoRoot,
+      "supabase",
+      "migrations",
+      "20260402003_release_archived_business_slug_constraint.sql",
+    ),
+    "utf8",
+  );
+
+  assert.match(
+    archiveMigrationSource,
+    /drop constraint if exists businesses_slug_key;/i,
+    "La migracion efectiva debe retirar cualquier constraint global heredada sobre slug antes de liberar archivados.",
+  );
+  assert.match(
+    archiveMigrationSource,
+    /drop index if exists public\.businesses_slug_unique_idx;/i,
+  );
+  assert.match(
+    archiveMigrationSource,
+    /create unique index if not exists businesses_active_slug_unique_idx[\s\S]*on public\.businesses \(slug\)[\s\S]*where is_active = true;/i,
+    "El slug publico debe quedar reservado solo entre negocios activos para liberar archivados sin perder identidad.",
+  );
 });
 
 test("naming: guardrail bloquea reintroducir helper byId falso o naming legado en codigo publico", () => {

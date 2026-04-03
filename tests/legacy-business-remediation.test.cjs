@@ -79,6 +79,7 @@ test("legacy ownerless: negocio sin owner queda bloqueado en acceso privado y ma
       {
         businessId: LEGACY_BUSINESS_ID,
         businessSlug: "legacy-shop",
+        isActive: false,
         createdByUserId: null,
       },
       OWNER_ID,
@@ -89,6 +90,7 @@ test("legacy ownerless: negocio sin owner queda bloqueado en acceso privado y ma
     canAccessBusiness(OWNER_ID, {
       businessId: LEGACY_BUSINESS_ID,
       businessSlug: "legacy-shop",
+      isActive: false,
       createdByUserId: null,
     }),
     false,
@@ -133,6 +135,7 @@ test("legacy ownerless: storefront sigue bloqueado y no vuelve operativo un nego
       businessId: LEGACY_BUSINESS_ID,
       businessSlug: "legacy-shop",
       name: "Legacy Shop",
+      isActive: true,
       createdAt: "2026-03-25T21:00:00.000Z",
       updatedAt: "2026-03-25T21:00:00.000Z",
       createdByUserId: null,
@@ -265,6 +268,7 @@ test("legacy ownerless: negocio con owner real sigue accesible para owner correc
       {
         businessId: OWNED_BUSINESS_ID,
         businessSlug: "mi-tienda",
+        isActive: true,
         createdByUserId: OWNER_ID,
       },
       OWNER_ID,
@@ -276,6 +280,7 @@ test("legacy ownerless: negocio con owner real sigue accesible para owner correc
       {
         businessId: OWNED_BUSINESS_ID,
         businessSlug: "mi-tienda",
+        isActive: true,
         createdByUserId: OWNER_ID,
       },
       NON_OWNER_ID,

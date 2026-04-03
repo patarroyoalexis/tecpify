@@ -35,6 +35,7 @@ function createOwnedBusinessContext(overrides = {}) {
     acceptsTransfer: true,
     acceptsCard: true,
     allowsFiado: false,
+    isActive: true,
     createdByUserId: OWNER_ID,
     accessLevel: "owned",
     user: {
@@ -106,6 +107,7 @@ const pageScenarios = [
             businessId: BUSINESS_ID,
             businessSlug: "mi-tienda",
             businessName: "Mi tienda",
+            isActive: true,
             updatedAt: "2026-03-25T21:00:00.000Z",
             createdByUserId: OWNER_ID,
           },
@@ -137,6 +139,7 @@ const pageScenarios = [
             businessId: BUSINESS_ID,
             businessSlug: "mi-tienda",
             businessName: "Mi tienda",
+            isActive: true,
             updatedAt: "2026-03-25T21:00:00.000Z",
             createdByUserId: OWNER_ID,
           },
@@ -171,6 +174,7 @@ const pageScenarios = [
             businessId: BUSINESS_ID,
             businessSlug: "mi-tienda",
             businessName: "Mi tienda",
+            isActive: true,
             updatedAt: "2026-03-25T21:00:00.000Z",
             createdByUserId: OWNER_ID,
           },
@@ -510,6 +514,51 @@ test("ownership directo: storefront bloquea negocio legacy sin owner y no lo vue
 
   const html = render(
     await page({ params: Promise.resolve({ businessSlug: "legacy-shop" }) }),
+  );
+
+  assert.match(html, /Negocio no encontrado/);
+  assert.doesNotMatch(html, /storefront-wizard/);
+});
+
+test("ownership directo: storefront bloquea negocio archivado aunque conserve owner e id", async () => {
+  const getBusinessBySlugWithProducts = createGetBusinessBySlugWithProducts({
+    getBusinessBySlugFromDatabase: async () => ({
+      businessId: BUSINESS_ID,
+      businessSlug: "mi-tienda",
+      name: "Mi tienda",
+      transferInstructions: null,
+      acceptsCash: true,
+      acceptsTransfer: true,
+      acceptsCard: true,
+      allowsFiado: false,
+      isActive: false,
+      createdAt: "2026-03-25T21:00:00.000Z",
+      updatedAt: "2026-03-25T21:00:00.000Z",
+      createdByUserId: OWNER_ID,
+    }),
+    getProductsByBusinessId: async () => [createProductFixture()],
+    mapProductToBusinessProduct(product) {
+      return {
+        productId: product.productId,
+        name: product.name,
+        description: product.description ?? "",
+        price: product.price,
+        isAvailable: product.isAvailable,
+        isFeatured: product.isFeatured,
+        sortOrder: product.sortOrder ?? 0,
+      };
+    },
+    debugLog: () => {},
+  });
+  const page = createStorefrontOrderPage({
+    getBusinessBySlugWithProducts,
+    StorefrontOrderWizard() {
+      return React.createElement("div", { "data-marker": "storefront-wizard" }, "activo");
+    },
+  });
+
+  const html = render(
+    await page({ params: Promise.resolve({ businessSlug: "mi-tienda" }) }),
   );
 
   assert.match(html, /Negocio no encontrado/);

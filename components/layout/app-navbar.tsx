@@ -1,21 +1,21 @@
 "use client";
 
-import Image from "next/image";
-import Link from "next/link";
-import { 
-  BarChart3, 
-  ChevronDown, 
-  ClipboardList, 
-  ExternalLink, 
-  LogOut, 
-  Menu, 
-  RefreshCw, 
-  Settings, 
-  X 
-} from "lucide-react";
-import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { useState } from "react";
+import Image from "next/image";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import {
+  BarChart3,
+  ChevronDown,
+  ClipboardList,
+  ExternalLink,
+  Menu,
+  RefreshCw,
+  Settings,
+  X,
+} from "lucide-react";
+
 import { LogoutButton } from "@/components/auth/logout-button";
 import type { OwnedBusinessSummary } from "@/types/businesses";
 
@@ -46,9 +46,14 @@ interface AppNavbarProps {
   pageTitle?: string;
 }
 
+interface CurrentWorkspaceBusiness {
+  businessName: string;
+  businessSlug: string;
+}
+
 const marketingLinks: AppNavLink[] = [
   { key: "home", label: "Inicio", href: "/" },
-  { key: "home", label: "Cómo funciona", href: "/#como-funciona" },
+  { key: "home", label: "Como funciona", href: "/#como-funciona" },
   { key: "home", label: "Beneficios", href: "/#beneficios" },
 ];
 
@@ -72,7 +77,7 @@ function getWorkspaceLinks(
       },
       {
         key: "metricas",
-        label: "Métricas",
+        label: "Metricas",
         href: `/metricas/${businessSlug}`,
       },
     );
@@ -96,9 +101,8 @@ function getWorkspaceLinks(
   return links;
 }
 
-interface CurrentWorkspaceBusiness {
-  businessName: string;
-  businessSlug: string;
+function getOperableWorkspaceBusinesses(workspaceBusinesses: OwnedBusinessSummary[]) {
+  return workspaceBusinesses.filter((business) => business.isActive);
 }
 
 function resolveCurrentWorkspaceBusiness(options: {
@@ -108,9 +112,10 @@ function resolveCurrentWorkspaceBusiness(options: {
   workspaceCurrentBusinessSlug?: string;
 }) {
   const currentBusinessSlug = options.workspaceCurrentBusinessSlug ?? options.businessSlug;
+  const operableBusinesses = getOperableWorkspaceBusinesses(options.workspaceBusinesses);
 
   if (currentBusinessSlug) {
-    const matchedBusiness = options.workspaceBusinesses.find(
+    const matchedBusiness = operableBusinesses.find(
       (business) => business.businessSlug === currentBusinessSlug,
     );
 
@@ -132,6 +137,13 @@ function resolveCurrentWorkspaceBusiness(options: {
   return null;
 }
 
+function resolveWorkspaceOperationSlug(options: {
+  businessSlug?: string;
+  currentWorkspaceBusiness: CurrentWorkspaceBusiness | null;
+}) {
+  return options.currentWorkspaceBusiness?.businessSlug ?? options.businessSlug ?? null;
+}
+
 export function AppNavbar({
   variant,
   operatorEmail,
@@ -139,7 +151,7 @@ export function AppNavbar({
   businessSlug,
   activeTab = "dashboard",
   adminHref,
-  workspaceEyebrow = "Espacio de trabajo",
+  workspaceEyebrow = "Espacio privado",
   workspaceControls,
   workspaceBusinesses = [],
   workspaceCurrentBusinessSlug,
@@ -153,12 +165,19 @@ export function AppNavbar({
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isWorkspaceMobileMenuOpen, setIsWorkspaceMobileMenuOpen] = useState(false);
   const isWorkspace = variant === "workspace";
+  const operableWorkspaceBusinesses = getOperableWorkspaceBusinesses(workspaceBusinesses);
   const currentWorkspaceBusiness = isWorkspace
     ? resolveCurrentWorkspaceBusiness({
         businessName,
         businessSlug,
-        workspaceBusinesses,
+        workspaceBusinesses: operableWorkspaceBusinesses,
         workspaceCurrentBusinessSlug,
+      })
+    : null;
+  const workspaceOperationSlug = isWorkspace
+    ? resolveWorkspaceOperationSlug({
+        businessSlug,
+        currentWorkspaceBusiness,
       })
     : null;
   const navLinks: AppNavLink[] = isWorkspace
@@ -171,14 +190,14 @@ export function AppNavbar({
         : "/ajustes")
     : "/";
   const brandSubtitle = isWorkspace
-    ? currentWorkspaceBusiness?.businessName ?? businessName ?? "Espacio privado"
-    : "Pedidos y operación clara para pequeños negocios";
+    ? currentWorkspaceBusiness?.businessName ?? businessName ?? workspaceEyebrow
+    : "Pedidos y operacion clara para pequenos negocios";
 
   const tabLabelMap: Record<WorkspaceTab, string> = {
     dashboard: "Resumen",
     pedidos: "Pedidos",
-    metricas: "Métricas",
-    admin: "Administración",
+    metricas: "Metricas",
+    admin: "Administracion",
   };
 
   const currentSectionLabel = pageTitle ?? tabLabelMap[activeTab];
@@ -187,7 +206,6 @@ export function AppNavbar({
     return (
       <header className="fixed top-0 z-50 h-16 w-full border-b border-white/10 bg-[linear-gradient(180deg,rgb(var(--workspace-navbar-strong-rgb))_0%,rgb(var(--workspace-navbar-rgb))_100%)] text-white shadow-[0_16px_42px_rgba(15,23,42,0.18)] backdrop-blur-xl">
         <div className="flex h-full w-full flex-col px-3 sm:px-4 lg:px-5">
-          {/* Mobile Header (Workspace) */}
           <div className="flex h-full items-center justify-between gap-3 lg:hidden">
             <Link href={brandHref} className="flex min-w-0 items-center gap-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-slate-950/55 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
@@ -201,9 +219,7 @@ export function AppNavbar({
                 />
               </div>
               <div className="min-w-0">
-                <p className="truncate text-sm font-bold text-white">
-                  {currentSectionLabel}
-                </p>
+                <p className="truncate text-sm font-bold text-white">{currentSectionLabel}</p>
                 <p className="truncate text-[11px] font-medium text-slate-400">
                   {brandSubtitle}
                 </p>
@@ -213,9 +229,9 @@ export function AppNavbar({
             <div className="flex items-center gap-3">
               <button
                 type="button"
-                onClick={() => setIsWorkspaceMobileMenuOpen((curr) => !curr)}
+                onClick={() => setIsWorkspaceMobileMenuOpen((current) => !current)}
                 className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.07] text-slate-100 transition hover:border-white/20 hover:bg-white/[0.12]"
-                aria-label={isWorkspaceMobileMenuOpen ? "Cerrar menú" : "Abrir menú"}
+                aria-label={isWorkspaceMobileMenuOpen ? "Cerrar menu" : "Abrir menu"}
               >
                 {isWorkspaceMobileMenuOpen ? (
                   <X className="h-5 w-5" />
@@ -226,7 +242,6 @@ export function AppNavbar({
             </div>
           </div>
 
-          {/* Desktop Header (Workspace) */}
           <div className="hidden h-full items-center justify-between gap-3 lg:flex">
             <div className="flex items-center gap-3 overflow-hidden">
               <Link href={brandHref} className="shrink-0">
@@ -250,17 +265,17 @@ export function AppNavbar({
                 >
                   {brandSubtitle}
                 </p>
-                {currentSectionLabel && (
+                {currentSectionLabel ? (
                   <>
                     <div className="h-6 w-px bg-white/20" />
-                    <p 
+                    <p
                       className="truncate text-sm font-semibold text-white"
                       data-testid="workspace-page-title"
                     >
                       {currentSectionLabel}
                     </p>
                   </>
-                )}
+                ) : null}
               </div>
             </div>
 
@@ -270,28 +285,26 @@ export function AppNavbar({
               {operatorEmail ? (
                 <>
                   <div className="hidden items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.07] px-3 py-2 lg:flex">
-                    <span className="text-xs font-medium text-slate-300">Sesión</span>
+                    <span className="text-xs font-medium text-slate-300">Sesion</span>
                     <span className="max-w-44 truncate text-sm font-semibold text-white">
                       {operatorEmail}
                     </span>
                   </div>
-                  <LogoutButton
-                    className="inline-flex h-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.07] px-3.5 text-sm font-medium text-slate-100 transition hover:border-white/20 hover:bg-white/[0.12]"
-                  />
+                  <LogoutButton className="inline-flex h-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.07] px-3.5 text-sm font-medium text-slate-100 transition hover:border-white/20 hover:bg-white/[0.12]" />
                 </>
               ) : (
                 <>
                   <Link
-                    href={"/login?redirectTo=/ajustes"}
+                    href={loginHref}
                     className="inline-flex h-10 items-center justify-center rounded-2xl bg-white px-4 text-sm font-semibold text-slate-950 transition hover:bg-slate-100"
                   >
                     Entrar
                   </Link>
                   <Link
-                    href={"/register?redirectTo=/ajustes"}
+                    href={registerHref}
                     className="inline-flex h-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.07] px-4 text-sm font-medium text-slate-100 transition hover:border-white/20 hover:bg-white/[0.12]"
                   >
-                    Crear cuenta
+                    Registro manual
                   </Link>
                 </>
               )}
@@ -299,48 +312,48 @@ export function AppNavbar({
           </div>
         </div>
 
-        {/* Workspace Mobile Menu Panel */}
         <div
           className={`${
             isWorkspaceMobileMenuOpen ? "flex" : "hidden"
           } flex-col border-t border-white/10 bg-slate-950/95 p-4 backdrop-blur-xl lg:hidden`}
         >
           <nav className="grid gap-1">
-            {/* 1. Pedidos */}
-            <Link
-              href={`/pedidos/${businessSlug}`}
-              onClick={() => setIsWorkspaceMobileMenuOpen(false)}
-              className={`flex items-center gap-3 rounded-2xl px-4 py-3.5 text-sm font-medium transition ${
-                activeTab === "pedidos"
-                  ? "bg-white/[0.12] text-white shadow-sm"
-                  : "text-slate-400 hover:bg-white/5 hover:text-white"
-              }`}
-            >
-              <ClipboardList className="h-4 w-4" />
-              <span>Pedidos</span>
-              {activeTab === "pedidos" && (
-                <div className="ml-auto h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]" />
-              )}
-            </Link>
+            {workspaceOperationSlug ? (
+              <>
+                <Link
+                  href={`/pedidos/${workspaceOperationSlug}`}
+                  onClick={() => setIsWorkspaceMobileMenuOpen(false)}
+                  className={`flex items-center gap-3 rounded-2xl px-4 py-3.5 text-sm font-medium transition ${
+                    activeTab === "pedidos"
+                      ? "bg-white/[0.12] text-white shadow-sm"
+                      : "text-slate-400 hover:bg-white/5 hover:text-white"
+                  }`}
+                >
+                  <ClipboardList className="h-4 w-4" />
+                  <span>Pedidos</span>
+                  {activeTab === "pedidos" ? (
+                    <div className="ml-auto h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]" />
+                  ) : null}
+                </Link>
 
-            {/* 2. Métricas */}
-            <Link
-              href={`/metricas/${businessSlug}`}
-              onClick={() => setIsWorkspaceMobileMenuOpen(false)}
-              className={`flex items-center gap-3 rounded-2xl px-4 py-3.5 text-sm font-medium transition ${
-                activeTab === "metricas"
-                  ? "bg-white/[0.12] text-white shadow-sm"
-                  : "text-slate-400 hover:bg-white/5 hover:text-white"
-              }`}
-            >
-              <BarChart3 className="h-4 w-4" />
-              <span>Métricas</span>
-              {activeTab === "metricas" && (
-                <div className="ml-auto h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]" />
-              )}
-            </Link>
+                <Link
+                  href={`/metricas/${workspaceOperationSlug}`}
+                  onClick={() => setIsWorkspaceMobileMenuOpen(false)}
+                  className={`flex items-center gap-3 rounded-2xl px-4 py-3.5 text-sm font-medium transition ${
+                    activeTab === "metricas"
+                      ? "bg-white/[0.12] text-white shadow-sm"
+                      : "text-slate-400 hover:bg-white/5 hover:text-white"
+                  }`}
+                >
+                  <BarChart3 className="h-4 w-4" />
+                  <span>Metricas</span>
+                  {activeTab === "metricas" ? (
+                    <div className="ml-auto h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]" />
+                  ) : null}
+                </Link>
+              </>
+            ) : null}
 
-            {/* 3. Ajustes */}
             <Link
               href="/ajustes"
               onClick={() => setIsWorkspaceMobileMenuOpen(false)}
@@ -356,54 +369,55 @@ export function AppNavbar({
 
             <div className="my-2 border-t border-white/10" />
 
-            {/* 4. Cambiar negocio */}
-            <details className="group px-1">
-              <summary className="flex cursor-pointer list-none items-center gap-3 rounded-2xl px-3 py-3 text-sm font-medium text-slate-400 transition hover:bg-white/5 hover:text-white">
-                <RefreshCw className="h-4 w-4 transition group-open:rotate-180" />
-                <span>Cambiar negocio</span>
-                <ChevronDown className="ml-auto h-4 w-4 opacity-50 transition group-open:rotate-180" />
-              </summary>
-              <div className="mt-1 grid gap-1 pl-11 pr-2">
-                {workspaceBusinesses
-                  .filter((b) => b.businessSlug !== businessSlug)
-                  .map((b) => (
+            {operableWorkspaceBusinesses.length > 0 || workspaceCreateBusinessHref ? (
+              <details className="group px-1">
+                <summary className="flex cursor-pointer list-none items-center gap-3 rounded-2xl px-3 py-3 text-sm font-medium text-slate-400 transition hover:bg-white/5 hover:text-white">
+                  <RefreshCw className="h-4 w-4 transition group-open:rotate-180" />
+                  <span>Cambiar negocio</span>
+                  <ChevronDown className="ml-auto h-4 w-4 opacity-50 transition group-open:rotate-180" />
+                </summary>
+                <div className="mt-1 grid gap-1 pl-11 pr-2">
+                  {operableWorkspaceBusinesses
+                    .filter((business) => business.businessSlug !== workspaceOperationSlug)
+                    .map((business) => (
+                      <Link
+                        key={business.businessId}
+                        href={`/dashboard/${business.businessSlug}`}
+                        onClick={() => setIsWorkspaceMobileMenuOpen(false)}
+                        className="rounded-xl py-2 text-xs font-medium text-slate-500 hover:text-white"
+                      >
+                        {business.businessName}
+                      </Link>
+                    ))}
+                  {workspaceCreateBusinessHref ? (
                     <Link
-                      key={b.businessSlug}
-                      href={`/dashboard/${b.businessSlug}`}
+                      href={workspaceCreateBusinessHref}
                       onClick={() => setIsWorkspaceMobileMenuOpen(false)}
-                      className="rounded-xl py-2 text-xs font-medium text-slate-500 hover:text-white"
+                      className="py-2 text-xs font-semibold text-emerald-400/80 hover:text-emerald-400"
                     >
-                      {b.businessName}
+                      + Crear nuevo negocio
                     </Link>
-                  ))}
-                {workspaceCreateBusinessHref && (
-                  <Link
-                    href={workspaceCreateBusinessHref}
-                    onClick={() => setIsWorkspaceMobileMenuOpen(false)}
-                    className="py-2 text-xs font-semibold text-emerald-400/80 hover:text-emerald-400"
-                  >
-                    + Crear nuevo negocio
-                  </Link>
-                )}
-              </div>
-            </details>
+                  ) : null}
+                </div>
+              </details>
+            ) : null}
 
-            {/* 5. Ver tienda pública */}
-            <Link
-              href={`/pedido/${businessSlug}`}
-              onClick={() => setIsWorkspaceMobileMenuOpen(false)}
-              className="flex items-center gap-3 rounded-2xl px-4 py-3.5 text-sm font-medium text-slate-400 transition hover:bg-white/5 hover:text-white"
-            >
-              <ExternalLink className="h-4 w-4" />
-              <span>Ver enlace público</span>
-            </Link>
+            {workspaceOperationSlug ? (
+              <Link
+                href={`/pedido/${workspaceOperationSlug}`}
+                onClick={() => setIsWorkspaceMobileMenuOpen(false)}
+                className="flex items-center gap-3 rounded-2xl px-4 py-3.5 text-sm font-medium text-slate-400 transition hover:bg-white/5 hover:text-white"
+              >
+                <ExternalLink className="h-4 w-4" />
+                <span>Ver enlace publico</span>
+              </Link>
+            ) : null}
 
             <div className="my-2 border-t border-white/10" />
 
-            {/* 6. Cerrar sesión */}
-            {operatorEmail && (
+            {operatorEmail ? (
               <LogoutButton className="mt-1 flex w-full items-center gap-3 rounded-2xl px-4 py-3.5 text-sm font-semibold text-slate-300 hover:bg-white/5 hover:text-white" />
-            )}
+            ) : null}
           </nav>
         </div>
       </header>
@@ -443,7 +457,7 @@ export function AppNavbar({
           {operatorEmail ? (
             <>
               <div className="flex items-center gap-2 rounded-full border border-brand-border bg-brand-surface-muted px-3 py-2">
-                <span className="text-xs font-medium text-brand-text-muted">Sesión</span>
+                <span className="text-xs font-medium text-brand-text-muted">Sesion</span>
                 <span className="max-w-44 truncate text-sm font-semibold text-brand-primary-blue">
                   {operatorEmail}
                 </span>
@@ -452,18 +466,18 @@ export function AppNavbar({
             </>
           ) : (
             <>
-                <Link
-                  href={loginHref}
-                  className="inline-flex h-11 items-center justify-center rounded-2xl bg-brand-primary-green px-4 text-sm font-semibold text-white shadow-[0_14px_30px_rgb(var(--brand-primary-green-rgb)/0.22)] transition hover:brightness-95"
-                >
-                  Entrar
-                </Link>
-                <Link
-                  href={registerHref}
-                  className="inline-flex h-11 items-center justify-center rounded-2xl border border-brand-border bg-brand-surface px-5 text-sm font-semibold text-brand-primary-blue transition hover:border-brand-focus hover:bg-brand-surface-muted"
-                >
-                  Crear cuenta
-                </Link>
+              <Link
+                href={loginHref}
+                className="inline-flex h-11 items-center justify-center rounded-2xl bg-brand-primary-green px-4 text-sm font-semibold text-white shadow-[0_14px_30px_rgb(var(--brand-primary-green-rgb)/0.22)] transition hover:brightness-95"
+              >
+                Entrar
+              </Link>
+              <Link
+                href={registerHref}
+                className="inline-flex h-11 items-center justify-center rounded-2xl border border-brand-border bg-brand-surface px-5 text-sm font-semibold text-brand-primary-blue transition hover:border-brand-focus hover:bg-brand-surface-muted"
+              >
+                Registro manual
+              </Link>
             </>
           )}
         </div>
@@ -486,7 +500,9 @@ export function AppNavbar({
 
       <div
         id="marketing-mobile-menu"
-        className={`${isMobileMenuOpen ? "grid" : "hidden"} border-t border-brand-border bg-[rgb(var(--brand-surface-rgb)/0.96)] lg:hidden`}
+        className={`${
+          isMobileMenuOpen ? "grid" : "hidden"
+        } border-t border-brand-border bg-[rgb(var(--brand-surface-rgb)/0.96)] lg:hidden`}
       >
         <div className="mx-auto grid w-full max-w-7xl gap-3 px-4 py-4 sm:px-6">
           <nav aria-label="Navegacion principal movil" className="grid gap-1">
@@ -506,7 +522,7 @@ export function AppNavbar({
             {operatorEmail ? (
               <>
                 <div className="rounded-2xl border border-brand-border bg-brand-surface-muted px-4 py-3">
-                  <p className="text-xs font-medium text-brand-text-muted">Sesión activa</p>
+                  <p className="text-xs font-medium text-brand-text-muted">Sesion activa</p>
                   <p className="mt-1 truncate text-sm font-semibold text-brand-primary-blue">
                     {operatorEmail}
                   </p>
@@ -520,14 +536,14 @@ export function AppNavbar({
                   onClick={() => setIsMobileMenuOpen(false)}
                   className="inline-flex h-11 items-center justify-center rounded-2xl bg-brand-primary-green px-4 text-sm font-semibold text-white transition hover:brightness-95"
                 >
-                   Entrar
+                  Entrar
                 </Link>
                 <Link
                   href={registerHref}
                   onClick={() => setIsMobileMenuOpen(false)}
                   className="inline-flex h-11 items-center justify-center rounded-2xl border border-brand-border bg-brand-surface px-4 text-sm font-semibold text-brand-primary-blue transition hover:border-brand-focus hover:bg-brand-surface-muted"
                 >
-                   Crear cuenta
+                  Registro manual
                 </Link>
               </>
             )}

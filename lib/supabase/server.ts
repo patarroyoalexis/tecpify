@@ -1,10 +1,18 @@
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
+import type { NextResponse } from "next/server";
+import type { CookieOptions } from "@supabase/ssr";
 
 import { getOperationalEnv } from "@/lib/env";
 
 const operationalEnv = getOperationalEnv();
+
+export interface SupabaseAuthCookieMutation {
+  name: string;
+  value: string;
+  options: CookieOptions;
+}
 
 function createStatelessSupabaseClient(accessToken: string) {
   return createClient(operationalEnv.nextPublicSupabaseUrl, accessToken, {
@@ -15,7 +23,11 @@ function createStatelessSupabaseClient(accessToken: string) {
   });
 }
 
-export async function createServerSupabaseAuthClient() {
+export async function createServerSupabaseAuthClient(
+  options?: {
+    onCookiesSet?: (cookiesToSet: SupabaseAuthCookieMutation[]) => void;
+  },
+) {
   const cookieStore = await cookies();
 
   return createServerClient(
@@ -27,6 +39,8 @@ export async function createServerSupabaseAuthClient() {
           return cookieStore.getAll();
         },
         setAll(cookiesToSet) {
+          options?.onCookiesSet?.(cookiesToSet);
+
           try {
             cookiesToSet.forEach(({ name, value, options }) => {
               cookieStore.set(name, value, options);
@@ -38,6 +52,17 @@ export async function createServerSupabaseAuthClient() {
       },
     },
   );
+}
+
+export function applySupabaseAuthCookies(
+  response: NextResponse,
+  cookiesToSet: SupabaseAuthCookieMutation[],
+) {
+  cookiesToSet.forEach(({ name, value, options }) => {
+    response.cookies.set(name, value, options);
+  });
+
+  return response;
 }
 
 export function createServerSupabasePublicClient() {
