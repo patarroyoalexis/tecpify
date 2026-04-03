@@ -1,0 +1,180 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e3]:
+      - generic [ref=e5]:
+        - generic [ref=e6]:
+          - link "Tecpify" [ref=e7] [cursor=pointer]:
+            - /url: /dashboard/negocio-e2e-mnjbnth0-pnbj45
+            - img "Tecpify" [ref=e9]
+          - generic [ref=e10]:
+            - paragraph [ref=e12]: Negocio E2E mnjbnth0-pnbj45
+            - paragraph [ref=e14]: Pedidos
+        - generic [ref=e15]:
+          - button "Buscar pedidos" [ref=e16]:
+            - img [ref=e17]
+          - generic [ref=e20]:
+            - generic [ref=e21]: Sesion
+            - generic [ref=e22]: playwright-owner+ccdlkqoggpkvejhkptih@example.com
+          - button "Cerrar sesión" [ref=e23]
+    - generic [ref=e24]:
+      - complementary [ref=e25]:
+        - navigation [ref=e26]:
+          - link "Workspace" [ref=e27] [cursor=pointer]:
+            - /url: /dashboard/negocio-e2e-mnjbnth0-pnbj45
+            - img [ref=e28]
+            - generic [ref=e33]: Workspace
+          - link "Pedidos" [ref=e34] [cursor=pointer]:
+            - /url: /pedidos/negocio-e2e-mnjbnth0-pnbj45
+            - img [ref=e35]
+            - generic [ref=e38]: Pedidos
+          - link "Métricas" [ref=e39] [cursor=pointer]:
+            - /url: /metricas/negocio-e2e-mnjbnth0-pnbj45
+            - img [ref=e40]
+            - generic [ref=e42]: Métricas
+          - link "Ajustes" [ref=e43] [cursor=pointer]:
+            - /url: /ajustes
+            - img [ref=e44]
+            - generic [ref=e47]: Ajustes
+      - main [ref=e48]:
+        - generic [ref=e50]:
+          - paragraph [ref=e52]: Operacion diaria para revisar, cobrar, preparar y entregar.
+          - button "Productos" [ref=e54]:
+            - img [ref=e55]
+            - generic [ref=e59]: Productos
+        - generic [ref=e63]:
+          - generic [ref=e65]:
+            - generic [ref=e66]:
+              - generic [ref=e68]:
+                - heading "Nuevo" [level=2] [ref=e71]
+                - generic [ref=e72]: "1"
+              - article [ref=e74]:
+                - generic [ref=e75]:
+                  - generic [ref=e76]:
+                    - generic [ref=e77]:
+                      - heading "Cliente E2E mnjbnth0-pnbj45" [level=3] [ref=e78]
+                      - generic "Pedido nuevo" [ref=e79]
+                    - generic [ref=e80]:
+                      - generic [ref=e81]: WEB-812349
+                      - generic [ref=e82]: /
+                      - generic [ref=e83]: 3/04/2026, 2:54 p. m.
+                      - generic [ref=e84]: /
+                      - generic [ref=e85]: Hace 0 min
+                  - paragraph [ref=e86]: $ 14.900
+                - generic [ref=e87]:
+                  - generic [ref=e88]:
+                    - img [ref=e89]
+                    - generic [ref=e93]: Nuevo
+                  - generic [ref=e95]: Pendiente
+                - generic [ref=e96]:
+                  - paragraph [ref=e97]: 1 x Producto E2E mnjbnth0-pnbj45
+                  - generic [ref=e98]:
+                    - generic [ref=e99]: 1 unidad
+                    - generic [ref=e100]: Recogida en tienda
+                    - generic [ref=e101]: Transferencia
+                - generic [ref=e102]:
+                  - generic [ref=e103]:
+                    - button "Cancelar" [ref=e104]:
+                      - img [ref=e105]
+                      - text: Cancelar
+                    - button "Ver detalle del pedido WEB-812349" [ref=e108]:
+                      - img [ref=e109]
+                      - text: Ver detalle
+                    - button "Revisar pago" [ref=e111]:
+                      - img [ref=e112]
+                      - text: Revisar pago
+                  - paragraph [ref=e115]
+            - generic [ref=e116]:
+              - generic [ref=e118]:
+                - heading "Confirmado" [level=2] [ref=e121]
+                - generic [ref=e122]: "0"
+              - generic [ref=e124]: No hay pedidos en confirmado.
+            - generic [ref=e125]:
+              - generic [ref=e127]:
+                - heading "Preparación" [level=2] [ref=e130]
+                - generic [ref=e131]: "0"
+              - generic [ref=e133]: No hay pedidos en preparación.
+            - generic [ref=e134]:
+              - generic [ref=e136]:
+                - heading "Listo" [level=2] [ref=e139]
+                - generic [ref=e140]: "0"
+              - generic [ref=e142]: No hay pedidos en listo.
+            - generic [ref=e143]:
+              - generic [ref=e145]:
+                - heading "Entregado" [level=2] [ref=e148]
+                - generic [ref=e149]: "0"
+              - generic [ref=e151]: No hay pedidos en entregado.
+          - generic [ref=e152]:
+            - button "Cancelados aparte Pedidos cancelados 0 Abrir bandeja" [ref=e153]:
+              - generic [ref=e154]:
+                - paragraph [ref=e155]: Cancelados aparte
+                - generic [ref=e156]:
+                  - generic [ref=e157]: Pedidos cancelados
+                  - generic [ref=e158]: "0"
+              - generic [ref=e159]:
+                - generic [ref=e160]: Abrir bandeja
+                - img [ref=e162]
+            - generic [ref=e165]: No hay pedidos cancelados en este momento.
+  - complementary [ref=e166]:
+    - generic [ref=e167]:
+      - generic [ref=e168]:
+        - paragraph [ref=e169]: Tecpify
+        - heading [level=2] [ref=e170]: Nuevo pedido
+        - paragraph [ref=e171]: Registra manualmente un pedido y súmalo al flujo operativo.
+      - button [ref=e172]:
+        - img [ref=e173]
+        - text: Cerrar
+    - generic [ref=e176]:
+      - generic [ref=e177]:
+        - generic [ref=e179]:
+          - generic [ref=e180]:
+            - text: Cliente
+            - textbox [ref=e181]:
+              - /placeholder: Nombre del cliente o negocio
+          - generic [ref=e182]:
+            - text: WhatsApp del cliente
+            - textbox [ref=e183]:
+              - /placeholder: "3001234567"
+          - generic [ref=e184]:
+            - text: Total calculado
+            - generic [ref=e185]:
+              - paragraph [ref=e186]: $ 0
+              - paragraph [ref=e187]: Se calcula automaticamente desde productos reales y cantidades.
+          - generic [ref=e188]:
+            - text: Método de pago
+            - combobox [ref=e189]
+            - paragraph [ref=e190]: Contra entrega solo está disponible para pedidos a domicilio.
+          - generic [ref=e191]:
+            - text: Tipo de entrega
+            - combobox [ref=e192]
+        - generic [ref=e193]:
+          - generic [ref=e194]:
+            - generic [ref=e195]:
+              - heading [level=3] [ref=e196]: Productos
+              - paragraph [ref=e197]: Selecciona productos activos del catálogo y define su cantidad.
+            - button [disabled] [ref=e198]:
+              - img [ref=e199]
+              - text: Agregar producto
+          - generic [ref=e200]:
+            - paragraph [ref=e201]: Este negocio todavía no tiene productos activos.
+            - paragraph [ref=e202]: Activa o crea al menos un producto para registrar pedidos manuales con catálogo estandarizado.
+            - button [ref=e203]:
+              - img [ref=e204]
+              - text: Administrar catálogo
+        - generic [ref=e209]:
+          - text: Observaciones
+          - textbox [ref=e210]:
+            - /placeholder: Notas internas, instrucciones o contexto adicional
+      - generic [ref=e212]:
+        - button [ref=e213]:
+          - img [ref=e214]
+          - text: Cancelar
+        - button [disabled] [ref=e217]:
+          - img [ref=e218]
+          - text: Crear pedido
+  - button "Open Next.js Dev Tools" [ref=e226] [cursor=pointer]:
+    - img [ref=e227]
+  - alert [ref=e230]
+```
