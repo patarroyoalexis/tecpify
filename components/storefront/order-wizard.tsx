@@ -1604,7 +1604,7 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
                       total de inmediato.
                     </p>
 
-                    <div className="mt-4 grid auto-cols-[88%] grid-flow-col gap-3 overflow-x-auto pb-1 sm:grid-flow-row sm:auto-cols-auto sm:grid-cols-3 sm:gap-4 sm:overflow-visible sm:pb-0">
+                    <div className="mt-4 flex flex-col gap-3">
                       {featuredProducts.map((product) => (
                         <ProductCard
                           key={`featured-${product.productId}`}
@@ -1695,7 +1695,7 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
 
                 <div
                   data-testid="storefront-inline-products"
-                  className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3"
+                  className="flex flex-col gap-4"
                 >
                   {visibleProducts.length > 0 ? (
                     visibleProducts.map((product) => (
