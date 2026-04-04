@@ -48,6 +48,7 @@ import type { LocalDeliveryQuote, StorefrontLocalDeliveryConfig } from "@/types/
 import type { BusinessConfig, BusinessProduct } from "@/types/storefront";
 
 const DEFAULT_BUSINESS_TAGLINE = "Compra rapido y confirma sin vueltas.";
+type MobileSummaryMode = "inline" | "compact" | "micro";
 const STOREFRONT_HEADER_BENEFITS = [
   {
     icon: Clock3,
@@ -303,6 +304,22 @@ function getSummaryHeaderProgress(steps: Array<{ label: string; supporting: stri
     title: "Confirmación",
     subtitle: "Revisa el resumen final y confirma tu pedido para enviarlo al negocio.",
   };
+}
+
+function getMobileSummaryMode(options: {
+  isMobileViewport: boolean;
+  isHeroVisible: boolean;
+  isKeyboardActive: boolean;
+}): MobileSummaryMode {
+  if (!options.isMobileViewport) {
+    return "inline";
+  }
+
+  if (options.isKeyboardActive) {
+    return "micro";
+  }
+
+  return options.isHeroVisible ? "inline" : "compact";
 }
 
 function paymentHint(method: PaymentMethod, deliveryType?: DeliveryType) {
@@ -1049,7 +1066,7 @@ function MobileStickyCheckoutSummary({
   ctaLabel,
   canSubmit,
   isSubmitting,
-  isKeyboardOpen,
+  summaryMode,
   onConfirm,
 }: {
   total: number;
@@ -1059,52 +1076,101 @@ function MobileStickyCheckoutSummary({
   ctaLabel: string;
   canSubmit: boolean;
   isSubmitting: boolean;
-  isKeyboardOpen: boolean;
+  summaryMode: MobileSummaryMode;
   onConfirm: () => void;
 }) {
   const progressPercent = (summaryHeader.completedSteps / summaryHeader.totalSteps) * 100;
-  const compact = isKeyboardOpen;
+  const isInline = summaryMode === "inline";
+  const isCompact = summaryMode === "compact";
+  const isMicro = summaryMode === "micro";
   const progressTone = summaryHeader.isComplete ? "success" : productCount > 0 ? "warm" : "neutral";
+  const modeLabel = isMicro
+    ? `Paso ${summaryHeader.currentStep}`
+    : `Paso ${summaryHeader.currentStep} de ${summaryHeader.totalSteps}`;
 
   return (
     <section
       data-testid="storefront-mobile-summary-sticky"
-      className="sticky top-0 z-30 -mx-4 border-b border-[#E8DDD0] bg-[linear-gradient(180deg,rgba(252,248,243,0.98)_0%,rgba(255,253,249,0.98)_100%)] px-4 py-2 shadow-[0_12px_28px_rgba(23,32,51,0.08)] backdrop-blur-sm sm:-mx-6 lg:hidden"
+      data-summary-mode={summaryMode}
+      className={`lg:hidden transition-[transform,opacity,box-shadow,background-color,border-color] duration-300 ease-out ${
+        isInline ? "relative mt-3" : "sticky top-0 z-30 -mx-4 sm:-mx-6"
+      }`}
     >
-      <div className="mx-auto max-w-7xl">
+      <div className={`mx-auto max-w-7xl ${isInline ? "" : "px-4 py-2 sm:px-6"}`}>
         <div
-          className={`rounded-[24px] border border-[#E8DDD0] bg-[#FFFDF9]/96 shadow-[0_10px_26px_rgba(23,32,51,0.08)] ${
-            compact ? "p-2.5" : "p-3"
+          className={`overflow-hidden rounded-[24px] border transition-[padding,transform,opacity,box-shadow,background-color,border-color,gap] duration-300 ease-out ${
+            isInline
+              ? "border-[#EFE5DA] bg-[#FFFDF9]/84 p-3 shadow-none"
+              : isMicro
+                ? "border-[#E8DDD0] bg-[#FFFDF9]/96 p-2.5 shadow-[0_10px_22px_rgba(23,32,51,0.08)]"
+                : "border-[#E8DDD0] bg-[#FFFDF9]/96 p-3 shadow-[0_12px_28px_rgba(23,32,51,0.08)]"
           }`}
         >
-          <div className="flex items-start justify-between gap-3">
+          <div className={`flex items-start justify-between transition-all duration-300 ease-out ${isMicro ? "gap-2" : "gap-3"}`}>
             <div className="min-w-0">
-              <p className="text-[9px] font-black uppercase tracking-[0.22em] text-[#D97706]">
+              <p
+                className={`font-black uppercase tracking-[0.22em] text-[#D97706] transition-all duration-300 ease-out ${
+                  isMicro ? "text-[8px]" : "text-[9px]"
+                }`}
+              >
                 Resumen del pedido
               </p>
-              <p className={`${compact ? "mt-0.5 text-lg" : "mt-1 text-2xl"} font-black tracking-tight text-slate-900`}>
+              <p
+                className={`font-black tracking-tight text-slate-900 transition-[font-size,transform,opacity,margin] duration-300 ease-out ${
+                  isInline ? "mt-0.5 text-[1.14rem]" : isMicro ? "mt-0.5 text-[1.32rem]" : "mt-0.5 text-[1.55rem]"
+                }`}
+              >
                 {formatCurrency(total)}
               </p>
+              <p
+                className={`min-w-0 overflow-hidden text-[11px] leading-4 text-[#5B6472] transition-[max-height,opacity,transform,margin] duration-300 ease-out ${
+                  isInline ? "mt-1 max-h-8 opacity-100" : isMicro ? "mt-0 max-h-0 opacity-0 -translate-y-1" : "mt-1 max-h-8 opacity-100"
+                }`}
+              >
+                {isInline ? summaryHeader.subtitle : summaryHeader.title}
+              </p>
             </div>
-            <div className="flex shrink-0 flex-col items-end gap-1.5">
-              <StatusPill
-                label={`${productCount} uds.`}
-                tone={productCount > 0 ? "warm" : "neutral"}
-                compact
-              />
-              <StatusPill
-                label={summaryHeader.isComplete ? "Pedido listo" : `Paso ${summaryHeader.currentStep} de ${summaryHeader.totalSteps}`}
-                tone={progressTone}
-                compact
-              />
+
+            <div className={`flex shrink-0 flex-col items-end transition-all duration-300 ease-out ${isMicro ? "gap-0.5" : "gap-1.5"}`}>
+              <div
+                className={`transition-[max-height,opacity,transform] duration-300 ease-out ${
+                  isCompact ? "max-h-10 opacity-100 translate-y-0" : "max-h-0 opacity-0 -translate-y-1 pointer-events-none"
+                }`}
+              >
+                <StatusPill
+                  label={`${productCount} uds.`}
+                  tone={productCount > 0 ? "warm" : "neutral"}
+                  compact
+                />
+              </div>
+              <div
+                className={`transition-[max-height,opacity,transform] duration-300 ease-out ${
+                  isCompact ? "max-h-10 opacity-100 translate-y-0" : "max-h-0 opacity-0 -translate-y-1 pointer-events-none"
+                }`}
+              >
+                <StatusPill
+                  label={summaryHeader.isComplete ? "Pedido listo" : modeLabel}
+                  tone={progressTone}
+                  compact
+                />
+              </div>
+              {isMicro ? (
+                <span className="text-[9px] font-black uppercase tracking-[0.18em] text-[#7C8798] transition-all duration-300 ease-out">
+                  {modeLabel}
+                </span>
+              ) : null}
             </div>
           </div>
 
-          <div className="mt-2 flex items-center gap-2">
+          <div
+            className={`mt-2 flex items-center gap-2 transition-[margin,opacity,transform] duration-300 ease-out ${
+              isMicro ? "mt-1.5" : isInline ? "mt-2" : "mt-2"
+            }`}
+          >
             <div className="min-w-0 flex-1">
-              <div className="h-1.5 overflow-hidden rounded-full bg-[#F1E7DB]">
+              <div className={`overflow-hidden rounded-full bg-[#F1E7DB] ${isMicro ? "h-2" : "h-1.5"}`}>
                 <div
-                  className={`h-full rounded-full transition-[width,background-color] duration-300 ${
+                  className={`h-full rounded-full transition-[width,background-color,transform,opacity] duration-300 ease-out ${
                     summaryHeader.isComplete
                       ? "bg-[linear-gradient(90deg,#10B981_0%,#059669_100%)]"
                       : "bg-[linear-gradient(90deg,#F59E0B_0%,#D97706_100%)]"
@@ -1113,26 +1179,32 @@ function MobileStickyCheckoutSummary({
                 />
               </div>
             </div>
-            <p className="shrink-0 text-[10px] font-black uppercase tracking-[0.18em] text-[#7C8798]">
-              Paso {summaryHeader.currentStep} de {summaryHeader.totalSteps}
+            <p
+              className={`shrink-0 font-black uppercase tracking-[0.18em] text-[#7C8798] transition-[font-size,opacity,transform] duration-300 ease-out ${
+                isMicro ? "text-[9px]" : "text-[10px]"
+              }`}
+            >
+              {modeLabel}
             </p>
           </div>
 
           <div
-            className={`mt-2 flex items-center justify-between gap-2 ${
-              compact ? "text-[11px]" : "text-xs"
-            } text-[#5B6472]`}
+            className={`overflow-hidden transition-[max-height,opacity,transform,margin,padding] duration-300 ease-out ${
+              isCompact ? "mt-2 max-h-20 opacity-100 translate-y-0" : "mt-0 max-h-0 opacity-0 -translate-y-1 pointer-events-none"
+            }`}
           >
-            <p className="min-w-0 flex-1 truncate">{compact ? "Teclado activo" : nextStepCopy}</p>
-            <button
-              type="button"
-              onClick={onConfirm}
-              disabled={isSubmitting || !canSubmit}
-              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-[18px] bg-[linear-gradient(135deg,#F59E0B_0%,#D97706_100%)] px-3.5 py-2.5 text-[11px] font-black text-white shadow-[0_12px_24px_rgba(217,119,6,0.18)] transition-all active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <span>{isSubmitting ? "Enviando" : ctaLabel}</span>
-              <ArrowRight className="h-3.5 w-3.5" />
-            </button>
+            <div className="flex items-start justify-between gap-2.5">
+              <p className="min-w-0 flex-1 text-[11px] leading-4 text-[#5B6472]">{nextStepCopy}</p>
+              <button
+                type="button"
+                onClick={onConfirm}
+                disabled={isSubmitting || !canSubmit}
+                className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-[16px] bg-[linear-gradient(135deg,#F59E0B_0%,#D97706_100%)] px-3 py-2 text-[10px] font-black text-white shadow-[0_10px_22px_rgba(217,119,6,0.16)] transition-all duration-300 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <span>{isSubmitting ? "Enviando" : ctaLabel}</span>
+                <ArrowRight className="h-3 w-3" />
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -1399,7 +1471,11 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
   });
   const headerSupportLine = resolveStorefrontSubline(business.tagline);
   const summaryHeader = getSummaryHeaderProgress(progressSteps);
-  const isMobileSummaryVisible = isMobileViewport && !isMobileHeroVisible;
+  const summaryMode = getMobileSummaryMode({
+    isMobileViewport,
+    isHeroVisible: isMobileHeroVisible,
+    isKeyboardActive: isMobileKeyboardOpen,
+  });
 
   useEffect(() => {
     if (!recentlyUpdatedProductId) {
@@ -1463,6 +1539,8 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
 
     const getViewportHeight = () => window.visualViewport?.height ?? window.innerHeight;
 
+    keyboardViewportBaselineRef.current = getViewportHeight();
+
     const updateKeyboardBaseline = () => {
       const currentHeight = getViewportHeight();
 
@@ -1477,12 +1555,14 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
     const updateKeyboardState = () => {
       const viewportHeight = getViewportHeight();
       const activeElement = document.activeElement;
+      const isEditableFocused = window.innerWidth < 1024 && isEditableElement(activeElement);
       updateKeyboardBaseline();
       const baselineHeight = keyboardViewportBaselineRef.current ?? viewportHeight;
-      const isKeyboardLikelyOpen =
-        window.innerWidth < 1024 &&
-        isEditableElement(activeElement) &&
-        (baselineHeight - viewportHeight > 90 || window.innerHeight - viewportHeight > 90);
+      const viewportShrunk =
+        baselineHeight - viewportHeight > 56 ||
+        window.innerHeight - viewportHeight > 56 ||
+        (window.visualViewport?.offsetTop ?? 0) > 0;
+      const isKeyboardLikelyOpen = window.innerWidth < 1024 && (isEditableFocused || viewportShrunk);
 
       setIsMobileKeyboardOpen(isKeyboardLikelyOpen);
 
@@ -1786,7 +1866,7 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
             </div>
 
             <div className="min-w-0 lg:pl-2">
-              <div className="grid grid-cols-3 gap-3 sm:gap-4 lg:gap-5">
+              <div className="hidden grid-cols-3 gap-3 sm:gap-4 lg:gap-5 md:grid">
                 {STOREFRONT_HEADER_BENEFITS.map(({ icon: Icon, copy }) => (
                   <div key={copy} className="flex min-w-0 flex-col items-start gap-2.5">
                     <div className="flex h-12 w-12 items-center justify-center rounded-[18px] bg-[#FFF7EB] text-[#D97706] shadow-[0_14px_30px_rgba(217,119,6,0.12)] ring-1 ring-[#F3D39A] sm:h-14 sm:w-14 sm:rounded-[20px]">
@@ -1802,7 +1882,7 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
           </div>
         </section>
 
-        {isMobileSummaryVisible ? (
+        {isMobileViewport ? (
           <MobileStickyCheckoutSummary
             total={total}
             productCount={productCount}
@@ -1811,7 +1891,7 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
             ctaLabel={mobileCtaLabel}
             canSubmit={productCount > 0}
             isSubmitting={isSubmitting}
-            isKeyboardOpen={isMobileKeyboardOpen}
+            summaryMode={summaryMode}
             onConfirm={() => void handleConfirmOrder()}
           />
         ) : null}

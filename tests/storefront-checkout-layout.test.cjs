@@ -55,7 +55,7 @@ test("storefront checkout layout: compacta header y resumen sticky sin tocar el 
   );
   assert.match(
     source,
-    /Busca por nombre o descripcion/,
+    /Busca por nombre o descrip/,
     "El buscador debe seguir visible dentro de la cabecera de la seccion.",
   );
   assert.match(
@@ -120,28 +120,53 @@ test("storefront checkout layout: compacta header y resumen sticky sin tocar el 
   );
   assert.match(
     source,
-    /heroTitleRef = useRef/,
-    "El sticky mobile debe anclarse al hero o titulo principal visible.",
+    /type MobileSummaryMode = "inline" \| "compact" \| "micro"/,
+    "El resumen mobile debe declarar sus tres estados visuales.",
   );
   assert.match(
     source,
-    /isMobileSummaryVisible = isMobileViewport && !isMobileHeroVisible/,
-    "El sticky mobile debe depender de la visibilidad real del hero o titulo principal.",
+    /const summaryMode = getMobileSummaryMode\(/,
+    "El resumen mobile debe derivar un modo unico a partir del hero y el teclado.",
   );
   assert.match(
     source,
     /focusin[\s\S]*focusout[\s\S]*visualViewport/,
-    "El sticky mobile debe compactarse cuando el teclado esta abierto en mobile.",
+    "El sticky mobile debe detectar teclado con foco y cambios reales de viewport.",
   );
   assert.match(
     source,
-    /Compra rapida y simple[\s\S]*Respuesta rapida por WhatsApp[\s\S]*Pago y entrega claros/,
-    "El header debe comunicar tres beneficios comerciales cortos y equilibrados.",
+    /data-summary-mode=\{summaryMode\}/,
+    "El resumen mobile debe exponer su estado visual actual en el DOM.",
   );
   assert.match(
     source,
-    /grid grid-cols-3 gap-3 sm:gap-4 lg:gap-5/,
-    "Los beneficios del header deben distribuirse sin tarjetas pesadas ni CTA redundante.",
+    /isInline \? "relative mt-3" : "sticky top-0 z-30/,
+    "El modo inline no debe comportarse como sticky protagonista.",
+  );
+  assert.match(
+    source,
+    /transition-\[padding,transform,opacity,box-shadow,background-color,border-color,gap\][\s\S]*transition-\[max-height,opacity,transform,margin,padding\]/,
+    "Las transiciones deben plegar el resumen por capas y no por reemplazo brusco.",
+  );
+  assert.match(
+    source,
+    /isMicro \? "mt-1\.5" : isInline \? "mt-2" : "mt-2"/,
+    "El modo micro debe compactar el espaciado vertical del resumen.",
+  );
+  assert.match(
+    source,
+    /isCompact \? "mt-2 max-h-20 opacity-100 translate-y-0" : "mt-0 max-h-0 opacity-0 -translate-y-1 pointer-events-none"/,
+    "El CTA y el feedback deben aparecer solo en compact y colapsar en micro o inline.",
+  );
+  assert.match(
+    source,
+    /const modeLabel = isMicro[\s\S]*\? `Paso \$\{summaryHeader\.currentStep\}`[\s\S]*: `Paso \$\{summaryHeader\.currentStep\} de \$\{summaryHeader\.totalSteps\}`/,
+    "El modo micro debe mostrar el paso actual en formato corto.",
+  );
+  assert.match(
+    source,
+    /summaryMode=\{summaryMode\}/,
+    "El render mobile debe consumir el modo visual derivado.",
   );
   assert.match(
     source,
@@ -260,7 +285,7 @@ test("storefront checkout layout: compacta header y resumen sticky sin tocar el 
   );
   assert.match(
     source,
-    /sticky top-0 z-30[\s\S]*data-testid=\"storefront-mobile-summary-sticky\"/,
+    /data-testid=\"storefront-mobile-summary-sticky\"[\s\S]*sticky top-0 z-30/,
     "La experiencia mobile debe mostrar un resumen superior compacto solo cuando el hero deja de estar visible.",
   );
   assert.match(
