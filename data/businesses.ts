@@ -129,7 +129,7 @@ function createBaseBusinessConfig(
     name: overrides?.name ?? humanizeSlug(businessSlug),
     tagline:
       overrides?.tagline ??
-      "Negocio operativo conectado a la base principal de Tecpify.",
+      "Ahora hacer tu pedido es más simple.",
     accent: overrides?.accent ?? "from-slate-200 via-slate-100 to-white",
     availablePaymentMethods: overrides?.availablePaymentMethods ?? [],
     availableDeliveryTypes: overrides?.availableDeliveryTypes ?? [...DELIVERY_TYPES],

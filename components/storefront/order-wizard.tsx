@@ -15,7 +15,6 @@ import {
   ChevronRight,
   Clock3,
   CreditCard,
-  Gift,
   Info,
   MapPin,
   MessageSquare,
@@ -44,7 +43,21 @@ import {
 } from "@/types/orders";
 import type { BusinessConfig, BusinessProduct } from "@/types/storefront";
 
-const DEFAULT_BUSINESS_TAGLINE = "Negocio operativo conectado a la base principal de Tecpify.";
+const DEFAULT_BUSINESS_TAGLINE = "Compra rapido y confirma sin vueltas.";
+const STOREFRONT_HEADER_BENEFITS = [
+  {
+    icon: Clock3,
+    copy: "Compra rapida y simple",
+  },
+  {
+    icon: MessageSquare,
+    copy: "Respuesta rapida por WhatsApp",
+  },
+  {
+    icon: Truck,
+    copy: "Pago y entrega claros",
+  },
+] as const;
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("es-CO", {
@@ -111,7 +124,7 @@ function resolveStorefrontSubline(tagline: string) {
   const normalizedTagline = tagline.trim();
 
   if (normalizedTagline.length === 0 || normalizedTagline === DEFAULT_BUSINESS_TAGLINE) {
-    return "Arma tu pedido, elige entrega y pago, y dejalo listo para confirmacion por WhatsApp.";
+    return "Compra rapido y te confirmamos por WhatsApp.";
   }
 
   return normalizedTagline;
@@ -143,6 +156,67 @@ function deliveryCostCopy(type: DeliveryType | "") {
   }
 
   return type === "domicilio" ? "Se confirma segun zona" : "Sin costo adicional";
+}
+
+function getSummaryHeaderProgress(steps: Array<{ label: string; supporting: string; complete: boolean }>) {
+  const totalSteps = steps.length;
+  const nextStepIndex = steps.findIndex((step) => !step.complete);
+  const isComplete = nextStepIndex === -1;
+  const currentStep = isComplete ? totalSteps : nextStepIndex + 1;
+  const completedSteps = steps.filter((step) => step.complete).length;
+
+  if (isComplete) {
+    return {
+      currentStep,
+      completedSteps,
+      totalSteps,
+      isComplete,
+      title: "Tu pedido esta listo para confirmar",
+      subtitle: "Todo esta completo. Ahora solo falta enviar tu pedido.",
+    };
+  }
+
+  if (currentStep === 1) {
+    return {
+      currentStep,
+      completedSteps,
+      totalSteps,
+      isComplete,
+      title: "Escribe tus datos para avanzar",
+      subtitle: "Completa tu nombre y WhatsApp para continuar con el pedido.",
+    };
+  }
+
+  if (currentStep === 2) {
+    return {
+      currentStep,
+      completedSteps,
+      totalSteps,
+      isComplete,
+      title: "Elige tus productos",
+      subtitle: "Agrega lo que deseas pedir y revisa tu compra en tiempo real.",
+    };
+  }
+
+  if (currentStep === 3) {
+    return {
+      currentStep,
+      completedSteps,
+      totalSteps,
+      isComplete,
+      title: "Define como recibiras tu pedido",
+      subtitle: "Elige entrega y metodo de pago para dejar tu pedido listo.",
+    };
+  }
+
+  return {
+    currentStep,
+    completedSteps,
+    totalSteps,
+    isComplete,
+    title: "Revisa y confirma tu pedido",
+    subtitle: "Verifica tus datos antes de enviar el pedido al negocio.",
+  };
 }
 
 function paymentHint(method: PaymentMethod, deliveryType?: DeliveryType) {
@@ -386,117 +460,8 @@ function TrustChip({
         <Icon className="h-5 w-5" />
       </div>
       <div className="min-w-0">
-        <p className="text-sm font-black tracking-tight text-slate-900">{label}</p>
+        <p className="text-sm font-black tracking-tight text-slate-900">Pide directo aqui</p>
         <p className="mt-1 text-xs leading-5 text-[#5B6472]">{description}</p>
-      </div>
-    </div>
-  );
-}
-
-function ProgressOverview({
-  steps,
-  progressPercent,
-}: {
-  steps: Array<{ label: string; supporting: string; complete: boolean }>;
-  progressPercent: number;
-}) {
-  const nextStepIndex = steps.findIndex((step) => !step.complete);
-
-  return (
-    <div className="rounded-[28px] border border-[#E8DDD0] bg-[#FFFDF9]/95 p-4 shadow-[0_18px_48px_rgba(23,32,51,0.08)] sm:rounded-[32px] sm:p-6">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <p className="text-[11px] font-black uppercase tracking-[0.24em] text-[#D97706]">
-            Checkout guiado
-          </p>
-          <h2 className="mt-1.5 text-lg font-black tracking-tight text-slate-900 sm:mt-2 sm:text-xl">
-            Tu progreso esta claro desde el inicio
-          </h2>
-        </div>
-        <div className="rounded-[18px] bg-[#172033] px-3 py-2.5 text-center text-[#F8FAFC] sm:rounded-[22px] sm:px-4 sm:py-3">
-          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/60">
-            Avance
-          </p>
-          <p className="mt-1 text-xl font-black sm:text-2xl">{Math.round(progressPercent)}%</p>
-        </div>
-      </div>
-      <div className="mt-4 h-2.5 overflow-hidden rounded-full bg-[#F6EFE6] sm:mt-5 sm:h-3">
-        <div
-          className="h-full rounded-full bg-[linear-gradient(90deg,#F59E0B_0%,#D97706_100%)] transition-[width] duration-500"
-          style={{ width: `${Math.max(progressPercent, 6)}%` }}
-        />
-      </div>
-      <div className="mt-4 flex gap-2 overflow-x-auto pb-1 sm:hidden">
-        {steps.map((step, index) => {
-          const isFocused = index === (nextStepIndex === -1 ? steps.length - 1 : nextStepIndex);
-
-          return (
-            <div
-              key={`${step.label}-mobile`}
-              className={`min-w-[180px] rounded-[20px] border px-3.5 py-3 ${
-                step.complete
-                  ? "border-[#A7F3D0] bg-[#EAFBF4]"
-                  : isFocused
-                    ? "border-[#F3D39A] bg-[linear-gradient(180deg,#FFF3D6_0%,#FFFDF9_100%)]"
-                    : "border-[#E8DDD0] bg-[#F6EFE6]/60"
-              }`}
-            >
-              <div className="flex items-center gap-2.5">
-                <div
-                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-[13px] text-xs font-black ${
-                    step.complete
-                      ? "bg-emerald-500 text-white"
-                      : isFocused
-                        ? "bg-[#172033] text-white"
-                        : "bg-[#FFFDF9] text-[#7C8798] ring-1 ring-[#E8DDD0]"
-                  }`}
-                >
-                  {step.complete ? <CheckCircle2 className="h-4 w-4" /> : index + 1}
-                </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-black tracking-tight text-slate-900">{step.label}</p>
-                  <p className="mt-0.5 text-[11px] leading-4 text-[#5B6472]">{step.supporting}</p>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-      <div className="mt-5 hidden gap-3 sm:grid sm:grid-cols-2">
-        {steps.map((step, index) => {
-          const isFocused = index === (nextStepIndex === -1 ? steps.length - 1 : nextStepIndex);
-
-          return (
-            <div
-              key={step.label}
-              className={`rounded-[24px] border p-4 transition-all ${
-                step.complete
-                  ? "border-[#A7F3D0] bg-[#EAFBF4]"
-                  : isFocused
-                    ? "border-[#F3D39A] bg-[linear-gradient(180deg,#FFF3D6_0%,#FFFDF9_100%)]"
-                    : "border-[#E8DDD0] bg-[#F6EFE6]/60"
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <div
-                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-[16px] text-sm font-black ${
-                    step.complete
-                      ? "bg-emerald-500 text-white"
-                      : isFocused
-                        ? "bg-[#172033] text-white"
-                        : "bg-[#FFFDF9] text-[#7C8798] ring-1 ring-[#E8DDD0]"
-                  }`}
-                >
-                  {step.complete ? <CheckCircle2 className="h-5 w-5" /> : index + 1}
-                </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-black tracking-tight text-slate-900">{step.label}</p>
-                  <p className="mt-1 text-xs leading-5 text-[#5B6472]">{step.supporting}</p>
-                </div>
-              </div>
-            </div>
-          );
-        })}
       </div>
     </div>
   );
@@ -618,7 +583,7 @@ function ProductCard({
     <article
       className={`group relative overflow-hidden rounded-[28px] border transition-all sm:rounded-[32px] ${
         active
-          ? "border-[#F3D39A] bg-[linear-gradient(180deg,#FFF8E8_0%,#FFFDF9_100%)] shadow-[0_20px_48px_rgba(217,119,6,0.12)]"
+          ? "border-[#F3D39A] bg-[linear-gradient(180deg,#FFF9EC_0%,#FFFDF9_100%)] shadow-[0_22px_54px_rgba(217,119,6,0.14)]"
           : "border-[#E8DDD0] bg-[#FFFDF9] hover:-translate-y-0.5 hover:border-[#D8C8B5] hover:shadow-[0_16px_40px_rgba(23,32,51,0.08)]"
       } ${recentlyUpdated ? "ring-2 ring-[#A7F3D0] ring-offset-2 ring-offset-[#FCF8F3]" : ""}`}
     >
@@ -647,7 +612,7 @@ function ProductCard({
               ) : null}
               {active ? (
                 <StatusPill
-                  label="En tu pedido"
+                  label={quantity > 1 ? `${quantity} en tu pedido` : "1 en tu pedido"}
                   tone="success"
                   icon={<CheckCircle2 className="h-3.5 w-3.5" />}
                 />
@@ -677,7 +642,7 @@ function ProductCard({
         </p>
 
         <div className="mt-4 flex flex-col gap-4 sm:mt-5 sm:flex-row sm:items-end sm:justify-between">
-          <div className="flex items-center justify-between gap-2 rounded-[22px] bg-[#F6EFE6] p-1.5">
+          <div className="flex items-center justify-between gap-2 rounded-[22px] bg-[#F6EFE6] p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.5)]">
             <button
               type="button"
               onClick={onDecrease}
@@ -727,10 +692,9 @@ function SummaryPanel({
   isSubmitting,
   submitError,
   onConfirm,
-  progressPercent,
-  completedSteps,
-  nextStepCopy,
+  steps,
   activeBenefit,
+  nextStepCopy,
 }: {
   businessName: string;
   total: number;
@@ -741,210 +705,175 @@ function SummaryPanel({
   isSubmitting: boolean;
   submitError: string;
   onConfirm: () => void;
-  progressPercent: number;
-  completedSteps: number;
-  nextStepCopy: string;
+  steps: Array<{ label: string; supporting: string; complete: boolean }>;
   activeBenefit: string;
+  nextStepCopy: string;
 }) {
   const hasProducts = selectedProducts.length > 0;
-  const visibleProducts = selectedProducts.slice(0, 4);
+  const visibleProducts = selectedProducts.slice(0, 5);
   const hiddenProductsCount = selectedProducts.length - visibleProducts.length;
+  const progressHeader = getSummaryHeaderProgress(steps);
+  const progressPercent = (progressHeader.completedSteps / progressHeader.totalSteps) * 100;
 
   return (
-    <section className="overflow-hidden rounded-[36px] border border-[#E8DDD0] bg-[#FFFDF9] shadow-[0_24px_70px_rgba(23,32,51,0.12)]">
-      <div className="border-b border-[#E8DDD0] bg-[linear-gradient(135deg,#F6EFE6_0%,#FFFDF9_100%)] px-4 py-4 sm:px-6 sm:py-5">
-        <div className="flex items-start justify-between gap-4">
+    <section className="overflow-hidden rounded-[30px] border border-[#E8DDD0] bg-[#FFFDF9] shadow-[0_18px_44px_rgba(23,32,51,0.09)]">
+      <div className="border-b border-[#E8DDD0] bg-[linear-gradient(135deg,#F6EFE6_0%,#FFFDF9_100%)] px-4 py-3 sm:px-4.5 sm:py-3.5">
+        <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-[11px] font-black uppercase tracking-[0.24em] text-[#D97706]">
-              Resumen que convierte
+            <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#D97706]">
+              Resumen del pedido
             </p>
-            <h3 className="mt-1.5 text-xl font-black tracking-tight text-slate-900 sm:mt-2 sm:text-2xl">
-              Tu pedido se arma en vivo
+            <h3 className="mt-1 text-base font-black tracking-tight text-slate-900 sm:text-[1.18rem]">
+              {progressHeader.title}
             </h3>
-            <p className="mt-1.5 text-sm leading-5 text-[#5B6472] sm:mt-2 sm:leading-6">
-              {nextStepCopy}
-            </p>
+            <p className="mt-1 text-xs leading-5 text-[#5B6472]">{progressHeader.subtitle}</p>
           </div>
-          <div className="rounded-[18px] bg-[#172033] px-3 py-2.5 text-center text-[#F8FAFC] sm:rounded-[22px] sm:px-4 sm:py-3">
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/60">
-              Progreso
+          <div className="text-right">
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#7C8798]">Total</p>
+            <p className="mt-0.5 text-[1.7rem] font-black leading-none tracking-tight text-slate-900">
+              {formatCurrency(total)}
             </p>
-            <p className="mt-1 text-xl font-black sm:text-2xl">{completedSteps}/4</p>
           </div>
         </div>
-        <div className="mt-4 h-2.5 overflow-hidden rounded-full bg-[#F6EFE6] sm:mt-5">
-          <div
-            className="h-full rounded-full bg-[linear-gradient(90deg,#F59E0B_0%,#D97706_100%)] transition-[width] duration-500"
-            style={{ width: `${Math.max(progressPercent, 6)}%` }}
-          />
+        <div className="mt-2.5 flex items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="h-2 overflow-hidden rounded-full bg-[#F1E7DB]">
+              <div
+                className={`h-full rounded-full transition-[width,background-color] duration-300 ${
+                  progressHeader.isComplete
+                    ? "bg-[linear-gradient(90deg,#10B981_0%,#059669_100%)]"
+                    : "bg-[linear-gradient(90deg,#F59E0B_0%,#D97706_100%)]"
+                }`}
+                style={{ width: `${Math.max(progressPercent, 6)}%` }}
+              />
+            </div>
+          </div>
+          <p className="shrink-0 text-[10px] font-black uppercase tracking-[0.18em] text-[#7C8798]">
+            Paso {progressHeader.currentStep} de {progressHeader.totalSteps}
+          </p>
         </div>
       </div>
 
-      <div className="space-y-5 px-4 py-4 sm:px-6 sm:py-5">
-        <div className="grid grid-cols-2 gap-3 sm:hidden">
-          <div className="rounded-[22px] border border-[#E8DDD0] bg-[#FFFDF9] px-4 py-3 shadow-[0_8px_28px_rgba(23,32,51,0.05)]">
+      <div className="px-4 py-3 sm:px-4.5 sm:py-3.5">
+        <div className="grid grid-cols-2 gap-x-3 gap-y-2 border-b border-[#EFE5DA] pb-3 sm:hidden">
+          <div>
             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#7C8798]">Total</p>
-            <p className="mt-1 text-xl font-black tracking-tight text-slate-900">{formatCurrency(total)}</p>
+            <p className="mt-0.5 text-lg font-black tracking-tight text-slate-900">{formatCurrency(total)}</p>
           </div>
-          <div className="rounded-[22px] border border-[#E8DDD0] bg-[#FFFDF9] px-4 py-3 shadow-[0_8px_28px_rgba(23,32,51,0.05)]">
+          <div>
             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#7C8798]">Unidades</p>
-            <p className="mt-1 text-xl font-black tracking-tight text-slate-900">{productCount}</p>
+            <p className="mt-0.5 text-lg font-black tracking-tight text-slate-900">{productCount}</p>
           </div>
-          <div className="rounded-[22px] border border-[#E8DDD0] bg-[#FFFDF9] px-4 py-3 shadow-[0_8px_28px_rgba(23,32,51,0.05)]">
+          <div>
             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#7C8798]">Entrega</p>
-            <p className="mt-1 text-sm font-black text-slate-900">{deliveryType ? deliveryTitle(deliveryType) : "Pendiente"}</p>
+            <p className="mt-0.5 text-sm font-black text-slate-900">{deliveryType ? deliveryTitle(deliveryType) : "Pendiente"}</p>
           </div>
-          <div className="rounded-[22px] border border-[#E8DDD0] bg-[#FFFDF9] px-4 py-3 shadow-[0_8px_28px_rgba(23,32,51,0.05)]">
+          <div>
             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#7C8798]">Pago</p>
-            <p className="mt-1 text-sm font-black text-slate-900">
+            <p className="mt-0.5 text-sm font-black text-slate-900">
               {paymentMethod ? getPaymentMethodLabel(paymentMethod, deliveryType || undefined) : "Pendiente"}
             </p>
           </div>
         </div>
 
-        <div className="hidden rounded-[28px] border border-[#E8DDD0] bg-[#FFFDF9] p-4 shadow-[0_8px_28px_rgba(23,32,51,0.05)] sm:block">
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <div>
+        <div className="border-b border-[#EFE5DA] py-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
               <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#7C8798]">
                 Productos agregados
               </p>
-              <p className="mt-1 text-sm font-black tracking-tight text-slate-900">
-                {hasProducts ? `${selectedProducts.length} producto(s) distintos` : "Tu carrito sigue vacio"}
+              <p className="mt-0.5 text-sm font-black tracking-tight text-slate-900">
+                {hasProducts ? `${selectedProducts.length} producto(s) distintos` : "Tu pedido aun esta vacio"}
               </p>
             </div>
-            <StatusPill label={`${productCount} unidades`} tone={hasProducts ? "warm" : "neutral"} />
+            <span className="shrink-0 text-[11px] font-black uppercase tracking-[0.16em] text-[#B45309]">
+              {productCount} uds.
+            </span>
           </div>
 
           {hasProducts ? (
-            <div className="space-y-3">
+            <ul className="mt-2 space-y-0 divide-y divide-[#EFE5DA]">
               {visibleProducts.map((product) => {
                 const unitPrice = product.unitPrice ?? 0;
 
                 return (
-                  <div
-                    key={product.productId}
-                    className="flex items-start justify-between gap-4 rounded-[22px] border border-[#EFE5DA] bg-[#F6EFE6]/55 px-4 py-3"
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-black text-slate-900">{product.name}</p>
-                      <p className="mt-1 text-xs leading-5 text-[#7C8798]">
-                        {product.quantity} x {formatCurrency(unitPrice)}
+                  <li key={product.productId} className="flex items-start justify-between gap-3 py-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-black leading-5 text-slate-900">{product.name}</p>
+                      <p className="text-[11px] leading-4 text-[#7C8798]">
+                        {product.quantity} u. {unitPrice > 0 ? `- ${formatCurrency(unitPrice)} c/u` : ""}
                       </p>
                     </div>
-                    <span className="shrink-0 text-sm font-black text-slate-900">
+                    <span className="shrink-0 text-sm font-black leading-5 text-slate-900">
                       {formatCurrency(unitPrice * product.quantity)}
                     </span>
-                  </div>
+                  </li>
                 );
               })}
               {hiddenProductsCount > 0 ? (
-                <div className="rounded-[20px] bg-[#FFF3D6] px-4 py-3 text-sm font-bold text-[#B45309] ring-1 ring-[#F3D39A]">
+                <li className="pt-2 text-[11px] font-bold text-[#B45309]">
                   + {hiddenProductsCount} producto(s) mas dentro del pedido
-                </div>
+                </li>
               ) : null}
-            </div>
+            </ul>
           ) : (
-            <div className="rounded-[24px] border-2 border-dashed border-[#E8DDD0] bg-[#F6EFE6]/55 px-4 py-8 text-center">
-              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#FFFDF9] text-[#D97706] shadow-sm ring-1 ring-[#E8DDD0]">
-                <ShoppingBag className="h-6 w-6" />
-              </div>
-              <p className="mt-4 text-sm font-black text-slate-900">Agrega tu primer producto</p>
-              <p className="mt-2 text-xs leading-5 text-[#7C8798]">
-                Apenas sumes algo, este panel te mostrara el total y la ruta para cerrar el pedido.
-              </p>
-            </div>
+            <p className="mt-2 text-xs leading-5 text-[#7C8798]">
+              Apenas sumes algo, aqui veras cantidades y subtotal sin inflar el resumen.
+            </p>
           )}
         </div>
 
-        <div className="hidden rounded-[28px] border border-[#E8DDD0] bg-[#FFFDF9] p-4 shadow-[0_8px_28px_rgba(23,32,51,0.05)] sm:block">
-          <div className="space-y-3">
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-[11px] font-black uppercase tracking-[0.18em] text-[#7C8798]">
-                Subtotal
-              </span>
-              <span className="text-sm font-black tabular-nums text-slate-900">{formatCurrency(total)}</span>
-            </div>
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-[11px] font-black uppercase tracking-[0.18em] text-[#7C8798]">
-                Costo de entrega
-              </span>
-              <span className="text-sm font-bold text-[#5B6472]">{deliveryCostCopy(deliveryType)}</span>
-            </div>
-            <div className="flex items-start justify-between gap-4">
-              <span className="text-[11px] font-black uppercase tracking-[0.18em] text-[#7C8798]">
-                Beneficio activo
-              </span>
-              <span className="max-w-[220px] text-right text-sm font-bold text-[#047857]">
-                {activeBenefit}
-              </span>
-            </div>
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-[11px] font-black uppercase tracking-[0.18em] text-[#7C8798]">
-                Pago
-              </span>
-              <span className="text-sm font-bold text-slate-900">
-                {paymentMethod ? getPaymentMethodLabel(paymentMethod, deliveryType || undefined) : "Pendiente"}
-              </span>
-            </div>
-          </div>
-
-          <div className="mt-5 rounded-[28px] bg-[#172033] p-5 text-[#F8FAFC]">
-            <div className="flex items-end justify-between gap-4">
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/60">
-                  Total del pedido
-                </p>
-                <p className="mt-2 text-4xl font-black tracking-tight">{formatCurrency(total)}</p>
-              </div>
-              <StatusPill
-                label={hasProducts ? "Listo para cierre" : "Agrega productos"}
-                tone={hasProducts ? "warm" : "neutral"}
-              />
-            </div>
-            <p className="mt-3 text-xs leading-5 text-white/72">
-              {deliveryType === "domicilio"
-                ? "El domicilio se coordina aparte si aplica. El total visible corresponde a tus productos."
-                : `El pedido se registra para ${businessName} y queda listo para confirmacion.`}
-            </p>
-          </div>
+        <div className="border-b border-[#EFE5DA] py-3">
+          <p className="text-xs font-bold leading-5 text-[#5B6472]">{nextStepCopy}</p>
+          {hasProducts ? (
+            <p className="mt-1 text-[11px] font-bold leading-4 text-[#047857]">{activeBenefit}</p>
+          ) : null}
         </div>
 
-        <div className="rounded-[26px] border border-emerald-100 bg-emerald-50/90 p-4">
-          <div className="flex items-start gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[18px] bg-white text-emerald-600 shadow-sm ring-1 ring-emerald-100">
-              <CheckCircle2 className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-sm font-black tracking-tight text-slate-900">
-                Confirmacion rapida por WhatsApp
-              </p>
-              <p className="mt-1 text-xs leading-5 text-slate-600">
-                Tus datos se usan solo para gestionar la compra y coordinar la entrega o retiro.
-              </p>
-            </div>
+        <div className="space-y-2.5 py-3">
+          <div className="flex items-center justify-between gap-4">
+            <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[#7C8798]">Subtotal</span>
+            <span className="text-sm font-black tabular-nums text-slate-900">{formatCurrency(total)}</span>
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[#7C8798]">
+              Costo de entrega
+            </span>
+            <span className="text-sm font-bold text-[#5B6472]">{deliveryCostCopy(deliveryType)}</span>
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[#7C8798]">Pago</span>
+            <span className="text-sm font-bold text-slate-900">
+              {paymentMethod ? getPaymentMethodLabel(paymentMethod, deliveryType || undefined) : "Pendiente"}
+            </span>
+          </div>
+          <div className="flex items-center justify-between gap-4 border-t border-[#F3EADF] pt-2.5">
+            <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[#7C8798]">Negocio</span>
+            <span className="text-right text-sm font-bold text-slate-900">{businessName}</span>
           </div>
         </div>
 
         {submitError ? (
-          <div className="rounded-[24px] border border-rose-200 bg-rose-50 px-4 py-4 text-sm font-medium text-rose-700">
-            <div className="flex items-start gap-3">
-              <Info className="mt-0.5 h-5 w-5 shrink-0" />
+          <div className="border-t border-rose-200 py-3 text-sm font-medium text-rose-700">
+            <div className="flex items-start gap-2.5">
+              <Info className="mt-0.5 h-4.5 w-4.5 shrink-0" />
               <span>{submitError}</span>
             </div>
           </div>
         ) : null}
 
-        <button
-          data-testid="storefront-submit-order-button"
-          type="button"
-          onClick={onConfirm}
-          disabled={isSubmitting || productCount === 0}
-          className="group flex w-full items-center justify-center gap-3 rounded-[28px] bg-[linear-gradient(135deg,#F59E0B_0%,#D97706_100%)] px-6 py-5 text-base font-black text-white shadow-[0_22px_46px_rgba(217,119,6,0.24)] transition-all hover:-translate-y-0.5 hover:shadow-[0_26px_52px_rgba(217,119,6,0.28)] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          <span>{isSubmitting ? "Enviando pedido..." : "Confirmar pedido"}</span>
-          <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
-        </button>
-        <p className="text-center text-xs leading-5 text-[#7C8798]">Te tomara menos de 1 minuto.</p>
+        <div className="border-t border-[#EFE5DA] pt-3">
+          <button
+            data-testid="storefront-submit-order-button"
+            type="button"
+            onClick={onConfirm}
+            disabled={isSubmitting || productCount === 0}
+            className="group flex w-full items-center justify-center gap-2.5 rounded-[22px] bg-[linear-gradient(135deg,#F59E0B_0%,#D97706_100%)] px-4 py-3.5 text-sm font-black text-white shadow-[0_16px_34px_rgba(217,119,6,0.2)] transition-all hover:-translate-y-0.5 hover:shadow-[0_20px_38px_rgba(217,119,6,0.24)] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <span>{isSubmitting ? "Enviando pedido..." : "Confirmar pedido"}</span>
+            <ArrowRight className="h-4.5 w-4.5 transition-transform group-hover:translate-x-1" />
+          </button>
+        </div>
       </div>
     </section>
   );
@@ -1213,8 +1142,6 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
       complete: confirmationReady,
     },
   ];
-  const completedSteps = progressSteps.filter((step) => step.complete).length;
-  const progressPercent = (completedSteps / progressSteps.length) * 100;
   const nextStepCopy = getCheckoutNudge({
     customerReady,
     productsReady,
@@ -1233,12 +1160,7 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
     fulfillmentReady,
     privacyAccepted,
   });
-  const heroBenefit =
-    deliveryType === "recogida en tienda"
-      ? "Retiro sin costo adicional"
-      : deliveryType === "domicilio"
-        ? "Entrega coordinada por WhatsApp"
-        : "Confirmacion rapida por WhatsApp";
+  const headerSupportLine = resolveStorefrontSubline(business.tagline);
 
   useEffect(() => {
     if (!recentlyUpdatedProductId) {
@@ -1381,88 +1303,54 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
       className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(245,158,11,0.12),transparent_24%),radial-gradient(circle_at_top_right,_rgba(23,32,51,0.06),transparent_26%),linear-gradient(180deg,#FCF8F3_0%,#FFF8EE_52%,#FCF8F3_100%)]"
       data-testid="storefront-order-wizard"
     >
-      <div className="mx-auto w-full max-w-7xl px-4 pb-44 pt-4 sm:px-6 sm:pb-28 sm:pt-8 lg:pb-28">
-        <section className="relative overflow-hidden rounded-[32px] border border-[#E8DDD0] bg-[linear-gradient(135deg,#FFFDF9_0%,#FFF8EE_56%,#FFFDF9_100%)] px-4 py-4 shadow-[0_24px_70px_rgba(23,32,51,0.08)] sm:rounded-[40px] sm:px-6 sm:py-7">
+      <div className="mx-auto w-full max-w-7xl px-4 pb-44 pt-3 sm:px-6 sm:pb-28 sm:pt-6 lg:pb-28">
+        <section className="relative overflow-hidden rounded-[32px] border border-[#E8DDD0] bg-[linear-gradient(135deg,#FFFDF9_0%,#FFF8EE_56%,#FFFDF9_100%)] px-4 py-4 shadow-[0_22px_60px_rgba(23,32,51,0.08)] sm:rounded-[36px] sm:px-6 sm:py-5 lg:px-6 lg:py-4.5">
           <div className="absolute -left-20 top-0 h-48 w-48 rounded-full bg-[#FDE7B1] blur-3xl" />
           <div className="absolute right-0 top-0 h-56 w-56 rounded-full bg-[#F6EFE6] blur-3xl" />
-          <div className="relative grid gap-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-start">
-            <div>
+          <div className="relative grid gap-5 lg:grid-cols-[minmax(0,1.32fr)_minmax(320px,0.92fr)] lg:items-center lg:gap-8">
+            <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
                 <div
-                  className={`flex h-12 w-12 items-center justify-center rounded-[18px] bg-gradient-to-br ${business.accent} shadow-[0_16px_36px_rgba(15,23,42,0.12)] ring-1 ring-black/5 sm:h-14 sm:w-14 sm:rounded-[22px]`}
+                  className={`flex h-11 w-11 items-center justify-center rounded-[18px] bg-gradient-to-br ${business.accent} shadow-[0_16px_36px_rgba(15,23,42,0.12)] ring-1 ring-black/5 sm:h-12 sm:w-12 sm:rounded-[20px]`}
                 >
                   <Store className="h-5 w-5 text-slate-800 sm:h-6 sm:w-6" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-[11px] font-black uppercase tracking-[0.26em] text-[#D97706]">
-                    {business.name}
-                  </p>
-                  <p className="mt-1 text-xs leading-5 text-[#5B6472] sm:text-sm sm:leading-6">
-                    {resolveStorefrontSubline(business.tagline)}
+                  <p className="text-[11px] font-black uppercase tracking-[0.24em] text-[#D97706]">
+                    Haz tu compra fácil y rápido
                   </p>
                 </div>
               </div>
 
-              <div className="mt-4 max-w-3xl sm:mt-6">
-                <h1 className="text-[2rem] font-black tracking-tight text-slate-900 sm:text-4xl lg:text-[3rem] lg:leading-[1.05]">
-                  Pide en menos de 1 minuto
+              <div className="mt-3 max-w-[46rem] sm:mt-4">
+                <p className="text-sm font-black tracking-tight text-slate-900">Pide directo aqui</p>
+                <h1 className="max-w-[22ch] text-[2.15rem] font-black tracking-[-0.04em] text-slate-900 [text-wrap:balance] sm:text-[2.7rem] sm:leading-[0.98] lg:max-w-[24ch] lg:text-[3.45rem] lg:leading-[0.96]">
+                  {business.name}
                 </h1>
-                <p className="mt-2 text-sm leading-6 text-[#5B6472] sm:mt-3 sm:text-base sm:leading-7">
-                  Se siente como una compra guiada: eliges productos, defines entrega y pago, y
-                  confirmas con claridad desde el mismo lugar.
+                <p className="mt-2 max-w-[38rem] text-sm leading-6 text-[#5B6472] sm:text-base sm:leading-7">
+                  {headerSupportLine}
                 </p>
-              </div>
-
-              <div className="mt-4 flex flex-wrap gap-2 sm:mt-6 sm:gap-3">
-                <StatusPill
-                  label={heroBenefit}
-                  tone="warm"
-                  icon={<Sparkles className="h-3.5 w-3.5" />}
-                />
-                <StatusPill
-                  label="Resumen sticky"
-                  tone="neutral"
-                  icon={<ShoppingBag className="h-3.5 w-3.5" />}
-                />
-                <StatusPill
-                  label="Compra confiable"
-                  tone="success"
-                  icon={<CheckCircle2 className="h-3.5 w-3.5" />}
-                />
-              </div>
-
-              <div className="mt-4 flex gap-2 overflow-x-auto pb-1 sm:hidden">
-                <a
-                  href="#storefront-products-section"
-                  className="inline-flex shrink-0 items-center gap-2 rounded-full bg-[#172033] px-4 py-2.5 text-xs font-black uppercase tracking-[0.18em] text-white shadow-[0_14px_28px_rgba(23,32,51,0.14)]"
-                >
-                  Ir a productos
-                  <ChevronRight className="h-4 w-4" />
-                </a>
-                <StatusPill label="4 pasos claros" tone="neutral" icon={<Clock3 className="h-3.5 w-3.5" />} />
-                <StatusPill label="Cierre rapido" tone="success" icon={<Sparkles className="h-3.5 w-3.5" />} />
-              </div>
-
-              <div className="mt-6 hidden gap-3 sm:grid sm:grid-cols-3">
-                <TrustChip
-                  icon={Clock3}
-                  label="Avance claro"
-                  description="Ves el proceso dividido en pasos concretos y faciles de cerrar."
-                />
-                <TrustChip icon={Gift} label="Beneficio visible" description={activeBenefit} />
-                <TrustChip
-                  icon={CheckCircle2}
-                  label="Sin vueltas"
-                  description="Te pedimos solo la informacion necesaria para operar el pedido."
-                />
               </div>
             </div>
 
-            <ProgressOverview steps={progressSteps} progressPercent={progressPercent} />
+            <div className="min-w-0 lg:pl-2">
+              <div className="grid grid-cols-3 gap-3 sm:gap-4 lg:gap-5">
+                {STOREFRONT_HEADER_BENEFITS.map(({ icon: Icon, copy }) => (
+                  <div key={copy} className="flex min-w-0 flex-col items-start gap-2.5">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-[18px] bg-[#FFF7EB] text-[#D97706] shadow-[0_14px_30px_rgba(217,119,6,0.12)] ring-1 ring-[#F3D39A] sm:h-14 sm:w-14 sm:rounded-[20px]">
+                      <Icon className="h-5 w-5 sm:h-6 sm:w-6" />
+                    </div>
+                    <p className="max-w-[14ch] text-sm font-black leading-5 tracking-[-0.02em] text-slate-900 sm:text-[0.95rem] sm:leading-6">
+                      {copy}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </section>
 
-        <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1.65fr)_minmax(320px,0.95fr)] lg:items-start">
+        <div className="mt-5 grid gap-8 lg:grid-cols-[minmax(0,1.65fr)_minmax(320px,0.95fr)] lg:items-start">
           <div className="space-y-6">
             <SectionFrame
               step="Paso 1"
@@ -1576,7 +1464,7 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
               sectionId="storefront-products-section"
               step="Paso 2"
               title="Arma tu pedido"
-              description="Entre mas claro armes tu compra, mas rapido se siente el cierre."
+              description="Toca para sumar y ver el pedido crecer al instante."
               icon={ShoppingBag}
               complete={productsReady}
               highlight
@@ -1591,17 +1479,17 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
               }
             >
               <div className="space-y-5">
-                <div className="grid gap-4 rounded-[30px] border border-[#E8DDD0] bg-[#FFFDF9]/92 p-4 shadow-[0_14px_34px_rgba(23,32,51,0.08)] lg:grid-cols-[minmax(0,1fr)_260px]">
+                <div className="grid gap-4 rounded-[34px] border border-[#E8DDD0] bg-[linear-gradient(180deg,#FFFDF9_0%,#FFF8EE_100%)] p-4 shadow-[0_18px_42px_rgba(23,32,51,0.1)] lg:grid-cols-[minmax(0,1.18fr)_minmax(240px,0.82fr)] lg:p-5">
                   <div>
                     <p className="text-[11px] font-black uppercase tracking-[0.24em] text-[#D97706]">
                       Productos protagonistas
                     </p>
-                    <h3 className="mt-2 text-xl font-black tracking-tight text-slate-900">
+                    <h3 className="mt-2 text-[1.55rem] font-black tracking-tight text-slate-900 sm:text-[1.75rem]">
                       Elige desde lo que mas mueve el negocio
                     </h3>
-                    <p className="mt-2 text-sm leading-6 text-[#5B6472]">
-                      Entre mas agregas, mejor aprovechas tu compra. Todo lo que sumes impacta el
-                      total de inmediato.
+                    <p className="mt-2 max-w-2xl text-sm leading-6 text-[#5B6472]">
+                      Cada toque actualiza el total y las cantidades en vivo para que veas claro
+                      lo que ya llevas.
                     </p>
 
                     <div className="mt-4 flex flex-col gap-3">
@@ -1620,46 +1508,59 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
                   </div>
 
                   <div className="flex flex-col gap-3">
-                    <div className="rounded-[26px] bg-[linear-gradient(180deg,#FFF3D6_0%,#FFFDF9_100%)] p-4 ring-1 ring-[#F3D39A]">
-                      <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#B45309]">
-                        Beneficio visible
-                      </p>
-                      <p className="mt-2 text-sm font-black tracking-tight text-slate-900">
-                        {activeBenefit}
-                      </p>
-                      <p className="mt-2 text-xs leading-5 text-[#5B6472]">
-                        El resumen de la derecha te muestra en todo momento cuanto llevas y que te
-                        falta para confirmar.
-                      </p>
-                    </div>
-
                     <div
                       aria-live="polite"
-                      className={`rounded-[26px] border p-4 transition-all ${
+                      className={`rounded-[28px] border p-4 shadow-[0_10px_28px_rgba(23,32,51,0.06)] transition-all ${
                         recentlyAddedProductName
                           ? "border-[#A7F3D0] bg-[#EAFBF4]"
-                          : "border-[#E8DDD0] bg-[#F6EFE6]/65"
+                          : "border-[#E8DDD0] bg-[#FFFDF9]"
                       }`}
                     >
-                      <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#7C8798]">
-                        Feedback inmediato
-                      </p>
-                      <p className="mt-2 text-sm font-black tracking-tight text-slate-900">
-                        {recentlyAddedProductName
-                          ? `${recentlyAddedProductName} se agrego a tu pedido`
-                          : "Cada producto que sumas actualiza el resumen en vivo"}
-                      </p>
-                      <p className="mt-2 text-xs leading-5 text-[#5B6472]">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#D97706]">
+                            Pedido en vivo
+                          </p>
+                          <p className="mt-2 text-sm font-black tracking-tight text-slate-900">
+                            {recentlyAddedProductName
+                              ? `${recentlyAddedProductName} se agrego a tu pedido`
+                              : "Cada producto que sumas actualiza el pedido al instante"}
+                          </p>
+                        </div>
+                        <StatusPill
+                          label={`${selected.length} en tu pedido`}
+                          tone={selected.length > 0 ? "success" : "neutral"}
+                        />
+                      </div>
+                      <div className="mt-4 grid grid-cols-2 gap-3">
+                        <div className="rounded-[22px] bg-[#FFF3D6] px-3 py-3 ring-1 ring-[#F3D39A]">
+                          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#B45309]">
+                            Unidades
+                          </p>
+                          <p className="mt-1 text-xl font-black tracking-tight text-slate-900">
+                            {productCount}
+                          </p>
+                        </div>
+                        <div className="rounded-[22px] bg-[#FFFDF9] px-3 py-3 ring-1 ring-[#E8DDD0]">
+                          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#7C8798]">
+                            A tiempo real
+                          </p>
+                          <p className="mt-1 text-sm font-black tracking-tight text-slate-900">
+                            {activeBenefit}
+                          </p>
+                        </div>
+                      </div>
+                      <p className="mt-3 text-xs leading-5 text-[#5B6472]">
                         {recentlyAddedProductName
                           ? "Sigue armando tu compra o pasa directo a entrega y pago."
-                          : "La idea es que comprar se sienta guiado, no como llenar una tabla fria."}
+                          : "Tu pedido se arma en vivo mientras eliges."}
                       </p>
                     </div>
 
                     <button
                       type="button"
                       onClick={() => setIsCatalogOpen(true)}
-                      className="inline-flex items-center justify-center gap-2 rounded-[22px] border border-[#E8DDD0] bg-[#FFFDF9] px-4 py-3 text-sm font-black text-slate-900 shadow-sm transition hover:border-[#D8C8B5] hover:shadow-md active:scale-[0.98]"
+                      className="inline-flex items-center justify-center gap-2 rounded-full border border-[#E8DDD0] bg-[#FFFDF9] px-4 py-2.5 text-sm font-black text-[#5B6472] shadow-sm transition hover:border-[#D8C8B5] hover:text-slate-900 hover:shadow-md active:scale-[0.98]"
                     >
                       Ver catalogo completo
                       <ChevronRight className="h-4 w-4" />
@@ -1695,7 +1596,7 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
 
                 <div
                   data-testid="storefront-inline-products"
-                  className="flex flex-col gap-4"
+                  className="grid gap-4 md:grid-cols-2"
                 >
                   {visibleProducts.length > 0 ? (
                     visibleProducts.map((product) => (
@@ -1890,7 +1791,7 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
             <SectionFrame
               step="Paso 4"
               title="Confirmacion"
-              description="Ajusta una nota final si hace falta y deja clara la autorizacion de datos antes de cerrar."
+              description="Deja una nota opcional y confirma la compra con tranquilidad."
               icon={Shield}
               complete={confirmationReady}
               status={
@@ -1905,58 +1806,58 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
                 )
               }
             >
-              <div className="grid gap-5 xl:grid-cols-[0.95fr_1.05fr]">
-                <div className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_10px_28px_rgba(15,23,42,0.05)] sm:rounded-[30px] sm:p-5">
+              <div className="grid gap-4 xl:grid-cols-[0.84fr_1.16fr]">
+                <div className="rounded-[24px] border border-slate-200 bg-white p-3.5 shadow-[0_10px_24px_rgba(15,23,42,0.04)] sm:rounded-[28px] sm:p-4">
                   <div className="flex items-start justify-between gap-3">
-                    <div>
+                    <div className="min-w-0">
                       <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">
                         Observaciones
                       </p>
-                      <h3 className="mt-2 text-lg font-black tracking-tight text-slate-900">
-                        Quieres agregar algo?
+                      <h3 className="mt-1.5 text-lg font-black tracking-tight text-slate-900">
+                        Si quieres, agrega una nota
                       </h3>
                     </div>
                     <StatusPill label="Opcional" tone="neutral" />
                   </div>
 
-                  <label className="mt-4 block">
+                  <label className="mt-3 block">
                     <div className="relative">
-                      <MessageSquare className="pointer-events-none absolute left-4 top-4 h-5 w-5 text-slate-400" />
+                      <MessageSquare className="pointer-events-none absolute left-4 top-3.5 h-5 w-5 text-slate-400" />
                       <textarea
-                        rows={5}
+                        rows={4}
                         data-testid="storefront-order-notes-input"
                         value={observations}
                         onChange={(event) => setObservations(event.target.value)}
-                        placeholder="Ej: sin salsa, llamar al llegar, entregar en porteria..."
-                        className="w-full rounded-[24px] border border-[#E8DDD0] bg-[#F6EFE6]/65 py-4 pl-12 pr-4 text-base font-medium text-slate-900 outline-none transition-all focus:border-[#F59E0B] focus:bg-[#FFFDF9] focus:ring-4 focus:ring-[#FFF3D6]"
+                        placeholder="Ej: sin salsa, llamar al llegar..."
+                        className="w-full rounded-[22px] border border-[#E8DDD0] bg-[#F6EFE6]/55 py-3.5 pl-12 pr-4 text-base font-medium text-slate-900 outline-none transition-all focus:border-[#F59E0B] focus:bg-[#FFFDF9] focus:ring-4 focus:ring-[#FFF3D6]"
                       />
                     </div>
                   </label>
                 </div>
 
-                <div className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_10px_28px_rgba(15,23,42,0.05)] sm:rounded-[30px] sm:p-5">
+                <div className="rounded-[24px] border border-slate-200 bg-white p-3.5 shadow-[0_10px_24px_rgba(15,23,42,0.04)] sm:rounded-[28px] sm:p-4">
                   <div className="flex items-start justify-between gap-3">
-                    <div>
+                    <div className="min-w-0">
                       <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">
                         Autorizacion de datos
                       </p>
-                      <h3 className="mt-2 text-lg font-black tracking-tight text-slate-900">
-                        Compra clara y transparente
+                      <h3 className="mt-1.5 text-lg font-black tracking-tight text-slate-900">
+                        Solo para gestionar tu pedido
                       </h3>
                     </div>
                     <StatusPill label={privacyAccepted ? "Aceptada" : "Pendiente"} tone={privacyAccepted ? "success" : "neutral"} />
                   </div>
 
                   <div
-                    className={`mt-4 rounded-[28px] border p-4 transition-all ${
+                    className={`mt-3 rounded-[24px] border p-3.5 transition-all ${
                       privacyAccepted
                         ? "border-[#A7F3D0] bg-[#EAFBF4]"
                         : "border-[#E8DDD0] bg-[#F6EFE6]/65"
                     }`}
                   >
-                    <div className="flex items-start gap-4">
-                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] bg-[#FFFDF9] text-slate-900 shadow-sm ring-1 ring-[#E8DDD0]">
-                        <Shield className="h-5 w-5" />
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[16px] bg-[#FFFDF9] text-slate-900 shadow-sm ring-1 ring-[#E8DDD0]">
+                        <Shield className="h-4 w-4" />
                       </div>
 
                       <div className="min-w-0 flex-1">
@@ -1976,15 +1877,15 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
                           </div>
                           <div className="space-y-1">
                             <p className="text-sm font-black text-slate-900">
-                              Autorizo el tratamiento de mis datos para gestionar este pedido y contactarme sobre su entrega.
+                              Autorizo usar mis datos para gestionar este pedido y coordinar su entrega.
                             </p>
                             <p className="text-sm leading-6 text-slate-600">
-                              Tus datos se usan solo para procesar tu compra.
+                              Se usan solo para confirmar y coordinar tu compra.
                             </p>
                           </div>
                         </label>
 
-                        <p className="mt-4 text-xs leading-5 text-slate-600">
+                        <p className="mt-3 text-xs leading-5 text-slate-600">
                           Puedes revisar la{" "}
                           <Link
                             href="/legal/privacidad"
@@ -2014,10 +1915,9 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
               isSubmitting={isSubmitting}
               submitError={submitError}
               onConfirm={() => void handleConfirmOrder()}
-              progressPercent={progressPercent}
-              completedSteps={completedSteps}
-              nextStepCopy={nextStepCopy}
+              steps={progressSteps}
               activeBenefit={activeBenefit}
+              nextStepCopy={nextStepCopy}
             />
           </aside>
         </div>
@@ -2125,3 +2025,5 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
     </main>
   );
 }
+
+
