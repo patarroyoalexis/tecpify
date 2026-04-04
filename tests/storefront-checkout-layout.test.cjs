@@ -15,7 +15,7 @@ test("storefront checkout layout: compacta header y resumen sticky sin tocar el 
 
   assert.match(
     source,
-    /Haz tu pedido facil y rapido/,
+    /Pide directo aqui/,
     "El storefront publico debe abrir con un encabezado breve orientado a compra.",
   );
   assert.match(
@@ -34,72 +34,73 @@ test("storefront checkout layout: compacta header y resumen sticky sin tocar el 
     "La barra de progreso debe mantener los 4 pasos del checkout publico.",
   );
   const stickyIndex = source.indexOf("lg:sticky lg:top-6");
-  const headerIndex = source.indexOf("Haz tu pedido facil y rapido");
+  const productsSectionIndex = source.indexOf('title="Arma tu pedido"');
   const summaryIndex = source.indexOf("function SummaryPanel");
   const mobileBarIndex = source.indexOf("function MobileFloatingCheckoutBar");
-  assert.ok(headerIndex >= 0, "El encabezado principal debe seguir presente en la cabecera.");
+  assert.ok(productsSectionIndex >= 0, "La seccion de productos debe seguir estando presente.");
   assert.ok(summaryIndex >= 0, "El resumen lateral debe seguir definido como componente.");
   assert.ok(mobileBarIndex > summaryIndex, "El resumen lateral debe aparecer antes de la barra mobile.");
   assert.ok(stickyIndex >= 0, "El resumen sticky lateral debe seguir presente en desktop.");
-  assert.doesNotMatch(
-    source.slice(headerIndex, stickyIndex),
-    /Resumen del pedido/,
-    "El header no debe duplicar el resumen sticky.",
-  );
   assert.doesNotMatch(
     source.slice(summaryIndex, mobileBarIndex),
     /function ProgressOverview/,
     "El resumen sticky ya no debe depender del modulo pesado de progreso por cuadros.",
   );
+
   assert.match(
     source,
-    /Productos protagonistas/,
-    "La seccion de productos debe seguir abriendo como bloque protagonista.",
+    /Paso 2[\s\S]*Arma tu pedido/,
+    "La cabecera de productos debe conservar el paso y el titulo en una sola linea jerarquica.",
   );
   assert.match(
     source,
-    /Pedido en vivo/,
-    "La seccion de productos debe reforzar la sensacion de pedido en tiempo real.",
+    /Busca por nombre o descripcion/,
+    "El buscador debe seguir visible dentro de la cabecera de la seccion.",
   );
   assert.match(
     source,
-    /Tu pedido se arma en vivo/,
-    "El sticky debe conservar una lectura breve de pedido en vivo.",
+    /Catalogo actualizado/,
+    "La seccion debe conservar una linea compacta de valor con estado del catalogo.",
   );
   assert.match(
     source,
-    /Cada toque actualiza el total y las cantidades en vivo/,
-    "La seccion de productos debe dejar explicita la lectura del pedido en vivo.",
+    /Tu pedido se arma en vivo mientras eliges|Agrega productos para ver el total en vivo/,
+    "La linea de apoyo debe seguir comunicando que el pedido se actualiza en vivo.",
   );
   assert.match(
     source,
-    /1 en tu pedido/,
-    "Las tarjetas de producto deben reforzar cuantas unidades ya lleva el usuario.",
+    /compact[\s\S]*grid grid-cols-\[auto_minmax\(0,1fr\)_auto\] items-center gap-x-3[\s\S]*flex shrink-0 flex-col items-end justify-center gap-2/,
+    "La tarjeta compacta debe mantener una composicion horizontal estable con precio y stepper alineados a la derecha.",
   );
   assert.match(
     source,
-    /data-testid=\"storefront-inline-products\"[\s\S]*md:grid-cols-2/,
-    "La lista de productos debe ser mas escaneable sin perder legibilidad en desktop.",
+    /Precio[\s\S]*\{formatCurrency\(product\.price\)\}[\s\S]*\<div[\s\S]*flex items-center gap-2 rounded-\[22px\]/,
+    "El precio debe quedar arriba del stepper dentro de la misma columna derecha.",
   );
   assert.doesNotMatch(
     source,
-    /Beneficio visible|Feedback inmediato/,
-    "La seccion de productos no debe competir con cajas secundarias redundantes.",
+    /Total linea/,
+    "La card de producto no debe mostrar total de linea dentro del bloque.",
+  );
+  assert.match(
+    source,
+    /data-testid=\"storefront-inline-products\"[\s\S]*space-y-2/,
+    "La lista de productos debe mantenerse compacta y apilada sin volver a una grilla mas pesada.",
+  );
+  assert.match(
+    source,
+    /compact[\s\S]*recentlyUpdated/,
+    "Los productos de la vista principal deben seguir usando la variante compacta.",
+  );
+  assert.doesNotMatch(
+    source,
+    /Productos protagonistas|Pedido en vivo|Ver catalogo completo|featuredProducts|isCatalogOpen/,
+    "La seccion no debe reintroducir el bloque protagonista ni el cajon lateral.",
   );
   assert.match(
     source,
     /Si quieres, agrega una nota/,
     "Las observaciones deben quedar como una invitacion opcional y ligera.",
-  );
-  assert.match(
-    source.slice(summaryIndex, mobileBarIndex),
-    /Resumen del pedido[\s\S]*progressHeader\.title[\s\S]*progressHeader\.subtitle[\s\S]*Paso \{progressHeader\.currentStep\} de \{progressHeader\.totalSteps\}/,
-    "El sticky debe orientar el header con progreso real y copy del paso actual.",
-  );
-  assert.match(
-    source,
-    /Completa tu nombre y WhatsApp para continuar con el pedido\.[\s\S]*Agrega lo que deseas pedir y revisa tu compra en tiempo real\.[\s\S]*Elige entrega y metodo de pago para dejar tu pedido listo\.[\s\S]*Verifica tus datos antes de enviar el pedido al negocio\.[\s\S]*Todo esta completo\. Ahora solo falta enviar tu pedido\./,
-    "El sticky debe conservar los copies obligatorios de cada estado del progreso.",
   );
   assert.match(
     source.slice(summaryIndex, mobileBarIndex),
@@ -156,6 +157,25 @@ test("storefront checkout layout: compacta header y resumen sticky sin tocar el 
     source,
     /Costo de entrega/,
     "El resumen debe seguir mostrando el estado del costo de entrega de forma visible.",
+  );
+  assert.match(source, /step="Paso 3"[\s\S]*title="Entrega y pago"/, "El paso 3 debe seguir declarando su jerarquia principal.");
+  assert.match(source, /complete=\{fulfillmentReady\}[\s\S]*compact/, "El paso 3 debe mantenerse en la variante compacta.");
+  assert.match(
+    source,
+    /description="Elige la entrega y luego te mostramos solo los pagos compatibles\."/,
+    "El paso 3 debe abrir compacto y priorizar la decision de entrega antes del pago.",
+  );
+  assert.match(source, /business\.availableDeliveryTypes\.map/, "La entrega debe iterar solo los tipos habilitados por el negocio.");
+  assert.match(source, /mt-2\.5 grid gap-2\.5 md:grid-cols-2/, "La entrega debe mostrarse en una grilla corta de dos cards en desktop intermedio.");
+  assert.match(
+    source,
+    /testId=\{`storefront-delivery-option-\$\{slugifyChoice\(type\)\}`\}[\s\S]*compact/,
+    "La entrega debe renderizar cards compactas completamente clickeables.",
+  );
+  assert.match(
+    source,
+    /Elige primero la entrega[\s\S]*solo mostramos metodos reales y compatibles con tu pedido/,
+    "El bloque de pago debe quedarse informativo hasta que exista una entrega elegida.",
   );
   assert.match(
     source.slice(summaryIndex, mobileBarIndex),

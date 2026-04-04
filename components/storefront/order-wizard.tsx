@@ -136,14 +136,14 @@ function deliveryTitle(type: DeliveryType) {
 
 function deliveryDescription(type: DeliveryType) {
   return type === "domicilio"
-    ? "Recibelo en tu direccion con una coordinacion clara por WhatsApp."
-    : "Retira directo en el negocio y evita pasos extra.";
+    ? "Recibelo en tu direccion con coordinacion por WhatsApp."
+    : "Retira directo en el negocio sin pasos extra.";
 }
 
 function deliverySupport(type: DeliveryType) {
   return type === "domicilio"
-    ? "Costo de entrega: se confirma segun la zona."
-    : "Costo de entrega: sin costo adicional.";
+    ? "Costo segun zona."
+    : "Sin costo adicional.";
 }
 
 function deliveryBadge(type: DeliveryType) {
@@ -171,8 +171,8 @@ function getSummaryHeaderProgress(steps: Array<{ label: string; supporting: stri
       completedSteps,
       totalSteps,
       isComplete,
-      title: "Tu pedido esta listo para confirmar",
-      subtitle: "Todo esta completo. Ahora solo falta enviar tu pedido.",
+      title: "Confirmación",
+      subtitle: "Revisa el resumen final y confirma tu pedido para enviarlo al negocio.",
     };
   }
 
@@ -182,8 +182,8 @@ function getSummaryHeaderProgress(steps: Array<{ label: string; supporting: stri
       completedSteps,
       totalSteps,
       isComplete,
-      title: "Escribe tus datos para avanzar",
-      subtitle: "Completa tu nombre y WhatsApp para continuar con el pedido.",
+      title: "A nombre de quién va tu pedido?",
+      subtitle: "Déjanos tus datos para identificar tu compra y poder contactarte.",
     };
   }
 
@@ -193,8 +193,8 @@ function getSummaryHeaderProgress(steps: Array<{ label: string; supporting: stri
       completedSteps,
       totalSteps,
       isComplete,
-      title: "Elige tus productos",
-      subtitle: "Agrega lo que deseas pedir y revisa tu compra en tiempo real.",
+      title: "Arma tu pedido",
+      subtitle: "Agrega los productos y cantidades que deseas pedir.",
     };
   }
 
@@ -204,8 +204,8 @@ function getSummaryHeaderProgress(steps: Array<{ label: string; supporting: stri
       completedSteps,
       totalSteps,
       isComplete,
-      title: "Define como recibiras tu pedido",
-      subtitle: "Elige entrega y metodo de pago para dejar tu pedido listo.",
+      title: "Entrega y pago",
+      subtitle: "Define cómo recibirás tu pedido y cómo prefieres pagarlo.",
     };
   }
 
@@ -214,29 +214,29 @@ function getSummaryHeaderProgress(steps: Array<{ label: string; supporting: stri
     completedSteps,
     totalSteps,
     isComplete,
-    title: "Revisa y confirma tu pedido",
-    subtitle: "Verifica tus datos antes de enviar el pedido al negocio.",
+    title: "Confirmación",
+    subtitle: "Revisa el resumen final y confirma tu pedido para enviarlo al negocio.",
   };
 }
 
 function paymentHint(method: PaymentMethod, deliveryType?: DeliveryType) {
   if (method === "Transferencia") {
-    return "Acelera la confirmacion y deja el cierre mas agil.";
+    return "Acelera la confirmacion del pedido.";
   }
 
   if (method === "Tarjeta") {
-    return "Pago inmediato si el negocio lo tiene habilitado.";
+    return "Pago inmediato si esta habilitada.";
   }
 
   if (method === "Contra entrega") {
     return deliveryType === "domicilio"
-      ? "Pagas cuando recibes el pedido."
-      : "Disponible solo cuando la entrega es a domicilio.";
+      ? "Pagas al recibir."
+      : "Solo disponible a domicilio.";
   }
 
   return deliveryType === "domicilio"
-    ? "Pagas al recibir el pedido."
-    : "Pagas al retirar tu compra.";
+    ? "Pagas al recibir."
+    : "Pagas al retirar.";
 }
 
 function paymentBadge(method: PaymentMethod) {
@@ -285,36 +285,6 @@ function getCheckoutNudge({
   return "Todo esta listo. Solo falta confirmar el pedido.";
 }
 
-function getActiveBenefit({
-  deliveryType,
-  paymentMethod,
-  selectedFeaturedCount,
-  productCount,
-}: {
-  deliveryType: DeliveryType | "";
-  paymentMethod: PaymentMethod | "";
-  selectedFeaturedCount: number;
-  productCount: number;
-}) {
-  if (paymentMethod === "Transferencia") {
-    return "Confirmacion mas agil al validar el comprobante.";
-  }
-
-  if (deliveryType === "recogida en tienda") {
-    return "Retiras sin costo de envio y con menos pasos.";
-  }
-
-  if (selectedFeaturedCount > 0) {
-    return `Llevas ${selectedFeaturedCount} destacado${selectedFeaturedCount > 1 ? "s" : ""} del negocio en tu compra.`;
-  }
-
-  if (productCount > 1) {
-    return "Tu pedido ya va tomando forma y el total se actualiza en vivo.";
-  }
-
-  return "Confirmacion rapida por WhatsApp una vez envies el pedido.";
-}
-
 function getMobileCtaLabel({
   customerReady,
   productsReady,
@@ -355,6 +325,7 @@ function SectionFrame({
   status,
   complete = false,
   highlight = false,
+  compact = false,
 }: {
   sectionId?: string;
   step: string;
@@ -365,6 +336,7 @@ function SectionFrame({
   status?: ReactNode;
   complete?: boolean;
   highlight?: boolean;
+  compact?: boolean;
 }) {
   return (
     <section
@@ -376,11 +348,13 @@ function SectionFrame({
       }`}
     >
       <div className="absolute inset-x-0 top-0 h-1 bg-[linear-gradient(90deg,#F59E0B_0%,#D97706_100%)]" />
-      <div className="px-5 py-5 sm:px-6 sm:py-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex items-start gap-4">
+      <div className={compact ? "px-4 py-3.5 sm:px-5 sm:py-4" : "px-5 py-5 sm:px-6 sm:py-6"}>
+        <div className={`flex flex-col ${compact ? "gap-2.5" : "gap-4"} sm:flex-row sm:items-start sm:justify-between`}>
+          <div className={`flex items-start ${compact ? "gap-3" : "gap-4"}`}>
             <div
-              className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-[22px] text-white shadow-[0_16px_34px_rgba(23,32,51,0.14)] ${
+              className={`flex shrink-0 items-center justify-center text-white ${
+                compact ? "h-10 w-10 rounded-[17px] shadow-[0_10px_22px_rgba(23,32,51,0.11)]" : "h-14 w-14 rounded-[22px] shadow-[0_16px_34px_rgba(23,32,51,0.14)]"
+              } ${
                 complete
                   ? "bg-emerald-500"
                   : highlight
@@ -388,20 +362,28 @@ function SectionFrame({
                     : "bg-[#172033]"
               }`}
             >
-              {complete ? <CheckCircle2 className="h-6 w-6" /> : <Icon className="h-6 w-6" />}
+              {complete ? (
+                <CheckCircle2 className={compact ? "h-4.5 w-4.5" : "h-6 w-6"} />
+              ) : (
+                <Icon className={compact ? "h-4.5 w-4.5" : "h-6 w-6"} />
+              )}
             </div>
             <div className="min-w-0">
-              <p className="text-[11px] font-black uppercase tracking-[0.26em] text-[#7C8798]">
+              <p className={`font-black uppercase text-[#7C8798] ${compact ? "text-[10px] tracking-[0.22em]" : "text-[11px] tracking-[0.26em]"}`}>
                 {step}
               </p>
-              <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-900">{title}</h2>
-              <p className="mt-2 text-sm leading-6 text-[#5B6472]">{description}</p>
+              <h2 className={`font-black tracking-tight text-slate-900 ${compact ? "mt-0.5 text-[1.32rem] leading-tight" : "mt-2 text-2xl"}`}>
+                {title}
+              </h2>
+              <p className={`text-[#5B6472] ${compact ? "mt-0.5 text-[13px] leading-4.5" : "mt-2 text-sm leading-6"}`}>
+                {description}
+              </p>
             </div>
           </div>
           {status}
         </div>
       </div>
-      <div className="px-5 pb-5 sm:px-6 sm:pb-6">{children}</div>
+      <div className={compact ? "px-4 pb-3.5 sm:px-5 sm:pb-4.5" : "px-5 pb-5 sm:px-6 sm:pb-6"}>{children}</div>
     </section>
   );
 }
@@ -423,10 +405,12 @@ function StatusPill({
   label,
   tone = "neutral",
   icon,
+  compact = false,
 }: {
   label: string;
   tone?: "neutral" | "warm" | "success";
   icon?: ReactNode;
+  compact?: boolean;
 }) {
   const toneClassName =
     tone === "success"
@@ -437,7 +421,7 @@ function StatusPill({
 
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[0.18em] ring-1 ${toneClassName}`}
+      className={`inline-flex items-center rounded-full ring-1 ${compact ? "gap-1 px-2 py-0.5 text-[9px] tracking-[0.14em]" : "gap-1.5 px-3 py-1 text-[11px] tracking-[0.18em]"} font-black uppercase ${toneClassName}`}
     >
       {icon}
       {label}
@@ -460,7 +444,7 @@ function TrustChip({
         <Icon className="h-5 w-5" />
       </div>
       <div className="min-w-0">
-        <p className="text-sm font-black tracking-tight text-slate-900">Pide directo aqui</p>
+        <p className="text-sm font-black tracking-tight text-slate-900">{label}</p>
         <p className="mt-1 text-xs leading-5 text-[#5B6472]">{description}</p>
       </div>
     </div>
@@ -478,6 +462,7 @@ function ChoiceCard({
   onClick,
   testId,
   value,
+  compact = false,
 }: {
   title: string;
   description: string;
@@ -489,7 +474,55 @@ function ChoiceCard({
   onClick: () => void;
   testId: string;
   value: string;
+  compact?: boolean;
 }) {
+  if (compact) {
+    return (
+      <button
+        type="button"
+        data-testid={testId}
+        data-choice-value={value}
+        aria-pressed={selected}
+        onClick={onClick}
+        className={`group flex h-full w-full flex-col rounded-[20px] border p-3 text-left transition-all sm:rounded-[22px] sm:p-3.5 ${
+          selected
+            ? "border-[#F3D39A] bg-[linear-gradient(180deg,#FFF7E2_0%,#FFFDF9_100%)] shadow-[0_12px_24px_rgba(217,119,6,0.11)] ring-1 ring-[#F6D8A8]"
+            : "border-[#E8DDD0] bg-[#FFFDF9] hover:-translate-y-0.5 hover:border-[#D8C8B5] hover:shadow-[0_10px_22px_rgba(23,32,51,0.06)]"
+        }`}
+      >
+        <div className="flex items-start justify-between gap-2.5">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <StatusPill label={badge} tone={featured ? "warm" : "neutral"} compact />
+              {featured ? (
+                <StatusPill
+                  label="Recomendado"
+                  tone="success"
+                  compact
+                  icon={<Sparkles className="h-3 w-3" />}
+                />
+              ) : null}
+            </div>
+            <h3 className="mt-1.5 text-[0.98rem] font-black leading-5 tracking-tight text-slate-900">
+              {title}
+            </h3>
+            <p className="mt-0.5 line-clamp-2 text-[13px] leading-4.5 text-[#5B6472]">{description}</p>
+          </div>
+          <div
+            className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-[13px] ${
+              selected
+                ? "bg-[#F59E0B] text-white shadow-[0_8px_16px_rgba(245,158,11,0.18)]"
+                : "bg-[#F7F1E8] text-[#5B6472] ring-1 ring-[#E8DDD0] group-hover:text-[#D97706]"
+            }`}
+          >
+            {selected ? <CheckCircle2 className="h-4 w-4" /> : <Icon className="h-4 w-4" />}
+          </div>
+        </div>
+        <p className="mt-2 text-[11px] font-medium leading-4.5 text-[#7C8798]">{supporting}</p>
+      </button>
+    );
+  }
+
   return (
     <button
       type="button"
@@ -583,7 +616,7 @@ function ProductCard({
     <article
       className={`group relative overflow-hidden rounded-[28px] border transition-all sm:rounded-[32px] ${
         active
-          ? "border-[#F3D39A] bg-[linear-gradient(180deg,#FFF9EC_0%,#FFFDF9_100%)] shadow-[0_22px_54px_rgba(217,119,6,0.14)]"
+          ? "border-[#BFE8D3] bg-[linear-gradient(180deg,#F4FFF8_0%,#FFFDF9_100%)] shadow-[0_22px_54px_rgba(16,185,129,0.12)]"
           : "border-[#E8DDD0] bg-[#FFFDF9] hover:-translate-y-0.5 hover:border-[#D8C8B5] hover:shadow-[0_16px_40px_rgba(23,32,51,0.08)]"
       } ${recentlyUpdated ? "ring-2 ring-[#A7F3D0] ring-offset-2 ring-offset-[#FCF8F3]" : ""}`}
     >
@@ -595,86 +628,110 @@ function ProductCard({
 
       <div
         className={`relative overflow-hidden ${
-          compact ? "rounded-b-[20px] rounded-t-[26px] px-3.5 py-3.5 sm:rounded-b-[24px] sm:rounded-t-[30px] sm:px-4 sm:py-4" : "rounded-b-[22px] rounded-t-[28px] px-4 py-4 sm:rounded-b-[26px] sm:rounded-t-[32px] sm:px-5 sm:py-5"
-        } bg-[linear-gradient(135deg,rgba(245,158,11,0.14)_0%,rgba(255,243,214,0.7)_46%,rgba(255,253,249,0.95)_100%)]`}
+          compact
+            ? "rounded-[20px] px-3 py-3 sm:rounded-[22px] sm:px-3.5 sm:py-3.5"
+            : "rounded-b-[22px] rounded-t-[28px] px-4 py-4 sm:rounded-b-[26px] sm:rounded-t-[32px] sm:px-5 sm:py-5"
+        } ${compact ? "bg-[#FFFDF9]" : "bg-[linear-gradient(135deg,rgba(245,158,11,0.12)_0%,rgba(255,243,214,0.56)_46%,rgba(255,253,249,0.96)_100%)]"}`}
       >
-        <div className="absolute -left-8 top-4 h-24 w-24 rounded-full bg-[#FDE7B1] blur-2xl" />
-        <div className="absolute right-0 top-0 h-28 w-28 rounded-full bg-white/80 blur-3xl" />
-        <div className="relative flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              {product.isFeatured ? (
-                <StatusPill
-                  label="Destacado"
-                  tone="warm"
-                  icon={<Sparkles className="h-3.5 w-3.5" />}
-                />
-              ) : null}
-              {active ? (
-                <StatusPill
-                  label={quantity > 1 ? `${quantity} en tu pedido` : "1 en tu pedido"}
-                  tone="success"
-                  icon={<CheckCircle2 className="h-3.5 w-3.5" />}
-                />
-              ) : null}
-            </div>
-            <div className="mt-3 flex h-12 w-12 items-center justify-center rounded-[16px] bg-[#FFFDF9]/95 text-base font-black text-slate-900 shadow-[0_12px_24px_rgba(23,32,51,0.08)] ring-1 ring-white sm:mt-4 sm:h-14 sm:w-14 sm:rounded-[20px] sm:text-lg">
-              {initials}
-            </div>
-          </div>
-          <div className="rounded-[18px] bg-[#FFFDF9]/95 px-3 py-2.5 text-right shadow-[0_12px_24px_rgba(23,32,51,0.06)] ring-1 ring-white sm:rounded-[22px] sm:px-4 sm:py-3">
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#7C8798]">
-              Precio
-            </p>
-            <p className={`${compact ? "text-lg" : "text-xl"} mt-1 font-black tracking-tight text-slate-900`}>
-              {formatCurrency(product.price)}
-            </p>
-          </div>
-        </div>
-      </div>
+        {compact ? null : <div className="absolute -left-8 top-4 h-24 w-24 rounded-full bg-[#FDE7B1] blur-2xl" />}
+        {compact ? null : <div className="absolute right-0 top-0 h-28 w-28 rounded-full bg-white/80 blur-3xl" />}
 
-      <div className={compact ? "p-3.5 sm:p-4" : "p-4 sm:p-5"}>
-        <h3 className={`${compact ? "text-base" : "text-lg"} font-black tracking-tight text-slate-900`}>
-          {product.name}
-        </h3>
-        <p className={`mt-2 line-clamp-2 leading-6 text-[#5B6472] ${compact ? "text-xs" : "text-sm"}`}>
-          {product.description}
-        </p>
-
-        <div className="mt-4 flex flex-col gap-4 sm:mt-5 sm:flex-row sm:items-end sm:justify-between">
-          <div className="flex items-center justify-between gap-2 rounded-[22px] bg-[#F6EFE6] p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.5)]">
-            <button
-              type="button"
-              onClick={onDecrease}
-              aria-label={`Restar ${product.name}`}
-              className={`flex h-14 w-14 items-center justify-center rounded-[18px] border transition active:scale-95 sm:h-12 sm:w-12 sm:rounded-[16px] ${
-                active
-                  ? "border-[#F6D8A8] bg-[#FFF8E8] text-[#B45309] hover:bg-[#FFF3D6]"
-                  : "border-[#E8DDD0] bg-[#FFFDF9] text-[#7C8798] hover:text-slate-900"
+        <div
+          className={`relative ${
+            compact
+              ? "grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3"
+              : "grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-4 gap-y-2"
+          }`}
+        >
+          <div
+            className={`min-w-0 ${
+              compact
+                ? "grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-0.5"
+                : "col-start-1 row-start-1 row-span-2 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1"
+            }`}
+          >
+            <div
+              className={`row-span-2 flex shrink-0 items-center justify-center rounded-[16px] bg-[#FFFDF9] text-base font-black text-slate-900 shadow-[0_12px_24px_rgba(23,32,51,0.08)] ring-1 ring-white ${
+                compact
+                  ? "h-11 w-11 sm:h-12 sm:w-12 sm:text-sm"
+                  : "h-12 w-12 sm:h-14 sm:w-14 sm:rounded-[20px] sm:text-lg"
               }`}
             >
-              <Minus className="h-4 w-4" />
-            </button>
-            <span className="min-w-[52px] text-center text-xl font-black tabular-nums text-slate-900 sm:min-w-[44px] sm:text-lg">
-              {quantity}
-            </span>
-            <button
-              type="button"
-              onClick={onIncrease}
-              aria-label={`Sumar ${product.name}`}
-              className="flex h-14 w-14 items-center justify-center rounded-[18px] border border-[#D97706] bg-[#F59E0B] text-white transition hover:bg-[#D97706] active:scale-95 sm:h-12 sm:w-12 sm:rounded-[16px]"
+              {initials}
+            </div>
+
+            <div className="min-w-0">
+              <h3
+                className={`${
+                  compact ? "text-sm sm:text-[0.95rem]" : "text-lg"
+                } font-black tracking-tight text-slate-900`}
+              >
+                {product.name}
+              </h3>
+            </div>
+
+            <p
+              className={`col-start-2 min-w-0 line-clamp-1 leading-5 text-[#5B6472] ${
+                compact ? "text-[11px] sm:text-xs" : "text-sm"
+              }`}
             >
-              <Plus className="h-4 w-4" />
-            </button>
+              {product.description}
+            </p>
           </div>
 
-          <div className="text-right sm:min-w-[96px]">
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#7C8798]">
-              Total linea
-            </p>
-            <p className="mt-1 text-sm font-black text-slate-900">
-              {quantity > 0 ? formatCurrency(product.price * quantity) : "Aun sin sumar"}
-            </p>
+          <div
+            className={`text-right ${
+              compact
+                ? "flex shrink-0 flex-col items-end justify-center gap-2 pl-2"
+                : "row-span-2 rounded-[18px] bg-[#FFFDF9]/95 px-3 py-2.5 shadow-[0_12px_24px_rgba(23,32,51,0.06)] ring-1 ring-white sm:rounded-[22px] sm:px-4 sm:py-3"
+            }`}
+          >
+            <div className="flex items-baseline justify-end gap-1.5">
+              <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#7C8798]">
+                Precio
+              </p>
+              <p className={`${compact ? "text-lg" : "text-xl"} font-black tracking-tight text-slate-900`}>
+                {formatCurrency(product.price)}
+              </p>
+            </div>
+
+            <div
+              className={`flex items-center gap-2 rounded-[22px] bg-[#F6EFE6] shadow-[inset_0_1px_0_rgba(255,255,255,0.5)] ${
+                compact ? "p-1" : "p-1.5"
+              }`}
+            >
+              <button
+                type="button"
+                onClick={onDecrease}
+                aria-label={`Restar ${product.name}`}
+                className={`flex items-center justify-center rounded-[18px] border transition active:scale-95 ${
+                  active
+                    ? "border-[#BFE8D3] bg-[#F1FFF7] text-[#047857] hover:bg-[#E7FBEF]"
+                    : "border-[#E8DDD0] bg-[#FFFDF9] text-[#7C8798] hover:text-slate-900"
+                } ${compact ? "h-10 w-10 sm:h-10 sm:w-10 sm:rounded-[14px]" : "h-12 w-12 sm:h-11 sm:w-11 sm:rounded-[16px]"}`}
+              >
+                <Minus className="h-4 w-4" />
+              </button>
+
+              <span
+                className={`text-center font-black tabular-nums text-slate-900 ${
+                  compact ? "min-w-[38px] text-base sm:min-w-[40px]" : "min-w-[46px] text-lg sm:min-w-[42px]"
+                }`}
+              >
+                {quantity}
+              </span>
+
+              <button
+                type="button"
+                onClick={onIncrease}
+                aria-label={`Sumar ${product.name}`}
+                className={`flex items-center justify-center rounded-[18px] border border-[#D97706] bg-[#F59E0B] text-white transition hover:bg-[#D97706] active:scale-95 ${
+                  compact ? "h-10 w-10 sm:h-10 sm:w-10 sm:rounded-[14px]" : "h-12 w-12 sm:h-11 sm:w-11 sm:rounded-[16px]"
+                }`}
+              >
+                <Plus className="h-4 w-4" />
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -693,8 +750,6 @@ function SummaryPanel({
   submitError,
   onConfirm,
   steps,
-  activeBenefit,
-  nextStepCopy,
 }: {
   businessName: string;
   total: number;
@@ -706,8 +761,6 @@ function SummaryPanel({
   submitError: string;
   onConfirm: () => void;
   steps: Array<{ label: string; supporting: string; complete: boolean }>;
-  activeBenefit: string;
-  nextStepCopy: string;
 }) {
   const hasProducts = selectedProducts.length > 0;
   const visibleProducts = selectedProducts.slice(0, 5);
@@ -723,10 +776,12 @@ function SummaryPanel({
             <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#D97706]">
               Resumen del pedido
             </p>
-            <h3 className="mt-1 text-base font-black tracking-tight text-slate-900 sm:text-[1.18rem]">
+            <h3 className="mt-1 text-[1.02rem] font-black leading-tight tracking-tight text-slate-900 sm:text-[1.08rem]">
               {progressHeader.title}
             </h3>
-            <p className="mt-1 text-xs leading-5 text-[#5B6472]">{progressHeader.subtitle}</p>
+            <p className="mt-1 max-w-[30ch] text-[11px] leading-4.5 text-[#5B6472] sm:text-xs sm:leading-5">
+              {progressHeader.subtitle}
+            </p>
           </div>
           <div className="text-right">
             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#7C8798]">Total</p>
@@ -776,7 +831,7 @@ function SummaryPanel({
           </div>
         </div>
 
-        <div className="border-b border-[#EFE5DA] py-3">
+        <div className="border-b border-[#EFE5DA] pt-3 pb-2">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#7C8798]">
@@ -823,14 +878,7 @@ function SummaryPanel({
           )}
         </div>
 
-        <div className="border-b border-[#EFE5DA] py-3">
-          <p className="text-xs font-bold leading-5 text-[#5B6472]">{nextStepCopy}</p>
-          {hasProducts ? (
-            <p className="mt-1 text-[11px] font-bold leading-4 text-[#047857]">{activeBenefit}</p>
-          ) : null}
-        </div>
-
-        <div className="space-y-2.5 py-3">
+        <div className="space-y-2.5 py-2.5">
           <div className="flex items-center justify-between gap-4">
             <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[#7C8798]">Subtotal</span>
             <span className="text-sm font-black tabular-nums text-slate-900">{formatCurrency(total)}</span>
@@ -1080,7 +1128,6 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [productQuery, setProductQuery] = useState("");
-  const [isCatalogOpen, setIsCatalogOpen] = useState(false);
   const [recentlyUpdatedProductId, setRecentlyUpdatedProductId] = useState<string | null>(null);
   const [recentlyAddedProductName, setRecentlyAddedProductName] = useState("");
 
@@ -1101,19 +1148,12 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
     [business.products, quantities],
   );
   const productCount = countProducts(quantities);
-  const featuredProducts = useMemo(() => {
-    const flaggedProducts = business.products.filter((product) => product.isFeatured);
-    return (flaggedProducts.length > 0 ? flaggedProducts : business.products).slice(0, 3);
-  }, [business.products]);
   const filtered = useMemo(
     () => business.products.filter((product) => matchProduct(product, deferredProductQuery)),
     [business.products, deferredProductQuery],
   );
   const visibleProducts = deferredProductQuery.trim().length > 0 ? filtered : business.products;
   const visiblePaymentMethods = deliveryType ? availablePaymentMethods : [];
-  const selectedFeaturedCount = business.products.filter(
-    (product) => product.isFeatured && (quantities[product.productId] ?? 0) > 0,
-  ).length;
   const customerReady = customerName.trim().length > 0 && hasValidWhatsApp;
   const productsReady = productCount > 0;
   const fulfillmentReady = Boolean(
@@ -1147,12 +1187,6 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
     productsReady,
     fulfillmentReady,
     privacyAccepted,
-  });
-  const activeBenefit = getActiveBenefit({
-    deliveryType,
-    paymentMethod,
-    selectedFeaturedCount,
-    productCount,
   });
   const mobileCtaLabel = getMobileCtaLabel({
     customerReady,
@@ -1464,129 +1498,32 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
               sectionId="storefront-products-section"
               step="Paso 2"
               title="Arma tu pedido"
-              description="Toca para sumar y ver el pedido crecer al instante."
+              description="Tu pedido se arma en vivo mientras eliges."
               icon={ShoppingBag}
               complete={productsReady}
               highlight
               status={
                 <div className="flex flex-wrap justify-start gap-2 sm:justify-end">
-                  <StatusPill label={`${productCount} unidades`} tone={productsReady ? "warm" : "neutral"} />
-                  <StatusPill
-                    label={`${selected.length} producto(s)`}
-                    tone={productsReady ? "success" : "neutral"}
-                  />
-                </div>
-              }
-            >
-              <div className="space-y-5">
-                <div className="grid gap-4 rounded-[34px] border border-[#E8DDD0] bg-[linear-gradient(180deg,#FFFDF9_0%,#FFF8EE_100%)] p-4 shadow-[0_18px_42px_rgba(23,32,51,0.1)] lg:grid-cols-[minmax(0,1.18fr)_minmax(240px,0.82fr)] lg:p-5">
-                  <div>
-                    <p className="text-[11px] font-black uppercase tracking-[0.24em] text-[#D97706]">
-                      Productos protagonistas
-                    </p>
-                    <h3 className="mt-2 text-[1.55rem] font-black tracking-tight text-slate-900 sm:text-[1.75rem]">
-                      Elige desde lo que mas mueve el negocio
-                    </h3>
-                    <p className="mt-2 max-w-2xl text-sm leading-6 text-[#5B6472]">
-                      Cada toque actualiza el total y las cantidades en vivo para que veas claro
-                      lo que ya llevas.
-                    </p>
-
-                    <div className="mt-4 flex flex-col gap-3">
-                      {featuredProducts.map((product) => (
-                        <ProductCard
-                          key={`featured-${product.productId}`}
-                          product={product}
-                          quantity={quantities[product.productId] ?? 0}
-                          onDecrease={() => updateQuantity(product.productId, -1)}
-                          onIncrease={() => updateQuantity(product.productId, 1)}
-                          compact
-                          recentlyUpdated={recentlyUpdatedProductId === product.productId}
-                        />
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col gap-3">
-                    <div
-                      aria-live="polite"
-                      className={`rounded-[28px] border p-4 shadow-[0_10px_28px_rgba(23,32,51,0.06)] transition-all ${
-                        recentlyAddedProductName
-                          ? "border-[#A7F3D0] bg-[#EAFBF4]"
-                          : "border-[#E8DDD0] bg-[#FFFDF9]"
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#D97706]">
-                            Pedido en vivo
-                          </p>
-                          <p className="mt-2 text-sm font-black tracking-tight text-slate-900">
-                            {recentlyAddedProductName
-                              ? `${recentlyAddedProductName} se agrego a tu pedido`
-                              : "Cada producto que sumas actualiza el pedido al instante"}
-                          </p>
-                        </div>
-                        <StatusPill
-                          label={`${selected.length} en tu pedido`}
-                          tone={selected.length > 0 ? "success" : "neutral"}
-                        />
-                      </div>
-                      <div className="mt-4 grid grid-cols-2 gap-3">
-                        <div className="rounded-[22px] bg-[#FFF3D6] px-3 py-3 ring-1 ring-[#F3D39A]">
-                          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#B45309]">
-                            Unidades
-                          </p>
-                          <p className="mt-1 text-xl font-black tracking-tight text-slate-900">
-                            {productCount}
-                          </p>
-                        </div>
-                        <div className="rounded-[22px] bg-[#FFFDF9] px-3 py-3 ring-1 ring-[#E8DDD0]">
-                          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#7C8798]">
-                            A tiempo real
-                          </p>
-                          <p className="mt-1 text-sm font-black tracking-tight text-slate-900">
-                            {activeBenefit}
-                          </p>
-                        </div>
-                      </div>
-                      <p className="mt-3 text-xs leading-5 text-[#5B6472]">
-                        {recentlyAddedProductName
-                          ? "Sigue armando tu compra o pasa directo a entrega y pago."
-                          : "Tu pedido se arma en vivo mientras eliges."}
-                      </p>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => setIsCatalogOpen(true)}
-                      className="inline-flex items-center justify-center gap-2 rounded-full border border-[#E8DDD0] bg-[#FFFDF9] px-4 py-2.5 text-sm font-black text-[#5B6472] shadow-sm transition hover:border-[#D8C8B5] hover:text-slate-900 hover:shadow-md active:scale-[0.98]"
-                    >
-                      Ver catalogo completo
-                      <ChevronRight className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-
-                <div className="flex flex-col gap-3 rounded-[30px] border border-[#E8DDD0] bg-[#FFFDF9]/92 p-4 shadow-[0_10px_28px_rgba(23,32,51,0.06)] sm:flex-row sm:items-center">
-                  <div className="relative flex-1">
-                    <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+                  <label className="relative block lg:justify-self-end lg:w-full lg:max-w-[360px]">
+                    <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                     <input
                       value={productQuery}
                       onChange={(event) => setProductQuery(event.target.value)}
                       placeholder="Busca por nombre o descripcion"
-                      className="w-full rounded-[24px] border border-[#E8DDD0] bg-[#F6EFE6]/65 py-4 pl-12 pr-4 text-base font-medium text-slate-900 outline-none transition-all focus:border-[#F59E0B] focus:bg-[#FFFDF9] focus:ring-4 focus:ring-[#FFF3D6] sm:text-sm"
+                      className="w-full rounded-[20px] border border-[#E8DDD0] bg-[#F6EFE6]/65 py-3 pl-11 pr-4 text-sm font-medium text-slate-900 outline-none transition-all focus:border-[#F59E0B] focus:bg-[#FFFDF9] focus:ring-4 focus:ring-[#FFF3D6]"
                     />
-                  </div>
-                  <div className="flex items-center gap-2 rounded-full bg-[#FFF3D6] px-3 py-2 text-xs font-black uppercase tracking-[0.18em] text-[#B45309] ring-1 ring-[#F3D39A]">
-                    <span>{business.products.length} productos</span>
-                    <span className="h-1.5 w-1.5 rounded-full bg-[#D97706]" />
-                    <span>Catalogo vivo</span>
-                  </div>
+                  </label>
+                  <span className="rounded-full bg-[#FFF3D6] px-3 py-1.5 ring-1 ring-[#F3D39A] text-[11px] font-black uppercase tracking-[0.18em] text-[#B45309]">
+                    Catalogo actualizado
+                  </span>
+                      
                 </div>
-
+              }
+            >
+              <div className="space-y-3">
+                
                 {errors.products ? (
-                  <div className="rounded-[24px] border border-rose-200 bg-rose-50 px-4 py-4 text-sm font-medium text-rose-700">
+                  <div className="rounded-[20px] border border-rose-200 bg-rose-50 px-3.5 py-3 text-sm font-medium text-rose-700">
                     <div className="flex items-start gap-3">
                       <Info className="mt-0.5 h-5 w-5 shrink-0" />
                       <span>{errors.products}</span>
@@ -1596,7 +1533,7 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
 
                 <div
                   data-testid="storefront-inline-products"
-                  className="grid gap-4 md:grid-cols-2"
+                  className="space-y-2"
                 >
                   {visibleProducts.length > 0 ? (
                     visibleProducts.map((product) => (
@@ -1606,17 +1543,18 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
                         quantity={quantities[product.productId] ?? 0}
                         onDecrease={() => updateQuantity(product.productId, -1)}
                         onIncrease={() => updateQuantity(product.productId, 1)}
+                        compact
                         recentlyUpdated={recentlyUpdatedProductId === product.productId}
                       />
                     ))
                   ) : (
-                    <div className="rounded-[30px] border-2 border-dashed border-[#E8DDD0] bg-[#FFFDF9]/90 px-6 py-12 text-center sm:col-span-2 xl:col-span-3">
+                    <div className="rounded-[24px] border-2 border-dashed border-[#E8DDD0] bg-[#FFFDF9]/90 px-5 py-8 text-center sm:col-span-2 xl:col-span-3">
                       <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#FFF3D6] text-[#D97706] ring-1 ring-[#F3D39A]">
                         <Search className="h-6 w-6" />
                       </div>
                       <p className="mt-4 text-sm font-black text-slate-900">No hay resultados</p>
                       <p className="mt-2 text-sm leading-6 text-[#7C8798]">
-                        Prueba otra busqueda o abre el catalogo completo para seguir sumando.
+                        Prueba otra busqueda para seguir sumando.
                       </p>
                     </div>
                   )}
@@ -1626,165 +1564,184 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
             <SectionFrame
               step="Paso 3"
               title="Entrega y pago"
-              description="Primero decides como lo recibes y despues ves solo los pagos compatibles con esa eleccion."
+              description="Elige la entrega y luego te mostramos solo los pagos compatibles."
               icon={Truck}
               complete={fulfillmentReady}
+              compact
               status={
                 fulfillmentReady ? (
                   <StatusPill
                     label="Ruta definida"
                     tone="success"
-                    icon={<CheckCircle2 className="h-3.5 w-3.5" />}
+                    compact
+                    icon={<CheckCircle2 className="h-3 w-3" />}
                   />
                 ) : (
-                  <StatusPill label="Falta completar" tone="warm" icon={<Truck className="h-3.5 w-3.5" />} />
+                  <StatusPill label="Falta completar" tone="warm" compact icon={<Truck className="h-3 w-3" />} />
                 )
               }
             >
-              <div className="space-y-5">
-                <div className="grid gap-5 xl:grid-cols-2">
-                  <div className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_10px_28px_rgba(15,23,42,0.05)] sm:rounded-[30px] sm:p-5">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">
-                          Entrega
-                        </p>
-                        <h3 className="mt-2 text-lg font-black tracking-tight text-slate-900">
-                          Como quieres recibirlo?
-                        </h3>
-                      </div>
-                      <StatusPill label={deliveryType ? "Elegida" : "Pendiente"} tone={deliveryType ? "success" : "neutral"} />
+              <div className="space-y-3">
+                <div className="rounded-[20px] border border-slate-200 bg-white p-3 sm:rounded-[24px] sm:px-3.5 sm:py-3.5 shadow-[0_10px_24px_rgba(15,23,42,0.045)]">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
+                        Entrega
+                      </p>
+                      <h3 className="mt-0.5 text-[15px] font-black tracking-tight text-slate-900 sm:text-base">
+                        Elige como quieres recibirlo
+                      </h3>
+                      <p className="mt-0.5 max-w-[42rem] text-[13px] leading-4.5 text-[#5B6472]">
+                        Primero defines la entrega y luego ves los pagos compatibles.
+                      </p>
                     </div>
-
-                    <div className="mt-4 grid gap-3">
-                      {business.availableDeliveryTypes.map((type) => (
-                        <ChoiceCard
-                          key={type}
-                          title={deliveryTitle(type)}
-                          description={deliveryDescription(type)}
-                          supporting={deliverySupport(type)}
-                          badge={deliveryBadge(type)}
-                          icon={Truck}
-                          selected={deliveryType === type}
-                          onClick={() => selectDeliveryType(type)}
-                          testId={`storefront-delivery-option-${slugifyChoice(type)}`}
-                          value={type}
-                        />
-                      ))}
-                    </div>
-                    <Err message={errors.deliveryType} />
-
-                    {showAddressField ? (
-                      <div className="mt-4 animate-in fade-in slide-in-from-top-2 duration-300">
-                        <label className="space-y-2">
-                          <span className="text-sm font-black tracking-tight text-slate-900">
-                            Direccion de entrega
-                          </span>
-                          <div className="relative">
-                            <MapPin className="pointer-events-none absolute left-4 top-4 h-5 w-5 text-slate-400" />
-                            <textarea
-                              rows={3}
-                              data-testid="storefront-delivery-address-input"
-                              value={address}
-                              onChange={(event) => {
-                                setAddress(event.target.value);
-                                clearError("address");
-                              }}
-                              placeholder="Calle, numero, barrio o indicaciones"
-                              className={`w-full rounded-[24px] border bg-[#F6EFE6]/65 py-4 pl-12 pr-4 text-base font-medium text-slate-900 outline-none transition-all focus:bg-[#FFFDF9] focus:ring-4 focus:ring-[#FFF3D6] ${
-                                errors.address
-                                  ? "border-rose-200 focus:border-rose-400"
-                                  : "border-[#E8DDD0] focus:border-[#F59E0B]"
-                              }`}
-                            />
-                          </div>
-                          <Err message={errors.address} />
-                        </label>
-                      </div>
-                    ) : null}
+                    <StatusPill
+                      label={deliveryType ? "Elegida" : "Pendiente"}
+                      tone={deliveryType ? "success" : "neutral"}
+                      compact
+                    />
                   </div>
 
-                  <div className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_10px_28px_rgba(15,23,42,0.05)] sm:rounded-[30px] sm:p-5">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">
-                          Pago
-                        </p>
-                        <h3 className="mt-2 text-lg font-black tracking-tight text-slate-900">
-                          Como quieres pagarlo?
-                        </h3>
-                      </div>
-                      <StatusPill label={paymentMethod ? "Elegido" : "Pendiente"} tone={paymentMethod ? "success" : "neutral"} />
-                    </div>
+                  <div className="mt-2.5 grid gap-2.5 md:grid-cols-2">
+                    {business.availableDeliveryTypes.map((type) => (
+                      <ChoiceCard
+                        key={type}
+                        title={deliveryTitle(type)}
+                        description={deliveryDescription(type)}
+                        supporting={deliverySupport(type)}
+                        badge={deliveryBadge(type)}
+                        icon={type === "domicilio" ? Truck : Store}
+                        selected={deliveryType === type}
+                        onClick={() => selectDeliveryType(type)}
+                        testId={`storefront-delivery-option-${slugifyChoice(type)}`}
+                        value={type}
+                        compact
+                      />
+                    ))}
+                  </div>
+                  <Err message={errors.deliveryType} />
+                </div>
 
-                    <div className="mt-4">
-                      {deliveryType ? (
-                        visiblePaymentMethods.length > 0 ? (
-                          <div className="grid gap-3">
-                            {visiblePaymentMethods.map((method) => (
-                              <ChoiceCard
-                                key={method}
-                                title={getPaymentMethodLabel(method, deliveryType || undefined)}
-                                description={paymentHint(method, deliveryType)}
-                                supporting={
-                                  method === "Transferencia"
-                                    ? "Acelera la confirmacion del pedido."
-                                    : method === "Contra entrega"
-                                      ? "Disponible segun la entrega elegida."
-                                      : method === "Tarjeta"
-                                        ? "Solo aparece si el negocio la tiene habilitada."
-                                        : "Pagas al recibir o al retirar."
-                                }
-                                badge={paymentBadge(method)}
-                                icon={CreditCard}
-                                selected={paymentMethod === method}
-                                featured={method === "Transferencia"}
-                                onClick={() => {
-                                  setPaymentMethod(method);
-                                  clearError("paymentMethod");
-                                }}
-                                testId={`storefront-payment-option-${slugifyChoice(method)}`}
-                                value={method}
-                              />
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="rounded-[24px] border border-dashed border-[#E8DDD0] bg-[#F6EFE6]/65 p-5">
-                            <div className="flex items-start gap-3">
-                              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[16px] bg-[#FFFDF9] text-[#D97706] ring-1 ring-[#E8DDD0]">
-                                <Info className="h-5 w-5" />
-                              </div>
-                              <div>
-                                <p className="text-sm font-black text-slate-900">
-                                  No hay pagos publicos compatibles con esta entrega.
-                                </p>
-                                <p className="mt-1 text-sm leading-6 text-slate-600">
-                                  El negocio necesita habilitar un metodo valido para este carril.
-                                </p>
-                              </div>
-                            </div>
-                          </div>
-                        )
+                {showAddressField ? (
+                  <div className="animate-in fade-in slide-in-from-top-2 duration-300 rounded-[20px] border border-slate-200 bg-white p-3 sm:rounded-[24px] sm:px-3.5 sm:py-3.5 shadow-[0_10px_24px_rgba(15,23,42,0.045)]">
+                    <label className="space-y-2">
+                      <span className="text-sm font-black tracking-tight text-slate-900">
+                        Direccion de entrega
+                      </span>
+                      <div className="relative">
+                        <MapPin className="pointer-events-none absolute left-4 top-4 h-5 w-5 text-slate-400" />
+                        <textarea
+                          rows={3}
+                          data-testid="storefront-delivery-address-input"
+                          value={address}
+                          onChange={(event) => {
+                            setAddress(event.target.value);
+                            clearError("address");
+                          }}
+                          placeholder="Calle, numero, barrio o indicaciones"
+                          className={`w-full rounded-[20px] border bg-[#F6EFE6]/65 py-3 pl-12 pr-4 text-base font-medium text-slate-900 outline-none transition-all focus:bg-[#FFFDF9] focus:ring-4 focus:ring-[#FFF3D6] ${
+                            errors.address
+                              ? "border-rose-200 focus:border-rose-400"
+                              : "border-[#E8DDD0] focus:border-[#F59E0B]"
+                          }`}
+                        />
+                      </div>
+                      <p className="text-xs leading-5 text-[#7C8798]">
+                        La usamos solo para coordinar el domicilio de forma correcta.
+                      </p>
+                      <Err message={errors.address} />
+                    </label>
+                  </div>
+                ) : null}
+
+                <div className="rounded-[20px] border border-slate-200 bg-white p-3 sm:rounded-[24px] sm:px-3.5 sm:py-3.5 shadow-[0_10px_24px_rgba(15,23,42,0.045)]">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
+                        Pago
+                      </p>
+                      <h3 className="mt-0.5 text-[15px] font-black tracking-tight text-slate-900 sm:text-base">
+                        Elige como quieres pagarlo
+                      </h3>
+                      <p className="mt-0.5 max-w-[42rem] text-[13px] leading-4.5 text-[#5B6472]">
+                        Mostramos solo los metodos que aplican a tu entrega.
+                      </p>
+                    </div>
+                    <StatusPill
+                      label={paymentMethod ? "Elegido" : "Pendiente"}
+                      tone={paymentMethod ? "success" : "neutral"}
+                      compact
+                    />
+                  </div>
+
+                  <div className="mt-2.5">
+                    {deliveryType ? (
+                      visiblePaymentMethods.length > 0 ? (
+                        <div className="grid gap-2.5 md:grid-cols-2">
+                          {visiblePaymentMethods.map((method) => (
+                            <ChoiceCard
+                              key={method}
+                              title={getPaymentMethodLabel(method, deliveryType || undefined)}
+                              description={paymentHint(method, deliveryType)}
+                              supporting={
+                                method === "Transferencia"
+                                  ? "Validacion mas agil."
+                                  : method === "Contra entrega"
+                                    ? "Segun la entrega elegida."
+                                    : method === "Tarjeta"
+                                      ? "Si el negocio la tiene habilitada."
+                                      : "Pagas al recibir o al retirar."
+                              }
+                              badge={paymentBadge(method)}
+                              icon={CreditCard}
+                              selected={paymentMethod === method}
+                              featured={method === "Transferencia"}
+                              onClick={() => {
+                                setPaymentMethod(method);
+                                clearError("paymentMethod");
+                              }}
+                              testId={`storefront-payment-option-${slugifyChoice(method)}`}
+                              value={method}
+                              compact
+                            />
+                          ))}
+                        </div>
                       ) : (
-                          <div className="rounded-[24px] border border-dashed border-[#E8DDD0] bg-[#F6EFE6]/65 p-5">
-                            <div className="flex items-start gap-3">
-                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[16px] bg-[#FFFDF9] text-[#D97706] ring-1 ring-[#E8DDD0]">
-                              <Info className="h-5 w-5" />
+                        <div className="rounded-[18px] border border-dashed border-[#E8DDD0] bg-[#F8F2EA] px-3.5 py-3">
+                          <div className="flex items-start gap-3">
+                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[13px] bg-[#FFFDF9] text-[#D97706] ring-1 ring-[#E8DDD0]">
+                              <Info className="h-4 w-4" />
                             </div>
                             <div>
                               <p className="text-sm font-black text-slate-900">
-                                Elige primero la entrega
+                                No hay pagos publicos compatibles con esta entrega.
                               </p>
-                              <p className="mt-1 text-sm leading-6 text-slate-600">
-                                Asi solo muestras opciones reales y compatibles con el pedido.
+                              <p className="mt-0.5 text-sm leading-4.5 text-slate-600">
+                                El negocio necesita habilitar un metodo valido para este carril.
                               </p>
                             </div>
                           </div>
                         </div>
-                      )}
-                    </div>
-                    <Err message={errors.paymentMethod} />
+                      )
+                    ) : (
+                      <div className="rounded-[18px] border border-dashed border-[#E8DDD0] bg-[#F8F2EA] px-3.5 py-3">
+                        <div className="flex items-start gap-3">
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[13px] bg-[#FFFDF9] text-[#D97706] ring-1 ring-[#E8DDD0]">
+                            <Info className="h-4 w-4" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-black text-slate-900">
+                              Elige primero la entrega
+                            </p>
+                            <p className="mt-0.5 text-sm leading-4.5 text-slate-600">
+                              Asi solo mostramos metodos reales y compatibles con tu pedido.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
+                  <Err message={errors.paymentMethod} />
                 </div>
               </div>
             </SectionFrame>
@@ -1916,102 +1873,10 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
               submitError={submitError}
               onConfirm={() => void handleConfirmOrder()}
               steps={progressSteps}
-              activeBenefit={activeBenefit}
-              nextStepCopy={nextStepCopy}
             />
           </aside>
         </div>
       </div>
-
-      <div
-        className={`fixed inset-0 z-40 bg-[#0F172A]/35 transition duration-200 ${
-          isCatalogOpen ? "opacity-100" : "pointer-events-none opacity-0"
-        }`}
-        onClick={() => setIsCatalogOpen(false)}
-      />
-
-      <aside
-        className={`fixed bottom-0 right-0 top-auto z-50 flex h-[84vh] w-full flex-col rounded-t-[32px] border border-[#E8DDD0] bg-[linear-gradient(180deg,#FCF8F3_0%,#FFFDF9_100%)] shadow-[0_-18px_45px_rgba(23,32,51,0.18)] transition-transform duration-300 sm:top-0 sm:h-screen sm:max-w-md sm:rounded-none sm:rounded-l-[32px] sm:border-l ${
-          isCatalogOpen
-            ? "translate-y-0 sm:translate-x-0"
-            : "translate-y-full sm:translate-x-full sm:translate-y-0"
-        }`}
-        aria-hidden={!isCatalogOpen}
-      >
-        <div className="border-b border-[#E8DDD0] px-4 py-4 sm:px-5">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#D97706]">
-                Catalogo completo
-              </p>
-              <h2 className="mt-1 text-lg font-black tracking-tight text-slate-900">
-                Sigue armando tu pedido
-              </h2>
-              <p className="mt-1 text-sm leading-6 text-slate-500">
-                Ajusta cantidades sin salir del checkout.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setIsCatalogOpen(false)}
-              className="rounded-full border border-[#E8DDD0] bg-[#FFFDF9] px-4 py-2 text-sm font-black text-[#5B6472] transition hover:border-[#D8C8B5] hover:bg-[#F6EFE6]"
-            >
-              Cerrar
-            </button>
-          </div>
-
-          <div className="mt-4 rounded-[24px] bg-[#172033] px-4 py-4 text-white">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-white/60">
-                  Total actual
-                </p>
-                <p className="mt-1 text-xl font-black">{formatCurrency(total)}</p>
-              </div>
-              <StatusPill label={`${productCount} unidades`} tone="warm" />
-            </div>
-          </div>
-
-          <label className="relative mt-4 block">
-            <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <input
-              value={productQuery}
-              onChange={(event) => setProductQuery(event.target.value)}
-              placeholder="Buscar en todo el catalogo"
-              className="w-full rounded-[24px] border border-[#E8DDD0] bg-[#FFFDF9] py-3.5 pl-11 pr-4 text-base leading-6 text-slate-900 outline-none transition focus:border-[#F59E0B] focus:ring-4 focus:ring-[#FFF3D6] sm:text-sm sm:leading-5"
-            />
-          </label>
-        </div>
-
-        <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4 sm:px-5">
-          {filtered.length > 0 ? (
-            filtered.map((product) => (
-              <ProductCard
-                key={`drawer-${product.productId}`}
-                product={product}
-                quantity={quantities[product.productId] ?? 0}
-                onDecrease={() => updateQuantity(product.productId, -1)}
-                onIncrease={() => updateQuantity(product.productId, 1)}
-                recentlyUpdated={recentlyUpdatedProductId === product.productId}
-              />
-            ))
-          ) : (
-            <div className="rounded-[24px] border border-dashed border-[#E8DDD0] bg-[#FFFDF9] px-4 py-5 text-sm text-[#7C8798]">
-              No encontramos productos con esa busqueda.
-            </div>
-          )}
-        </div>
-
-        <div className="border-t border-[#E8DDD0] px-4 py-4 sm:px-5">
-          <button
-            type="button"
-            onClick={() => setIsCatalogOpen(false)}
-            className="w-full rounded-full bg-[#172033] px-4 py-3 text-sm font-black text-white transition hover:bg-[#0F172A]"
-          >
-            Confirmar y volver al formulario
-          </button>
-        </div>
-      </aside>
 
       <MobileFloatingCheckoutBar
         total={total}
