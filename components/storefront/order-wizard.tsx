@@ -1561,7 +1561,7 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
       data-testid="storefront-order-wizard"
     >
       <div className="mx-auto w-full max-w-7xl px-4 pb-44 pt-3 sm:px-6 sm:pb-28 sm:pt-6 lg:pb-28">
-        <section className="relative overflow-hidden rounded-[32px] border border-[#E8DDD0] bg-[linear-gradient(135deg,#FFFDF9_0%,#FFF8EE_56%,#FFFDF9_100%)] px-4 py-4 shadow-[0_22px_60px_rgba(23,32,51,0.08)] sm:rounded-[36px] sm:px-6 sm:py-5 lg:px-6 lg:py-4.5">
+        <section className="relative overflow-hidden rounded-[32px] border border-[#E8DDD0] bg-[linear-gradient(135deg,#FFF8EE_0%,#FFFDF9_100%)] px-4 py-4 shadow-[0_22px_60px_rgba(23,32,51,0.08)] sm:rounded-[36px] sm:px-6 sm:py-5 lg:px-6 lg:py-4.5">
           <div className="absolute -left-20 top-0 h-48 w-48 rounded-full bg-[#FDE7B1] blur-3xl" />
           <div className="absolute right-0 top-0 h-56 w-56 rounded-full bg-[#F6EFE6] blur-3xl" />
           <div className="relative grid gap-5 lg:grid-cols-[minmax(0,1.32fr)_minmax(320px,0.92fr)] lg:items-center lg:gap-8">
@@ -1732,8 +1732,8 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
                     <input
                       value={productQuery}
                       onChange={(event) => setProductQuery(event.target.value)}
-                      placeholder="Busca por nombre o descripcion"
-                      className="w-full rounded-[20px] border border-[#E8DDD0] bg-[#F6EFE6]/65 py-3 pl-11 pr-4 text-sm font-medium text-slate-900 outline-none transition-all focus:border-[#F59E0B] focus:bg-[#FFFDF9] focus:ring-4 focus:ring-[#FFF3D6]"
+                      placeholder="Busca por nombre o descripción"
+                      className="w-full rounded-[20px] border border-[#E8DDD0] bg-[#F6EFE6]/65 py-3 pl-11 pr-4 text-[16px] sm:text-sm font-medium text-slate-900 outline-none transition-all focus:border-[#F59E0B] focus:bg-[#FFFDF9] focus:ring-4 focus:ring-[#FFF3D6]"
                     />
                   </label>
                   <span className="rounded-full bg-[#FFF3D6] px-3 py-1.5 ring-1 ring-[#F3D39A] text-[11px] font-black uppercase tracking-[0.18em] text-[#B45309]">
