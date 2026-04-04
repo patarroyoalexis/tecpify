@@ -1864,6 +1864,7 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
                 </p>
               </div>
             </div>
+            
 
             <div className="min-w-0 lg:pl-2">
               <div className="hidden grid-cols-3 gap-3 sm:gap-4 lg:gap-5 md:grid">
