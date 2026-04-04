@@ -1561,7 +1561,7 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
       data-testid="storefront-order-wizard"
     >
       <div className="mx-auto w-full max-w-7xl px-4 pb-44 pt-3 sm:px-6 sm:pb-28 sm:pt-6 lg:pb-28">
-        <section className="relative overflow-hidden rounded-[32px] border border-[#E8DDD0] bg-[linear-gradient(135deg,#FFF8EE_0%,#FFFDF9_100%)] px-4 py-4 shadow-[0_22px_60px_rgba(23,32,51,0.08)] sm:rounded-[36px] sm:px-6 sm:py-5 lg:px-6 lg:py-4.5">
+        <section className="relative overflow-hidden rounded-[32px] border border-[#E8DDD0] bg-[#FFFDF9] px-4 py-4 shadow-[0_22px_60px_rgba(23,32,51,0.08)] sm:rounded-[36px] sm:px-6 sm:py-5 lg:px-6 lg:py-4.5">
           <div className="absolute -left-20 top-0 h-48 w-48 rounded-full bg-[#FDE7B1] blur-3xl" />
           <div className="absolute right-0 top-0 h-56 w-56 rounded-full bg-[#F6EFE6] blur-3xl" />
           <div className="relative grid gap-5 lg:grid-cols-[minmax(0,1.32fr)_minmax(320px,0.92fr)] lg:items-center lg:gap-8">
