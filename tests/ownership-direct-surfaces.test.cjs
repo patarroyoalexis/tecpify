@@ -446,6 +446,12 @@ test("ownership directo: storefront owner correcto renderiza wizard", async () =
         accent: "",
         availablePaymentMethods: [],
         availableDeliveryTypes: [],
+        localDelivery: {
+          status: "disabled",
+          isEnabled: false,
+          destinationNeighborhoods: [],
+          message: "Este negocio no tiene domicilio local habilitado en este momento.",
+        },
         products: [
           {
             productId: PRODUCT_ID,

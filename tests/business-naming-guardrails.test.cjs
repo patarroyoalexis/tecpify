@@ -22,6 +22,13 @@ function createBusinessRecord(overrides = {}) {
     acceptsTransfer: true,
     acceptsCard: true,
     allowsFiado: false,
+    localDeliverySettings: {
+      schemaStatus: "missing_db_contract",
+      isEnabled: false,
+      originNeighborhoodId: null,
+      maxDistanceKm: null,
+      pricingBands: [],
+    },
     isActive: true,
     createdAt: "2026-03-25T21:00:00.000Z",
     updatedAt: "2026-03-25T21:00:00.000Z",

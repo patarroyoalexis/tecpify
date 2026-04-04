@@ -35,6 +35,7 @@ import {
   readBusinessPaymentSettings,
 } from "@/lib/businesses/payment-settings";
 import { getStorefrontBusinessLookupBySlug } from "@/data/businesses";
+import { quoteStorefrontLocalDeliveryByBusinessId } from "@/lib/data/local-delivery";
 import { requireBusinessSlug } from "@/lib/businesses/slug";
 import {
   createServerSupabaseAuthClient,
@@ -86,6 +87,11 @@ interface OrderLookupRow {
   customer_name: string;
   customer_whatsapp: string | null;
   delivery_type: Order["deliveryType"];
+  delivery_fee: number;
+  delivery_reference: string | null;
+  delivery_neighborhood_id: string | null;
+  delivery_neighborhood_name: string | null;
+  delivery_quote_context: Record<string, unknown> | null;
   delivery_address: string | null;
   payment_method: Order["paymentMethod"];
   products: Order["products"];
@@ -111,6 +117,14 @@ interface OrderLookupRow {
 interface UpdateOrderActorOptions {
   actorUserId?: string | null;
   actorEmail?: string | null;
+}
+
+interface ResolvedLocalDeliveryPersistence {
+  deliveryFee: number;
+  deliveryNeighborhoodId: string | null;
+  deliveryNeighborhoodName: string | null;
+  deliveryReference: string | null;
+  deliveryQuoteContext: Record<string, unknown> | null;
 }
 
 function assertBusinessPaymentMethodIsEnabled(
@@ -142,6 +156,11 @@ function buildPersistedInsertedOrder(
     customer_name: string;
     customer_whatsapp: string | null;
     delivery_type: Order["deliveryType"];
+    delivery_fee: number;
+    delivery_reference: string | null;
+    delivery_neighborhood_id: string | null;
+    delivery_neighborhood_name: string | null;
+    delivery_quote_context: Record<string, unknown> | null;
     delivery_address: string | null;
     payment_method: Order["paymentMethod"];
     products: Order["products"];
@@ -204,6 +223,10 @@ function validateCreateOrderPayload(payload: unknown): payload is PublicOrderApi
     candidate.total > 0 &&
     (candidate.deliveryAddress === undefined ||
       typeof candidate.deliveryAddress === "string") &&
+    (candidate.deliveryNeighborhoodId === undefined ||
+      typeof candidate.deliveryNeighborhoodId === "string") &&
+    (candidate.deliveryReference === undefined ||
+      typeof candidate.deliveryReference === "string") &&
     (candidate.notes === undefined || typeof candidate.notes === "string")
   );
 }
@@ -263,6 +286,28 @@ function describePayloadProblems(payload: unknown) {
     typeof candidate.deliveryAddress !== "string"
   ) {
     problems.push("deliveryAddress debe ser texto cuando se envia.");
+  }
+
+  if (
+    candidate.deliveryNeighborhoodId !== undefined &&
+    typeof candidate.deliveryNeighborhoodId !== "string"
+  ) {
+    problems.push("deliveryNeighborhoodId debe ser texto cuando se envia.");
+  }
+
+  if (
+    candidate.deliveryType === "domicilio" &&
+    candidate.deliveryNeighborhoodId !== undefined &&
+    candidate.deliveryNeighborhoodId.trim().length === 0
+  ) {
+    problems.push("deliveryNeighborhoodId no puede enviarse vacio.");
+  }
+
+  if (
+    candidate.deliveryReference !== undefined &&
+    typeof candidate.deliveryReference !== "string"
+  ) {
+    problems.push("deliveryReference debe ser texto cuando se envia.");
   }
 
   if (candidate.notes !== undefined && typeof candidate.notes !== "string") {
@@ -469,6 +514,86 @@ function assertOrderTotalMatchesProducts(
   return expectedTotal;
 }
 
+function assertOrderTotalMatchesBreakdown(options: {
+  total: number;
+  products: Order["products"];
+  deliveryFee: number;
+  allowZero?: boolean;
+}) {
+  const subtotal = calculateOrderProductsTotal(options.products);
+  const minimumAllowedTotal = options.allowZero ? 0 : 0.01;
+
+  if (subtotal < minimumAllowedTotal) {
+    throw new Error("Invalid order payload. products debe producir un subtotal valido.");
+  }
+
+  if (!Number.isFinite(options.deliveryFee) || options.deliveryFee < 0) {
+    throw new Error("Invalid order payload. deliveryFee derivado no es valido.");
+  }
+
+  const expectedTotal = subtotal + options.deliveryFee;
+
+  if (Math.abs(expectedTotal - options.total) > 0.001) {
+    throw new Error(
+      `Invalid order payload. total no coincide con subtotal + domicilio (${expectedTotal}).`,
+    );
+  }
+
+  return {
+    subtotal,
+    total: expectedTotal,
+  };
+}
+
+async function resolveLocalDeliveryPersistenceForCreate(options: {
+  businessId: BusinessId;
+  payload: PublicOrderApiCreatePayload;
+  orderOrigin: OrderOrigin;
+}) {
+  if (options.payload.deliveryType !== "domicilio") {
+    return {
+      deliveryFee: 0,
+      deliveryNeighborhoodId: null,
+      deliveryNeighborhoodName: null,
+      deliveryReference: null,
+      deliveryQuoteContext: null,
+    } satisfies ResolvedLocalDeliveryPersistence;
+  }
+
+  if (options.orderOrigin !== "public_form") {
+    throw new Error(
+      "Invalid order payload. El workspace manual todavia no soporta pedidos con domicilio local.",
+    );
+  }
+
+  if (
+    typeof options.payload.deliveryNeighborhoodId !== "string" ||
+    options.payload.deliveryNeighborhoodId.trim().length === 0
+  ) {
+    throw new Error(
+      "Invalid order payload. deliveryNeighborhoodId es obligatorio para cotizar domicilio local en storefront.",
+    );
+  }
+
+  const deliveryQuote = await quoteStorefrontLocalDeliveryByBusinessId({
+    businessId: options.businessId,
+    neighborhoodId: options.payload.deliveryNeighborhoodId.trim(),
+    deliveryType: options.payload.deliveryType,
+  });
+
+  if (deliveryQuote.status !== "available" || !deliveryQuote.context) {
+    throw new Error(`Invalid order payload. ${deliveryQuote.message}`);
+  }
+
+  return {
+    deliveryFee: deliveryQuote.deliveryFee ?? 0,
+    deliveryNeighborhoodId: deliveryQuote.context.destinationNeighborhoodId,
+    deliveryNeighborhoodName: deliveryQuote.context.destinationNeighborhoodName,
+    deliveryReference: options.payload.deliveryReference?.trim() || null,
+    deliveryQuoteContext: deliveryQuote.context as unknown as Record<string, unknown>,
+  } satisfies ResolvedLocalDeliveryPersistence;
+}
+
 export async function getOrdersByBusinessSlugFromDatabase(
   businessSlug: string,
 ): Promise<Order[]> {
@@ -564,7 +689,16 @@ export async function createOrderInDatabase(
     paymentMethod: payload.paymentMethod,
     origin: orderOrigin,
   });
-  const persistedTotal = assertOrderTotalMatchesProducts(payload.total, normalizedProducts);
+  const localDeliveryPersistence = await resolveLocalDeliveryPersistenceForCreate({
+    businessId,
+    payload,
+    orderOrigin,
+  });
+  const persistedBreakdown = assertOrderTotalMatchesBreakdown({
+    total: payload.total,
+    products: normalizedProducts,
+    deliveryFee: localDeliveryPersistence.deliveryFee,
+  });
 
   debugLog("[orders-api] Preparing order insert", {
     authMode: getSupabaseServerAuthMode(orderCreationMode),
@@ -587,10 +721,15 @@ export async function createOrderInDatabase(
       customer_name: payload.customerName.trim(),
       customer_whatsapp: payload.customerWhatsApp.trim(),
       delivery_type: payload.deliveryType,
+      delivery_fee: localDeliveryPersistence.deliveryFee,
+      delivery_reference: localDeliveryPersistence.deliveryReference,
+      delivery_neighborhood_id: localDeliveryPersistence.deliveryNeighborhoodId,
+      delivery_neighborhood_name: localDeliveryPersistence.deliveryNeighborhoodName,
+      delivery_quote_context: localDeliveryPersistence.deliveryQuoteContext,
       delivery_address: payload.deliveryAddress?.trim() || null,
       payment_method: payload.paymentMethod,
       notes: payload.notes?.trim() || null,
-      total: persistedTotal,
+      total: persistedBreakdown.total,
       created_at: now,
       updated_at: now,
       products: normalizedProducts,
@@ -639,6 +778,15 @@ export async function createOrderInDatabase(
 
     if (error.code === "23505" && error.message.includes("order_code")) {
       continue;
+    }
+
+    if (
+      payload.deliveryType === "domicilio" &&
+      /delivery_(fee|reference|neighborhood|quote_context)/i.test(error.message)
+    ) {
+      throw new Error(
+        "No fue posible guardar el pedido a domicilio porque faltan migraciones manuales de domicilio local en la tabla orders.",
+      );
     }
 
     debugError("[orders-api] Supabase insert failed", {

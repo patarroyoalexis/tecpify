@@ -4,6 +4,7 @@ import type {
   PaymentMethod,
 } from "@/types/orders";
 import type { BusinessId, BusinessSlug, OrderId, ProductId } from "@/types/identifiers";
+import type { StorefrontLocalDeliveryConfig } from "@/types/local-delivery";
 
 export interface BusinessProduct {
   productId: ProductId;
@@ -23,6 +24,7 @@ export interface BusinessConfig {
   accent: string;
   availablePaymentMethods: PaymentMethod[];
   availableDeliveryTypes: DeliveryType[];
+  localDelivery: StorefrontLocalDeliveryConfig;
   products: BusinessProduct[];
 }
 
@@ -36,6 +38,7 @@ export interface StorefrontOrder {
   total: number;
   paymentMethod: PaymentMethod;
   deliveryType: DeliveryType;
+  deliveryFee?: number;
   address?: string;
   observations?: string;
   status: string;

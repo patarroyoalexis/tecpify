@@ -9,6 +9,11 @@ import {
 } from "@/lib/businesses/payment-settings";
 import { requireBusinessSlug } from "@/lib/businesses/slug";
 import { normalizeTransferInstructions } from "@/lib/businesses/transfer-instructions";
+import { getOwnedBusinessesLocalDeliverySettings } from "@/lib/data/local-delivery";
+import {
+  getLocalDeliveryPricingBandsError,
+  normalizeLocalDeliveryPricingBands,
+} from "@/lib/local-delivery/core";
 import { requireBusinessId } from "@/types/identifiers";
 import { createServerSupabaseAuthClient } from "@/lib/supabase/server";
 import { debugError, debugLog } from "@/lib/debug";
@@ -28,6 +33,10 @@ const UPDATE_BUSINESS_SETTINGS_ALLOWED_FIELDS = new Set([
   "acceptsTransfer",
   "acceptsCard",
   "allowsFiado",
+  "localDeliveryEnabled",
+  "localDeliveryOriginNeighborhoodId",
+  "localDeliveryMaxDistanceKm",
+  "localDeliveryPricingBands",
 ]);
 
 interface SupabaseBusinessRow {
@@ -59,6 +68,13 @@ function mapBusinessRow(row: SupabaseBusinessRow): BusinessRecord {
       row.accepts_transfer ?? DEFAULT_BUSINESS_PAYMENT_SETTINGS.acceptsTransfer,
     acceptsCard: row.accepts_card ?? DEFAULT_BUSINESS_PAYMENT_SETTINGS.acceptsCard,
     allowsFiado: row.allows_fiado ?? DEFAULT_BUSINESS_PAYMENT_SETTINGS.allowsFiado,
+    localDeliverySettings: {
+      schemaStatus: "missing_db_contract",
+      isEnabled: false,
+      originNeighborhoodId: null,
+      maxDistanceKm: null,
+      pricingBands: [],
+    },
     isActive: row.is_active,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -101,7 +117,19 @@ function validateUpdateBusinessSettingsPayload(
     (candidate.acceptsTransfer === undefined ||
       typeof candidate.acceptsTransfer === "boolean") &&
     (candidate.acceptsCard === undefined || typeof candidate.acceptsCard === "boolean") &&
-    (candidate.allowsFiado === undefined || typeof candidate.allowsFiado === "boolean")
+    (candidate.allowsFiado === undefined || typeof candidate.allowsFiado === "boolean") &&
+    (candidate.localDeliveryEnabled === undefined ||
+      typeof candidate.localDeliveryEnabled === "boolean") &&
+    (candidate.localDeliveryOriginNeighborhoodId === undefined ||
+      candidate.localDeliveryOriginNeighborhoodId === null ||
+      typeof candidate.localDeliveryOriginNeighborhoodId === "string") &&
+    (candidate.localDeliveryMaxDistanceKm === undefined ||
+      candidate.localDeliveryMaxDistanceKm === null ||
+      (typeof candidate.localDeliveryMaxDistanceKm === "number" &&
+        Number.isFinite(candidate.localDeliveryMaxDistanceKm) &&
+        candidate.localDeliveryMaxDistanceKm >= 0)) &&
+    (candidate.localDeliveryPricingBands === undefined ||
+      Array.isArray(candidate.localDeliveryPricingBands))
   );
 }
 
@@ -110,6 +138,7 @@ interface BusinessesRouteDependencies {
   requireBusinessApiContext: typeof requireBusinessApiContext;
   requireBusinessOperatorApiUser: typeof requireBusinessOperatorApiUser;
   createServerSupabaseAuthClient: typeof createServerSupabaseAuthClient;
+  getOwnedBusinessesLocalDeliverySettings: typeof getOwnedBusinessesLocalDeliverySettings;
   debugError: typeof debugError;
   debugLog: typeof debugLog;
   createBusinessId: () => string;
@@ -127,6 +156,7 @@ export function createBusinessesRouteHandlers(
     requireBusinessApiContext,
     requireBusinessOperatorApiUser,
     createServerSupabaseAuthClient,
+    getOwnedBusinessesLocalDeliverySettings,
     debugError,
     debugLog,
     createBusinessId: () => crypto.randomUUID(),
@@ -383,6 +413,38 @@ export function createBusinessesRouteHandlers(
         }
       }
 
+      if (
+        payload.localDeliveryMaxDistanceKm !== undefined &&
+        payload.localDeliveryMaxDistanceKm !== null &&
+        payload.localDeliveryMaxDistanceKm <= 0
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              "La cobertura maxima del domicilio local debe ser mayor que 0 cuando se envia.",
+          },
+          { status: 400 },
+        );
+      }
+
+      const normalizedLocalDeliveryPricingBands =
+        payload.localDeliveryPricingBands !== undefined
+          ? normalizeLocalDeliveryPricingBands(payload.localDeliveryPricingBands)
+          : undefined;
+      const localDeliveryPricingBandsError =
+        normalizedLocalDeliveryPricingBands !== undefined
+          ? getLocalDeliveryPricingBandsError(normalizedLocalDeliveryPricingBands)
+          : null;
+
+      if (localDeliveryPricingBandsError) {
+        return NextResponse.json(
+          {
+            error: localDeliveryPricingBandsError,
+          },
+          { status: 400 },
+        );
+      }
+
       const businessContextResult =
         await dependencies.requireBusinessApiContext(normalizedBusinessSlug);
 
@@ -393,7 +455,7 @@ export function createBusinessesRouteHandlers(
       const supabase = await dependencies.createServerSupabaseAuthClient();
       const now = dependencies.getNow();
 
-      const updatePayload: Record<string, string | boolean | null> = {
+      const updatePayload: Record<string, unknown> = {
         updated_at: now,
       };
 
@@ -404,6 +466,15 @@ export function createBusinessesRouteHandlers(
         updatePayload.accepts_transfer = payload.acceptsTransfer;
       if (payload.acceptsCard !== undefined) updatePayload.accepts_card = payload.acceptsCard;
       if (payload.allowsFiado !== undefined) updatePayload.allows_fiado = payload.allowsFiado;
+      if (payload.localDeliveryEnabled !== undefined)
+        updatePayload.local_delivery_enabled = payload.localDeliveryEnabled;
+      if (payload.localDeliveryOriginNeighborhoodId !== undefined)
+        updatePayload.local_delivery_origin_neighborhood_id =
+          payload.localDeliveryOriginNeighborhoodId;
+      if (payload.localDeliveryMaxDistanceKm !== undefined)
+        updatePayload.local_delivery_max_distance_km = payload.localDeliveryMaxDistanceKm;
+      if (normalizedLocalDeliveryPricingBands !== undefined)
+        updatePayload.local_delivery_pricing_bands = normalizedLocalDeliveryPricingBands;
       if (normalizedName !== undefined) updatePayload.name = normalizedName;
       if (payload.businessType !== undefined) updatePayload.business_type = payload.businessType;
 
@@ -417,6 +488,9 @@ export function createBusinessesRouteHandlers(
         .single<SupabaseBusinessRow>();
 
       if (error) {
+        const statusCode = error.message.includes("local_delivery")
+          ? 409
+          : 500;
         dependencies.debugError("[businesses-api] Failed to update business settings", {
           businessSlug: normalizedBusinessSlug,
           code: error.code ?? null,
@@ -426,7 +500,7 @@ export function createBusinessesRouteHandlers(
           {
             error: `No fue posible guardar la configuracion del negocio. ${error.message}`,
           },
-          { status: 500 },
+          { status: statusCode },
         );
       }
 
@@ -435,7 +509,25 @@ export function createBusinessesRouteHandlers(
         businessId: businessContextResult.context.businessId,
       });
 
-      return NextResponse.json({ business: mapBusinessRow(data) }, { status: 200 });
+      const localDeliverySettingsByBusinessId =
+        typeof dependencies.getOwnedBusinessesLocalDeliverySettings === "function"
+          ? await dependencies.getOwnedBusinessesLocalDeliverySettings([
+              businessContextResult.context.businessId,
+            ])
+          : new Map();
+      const business = mapBusinessRow(data);
+
+      return NextResponse.json(
+        {
+          business: {
+            ...business,
+            localDeliverySettings:
+              localDeliverySettingsByBusinessId.get(business.businessId) ??
+              business.localDeliverySettings,
+          },
+        },
+        { status: 200 },
+      );
     },
     async DELETE(request: Request) {
       const supabase = await dependencies.createServerSupabaseAuthClient();

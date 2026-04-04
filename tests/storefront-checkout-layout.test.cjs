@@ -12,6 +12,7 @@ function read(relativePath) {
 
 test("storefront checkout layout: compacta header y resumen sticky sin tocar el flujo", () => {
   const source = read("components/storefront/order-wizard.tsx");
+  const businessesSource = read("data/businesses.ts");
 
   assert.match(
     source,
@@ -140,7 +141,7 @@ test("storefront checkout layout: compacta header y resumen sticky sin tocar el 
   );
   assert.match(
     source,
-    /rows=\{4\}/,
+    /rows=\{3\}/,
     "Las observaciones deben quedar visualmente mas livianas que antes.",
   );
   assert.match(
@@ -155,8 +156,23 @@ test("storefront checkout layout: compacta header y resumen sticky sin tocar el 
   );
   assert.match(
     source,
-    /Costo de entrega/,
-    "El resumen debe seguir mostrando el estado del costo de entrega de forma visible.",
+    /Subtotal[\s\S]*Domicilio[\s\S]*Total/,
+    "El resumen sticky debe mostrar siempre subtotal, domicilio y total.",
+  );
+  assert.match(
+    source,
+    /storefront-delivery-neighborhood-select/,
+    "El checkout debe pedir el barrio desde una fuente controlada para cotizar domicilio.",
+  );
+  assert.match(
+    source,
+    /storefront-delivery-reference-input/,
+    "El checkout debe contemplar una referencia operativa separada de la direccion detallada.",
+  );
+  assert.doesNotMatch(
+    source,
+    /segun zona/,
+    "La UX publica ya no debe exponer copys de zonas internas al cliente.",
   );
   assert.match(source, /step="Paso 3"[\s\S]*title="Entrega y pago"/, "El paso 3 debe seguir declarando su jerarquia principal.");
   assert.match(source, /complete=\{fulfillmentReady\}[\s\S]*compact/, "El paso 3 debe mantenerse en la variante compacta.");
@@ -166,11 +182,31 @@ test("storefront checkout layout: compacta header y resumen sticky sin tocar el 
     "El paso 3 debe abrir compacto y priorizar la decision de entrega antes del pago.",
   );
   assert.match(source, /business\.availableDeliveryTypes\.map/, "La entrega debe iterar solo los tipos habilitados por el negocio.");
+  assert.match(
+    businessesSource,
+    /if \(localDelivery\.isEnabled\) \{\s*deliveryTypes\.unshift\("domicilio"\);/s,
+    "Domicilio debe volver a aparecer cuando el negocio lo tiene habilitado en su contrato publico.",
+  );
   assert.match(source, /mt-2\.5 grid gap-2\.5 md:grid-cols-2/, "La entrega debe mostrarse en una grilla corta de dos cards en desktop intermedio.");
   assert.match(
     source,
     /testId=\{`storefront-delivery-option-\$\{slugifyChoice\(type\)\}`\}[\s\S]*compact/,
     "La entrega debe renderizar cards compactas completamente clickeables.",
+  );
+  assert.match(
+    source,
+    /const nextNeighborhoodId = event\.target\.value;[\s\S]*setDeliveryNeighborhoodId\(nextNeighborhoodId\);[\s\S]*setLocalDeliveryQuote\(null\);[\s\S]*setIsQuotingDelivery\(/,
+    "Cambiar de barrio debe limpiar de inmediato la cotizacion previa antes de mostrar la nueva.",
+  );
+  assert.match(
+    source,
+    /const deliveryOptions = useMemo\([\s\S]*const disabled = type === "domicilio" && localDeliveryConfig\.status !== "available";/,
+    "La card de Domicilio debe poder seguir visible, pero quedar deshabilitada cuando la cotizacion publica no este operativa.",
+  );
+  assert.match(
+    source,
+    /<ChoiceCard[\s\S]*disabled=\{disabled\}/,
+    "El render del paso 3 debe respetar el estado seleccionable real de cada opcion de entrega.",
   );
   assert.match(
     source,

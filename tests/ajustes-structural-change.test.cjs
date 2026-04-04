@@ -54,7 +54,15 @@ test("ajustes: PATCH /api/businesses permite cambiar el nombre", async () => {
                   select() {
                     return {
                       async single() {
-                        return { data: { id: BUSINESS_ID, slug: "mi-tienda", name: "Nuevo Nombre", is_active: true }, error: null };
+                        return {
+                          data: {
+                            id: BUSINESS_ID,
+                            slug: "mi-tienda",
+                            name: "Nuevo Nombre",
+                            is_active: true,
+                          },
+                          error: null,
+                        };
                       }
                     }
                   }
@@ -63,8 +71,21 @@ test("ajustes: PATCH /api/businesses permite cambiar el nombre", async () => {
             }
           }
         }
-      }
+      },
     }),
+    getOwnedBusinessesLocalDeliverySettings: async () =>
+      new Map([
+        [
+          BUSINESS_ID,
+          {
+            schemaStatus: "ready",
+            isEnabled: true,
+            originNeighborhoodId: "neighborhood-origin",
+            maxDistanceKm: 4.5,
+            pricingBands: [{ upToKm: 4.5, fee: 8000 }],
+          },
+        ],
+      ]),
     debugError: () => {},
     debugLog: () => {},
     createBusinessId: () => BUSINESS_ID,
@@ -77,9 +98,17 @@ test("ajustes: PATCH /api/businesses permite cambiar el nombre", async () => {
       name: "Nuevo Nombre"
     })
   );
+  const body = await response.json();
 
   assert.equal(response.status, 200);
   assert.equal(updatePayload.name, "Nuevo Nombre");
+  assert.deepEqual(body.business.localDeliverySettings, {
+    schemaStatus: "ready",
+    isEnabled: true,
+    originNeighborhoodId: "neighborhood-origin",
+    maxDistanceKm: 4.5,
+    pricingBands: [{ upToKm: 4.5, fee: 8000 }],
+  });
 });
 
 test("ajustes: DELETE /api/businesses ejecuta rpc deactivate_business", async () => {

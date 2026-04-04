@@ -84,6 +84,16 @@ export function createWorkspaceOrdersRouteHandlers(
         return businessContextResult.response;
       }
 
+      if (sanitizedPayload.deliveryType === "domicilio") {
+        return NextResponse.json(
+          {
+            error:
+              "El workspace manual todavia no soporta pedidos con domicilio local. Usa recogida en tienda o el storefront publico para este flujo.",
+          },
+          { status: 400 },
+        );
+      }
+
       try {
         const order = await dependencies.createOrderInDatabase(
           {
@@ -119,6 +129,8 @@ export function createWorkspaceOrdersRouteHandlers(
               ? 404
               : message.includes("is blocked until it has a real owner")
                 ? 403
+                : message.includes("migraciones manuales de domicilio local")
+                  ? 409
               : message.includes("no existe") || message.includes("no esta activo")
                 ? 409
                 : 500;

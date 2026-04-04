@@ -5,6 +5,8 @@ import { getUserProfileByUserId } from "@/lib/auth/user-profiles";
 import { isPlatformAdminRole } from "@/lib/auth/roles";
 import { BusinessSettingsList } from "@/components/dashboard/business-settings-list";
 import { UserSettingsForm } from "@/components/dashboard/user-settings-form";
+import { getOwnedBusinessRecordsForUser } from "@/data/businesses";
+import { getOwnerLocalDeliveryCatalogOptions } from "@/lib/data/local-delivery";
 import Link from "next/link";
 import { PlusCircle } from "lucide-react";
 import { BackButton } from "@/components/layout/back-button";
@@ -26,6 +28,10 @@ export default async function AjustesPage() {
 
   const workspaceEntry = await resolvePrivateWorkspaceEntryFromCookies(operator.userId);
   const profile = await getUserProfileByUserId(operator.userId);
+  const [ownedBusinessRecords, localDeliveryCatalog] = await Promise.all([
+    getOwnedBusinessRecordsForUser(operator.userId),
+    getOwnerLocalDeliveryCatalogOptions(),
+  ]);
 
   if (!profile) {
      throw new Error("No se pudo cargar el perfil del usuario.");
@@ -63,7 +69,12 @@ export default async function AjustesPage() {
               </Link>
             </div>
 
-            <BusinessSettingsList businesses={workspaceEntry.ownedBusinesses} />
+            <BusinessSettingsList
+              businesses={ownedBusinessRecords}
+              neighborhoodOptions={localDeliveryCatalog.neighborhoods}
+              catalogSchemaStatus={localDeliveryCatalog.schemaStatus}
+              catalogMessage={localDeliveryCatalog.message}
+            />
           </section>
 
           <section className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm sm:p-8">

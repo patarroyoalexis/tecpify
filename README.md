@@ -53,6 +53,7 @@ El login por email/password si forma parte de ese carril oficial. El registro ma
 - Lectura y mutacion privada de pedidos por el owner correcto.
 - Pagos por transferencia modelados con un unico metodo `Transferencia`; variantes como Nequi o Daviplata viven como instrucciones configurables del negocio y no como metodos separados del sistema.
 - Configuracion operativa por negocio con flags publicos (`acceptsCash`, `acceptsTransfer`, `acceptsCard`) y `allowsFiado` solo para operacion interna.
+- `/ajustes` ya expone una seccion minima de domicilio local por negocio y `/admin` ya prepara la administracion/importacion JSON del catalogo geografico, pero ese frente sigue parcial hasta aplicar manualmente en Supabase las columnas/tablas nuevas que el runtime ya espera.
 - Fiado interno manual por pedido, con observacion obligatoria, estado binario (`pending` o `paid`) y sin calculos de deuda, saldo ni cartera.
 - Metricas operativas basicas calculadas sobre pedidos persistidos, con evidencia E2E real sobre el Supabase enlazado para ownership, aislamiento por negocio, regla de fiado y ausencia de dependencia de `localStorage`.
 - El borrado de productos usados queda bloqueado de forma canonica en runtime y DB; un producto ya referenciado en pedidos historicos persistidos no puede eliminarse.
@@ -143,6 +144,8 @@ Las garantias activas del MVP hoy no viven solo en UI ni solo en handlers HTTP: 
 - No tiene multiusuario por negocio ni permisos granulares por negocio mas alla de `business_owner`.
 - No tiene pagos automatizados, conciliacion ni pasarela integrada.
 - No tiene inventario formal, variantes, categorias, imagenes ni logistica avanzada.
+- El frente de domicilio local por barrio sigue en estado parcial: el runtime ya espera catalogo geografico persistido, configuracion minima por negocio, cotizacion server-side y persistencia del contexto logistico, pero no debe declararse cerrado hasta aplicar manualmente las migraciones pendientes en Supabase.
+- El domicilio local actual no usa geocodificacion externa, no parsea direcciones libres por cuadras, no expone zonas internas al cliente y no debe venderse como cobertura nacional/departamental; opera solo sobre el catalogo persistido que la plataforma cargue realmente.
 - `customer` ya existe como contrato tipado y persistido, pero todavia no habilita un flujo funcional completo dentro del MVP.
 - No ofrece remediacion runtime ni SQL para negocios ownerless; `request/grant/claim/list` quedan retirados en la definicion final efectiva y cualquier saneamiento ocurre fuera del runtime del MVP.
 - No debe usarse como excusa para relajar naming, ownership o source of truth: el alcance es acotado, no ambiguo.
@@ -155,6 +158,7 @@ Las garantias activas del MVP hoy no viven solo en UI ni solo en handlers HTTP: 
 4. Evolucionar `customer` solo si llega con contratos, RLS y evidencia automatizada equivalentes al cierre actual de `platform_admin` y `business_owner`.
 5. Mantener separado `/admin` del workspace del negocio y no volver a mezclar metricas globales con operacion por `businessSlug`.
 6. Mantener acotada la capa de `proxy.ts` y no moverle responsabilidades de dominio que deben vivir en runtime, DB y tests.
+7. Aplicar manualmente las migraciones del frente de domicilio local antes de declararlo cerrado: catalogo geografico persistido, configuracion de negocio, recalculo server-side y persistencia del contexto logistico deben quedar alineados tambien en el esquema remoto real.
 
 ## 9. E2E del circuito critico
 

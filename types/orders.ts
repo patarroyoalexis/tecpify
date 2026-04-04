@@ -1,4 +1,5 @@
 import type { BusinessSlug, OrderCode, OrderId, ProductId } from "@/types/identifiers";
+import type { LocalDeliveryQuoteContext } from "@/types/local-delivery";
 
 export const ORDER_STATUSES = [
   "nuevo",
@@ -93,6 +94,7 @@ export interface Order {
   customerPhone?: string;
   products: OrderProduct[];
   total: number;
+  deliveryFee: number;
   paymentMethod: PaymentMethod;
   paymentStatus: PaymentStatus;
   isFiado: boolean;
@@ -108,6 +110,10 @@ export interface Order {
   reactivatedByUserId: string | null;
   reactivatedByUserEmail: string | null;
   deliveryType: DeliveryType;
+  deliveryNeighborhoodId?: string;
+  deliveryNeighborhoodName?: string;
+  deliveryReference?: string;
+  deliveryQuoteContext: LocalDeliveryQuoteContext | null;
   address?: string;
   status: OrderStatus;
   dateLabel: string;
@@ -162,4 +168,16 @@ export function getOrderDisplayCode(order: Pick<Order, "orderId" | "orderCode">)
   }
 
   return order.orderId;
+}
+
+export function calculateOrderProductsSubtotal(products: OrderProduct[]) {
+  return products.reduce((sum, product) => {
+    const unitPrice = product.unitPrice ?? 0;
+
+    if (!Number.isFinite(unitPrice) || unitPrice < 0) {
+      return sum;
+    }
+
+    return sum + unitPrice * product.quantity;
+  }, 0);
 }

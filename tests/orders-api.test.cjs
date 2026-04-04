@@ -33,6 +33,7 @@ function createOrderFixture(overrides = {}) {
     customerPhone: "3001234567",
     products: [{ productId: PRODUCT_ID, name: "Hamburguesa", quantity: 2, unitPrice: 15000 }],
     total: 30000,
+    deliveryFee: 0,
     paymentMethod: "Transferencia",
     paymentStatus: "pendiente",
     isFiado: false,
@@ -48,6 +49,10 @@ function createOrderFixture(overrides = {}) {
     reactivatedByUserId: null,
     reactivatedByUserEmail: null,
     deliveryType: "domicilio",
+    deliveryNeighborhoodId: undefined,
+    deliveryNeighborhoodName: undefined,
+    deliveryReference: undefined,
+    deliveryQuoteContext: null,
     address: "Calle 1 # 2-3",
     status: "nuevo",
     dateLabel: "25 mar 2026, 4:00 p. m.",
@@ -387,8 +392,7 @@ test("POST /api/orders/private crea un pedido manual autenticado", async () => {
       businessSlug: " Mi-Tienda ",
       customerName: "Ana Perez",
       customerWhatsApp: "3001234567",
-      deliveryType: "domicilio",
-      deliveryAddress: "Calle 1 # 2-3",
+      deliveryType: "recogida en tienda",
       paymentMethod: "Transferencia",
       products: [{ productId: PRODUCT_ID, name: "Hamburguesa", quantity: 2, unitPrice: 15000 }],
       total: 30000,
@@ -405,6 +409,50 @@ test("POST /api/orders/private crea un pedido manual autenticado", async () => {
     businessId: "0f9f5d8d-1234-4f6b-8f16-6e16b14ac101",
   });
   assert.equal(body.order.orderId, expectedOrder.orderId);
+});
+
+test("POST /api/orders/private bloquea domicilio local en workspace manual", async () => {
+  let createOrderWasCalled = false;
+  const handlers = createWorkspaceOrdersRouteHandlers({
+    requireBusinessSlug: (value) => value.trim().toLowerCase(),
+    requireBusinessApiContext: async (businessSlug) => ({
+      ok: true,
+      context: {
+        businessId: "0f9f5d8d-1234-4f6b-8f16-6e16b14ac101",
+        businessSlug,
+        businessName: "Mi tienda",
+        createdByUserId: "user-1",
+        accessLevel: "owned",
+        user: {
+          userId: "user-1",
+          email: "owner@example.com",
+          user: { id: "user-1", email: "owner@example.com" },
+        },
+      },
+    }),
+    createOrderInDatabase: async () => {
+      createOrderWasCalled = true;
+      return createOrderFixture();
+    },
+  });
+
+  const response = await handlers.POST(
+    createJsonRequest("http://localhost/api/orders/private", "POST", {
+      businessSlug: "mi-tienda",
+      customerName: "Ana Perez",
+      customerWhatsApp: "3001234567",
+      deliveryType: "domicilio",
+      deliveryAddress: "Calle 1 # 2-3",
+      paymentMethod: "Transferencia",
+      products: [{ productId: PRODUCT_ID, name: "Hamburguesa", quantity: 2, unitPrice: 15000 }],
+      total: 30000,
+    }),
+  );
+  const body = await response.json();
+
+  assert.equal(response.status, 400);
+  assert.match(body.error, /workspace manual todavia no soporta pedidos con domicilio local/i);
+  assert.equal(createOrderWasCalled, false);
 });
 
 test("POST /api/orders/private rechaza product_id legacy dentro de products", async () => {
@@ -481,8 +529,7 @@ test("POST /api/orders/private ignora history enviado por cliente", async () => 
       businessSlug: "mi-tienda",
       customerName: "Ana Perez",
       customerWhatsApp: "3001234567",
-      deliveryType: "domicilio",
-      deliveryAddress: "Calle 1 # 2-3",
+      deliveryType: "recogida en tienda",
       paymentMethod: "Transferencia",
       products: [{ productId: PRODUCT_ID, name: "Hamburguesa", quantity: 2, unitPrice: 15000 }],
       total: 30000,

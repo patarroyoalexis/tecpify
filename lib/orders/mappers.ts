@@ -34,14 +34,21 @@ import {
   type BusinessSlug,
   type OrderId,
 } from "@/types/identifiers";
+import type { LocalDeliveryQuoteContext } from "@/types/local-delivery";
 
 export type SupabaseOrderRow = Record<string, unknown>;
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
 
 export interface OrderCreateDraftPayload {
   customerName: string;
   customerWhatsApp: string;
   deliveryType: DeliveryType;
   deliveryAddress?: string;
+  deliveryNeighborhoodId?: string;
+  deliveryReference?: string;
   paymentMethod: PaymentMethod;
   notes?: string;
   total: number;
@@ -114,6 +121,74 @@ function readBoolean(row: SupabaseOrderRow, ...keys: string[]) {
   }
 
   return false;
+}
+
+function mapLocalDeliveryQuoteContext(value: unknown): LocalDeliveryQuoteContext | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  const distanceKm = readNumber(candidate, "distanceKm", "distance_km");
+  const pricingBandFee = readNumber(
+    isPlainObject(candidate.pricingBand) ? candidate.pricingBand : {},
+    "fee",
+  );
+  const pricingBandUpToKm = readNumber(
+    isPlainObject(candidate.pricingBand) ? candidate.pricingBand : {},
+    "upToKm",
+    "up_to_km",
+  );
+  const originNeighborhoodId = readString(
+    candidate,
+    "originNeighborhoodId",
+    "origin_neighborhood_id",
+  );
+  const originNeighborhoodName = readString(
+    candidate,
+    "originNeighborhoodName",
+    "origin_neighborhood_name",
+  );
+  const destinationNeighborhoodId = readString(
+    candidate,
+    "destinationNeighborhoodId",
+    "destination_neighborhood_id",
+  );
+  const destinationNeighborhoodName = readString(
+    candidate,
+    "destinationNeighborhoodName",
+    "destination_neighborhood_name",
+  );
+  const cityKey = readString(candidate, "cityKey", "city_key");
+  const cityName = readString(candidate, "cityName", "city_name");
+
+  if (
+    !originNeighborhoodId ||
+    !originNeighborhoodName ||
+    !destinationNeighborhoodId ||
+    !destinationNeighborhoodName ||
+    !cityKey ||
+    !cityName ||
+    !Number.isFinite(distanceKm) ||
+    !Number.isFinite(pricingBandFee) ||
+    !Number.isFinite(pricingBandUpToKm)
+  ) {
+    return null;
+  }
+
+  return {
+    originNeighborhoodId,
+    originNeighborhoodName,
+    destinationNeighborhoodId,
+    destinationNeighborhoodName,
+    cityKey,
+    cityName,
+    distanceKm,
+    pricingBand: {
+      fee: pricingBandFee,
+      upToKm: pricingBandUpToKm,
+    },
+  };
 }
 
 function mapRawPersistedOrderProducts(value: unknown): OrderProduct[] {
@@ -284,6 +359,7 @@ export function mapSupabaseRowToOrder(
       readString(row, "customer_whatsapp", "customer_phone", "customerPhone") || undefined,
     products: mapRawPersistedOrderProducts(row.products),
     total: readNumber(row, "total"),
+    deliveryFee: readNumber(row, "delivery_fee", "deliveryFee"),
     paymentMethod: readString(
       row,
       "payment_method",
@@ -335,6 +411,16 @@ export function mapSupabaseRowToOrder(
     reactivatedByUserEmail:
       readString(row, "reactivated_by_user_email", "reactivatedByUserEmail") || null,
     deliveryType: readString(row, "delivery_type", "deliveryType") as DeliveryType,
+    deliveryNeighborhoodId:
+      readString(row, "delivery_neighborhood_id", "deliveryNeighborhoodId") || undefined,
+    deliveryNeighborhoodName:
+      readString(row, "delivery_neighborhood_name", "deliveryNeighborhoodName") ||
+      undefined,
+    deliveryReference:
+      readString(row, "delivery_reference", "deliveryReference") || undefined,
+    deliveryQuoteContext: mapLocalDeliveryQuoteContext(
+      row.delivery_quote_context ?? row.deliveryQuoteContext,
+    ),
     address: readString(row, "delivery_address", "address") || undefined,
     status: readString(row, "status") as OrderStatus,
     dateLabel: buildDateLabel(createdAt, readString(row, "date_label", "dateLabel")),

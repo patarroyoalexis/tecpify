@@ -1,9 +1,11 @@
 import Link from "next/link";
 
+import { LocalDeliveryCatalogPanel } from "@/components/admin/local-delivery-catalog-panel";
 import { PlatformAdminDashboard } from "@/components/admin/platform-admin-dashboard";
 import { WorkspaceLayoutShell } from "@/components/layout/workspace-layout-shell";
 import { requirePlatformAdmin } from "@/lib/auth/server";
 import { getAdminDashboardSnapshot } from "@/lib/data/admin-dashboard";
+import { getLocalDeliveryAdminCatalogSnapshot } from "@/lib/data/local-delivery";
 
 function renderUnauthorizedAdminAccess() {
   return (
@@ -41,7 +43,10 @@ export default async function AdminPage() {
     return renderUnauthorizedAdminAccess();
   }
 
-  const snapshot = await getAdminDashboardSnapshot(platformAdmin);
+  const [snapshot, localDeliveryCatalogSnapshot] = await Promise.all([
+    getAdminDashboardSnapshot(platformAdmin),
+    getLocalDeliveryAdminCatalogSnapshot(),
+  ]);
 
   return (
     <WorkspaceLayoutShell
@@ -55,7 +60,10 @@ export default async function AdminPage() {
       workspaceHomeHref="/dashboard"
       showFooter={false}
     >
-      <PlatformAdminDashboard snapshot={snapshot} />
+      <div className="space-y-6">
+        <PlatformAdminDashboard snapshot={snapshot} />
+        <LocalDeliveryCatalogPanel initialSnapshot={localDeliveryCatalogSnapshot} />
+      </div>
     </WorkspaceLayoutShell>
   );
 }

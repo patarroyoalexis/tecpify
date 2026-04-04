@@ -18,6 +18,8 @@ export const ORDER_CREATE_CLIENT_EDITABLE_FIELDS = [
   "customerWhatsApp",
   "deliveryType",
   "deliveryAddress",
+  "deliveryNeighborhoodId",
+  "deliveryReference",
   "paymentMethod",
   "products",
   "total",
@@ -40,6 +42,12 @@ export const ORDER_CREATE_SERVER_DERIVED_FIELDS = [
   "updatedAt",
   "updated_at",
   "id",
+  "deliveryFee",
+  "delivery_fee",
+  "deliveryNeighborhoodName",
+  "delivery_neighborhood_name",
+  "deliveryQuoteContext",
+  "delivery_quote_context",
 ] as const;
 
 export const ORDER_UPDATE_CLIENT_EDITABLE_FIELDS = [

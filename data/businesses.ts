@@ -2,6 +2,10 @@ import { debugError, debugLog } from "@/lib/debug";
 import { hasVerifiedBusinessOwner } from "@/lib/auth/business-access";
 import { requireBusinessSlug } from "@/lib/businesses/slug";
 import { getPublicPaymentMethodsForBusiness } from "@/lib/businesses/payment-settings";
+import {
+  getOwnedBusinessesLocalDeliverySettings,
+  getStorefrontLocalDeliveryConfigByBusinessId,
+} from "@/lib/data/local-delivery";
 import type { BusinessId } from "@/types/identifiers";
 import {
   createServerSupabaseAuthClient,
@@ -14,6 +18,7 @@ import type {
   OwnedBusinessSummary,
 } from "@/types/businesses";
 import type { BusinessConfig } from "@/types/storefront";
+import type { BusinessLocalDeliverySettings } from "@/types/local-delivery";
 
 type PublicSupabaseBusinessRow = {
   id: string;
@@ -70,6 +75,28 @@ export type BusinessProductsLookupResult =
   | { status: "no_products"; business: BusinessConfig }
   | { status: "ok"; business: BusinessConfig };
 
+function createMissingSchemaBusinessLocalDeliverySettings(): BusinessLocalDeliverySettings {
+  return {
+    schemaStatus: "missing_db_contract",
+    isEnabled: false,
+    originNeighborhoodId: null,
+    maxDistanceKm: null,
+    pricingBands: [],
+  };
+}
+
+function getAvailableDeliveryTypesForStorefront(
+  localDelivery: BusinessConfig["localDelivery"],
+): BusinessConfig["availableDeliveryTypes"] {
+  const deliveryTypes: BusinessConfig["availableDeliveryTypes"] = ["recogida en tienda"];
+
+  if (localDelivery.isEnabled) {
+    deliveryTypes.unshift("domicilio");
+  }
+
+  return deliveryTypes;
+}
+
 function humanizeSlug(slug: string) {
   return slug
     .split("-")
@@ -109,6 +136,7 @@ function mapSupabaseBusinessRow(
       "allows_fiado" in row && typeof row.allows_fiado === "boolean"
         ? row.allows_fiado
         : false,
+    localDeliverySettings: createMissingSchemaBusinessLocalDeliverySettings(),
     isActive: typeof row.is_active === "boolean" ? row.is_active : true,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -133,6 +161,13 @@ function createBaseBusinessConfig(
     accent: overrides?.accent ?? "from-slate-200 via-slate-100 to-white",
     availablePaymentMethods: overrides?.availablePaymentMethods ?? [],
     availableDeliveryTypes: overrides?.availableDeliveryTypes ?? [...DELIVERY_TYPES],
+    localDelivery: overrides?.localDelivery ?? {
+      status: "missing_db_contract",
+      isEnabled: false,
+      destinationNeighborhoods: [],
+      message:
+        "El domicilio local todavia depende de migraciones manuales pendientes en Supabase.",
+    },
     products: overrides?.products ?? [],
   };
 }
@@ -147,11 +182,16 @@ function withDatabaseId(
   };
 }
 
-function mapDatabaseBusinessToConfig(databaseBusiness: BusinessRecord): BusinessConfig {
+function mapDatabaseBusinessToConfig(
+  databaseBusiness: BusinessRecord,
+  overrides?: Partial<BusinessConfig>,
+): BusinessConfig {
   return withDatabaseId(
     createBaseBusinessConfig(databaseBusiness.businessSlug, {
       name: databaseBusiness.name,
       availablePaymentMethods: getPublicPaymentMethodsForBusiness(databaseBusiness),
+      availableDeliveryTypes: overrides?.availableDeliveryTypes,
+      localDelivery: overrides?.localDelivery,
     }),
     databaseBusiness.businessId,
   );
@@ -324,6 +364,37 @@ export async function getOwnedBusinessesForUser(userId: string): Promise<OwnedBu
     });
 }
 
+export async function getOwnedBusinessRecordsForUser(
+  userId: string,
+): Promise<BusinessRecord[]> {
+  const supabase = await createServerSupabaseAuthClient();
+  const { data, error } = await supabase
+    .from("businesses")
+    .select(
+      "id, slug, name, business_type, transfer_instructions, accepts_cash, accepts_transfer, accepts_card, allows_fiado, is_active, created_at, updated_at, created_by_user_id",
+    )
+    .eq("created_by_user_id", userId)
+    .order("updated_at", { ascending: false });
+
+  if (error) {
+    throw new Error(`Supabase owned business records query failed: ${error.message}`);
+  }
+
+  const businesses = ((data ?? []) as AuthenticatedSupabaseBusinessRow[])
+    .filter((business) => hasVerifiedBusinessOwner(business.created_by_user_id))
+    .map(mapSupabaseBusinessRow);
+  const localDeliverySettingsByBusinessId = await getOwnedBusinessesLocalDeliverySettings(
+    businesses.map((business) => business.businessId),
+  );
+
+  return businesses.map((business) => ({
+    ...business,
+    localDeliverySettings:
+      localDeliverySettingsByBusinessId.get(business.businessId) ??
+      createMissingSchemaBusinessLocalDeliverySettings(),
+  }));
+}
+
 async function countUnsupportedLegacyBusinesses() {
   const supabase = await createServerSupabaseAuthClient();
   const { count, error } = await supabase
@@ -372,7 +443,7 @@ export async function getHomeBusinesses(
     : [];
 
   return {
-    realBusinesses: accessibleBusinesses.map(mapDatabaseBusinessToConfig),
+    realBusinesses: accessibleBusinesses.map((business) => mapDatabaseBusinessToConfig(business)),
     unsupportedLegacyBusinessesCount,
   };
 }
@@ -396,7 +467,31 @@ async function buildBusinessProductsLookupResult(
     return { status: "not_found" };
   }
 
-  const business = mapDatabaseBusinessToConfig(databaseBusiness);
+  let localDelivery: BusinessConfig["localDelivery"];
+
+  try {
+    localDelivery = await getStorefrontLocalDeliveryConfigByBusinessId(
+      databaseBusiness.businessId,
+    );
+  } catch (error) {
+    debugError("[businesses] Failed to resolve storefront local delivery config", {
+      businessId: databaseBusiness.businessId,
+      businessSlug: databaseBusiness.businessSlug,
+      message: error instanceof Error ? error.message : "unknown",
+    });
+    localDelivery = {
+      status: "catalog_unavailable",
+      isEnabled: true,
+      destinationNeighborhoods: [],
+      message:
+        "El catalogo geografico no esta disponible en este momento para cotizar el domicilio.",
+    };
+  }
+
+  const business = mapDatabaseBusinessToConfig(databaseBusiness, {
+    localDelivery,
+    availableDeliveryTypes: getAvailableDeliveryTypesForStorefront(localDelivery),
+  });
   let getProductsByBusinessId = dependencies?.getProductsByBusinessId;
   let mapProductToBusinessProduct = dependencies?.mapProductToBusinessProduct;
 

@@ -180,3 +180,4 @@ Este archivo es el contrato operativo de consistencia del MVP. Su funcion no es 
 ### Frentes hoy parciales o abiertos
 
 - Google OAuth opcional: puede existir en runtime solo como salida secundaria de `/login`, pero no tiene la misma evidencia E2E del login por email/password y puede depender de configuracion real del provider segun el entorno.
+- Domicilio local por barrio en storefront: el runtime ya prepara configuracion minima en `/ajustes`, cotizacion server-side, recalculo al persistir el pedido y administracion/importacion JSON del catalogo geografico desde `/admin`, pero el frente no se considera cerrado hasta aplicar manualmente en Supabase las columnas/tablas nuevas que ese codigo espera.

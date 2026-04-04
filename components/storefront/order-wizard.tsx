@@ -32,15 +32,18 @@ import {
 
 import { getAvailablePaymentMethods, getPaymentMethodLabel } from "@/components/dashboard/payment-helpers";
 import { debugError } from "@/lib/debug";
+import { fetchStorefrontLocalDeliveryQuote } from "@/lib/local-delivery/api";
 import { createStorefrontOrderViaApi } from "@/lib/orders/api";
 import { isValidWhatsAppPhone } from "@/lib/whatsapp";
 import {
+  calculateOrderProductsSubtotal,
   getOrderDisplayCode,
   type DeliveryType,
   type Order,
   type OrderProduct,
   type PaymentMethod,
 } from "@/types/orders";
+import type { LocalDeliveryQuote, StorefrontLocalDeliveryConfig } from "@/types/local-delivery";
 import type { BusinessConfig, BusinessProduct } from "@/types/storefront";
 
 const DEFAULT_BUSINESS_TAGLINE = "Compra rapido y confirma sin vueltas.";
@@ -142,7 +145,7 @@ function deliveryDescription(type: DeliveryType) {
 
 function deliverySupport(type: DeliveryType) {
   return type === "domicilio"
-    ? "Costo segun zona."
+    ? "Valor final calculado segun el barrio."
     : "Sin costo adicional.";
 }
 
@@ -150,12 +153,83 @@ function deliveryBadge(type: DeliveryType) {
   return type === "domicilio" ? "Comodidad" : "Mas rapido";
 }
 
-function deliveryCostCopy(type: DeliveryType | "") {
-  if (!type) {
+function getLocalDeliveryConfigMessage(localDelivery: StorefrontLocalDeliveryConfig) {
+  if (localDelivery.status === "disabled") {
+    return "Este negocio no tiene domicilio local habilitado en este momento.";
+  }
+
+  if (localDelivery.status === "missing_db_contract") {
+    return "El domicilio local todavia depende de migraciones manuales pendientes en Supabase.";
+  }
+
+  if (localDelivery.status === "missing_business_configuration") {
+    return "El negocio aun no termina de configurar su domicilio local.";
+  }
+
+  if (localDelivery.status === "catalog_unavailable") {
+    return "El catalogo geografico no esta disponible en este momento.";
+  }
+
+  return null;
+}
+
+function getDeliverySummaryCopy(options: {
+  deliveryType: DeliveryType | "";
+  localDelivery: StorefrontLocalDeliveryConfig;
+  quote: LocalDeliveryQuote | null;
+  isQuoting: boolean;
+  selectedNeighborhoodId: string;
+}) {
+  if (!options.deliveryType) {
     return "Elige una entrega";
   }
 
-  return type === "domicilio" ? "Se confirma segun zona" : "Sin costo adicional";
+  if (options.deliveryType !== "domicilio") {
+    return "No aplica";
+  }
+
+  if (options.isQuoting) {
+    return "Cotizando...";
+  }
+
+  if (options.quote?.status === "available" && options.quote.deliveryFee !== null) {
+    return formatCurrency(options.quote.deliveryFee);
+  }
+
+  if (options.quote?.status === "out_of_coverage") {
+    return "Fuera de cobertura";
+  }
+
+  if (options.quote?.status === "neighborhood_not_available") {
+    return "Barrio no disponible";
+  }
+
+  if (
+    options.quote?.status === "schema_not_ready" ||
+    options.localDelivery.status === "missing_db_contract"
+  ) {
+    return "Pendiente por migraciones";
+  }
+
+  if (
+    options.quote?.status === "catalog_unavailable" ||
+    options.localDelivery.status === "catalog_unavailable"
+  ) {
+    return "Catalogo no disponible";
+  }
+
+  if (
+    options.quote?.status === "missing_business_configuration" ||
+    options.localDelivery.status === "missing_business_configuration"
+  ) {
+    return "Configuracion pendiente";
+  }
+
+  if (options.quote?.status === "business_disabled" || options.localDelivery.status === "disabled") {
+    return "No disponible";
+  }
+
+  return options.selectedNeighborhoodId ? "Cotizacion pendiente" : "Selecciona tu barrio";
 }
 
 function getSummaryHeaderProgress(steps: Array<{ label: string; supporting: string; complete: boolean }>) {
@@ -348,13 +422,12 @@ function SectionFrame({
       }`}
     >
       <div className="absolute inset-x-0 top-0 h-1 bg-[linear-gradient(90deg,#F59E0B_0%,#D97706_100%)]" />
-      <div className={compact ? "px-4 py-3.5 sm:px-5 sm:py-4" : "px-5 py-5 sm:px-6 sm:py-6"}>
-        <div className={`flex flex-col ${compact ? "gap-2.5" : "gap-4"} sm:flex-row sm:items-start sm:justify-between`}>
-          <div className={`flex items-start ${compact ? "gap-3" : "gap-4"}`}>
+
+      <div className="px-5 py-5 sm:px-6 sm:py-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex items-start gap-4">
             <div
-              className={`flex shrink-0 items-center justify-center text-white ${
-                compact ? "h-10 w-10 rounded-[17px] shadow-[0_10px_22px_rgba(23,32,51,0.11)]" : "h-14 w-14 rounded-[22px] shadow-[0_16px_34px_rgba(23,32,51,0.14)]"
-              } ${
+              className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-[22px] text-white shadow-[0_16px_34px_rgba(23,32,51,0.14)] ${
                 complete
                   ? "bg-emerald-500"
                   : highlight
@@ -363,27 +436,32 @@ function SectionFrame({
               }`}
             >
               {complete ? (
-                <CheckCircle2 className={compact ? "h-4.5 w-4.5" : "h-6 w-6"} />
+                <CheckCircle2 className="h-6 w-6" />
               ) : (
-                <Icon className={compact ? "h-4.5 w-4.5" : "h-6 w-6"} />
+                <Icon className="h-6 w-6" />
               )}
             </div>
+
             <div className="min-w-0">
-              <p className={`font-black uppercase text-[#7C8798] ${compact ? "text-[10px] tracking-[0.22em]" : "text-[11px] tracking-[0.26em]"}`}>
+              <p className="text-[11px] font-black uppercase tracking-[0.26em] text-[#7C8798]">
                 {step}
               </p>
-              <h2 className={`font-black tracking-tight text-slate-900 ${compact ? "mt-0.5 text-[1.32rem] leading-tight" : "mt-2 text-2xl"}`}>
+              <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-900">
                 {title}
               </h2>
-              <p className={`text-[#5B6472] ${compact ? "mt-0.5 text-[13px] leading-4.5" : "mt-2 text-sm leading-6"}`}>
+              <p className="mt-2 text-sm leading-6 text-[#5B6472]">
                 {description}
               </p>
             </div>
           </div>
+
           {status}
         </div>
       </div>
-      <div className={compact ? "px-4 pb-3.5 sm:px-5 sm:pb-4.5" : "px-5 pb-5 sm:px-6 sm:pb-6"}>{children}</div>
+
+      <div className={compact ? "px-4 pb-3.5 sm:px-5 sm:pb-4.5" : "px-5 pb-5 sm:px-6 sm:pb-6"}>
+        {children}
+      </div>
     </section>
   );
 }
@@ -459,6 +537,7 @@ function ChoiceCard({
   icon: Icon,
   selected,
   featured = false,
+  disabled = false,
   onClick,
   testId,
   value,
@@ -471,6 +550,7 @@ function ChoiceCard({
   icon: ComponentType<{ className?: string }>;
   selected: boolean;
   featured?: boolean;
+  disabled?: boolean;
   onClick: () => void;
   testId: string;
   value: string;
@@ -483,9 +563,13 @@ function ChoiceCard({
         data-testid={testId}
         data-choice-value={value}
         aria-pressed={selected}
+        aria-disabled={disabled}
+        disabled={disabled}
         onClick={onClick}
         className={`group flex h-full w-full flex-col rounded-[20px] border p-3 text-left transition-all sm:rounded-[22px] sm:p-3.5 ${
-          selected
+          disabled
+            ? "cursor-not-allowed border-[#E8DDD0] bg-[#F7F2EB] text-slate-500 opacity-75"
+            : selected
             ? "border-[#F3D39A] bg-[linear-gradient(180deg,#FFF7E2_0%,#FFFDF9_100%)] shadow-[0_12px_24px_rgba(217,119,6,0.11)] ring-1 ring-[#F6D8A8]"
             : "border-[#E8DDD0] bg-[#FFFDF9] hover:-translate-y-0.5 hover:border-[#D8C8B5] hover:shadow-[0_10px_22px_rgba(23,32,51,0.06)]"
         }`}
@@ -510,12 +594,14 @@ function ChoiceCard({
           </div>
           <div
             className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-[13px] ${
-              selected
+              disabled
+                ? "bg-[#E8DDD0] text-[#7C8798]"
+                : selected
                 ? "bg-[#F59E0B] text-white shadow-[0_8px_16px_rgba(245,158,11,0.18)]"
                 : "bg-[#F7F1E8] text-[#5B6472] ring-1 ring-[#E8DDD0] group-hover:text-[#D97706]"
             }`}
           >
-            {selected ? <CheckCircle2 className="h-4 w-4" /> : <Icon className="h-4 w-4" />}
+            {selected && !disabled ? <CheckCircle2 className="h-4 w-4" /> : <Icon className="h-4 w-4" />}
           </div>
         </div>
         <p className="mt-2 text-[11px] font-medium leading-4.5 text-[#7C8798]">{supporting}</p>
@@ -529,9 +615,13 @@ function ChoiceCard({
       data-testid={testId}
       data-choice-value={value}
       aria-pressed={selected}
+      aria-disabled={disabled}
+      disabled={disabled}
       onClick={onClick}
       className={`group flex h-full w-full flex-col justify-between rounded-[24px] border p-4 text-left transition-all sm:rounded-[28px] sm:p-5 ${
-        selected
+        disabled
+          ? "cursor-not-allowed border-[#E8DDD0] bg-[#F7F2EB] text-slate-500 opacity-75"
+          : selected
           ? "border-[#F3D39A] bg-[linear-gradient(180deg,#FFF3D6_0%,#FFFDF9_100%)] shadow-[0_18px_42px_rgba(217,119,6,0.12)] ring-1 ring-[#F6D8A8]"
           : "border-[#E8DDD0] bg-[#FFFDF9] hover:-translate-y-0.5 hover:border-[#D8C8B5] hover:shadow-[0_16px_38px_rgba(23,32,51,0.08)]"
       }`}
@@ -558,12 +648,14 @@ function ChoiceCard({
           </div>
           <div
             className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-[16px] sm:h-12 sm:w-12 sm:rounded-[18px] ${
-              selected
+              disabled
+                ? "bg-[#E8DDD0] text-[#7C8798]"
+                : selected
                 ? "bg-[#F59E0B] text-white shadow-[0_12px_26px_rgba(245,158,11,0.22)]"
                 : "bg-[#172033] text-white group-hover:bg-[#D97706]"
             }`}
           >
-            <Icon className="h-5 w-5" />
+            {selected && !disabled ? <CheckCircle2 className="h-5 w-5" /> : <Icon className="h-5 w-5" />}
           </div>
         </div>
         <p
@@ -576,12 +668,16 @@ function ChoiceCard({
       </div>
       <div className="mt-4 flex items-center justify-between gap-3 sm:mt-5">
         <span className="text-xs font-bold text-[#7C8798]">
-          {selected ? "Listo para tu pedido" : "Toca para elegir"}
+          {disabled ? "No disponible ahora" : selected ? "Listo para tu pedido" : "Toca para elegir"}
         </span>
         {selected ? (
           <span className="inline-flex items-center gap-1 rounded-full bg-[#FFF3D6] px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] text-[#B45309] ring-1 ring-[#F3D39A]">
             <CheckCircle2 className="h-3.5 w-3.5" />
             Seleccionado
+          </span>
+        ) : disabled ? (
+          <span className="inline-flex items-center gap-1 rounded-full bg-[#ECE6DD] px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] text-[#6B7280] ring-1 ring-[#DDD2C3]">
+            No disponible
           </span>
         ) : (
           <span className="inline-flex items-center gap-1 text-xs font-black uppercase tracking-[0.16em] text-[#7C8798]">
@@ -741,7 +837,9 @@ function ProductCard({
 
 function SummaryPanel({
   businessName,
+  subtotal,
   total,
+  deliverySummary,
   deliveryType,
   paymentMethod,
   selectedProducts,
@@ -752,7 +850,9 @@ function SummaryPanel({
   steps,
 }: {
   businessName: string;
+  subtotal: number;
   total: number;
+  deliverySummary: string;
   deliveryType: DeliveryType | "";
   paymentMethod: PaymentMethod | "";
   selectedProducts: OrderProduct[];
@@ -881,13 +981,15 @@ function SummaryPanel({
         <div className="space-y-2.5 py-2.5">
           <div className="flex items-center justify-between gap-4">
             <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[#7C8798]">Subtotal</span>
-            <span className="text-sm font-black tabular-nums text-slate-900">{formatCurrency(total)}</span>
+            <span className="text-sm font-black tabular-nums text-slate-900">{formatCurrency(subtotal)}</span>
           </div>
           <div className="flex items-center justify-between gap-4">
-            <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[#7C8798]">
-              Costo de entrega
-            </span>
-            <span className="text-sm font-bold text-[#5B6472]">{deliveryCostCopy(deliveryType)}</span>
+            <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[#7C8798]">Domicilio</span>
+            <span className="text-sm font-bold text-[#5B6472]">{deliverySummary}</span>
+          </div>
+          <div className="flex items-center justify-between gap-4 border-t border-[#F3EADF] pt-2.5">
+            <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[#7C8798]">Total</span>
+            <span className="text-base font-black tabular-nums text-slate-900">{formatCurrency(total)}</span>
           </div>
           <div className="flex items-center justify-between gap-4">
             <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[#7C8798]">Pago</span>
@@ -895,7 +997,7 @@ function SummaryPanel({
               {paymentMethod ? getPaymentMethodLabel(paymentMethod, deliveryType || undefined) : "Pendiente"}
             </span>
           </div>
-          <div className="flex items-center justify-between gap-4 border-t border-[#F3EADF] pt-2.5">
+          <div className="flex items-center justify-between gap-4">
             <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[#7C8798]">Negocio</span>
             <span className="text-right text-sm font-bold text-slate-900">{businessName}</span>
           </div>
@@ -1120,13 +1222,17 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | "">("");
   const [deliveryType, setDeliveryType] = useState<DeliveryType | "">("");
+  const [deliveryNeighborhoodId, setDeliveryNeighborhoodId] = useState("");
   const [address, setAddress] = useState("");
+  const [deliveryReference, setDeliveryReference] = useState("");
   const [observations, setObservations] = useState("");
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [confirmedOrder, setConfirmedOrder] = useState<Order | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isQuotingDelivery, setIsQuotingDelivery] = useState(false);
   const [submitError, setSubmitError] = useState("");
+  const [localDeliveryQuote, setLocalDeliveryQuote] = useState<LocalDeliveryQuote | null>(null);
   const [productQuery, setProductQuery] = useState("");
   const [recentlyUpdatedProductId, setRecentlyUpdatedProductId] = useState<string | null>(null);
   const [recentlyAddedProductName, setRecentlyAddedProductName] = useState("");
@@ -1134,19 +1240,18 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
   const deferredProductQuery = useDeferredValue(productQuery);
   const hasValidWhatsApp = isValidWhatsAppPhone(customerPhone);
   const showAddressField = deliveryType === "domicilio";
+  const localDeliveryConfig = business.localDelivery;
   const availablePaymentMethods = useMemo(
     () => getAvailablePaymentMethods(deliveryType, business.availablePaymentMethods),
     [business.availablePaymentMethods, deliveryType],
   );
   const selected = useMemo(() => selectedProducts(business, quantities), [business, quantities]);
-  const total = useMemo(
-    () =>
-      business.products.reduce(
-        (sum, product) => sum + (quantities[product.productId] ?? 0) * product.price,
-        0,
-      ),
-    [business.products, quantities],
-  );
+  const subtotal = useMemo(() => calculateOrderProductsSubtotal(selected), [selected]);
+  const resolvedDeliveryFee =
+    deliveryType === "domicilio" && localDeliveryQuote?.status === "available"
+      ? localDeliveryQuote.deliveryFee ?? 0
+      : 0;
+  const total = subtotal + resolvedDeliveryFee;
   const productCount = countProducts(quantities);
   const filtered = useMemo(
     () => business.products.filter((product) => matchProduct(product, deferredProductQuery)),
@@ -1156,10 +1261,39 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
   const visiblePaymentMethods = deliveryType ? availablePaymentMethods : [];
   const customerReady = customerName.trim().length > 0 && hasValidWhatsApp;
   const productsReady = productCount > 0;
+  const localDeliveryReady =
+    deliveryType !== "domicilio" ||
+    (localDeliveryQuote?.status === "available" && resolvedDeliveryFee >= 0);
   const fulfillmentReady = Boolean(
-    deliveryType && paymentMethod && (!showAddressField || address.trim().length > 0),
+    deliveryType &&
+      paymentMethod &&
+      (!showAddressField || (address.trim().length > 0 && localDeliveryReady)),
   );
   const confirmationReady = customerReady && productsReady && fulfillmentReady && privacyAccepted;
+  const localDeliveryConfigMessage = getLocalDeliveryConfigMessage(localDeliveryConfig);
+  const deliveryOptions = useMemo(
+    () =>
+      business.availableDeliveryTypes.map((type) => {
+        const disabled = type === "domicilio" && localDeliveryConfig.status !== "available";
+
+        return {
+          type,
+          disabled,
+          supporting:
+            type === "domicilio" && disabled && localDeliveryConfigMessage
+              ? localDeliveryConfigMessage
+              : deliverySupport(type),
+        };
+      }),
+    [business.availableDeliveryTypes, localDeliveryConfig.status, localDeliveryConfigMessage],
+  );
+  const deliverySummary = getDeliverySummaryCopy({
+    deliveryType,
+    localDelivery: localDeliveryConfig,
+    quote: localDeliveryQuote,
+    isQuoting: isQuotingDelivery,
+    selectedNeighborhoodId: deliveryNeighborhoodId,
+  });
   const progressSteps = [
     {
       label: "Tus datos",
@@ -1214,6 +1348,66 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
     return () => window.clearTimeout(timeout);
   }, [recentlyAddedProductName]);
 
+  useEffect(() => {
+    if (deliveryType !== "domicilio") {
+      setIsQuotingDelivery(false);
+      setLocalDeliveryQuote(null);
+      return undefined;
+    }
+
+    if (localDeliveryConfig.status !== "available") {
+      setIsQuotingDelivery(false);
+      setLocalDeliveryQuote(null);
+      return undefined;
+    }
+
+    if (!deliveryNeighborhoodId) {
+      setIsQuotingDelivery(false);
+      setLocalDeliveryQuote(null);
+      return undefined;
+    }
+
+    let cancelled = false;
+    setLocalDeliveryQuote(null);
+    setIsQuotingDelivery(true);
+
+    void fetchStorefrontLocalDeliveryQuote({
+      businessSlug: business.businessSlug,
+      neighborhoodId: deliveryNeighborhoodId,
+    })
+      .then((quote) => {
+        if (cancelled) {
+          return;
+        }
+
+        setLocalDeliveryQuote(quote);
+      })
+      .catch((error) => {
+        if (cancelled) {
+          return;
+        }
+
+        setLocalDeliveryQuote({
+          status: "catalog_unavailable",
+          deliveryFee: null,
+          message:
+            error instanceof Error
+              ? error.message
+              : "No fue posible cotizar el domicilio local.",
+          context: null,
+        });
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsQuotingDelivery(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [business.businessSlug, deliveryNeighborhoodId, deliveryType, localDeliveryConfig.status]);
+
   function clearError(field: string) {
     setErrors((current) => {
       const next = { ...current };
@@ -1261,8 +1455,21 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
       nextErrors.paymentMethod = "Selecciona un metodo de pago.";
     }
 
-    if (deliveryType === "domicilio" && !address.trim()) {
-      nextErrors.address = "La direccion es obligatoria para domicilio.";
+    if (deliveryType === "domicilio") {
+      if (localDeliveryConfig.status !== "available") {
+        nextErrors.deliveryNeighborhoodId =
+          localDeliveryConfigMessage ??
+          "El domicilio local no esta disponible de forma valida para este negocio.";
+      } else if (!deliveryNeighborhoodId) {
+        nextErrors.deliveryNeighborhoodId = "Selecciona el barrio para cotizar el domicilio.";
+      } else if (!localDeliveryQuote || localDeliveryQuote.status !== "available") {
+        nextErrors.deliveryNeighborhoodId =
+          localDeliveryQuote?.message ?? "No pudimos resolver una tarifa valida para el domicilio.";
+      }
+
+      if (!address.trim()) {
+        nextErrors.address = "La direccion es obligatoria para domicilio.";
+      }
     }
 
     if (!privacyAccepted) {
@@ -1274,12 +1481,24 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
   }
 
   function selectDeliveryType(nextDeliveryType: DeliveryType) {
+    if (nextDeliveryType === "domicilio" && localDeliveryConfig.status !== "available") {
+      clearError("deliveryType");
+      clearError("deliveryNeighborhoodId");
+      setSubmitError("");
+      return;
+    }
+
     setDeliveryType(nextDeliveryType);
     clearError("deliveryType");
     clearError("address");
+    clearError("deliveryNeighborhoodId");
+    setSubmitError("");
 
     if (nextDeliveryType !== "domicilio") {
+      setDeliveryNeighborhoodId("");
       setAddress("");
+      setDeliveryReference("");
+      setLocalDeliveryQuote(null);
     }
 
     if (
@@ -1308,6 +1527,10 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
         customerWhatsApp: customerPhone.trim(),
         deliveryType,
         deliveryAddress: deliveryType === "domicilio" ? address.trim() : undefined,
+        deliveryNeighborhoodId:
+          deliveryType === "domicilio" ? deliveryNeighborhoodId : undefined,
+        deliveryReference:
+          deliveryType === "domicilio" ? deliveryReference.trim() || undefined : undefined,
         paymentMethod,
         notes: observations.trim() || undefined,
         total,
@@ -1603,15 +1826,16 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
                   </div>
 
                   <div className="mt-2.5 grid gap-2.5 md:grid-cols-2">
-                    {business.availableDeliveryTypes.map((type) => (
+                    {deliveryOptions.map(({ type, disabled, supporting }) => (
                       <ChoiceCard
                         key={type}
                         title={deliveryTitle(type)}
                         description={deliveryDescription(type)}
-                        supporting={deliverySupport(type)}
+                        supporting={supporting}
                         badge={deliveryBadge(type)}
                         icon={type === "domicilio" ? Truck : Store}
                         selected={deliveryType === type}
+                        disabled={disabled}
                         onClick={() => selectDeliveryType(type)}
                         testId={`storefront-delivery-option-${slugifyChoice(type)}`}
                         value={type}
@@ -1624,33 +1848,161 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
 
                 {showAddressField ? (
                   <div className="animate-in fade-in slide-in-from-top-2 duration-300 rounded-[20px] border border-slate-200 bg-white p-3 sm:rounded-[24px] sm:px-3.5 sm:py-3.5 shadow-[0_10px_24px_rgba(15,23,42,0.045)]">
-                    <label className="space-y-2">
-                      <span className="text-sm font-black tracking-tight text-slate-900">
-                        Direccion de entrega
-                      </span>
-                      <div className="relative">
-                        <MapPin className="pointer-events-none absolute left-4 top-4 h-5 w-5 text-slate-400" />
-                        <textarea
-                          rows={3}
-                          data-testid="storefront-delivery-address-input"
-                          value={address}
-                          onChange={(event) => {
-                            setAddress(event.target.value);
-                            clearError("address");
-                          }}
-                          placeholder="Calle, numero, barrio o indicaciones"
-                          className={`w-full rounded-[20px] border bg-[#F6EFE6]/65 py-3 pl-12 pr-4 text-base font-medium text-slate-900 outline-none transition-all focus:bg-[#FFFDF9] focus:ring-4 focus:ring-[#FFF3D6] ${
-                            errors.address
-                              ? "border-rose-200 focus:border-rose-400"
-                              : "border-[#E8DDD0] focus:border-[#F59E0B]"
-                          }`}
+                    <div className="space-y-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
+                            Domicilio local
+                          </p>
+                          <h3 className="mt-0.5 text-[15px] font-black tracking-tight text-slate-900 sm:text-base">
+                            Selecciona tu barrio y escribe la direccion
+                          </h3>
+                          <p className="mt-0.5 max-w-[42rem] text-[13px] leading-4.5 text-[#5B6472]">
+                            El cliente no elige tarifa: el sistema la calcula y la valida antes de guardar el pedido.
+                          </p>
+                        </div>
+                        <StatusPill
+                          label={isQuotingDelivery ? "Cotizando" : localDeliveryQuote?.status === "available" ? "Tarifa lista" : "Pendiente"}
+                          tone={localDeliveryQuote?.status === "available" ? "success" : "neutral"}
+                          compact
                         />
                       </div>
-                      <p className="text-xs leading-5 text-[#7C8798]">
-                        La usamos solo para coordinar el domicilio de forma correcta.
-                      </p>
-                      <Err message={errors.address} />
-                    </label>
+
+                      {localDeliveryConfig.status === "available" ? (
+                        <label className="space-y-2">
+                          <span className="text-sm font-black tracking-tight text-slate-900">
+                            Barrio
+                          </span>
+                          <select
+                            data-testid="storefront-delivery-neighborhood-select"
+                            value={deliveryNeighborhoodId}
+                            onChange={(event) => {
+                              const nextNeighborhoodId = event.target.value;
+                              setDeliveryNeighborhoodId(nextNeighborhoodId);
+                              setLocalDeliveryQuote(null);
+                              setIsQuotingDelivery(
+                                localDeliveryConfig.status === "available" && nextNeighborhoodId.length > 0,
+                              );
+                              clearError("deliveryNeighborhoodId");
+                              setSubmitError("");
+                            }}
+                            className={`w-full rounded-[20px] border bg-[#F6EFE6]/65 px-4 py-3 text-sm font-medium text-slate-900 outline-none transition-all focus:bg-[#FFFDF9] focus:ring-4 focus:ring-[#FFF3D6] ${
+                              errors.deliveryNeighborhoodId
+                                ? "border-rose-200 focus:border-rose-400"
+                                : "border-[#E8DDD0] focus:border-[#F59E0B]"
+                            }`}
+                          >
+                            <option value="">Selecciona tu barrio</option>
+                            {localDeliveryConfig.destinationNeighborhoods.map((neighborhood) => (
+                              <option key={neighborhood.neighborhoodId} value={neighborhood.neighborhoodId}>
+                                {neighborhood.name} · {neighborhood.cityName}
+                              </option>
+                            ))}
+                          </select>
+                          <p className="text-xs leading-5 text-[#7C8798]">
+                            Solo mostramos barrios del catalogo controlado por la plataforma.
+                          </p>
+                          <Err message={errors.deliveryNeighborhoodId} />
+                        </label>
+                      ) : (
+                        <div className="rounded-[18px] border border-dashed border-[#E8DDD0] bg-[#F8F2EA] px-3.5 py-3">
+                          <div className="flex items-start gap-3">
+                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[13px] bg-[#FFFDF9] text-[#D97706] ring-1 ring-[#E8DDD0]">
+                              <Info className="h-4 w-4" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-black text-slate-900">
+                                Domicilio local no disponible para cotizar
+                              </p>
+                              <p className="mt-0.5 text-sm leading-4.5 text-slate-600">
+                                {localDeliveryConfigMessage}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {showAddressField && (deliveryNeighborhoodId || localDeliveryQuote || localDeliveryConfigMessage) ? (
+                        <div
+                          data-testid="storefront-delivery-quote-state"
+                          className={`rounded-[18px] border px-3.5 py-3 ${
+                            localDeliveryQuote?.status === "available"
+                              ? "border-emerald-200 bg-emerald-50/80"
+                              : localDeliveryQuote?.status === "out_of_coverage" ||
+                                  localDeliveryQuote?.status === "neighborhood_not_available"
+                                ? "border-rose-200 bg-rose-50"
+                                : "border-[#E8DDD0] bg-[#F8F2EA]"
+                          }`}
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[13px] bg-white text-slate-900 ring-1 ring-black/5">
+                              {localDeliveryQuote?.status === "available" ? (
+                                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                              ) : (
+                                <Info className="h-4 w-4 text-[#D97706]" />
+                              )}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-sm font-black text-slate-900">
+                                {deliverySummary}
+                              </p>
+                              <p className="mt-0.5 text-sm leading-4.5 text-slate-600">
+                                {isQuotingDelivery
+                                  ? "Estamos validando el valor final del domicilio para este barrio."
+                                  : localDeliveryQuote?.message ??
+                                    localDeliveryConfigMessage ??
+                                    "Selecciona tu barrio para ver el valor final del domicilio."}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      ) : null}
+
+                      <label className="space-y-2">
+                        <span className="text-sm font-black tracking-tight text-slate-900">
+                          Direccion de entrega
+                        </span>
+                        <div className="relative">
+                          <MapPin className="pointer-events-none absolute left-4 top-4 h-5 w-5 text-slate-400" />
+                          <textarea
+                            rows={2}
+                            data-testid="storefront-delivery-address-input"
+                            value={address}
+                            onChange={(event) => {
+                              setAddress(event.target.value);
+                              clearError("address");
+                            }}
+                            placeholder="Calle, numero, apartamento o indicaciones"
+                            className={`w-full rounded-[20px] border bg-[#F6EFE6]/65 py-3 pl-12 pr-4 text-base font-medium text-slate-900 outline-none transition-all focus:bg-[#FFFDF9] focus:ring-4 focus:ring-[#FFF3D6] ${
+                              errors.address
+                                ? "border-rose-200 focus:border-rose-400"
+                                : "border-[#E8DDD0] focus:border-[#F59E0B]"
+                            }`}
+                          />
+                        </div>
+                        <p className="text-xs leading-5 text-[#7C8798]">
+                          La usamos solo para coordinar el domicilio de forma correcta.
+                        </p>
+                        <Err message={errors.address} />
+                      </label>
+
+                      <label className="space-y-2">
+                        <span className="text-sm font-black tracking-tight text-slate-900">
+                          Referencia de entrega
+                        </span>
+                        <input
+                          type="text"
+                          data-testid="storefront-delivery-reference-input"
+                          value={deliveryReference}
+                          onChange={(event) => setDeliveryReference(event.target.value)}
+                          placeholder="Ej: porteria azul, casa esquina, local 2"
+                          className="w-full rounded-[20px] border border-[#E8DDD0] bg-[#F6EFE6]/65 px-4 py-3 text-sm font-medium text-slate-900 outline-none transition-all focus:border-[#F59E0B] focus:bg-[#FFFDF9] focus:ring-4 focus:ring-[#FFF3D6]"
+                        />
+                        <p className="text-xs leading-5 text-[#7C8798]">
+                          Ayuda a la entrega, pero no define la tarifa.
+                        </p>
+                      </label>
+                    </div>
                   </div>
                 ) : null}
 
@@ -1747,7 +2099,7 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
             </SectionFrame>
             <SectionFrame
               step="Paso 4"
-              title="Confirmacion"
+              title="Confirmación"
               description="Deja una nota opcional y confirma la compra con tranquilidad."
               icon={Shield}
               complete={confirmationReady}
@@ -1759,103 +2111,122 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
                     icon={<CheckCircle2 className="h-3.5 w-3.5" />}
                   />
                 ) : (
-                  <StatusPill label="Ultimos detalles" tone="warm" icon={<Shield className="h-3.5 w-3.5" />} />
+                  <StatusPill
+                    label="Últimos detalles"
+                    tone="warm"
+                    icon={<Shield className="h-3.5 w-3.5" />}
+                  />
                 )
               }
             >
-              <div className="grid gap-4 xl:grid-cols-[0.84fr_1.16fr]">
-                <div className="rounded-[24px] border border-slate-200 bg-white p-3.5 shadow-[0_10px_24px_rgba(15,23,42,0.04)] sm:rounded-[28px] sm:p-4">
+              <div className="space-y-3">
+                <div className="rounded-[24px] border border-[#E9E2D8] bg-[linear-gradient(180deg,#FFFFFF_0%,#FFFCF8_100%)] p-3.5 shadow-[0_6px_16px_rgba(15,23,42,0.03)] sm:rounded-[28px] sm:p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">
+                      <p className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">
                         Observaciones
                       </p>
-                      <h3 className="mt-1.5 text-lg font-black tracking-tight text-slate-900">
+                      <h3 className="mt-1 text-[1.05rem] font-black leading-tight tracking-tight text-slate-900">
                         Si quieres, agrega una nota
                       </h3>
+                      <p className="mt-1.5 max-w-2xl text-[13px] leading-5 text-slate-600">
+                        Déjanos una indicación útil para preparar o entregar mejor tu pedido.
+                      </p>
                     </div>
                     <StatusPill label="Opcional" tone="neutral" />
                   </div>
 
-                  <label className="mt-3 block">
-                    <div className="relative">
-                      <MessageSquare className="pointer-events-none absolute left-4 top-3.5 h-5 w-5 text-slate-400" />
-                      <textarea
-                        rows={4}
-                        data-testid="storefront-order-notes-input"
-                        value={observations}
-                        onChange={(event) => setObservations(event.target.value)}
-                        placeholder="Ej: sin salsa, llamar al llegar..."
-                        className="w-full rounded-[22px] border border-[#E8DDD0] bg-[#F6EFE6]/55 py-3.5 pl-12 pr-4 text-base font-medium text-slate-900 outline-none transition-all focus:border-[#F59E0B] focus:bg-[#FFFDF9] focus:ring-4 focus:ring-[#FFF3D6]"
-                      />
-                    </div>
-                  </label>
+                  <div className="mt-3 border-t border-[#F1E9DE] pt-3">
+                    <label className="block">
+                      <div className="relative">
+                        <MessageSquare className="pointer-events-none absolute left-4 top-3.5 h-4.5 w-4.5 text-slate-400" />
+                        <textarea
+                          rows={3}
+                          data-testid="storefront-order-notes-input"
+                          value={observations}
+                          onChange={(event) => setObservations(event.target.value)}
+                          placeholder="Ej: sin salsa, llamar al llegar..."
+                          className="min-h-[84px] w-full rounded-[22px] border border-[#E7D9C9] bg-[#FCF8F3] py-3 pl-11 pr-4 text-[16px] font-medium text-slate-900 placeholder:text-slate-400 outline-none transition-all focus:border-[#F59E0B] focus:bg-white focus:ring-4 focus:ring-[#FDE7BE]/60"
+                        />
+                      </div>
+                    </label>
+                  </div>
                 </div>
 
-                <div className="rounded-[24px] border border-slate-200 bg-white p-3.5 shadow-[0_10px_24px_rgba(15,23,42,0.04)] sm:rounded-[28px] sm:p-4">
+                <div className="rounded-[24px] border border-[#E9E2D8] bg-[linear-gradient(180deg,#FFFFFF_0%,#FFFCF8_100%)] p-3.5 shadow-[0_6px_16px_rgba(15,23,42,0.03)] sm:rounded-[28px] sm:p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">
-                        Autorizacion de datos
+                      <p className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">
+                        Autorización de datos
                       </p>
-                      <h3 className="mt-1.5 text-lg font-black tracking-tight text-slate-900">
+                      <h3 className="mt-1 text-[1.05rem] font-black leading-tight tracking-tight text-slate-900">
                         Solo para gestionar tu pedido
                       </h3>
+                      <p className="mt-1.5 max-w-2xl text-[13px] leading-5 text-slate-600">
+                        Necesitamos tu autorización para confirmar la compra y coordinar la entrega.
+                      </p>
                     </div>
-                    <StatusPill label={privacyAccepted ? "Aceptada" : "Pendiente"} tone={privacyAccepted ? "success" : "neutral"} />
+                    <StatusPill
+                      label={privacyAccepted ? "Aceptada" : "Pendiente"}
+                      tone={privacyAccepted ? "success" : "neutral"}
+                    />
                   </div>
 
-                  <div
-                    className={`mt-3 rounded-[24px] border p-3.5 transition-all ${
-                      privacyAccepted
-                        ? "border-[#A7F3D0] bg-[#EAFBF4]"
-                        : "border-[#E8DDD0] bg-[#F6EFE6]/65"
-                    }`}
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[16px] bg-[#FFFDF9] text-slate-900 shadow-sm ring-1 ring-[#E8DDD0]">
-                        <Shield className="h-4 w-4" />
-                      </div>
+                  <div className="mt-3 border-t border-[#F1E9DE] pt-3">
+                    <div
+                      className={`rounded-[22px] border p-3.5 transition-all sm:p-4 ${
+                        privacyAccepted
+                          ? "border-[#B7E7CC] bg-[linear-gradient(180deg,#F3FFF8_0%,#ECFBF3_100%)]"
+                          : "border-[#E8DDD0] bg-[linear-gradient(180deg,#FFFAF4_0%,#FCF5EC_100%)]"
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[16px] bg-[#FFFDF9] text-slate-900 shadow-[0_4px_10px_rgba(15,23,42,0.05)] ring-1 ring-[#E8DDD0]">
+                          <Shield className="h-4 w-4" />
+                        </div>
 
-                      <div className="min-w-0 flex-1">
-                        <label className="flex cursor-pointer items-start gap-3">
-                          <div className="relative mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center">
-                            <input
-                              type="checkbox"
-                              data-testid="storefront-privacy-checkbox"
-                              checked={privacyAccepted}
-                              onChange={(event) => {
-                                setPrivacyAccepted(event.target.checked);
-                                clearError("privacyAccepted");
-                              }}
-                              className="peer h-5 w-5 cursor-pointer appearance-none rounded-md border-2 border-slate-300 bg-white transition-all checked:border-emerald-600 checked:bg-emerald-600"
-                            />
-                            <CheckCircle2 className="pointer-events-none absolute h-3.5 w-3.5 text-white opacity-0 transition-opacity peer-checked:opacity-100" />
-                          </div>
-                          <div className="space-y-1">
-                            <p className="text-sm font-black text-slate-900">
-                              Autorizo usar mis datos para gestionar este pedido y coordinar su entrega.
-                            </p>
-                            <p className="text-sm leading-6 text-slate-600">
-                              Se usan solo para confirmar y coordinar tu compra.
-                            </p>
-                          </div>
-                        </label>
+                        <div className="min-w-0 flex-1">
+                          <label className="flex cursor-pointer items-start gap-3">
+                            <div className="relative mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center">
+                              <input
+                                type="checkbox"
+                                data-testid="storefront-privacy-checkbox"
+                                checked={privacyAccepted}
+                                onChange={(event) => {
+                                  setPrivacyAccepted(event.target.checked);
+                                  clearError("privacyAccepted");
+                                }}
+                                className="peer h-5 w-5 cursor-pointer appearance-none rounded-md border-2 border-slate-300 bg-white transition-all checked:border-emerald-600 checked:bg-emerald-600 focus:outline-none focus:ring-4 focus:ring-emerald-100"
+                              />
+                              <CheckCircle2 className="pointer-events-none absolute h-3.5 w-3.5 text-white opacity-0 transition-opacity peer-checked:opacity-100" />
+                            </div>
 
-                        <p className="mt-3 text-xs leading-5 text-slate-600">
-                          Puedes revisar la{" "}
-                          <Link
-                            href="/legal/privacidad"
-                            className="font-black text-[#B45309] underline decoration-2 underline-offset-4"
-                          >
-                            politica de tratamiento
-                          </Link>{" "}
-                          antes de confirmar.
-                        </p>
+                            <div className="space-y-1">
+                              <p className="text-sm font-black leading-6 text-slate-900">
+                                Autorizo usar mis datos para gestionar este pedido y coordinar su entrega.
+                              </p>
+                              <p className="text-sm leading-5 text-slate-600">
+                                Se usan solo para confirmar tu compra y coordinar la entrega o retiro.
+                              </p>
+                            </div>
+                          </label>
+
+                          <p className="mt-3 text-xs leading-5 text-slate-600">
+                            Puedes revisar la{" "}
+                            <Link
+                              href="/legal/privacidad"
+                              className="font-black text-[#B45309] underline decoration-2 underline-offset-4"
+                            >
+                              política de tratamiento
+                            </Link>{" "}
+                            antes de confirmar.
+                          </p>
+                        </div>
                       </div>
                     </div>
+
+                    <Err message={errors.privacyAccepted} />
                   </div>
-                  <Err message={errors.privacyAccepted} />
                 </div>
               </div>
             </SectionFrame>
@@ -1864,7 +2235,9 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
           <aside className="lg:sticky lg:top-6">
             <SummaryPanel
               businessName={business.name}
+              subtotal={subtotal}
               total={total}
+              deliverySummary={deliverySummary}
               deliveryType={deliveryType}
               paymentMethod={paymentMethod}
               selectedProducts={selected}
