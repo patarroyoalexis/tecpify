@@ -37,7 +37,7 @@ test("storefront checkout layout: compacta header y resumen sticky sin tocar el 
   const stickyIndex = source.indexOf("lg:sticky lg:top-6");
   const productsSectionIndex = source.indexOf('title="Arma tu pedido"');
   const summaryIndex = source.indexOf("function SummaryPanel");
-  const mobileBarIndex = source.indexOf("function MobileFloatingCheckoutBar");
+  const mobileBarIndex = source.indexOf("function MobileStickyCheckoutSummary");
   assert.ok(productsSectionIndex >= 0, "La seccion de productos debe seguir estando presente.");
   assert.ok(summaryIndex >= 0, "El resumen lateral debe seguir definido como componente.");
   assert.ok(mobileBarIndex > summaryIndex, "El resumen lateral debe aparecer antes de la barra mobile.");
@@ -117,6 +117,21 @@ test("storefront checkout layout: compacta header y resumen sticky sin tocar el 
     source.slice(summaryIndex, mobileBarIndex),
     /pasos listos|Agrega productos/,
     "El header del sticky ya no debe depender de badges estaticos.",
+  );
+  assert.match(
+    source,
+    /heroTitleRef = useRef/,
+    "El sticky mobile debe anclarse al hero o titulo principal visible.",
+  );
+  assert.match(
+    source,
+    /isMobileSummaryVisible = isMobileViewport && !isMobileHeroVisible/,
+    "El sticky mobile debe depender de la visibilidad real del hero o titulo principal.",
+  );
+  assert.match(
+    source,
+    /focusin[\s\S]*focusout[\s\S]*visualViewport/,
+    "El sticky mobile debe compactarse cuando el teclado esta abierto en mobile.",
   );
   assert.match(
     source,
@@ -245,8 +260,8 @@ test("storefront checkout layout: compacta header y resumen sticky sin tocar el 
   );
   assert.match(
     source,
-    /fixed inset-x-0 bottom-0[\s\S]*lg:hidden/,
-    "La experiencia mobile debe mantener una barra inferior visible con total y accion principal.",
+    /sticky top-0 z-30[\s\S]*data-testid=\"storefront-mobile-summary-sticky\"/,
+    "La experiencia mobile debe mostrar un resumen superior compacto solo cuando el hero deja de estar visible.",
   );
   assert.match(
     source,

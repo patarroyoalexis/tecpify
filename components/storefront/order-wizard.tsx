@@ -7,6 +7,7 @@ import {
   useDeferredValue,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import {
@@ -84,6 +85,17 @@ function slugifyChoice(value: string) {
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
+}
+
+function isEditableElement(target: EventTarget | null) {
+  if (!(target instanceof Element)) {
+    return false;
+  }
+
+  return Boolean(
+    target.matches("input, select, textarea, [contenteditable='true']") ||
+      target.closest("input, select, textarea, [contenteditable='true']"),
+  );
 }
 
 function countProducts(items: Record<string, number>) {
@@ -1029,51 +1041,102 @@ function SummaryPanel({
   );
 }
 
-function MobileFloatingCheckoutBar({
+function MobileStickyCheckoutSummary({
   total,
   productCount,
+  summaryHeader,
   nextStepCopy,
   ctaLabel,
   canSubmit,
   isSubmitting,
+  isKeyboardOpen,
   onConfirm,
 }: {
   total: number;
   productCount: number;
+  summaryHeader: ReturnType<typeof getSummaryHeaderProgress>;
   nextStepCopy: string;
   ctaLabel: string;
   canSubmit: boolean;
   isSubmitting: boolean;
+  isKeyboardOpen: boolean;
   onConfirm: () => void;
 }) {
+  const progressPercent = (summaryHeader.completedSteps / summaryHeader.totalSteps) * 100;
+  const compact = isKeyboardOpen;
+  const progressTone = summaryHeader.isComplete ? "success" : productCount > 0 ? "warm" : "neutral";
+
   return (
-    <div className="fixed inset-x-0 bottom-0 z-30 border-t border-[#E8DDD0] bg-[linear-gradient(180deg,rgba(252,248,243,0.96)_0%,rgba(255,253,249,0.98)_100%)] px-4 pb-[calc(env(safe-area-inset-bottom)+0.9rem)] pt-3 shadow-[0_-18px_40px_rgba(23,32,51,0.12)] backdrop-blur lg:hidden">
+    <section
+      data-testid="storefront-mobile-summary-sticky"
+      className="sticky top-0 z-30 -mx-4 border-b border-[#E8DDD0] bg-[linear-gradient(180deg,rgba(252,248,243,0.98)_0%,rgba(255,253,249,0.98)_100%)] px-4 py-2 shadow-[0_12px_28px_rgba(23,32,51,0.08)] backdrop-blur-sm sm:-mx-6 lg:hidden"
+    >
       <div className="mx-auto max-w-7xl">
-        <div className="rounded-[26px] border border-[#E8DDD0] bg-[#FFFDF9]/96 p-3 shadow-[0_10px_30px_rgba(23,32,51,0.1)]">
-          <div className="flex items-end justify-between gap-3">
+        <div
+          className={`rounded-[24px] border border-[#E8DDD0] bg-[#FFFDF9]/96 shadow-[0_10px_26px_rgba(23,32,51,0.08)] ${
+            compact ? "p-2.5" : "p-3"
+          }`}
+        >
+          <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#D97706]">
-                Total actual
+              <p className="text-[9px] font-black uppercase tracking-[0.22em] text-[#D97706]">
+                Resumen del pedido
               </p>
-              <p className="mt-1 text-2xl font-black tracking-tight text-slate-900">
+              <p className={`${compact ? "mt-0.5 text-lg" : "mt-1 text-2xl"} font-black tracking-tight text-slate-900`}>
                 {formatCurrency(total)}
               </p>
             </div>
-            <StatusPill label={`${productCount} unidades`} tone={productCount > 0 ? "warm" : "neutral"} />
+            <div className="flex shrink-0 flex-col items-end gap-1.5">
+              <StatusPill
+                label={`${productCount} uds.`}
+                tone={productCount > 0 ? "warm" : "neutral"}
+                compact
+              />
+              <StatusPill
+                label={summaryHeader.isComplete ? "Pedido listo" : `Paso ${summaryHeader.currentStep} de ${summaryHeader.totalSteps}`}
+                tone={progressTone}
+                compact
+              />
+            </div>
           </div>
-          <p className="mt-2 line-clamp-2 text-xs leading-5 text-[#5B6472]">{nextStepCopy}</p>
-          <button
-            type="button"
-            onClick={onConfirm}
-            disabled={isSubmitting || !canSubmit}
-            className="mt-3 flex w-full items-center justify-center gap-3 rounded-[22px] bg-[linear-gradient(135deg,#F59E0B_0%,#D97706_100%)] px-4 py-4 text-sm font-black text-white shadow-[0_18px_36px_rgba(217,119,6,0.2)] transition-all active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
+
+          <div className="mt-2 flex items-center gap-2">
+            <div className="min-w-0 flex-1">
+              <div className="h-1.5 overflow-hidden rounded-full bg-[#F1E7DB]">
+                <div
+                  className={`h-full rounded-full transition-[width,background-color] duration-300 ${
+                    summaryHeader.isComplete
+                      ? "bg-[linear-gradient(90deg,#10B981_0%,#059669_100%)]"
+                      : "bg-[linear-gradient(90deg,#F59E0B_0%,#D97706_100%)]"
+                  }`}
+                  style={{ width: `${Math.max(progressPercent, 6)}%` }}
+                />
+              </div>
+            </div>
+            <p className="shrink-0 text-[10px] font-black uppercase tracking-[0.18em] text-[#7C8798]">
+              Paso {summaryHeader.currentStep} de {summaryHeader.totalSteps}
+            </p>
+          </div>
+
+          <div
+            className={`mt-2 flex items-center justify-between gap-2 ${
+              compact ? "text-[11px]" : "text-xs"
+            } text-[#5B6472]`}
           >
-            <span>{isSubmitting ? "Enviando pedido..." : ctaLabel}</span>
-            <ArrowRight className="h-4 w-4" />
-          </button>
+            <p className="min-w-0 flex-1 truncate">{compact ? "Teclado activo" : nextStepCopy}</p>
+            <button
+              type="button"
+              onClick={onConfirm}
+              disabled={isSubmitting || !canSubmit}
+              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-[18px] bg-[linear-gradient(135deg,#F59E0B_0%,#D97706_100%)] px-3.5 py-2.5 text-[11px] font-black text-white shadow-[0_12px_24px_rgba(217,119,6,0.18)] transition-all active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <span>{isSubmitting ? "Enviando" : ctaLabel}</span>
+              <ArrowRight className="h-3.5 w-3.5" />
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -1236,6 +1299,12 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
   const [productQuery, setProductQuery] = useState("");
   const [recentlyUpdatedProductId, setRecentlyUpdatedProductId] = useState<string | null>(null);
   const [recentlyAddedProductName, setRecentlyAddedProductName] = useState("");
+  const [isMobileViewport, setIsMobileViewport] = useState(false);
+  const [isMobileHeroVisible, setIsMobileHeroVisible] = useState(true);
+  const [isMobileKeyboardOpen, setIsMobileKeyboardOpen] = useState(false);
+  const heroTitleRef = useRef<HTMLDivElement | null>(null);
+  const keyboardViewportBaselineRef = useRef<number | null>(null);
+  const keyboardUpdateFrameRef = useRef<number | null>(null);
 
   const deferredProductQuery = useDeferredValue(productQuery);
   const hasValidWhatsApp = isValidWhatsAppPhone(customerPhone);
@@ -1329,6 +1398,8 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
     privacyAccepted,
   });
   const headerSupportLine = resolveStorefrontSubline(business.tagline);
+  const summaryHeader = getSummaryHeaderProgress(progressSteps);
+  const isMobileSummaryVisible = isMobileViewport && !isMobileHeroVisible;
 
   useEffect(() => {
     if (!recentlyUpdatedProductId) {
@@ -1347,6 +1418,130 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
     const timeout = window.setTimeout(() => setRecentlyAddedProductName(""), 1600);
     return () => window.clearTimeout(timeout);
   }, [recentlyAddedProductName]);
+
+  useEffect(() => {
+    const updateViewport = () => {
+      setIsMobileViewport(window.innerWidth < 1024);
+    };
+
+    updateViewport();
+    window.addEventListener("resize", updateViewport);
+    window.addEventListener("orientationchange", updateViewport);
+
+    return () => {
+      window.removeEventListener("resize", updateViewport);
+      window.removeEventListener("orientationchange", updateViewport);
+    };
+  }, []);
+
+  useEffect(() => {
+    const heroNode = heroTitleRef.current;
+
+    if (!heroNode || typeof IntersectionObserver === "undefined") {
+      setIsMobileHeroVisible(false);
+      return undefined;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setIsMobileHeroVisible(Boolean(entry?.isIntersecting));
+      },
+      {
+        threshold: 0.01,
+      },
+    );
+
+    observer.observe(heroNode);
+
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return undefined;
+    }
+
+    const getViewportHeight = () => window.visualViewport?.height ?? window.innerHeight;
+
+    const updateKeyboardBaseline = () => {
+      const currentHeight = getViewportHeight();
+
+      if (
+        keyboardViewportBaselineRef.current === null ||
+        currentHeight > keyboardViewportBaselineRef.current
+      ) {
+        keyboardViewportBaselineRef.current = currentHeight;
+      }
+    };
+
+    const updateKeyboardState = () => {
+      const viewportHeight = getViewportHeight();
+      const activeElement = document.activeElement;
+      updateKeyboardBaseline();
+      const baselineHeight = keyboardViewportBaselineRef.current ?? viewportHeight;
+      const isKeyboardLikelyOpen =
+        window.innerWidth < 1024 &&
+        isEditableElement(activeElement) &&
+        (baselineHeight - viewportHeight > 90 || window.innerHeight - viewportHeight > 90);
+
+      setIsMobileKeyboardOpen(isKeyboardLikelyOpen);
+
+      if (!isKeyboardLikelyOpen) {
+        updateKeyboardBaseline();
+      }
+    };
+
+    const scheduleKeyboardStateUpdate = () => {
+      if (keyboardUpdateFrameRef.current !== null) {
+        window.cancelAnimationFrame(keyboardUpdateFrameRef.current);
+      }
+
+      keyboardUpdateFrameRef.current = window.requestAnimationFrame(() => {
+        keyboardUpdateFrameRef.current = null;
+        updateKeyboardState();
+      });
+    };
+
+    const onFocusIn = (event: FocusEvent) => {
+      if (!isEditableElement(event.target)) {
+        return;
+      }
+
+      setIsMobileKeyboardOpen(window.innerWidth < 1024);
+      window.setTimeout(scheduleKeyboardStateUpdate, 80);
+    };
+
+    const onFocusOut = () => {
+      window.setTimeout(scheduleKeyboardStateUpdate, 120);
+    };
+
+    const onViewportChange = () => {
+      scheduleKeyboardStateUpdate();
+    };
+
+    document.addEventListener("focusin", onFocusIn);
+    document.addEventListener("focusout", onFocusOut);
+    window.visualViewport?.addEventListener("resize", onViewportChange);
+    window.visualViewport?.addEventListener("scroll", onViewportChange);
+    window.addEventListener("resize", onViewportChange);
+    window.addEventListener("orientationchange", onViewportChange);
+
+    updateKeyboardState();
+
+    return () => {
+      if (keyboardUpdateFrameRef.current !== null) {
+        window.cancelAnimationFrame(keyboardUpdateFrameRef.current);
+        keyboardUpdateFrameRef.current = null;
+      }
+
+      document.removeEventListener("focusin", onFocusIn);
+      document.removeEventListener("focusout", onFocusOut);
+      window.visualViewport?.removeEventListener("resize", onViewportChange);
+      window.visualViewport?.removeEventListener("scroll", onViewportChange);
+      window.removeEventListener("resize", onViewportChange);
+      window.removeEventListener("orientationchange", onViewportChange);
+    };
+  }, []);
 
   useEffect(() => {
     if (deliveryType !== "domicilio") {
@@ -1560,7 +1755,7 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
       className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(245,158,11,0.12),transparent_24%),radial-gradient(circle_at_top_right,_rgba(23,32,51,0.06),transparent_26%),linear-gradient(180deg,#FCF8F3_0%,#FFF8EE_52%,#FCF8F3_100%)]"
       data-testid="storefront-order-wizard"
     >
-      <div className="mx-auto w-full max-w-7xl px-4 pb-44 pt-3 sm:px-6 sm:pb-28 sm:pt-6 lg:pb-28">
+      <div className="mx-auto w-full max-w-7xl px-4 pb-28 pt-3 sm:px-6 sm:pb-24 sm:pt-6 lg:pb-28">
         <section className="relative overflow-hidden rounded-[32px] border border-[#E8DDD0] bg-[#FFFDF9] px-4 py-4 shadow-[0_22px_60px_rgba(23,32,51,0.08)] sm:rounded-[36px] sm:px-6 sm:py-5 lg:px-6 lg:py-4.5">
           <div className="absolute -left-20 top-0 h-48 w-48 rounded-full bg-[#FDE7B1] blur-3xl" />
           <div className="absolute right-0 top-0 h-56 w-56 rounded-full bg-[#F6EFE6] blur-3xl" />
@@ -1579,7 +1774,7 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
                 </div>
               </div>
 
-              <div className="mt-3 max-w-[46rem] sm:mt-4">
+              <div ref={heroTitleRef} className="mt-3 max-w-[46rem] sm:mt-4">
                 <p className="text-sm font-black tracking-tight text-slate-900">Pide directo aqui</p>
                 <h1 className="max-w-[22ch] text-[2.15rem] font-black tracking-[-0.04em] text-slate-900 [text-wrap:balance] sm:text-[2.7rem] sm:leading-[0.98] lg:max-w-[24ch] lg:text-[3.45rem] lg:leading-[0.96]">
                   {business.name}
@@ -1606,6 +1801,20 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
             </div>
           </div>
         </section>
+
+        {isMobileSummaryVisible ? (
+          <MobileStickyCheckoutSummary
+            total={total}
+            productCount={productCount}
+            summaryHeader={summaryHeader}
+            nextStepCopy={nextStepCopy}
+            ctaLabel={mobileCtaLabel}
+            canSubmit={productCount > 0}
+            isSubmitting={isSubmitting}
+            isKeyboardOpen={isMobileKeyboardOpen}
+            onConfirm={() => void handleConfirmOrder()}
+          />
+        ) : null}
 
         <div className="mt-5 grid gap-8 lg:grid-cols-[minmax(0,1.65fr)_minmax(320px,0.95fr)] lg:items-start">
           <div className="space-y-6">
@@ -2250,16 +2459,6 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
           </aside>
         </div>
       </div>
-
-      <MobileFloatingCheckoutBar
-        total={total}
-        productCount={productCount}
-        nextStepCopy={nextStepCopy}
-        ctaLabel={mobileCtaLabel}
-        canSubmit={productCount > 0}
-        isSubmitting={isSubmitting}
-        onConfirm={() => void handleConfirmOrder()}
-      />
     </main>
   );
 }
