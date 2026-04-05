@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import {
+  type CSSProperties,
   type ComponentType,
   type ReactNode,
+  type RefObject,
   useDeferredValue,
   useEffect,
   useMemo,
@@ -1067,6 +1069,7 @@ function MobileStickyCheckoutSummary({
   canSubmit,
   isSubmitting,
   summaryMode,
+  rootRef,
   onConfirm,
 }: {
   total: number;
@@ -1077,6 +1080,7 @@ function MobileStickyCheckoutSummary({
   canSubmit: boolean;
   isSubmitting: boolean;
   summaryMode: MobileSummaryMode;
+  rootRef: RefObject<HTMLElement | null>;
   onConfirm: () => void;
 }) {
   const progressPercent = (summaryHeader.completedSteps / summaryHeader.totalSteps) * 100;
@@ -1090,8 +1094,14 @@ function MobileStickyCheckoutSummary({
 
   return (
     <section
+      ref={rootRef}
       data-testid="storefront-mobile-summary-sticky"
       data-summary-mode={summaryMode}
+      style={
+        {
+          top: "calc(env(safe-area-inset-top) + var(--storefront-mobile-sticky-top, 0px))",
+        } as CSSProperties
+      }
       className={`lg:hidden transition-[transform,opacity,box-shadow,background-color,border-color] duration-300 ease-out ${
         isInline ? "relative mt-3" : "sticky top-0 z-30 -mx-4 sm:-mx-6"
       }`}
@@ -1374,7 +1384,11 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
   const [isMobileViewport, setIsMobileViewport] = useState(false);
   const [isMobileHeroVisible, setIsMobileHeroVisible] = useState(true);
   const [isMobileKeyboardOpen, setIsMobileKeyboardOpen] = useState(false);
+  const [mobileViewportHeight, setMobileViewportHeight] = useState<number | null>(null);
+  const [mobileViewportOffsetTop, setMobileViewportOffsetTop] = useState(0);
+  const [mobileSummaryHeight, setMobileSummaryHeight] = useState(0);
   const heroTitleRef = useRef<HTMLDivElement | null>(null);
+  const mobileSummaryRef = useRef<HTMLElement | null>(null);
   const keyboardViewportBaselineRef = useRef<number | null>(null);
   const keyboardUpdateFrameRef = useRef<number | null>(null);
 
@@ -1476,6 +1490,10 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
     isHeroVisible: isMobileHeroVisible,
     isKeyboardActive: isMobileKeyboardOpen,
   });
+  const mobileSummaryReserve =
+    isMobileViewport && summaryMode !== "inline"
+      ? Math.max(mobileSummaryHeight, summaryMode === "micro" ? 72 : 96)
+      : 0;
 
   useEffect(() => {
     if (!recentlyUpdatedProductId) {
@@ -1496,19 +1514,57 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
   }, [recentlyAddedProductName]);
 
   useEffect(() => {
+    if (typeof window === "undefined") {
+      return undefined;
+    }
+
     const updateViewport = () => {
       setIsMobileViewport(window.innerWidth < 1024);
     };
 
+    const updateViewportHeight = () => {
+      const nextHeight = window.visualViewport?.height ?? window.innerHeight;
+      setMobileViewportHeight(nextHeight);
+      setMobileViewportOffsetTop(window.visualViewport?.offsetTop ?? 0);
+    };
+
     updateViewport();
+    updateViewportHeight();
     window.addEventListener("resize", updateViewport);
     window.addEventListener("orientationchange", updateViewport);
+    window.visualViewport?.addEventListener("resize", updateViewportHeight);
+    window.visualViewport?.addEventListener("scroll", updateViewportHeight);
 
     return () => {
       window.removeEventListener("resize", updateViewport);
       window.removeEventListener("orientationchange", updateViewport);
+      window.visualViewport?.removeEventListener("resize", updateViewportHeight);
+      window.visualViewport?.removeEventListener("scroll", updateViewportHeight);
     };
   }, []);
+
+  useEffect(() => {
+    const summaryNode = mobileSummaryRef.current;
+
+    if (!summaryNode || typeof ResizeObserver === "undefined") {
+      setMobileSummaryHeight(summaryNode?.offsetHeight ?? 0);
+      return undefined;
+    }
+
+    const updateSummaryHeight = () => {
+      setMobileSummaryHeight(summaryNode.offsetHeight);
+    };
+
+    updateSummaryHeight();
+
+    const observer = new ResizeObserver(() => {
+      updateSummaryHeight();
+    });
+
+    observer.observe(summaryNode);
+
+    return () => observer.disconnect();
+  }, [summaryMode]);
 
   useEffect(() => {
     const heroNode = heroTitleRef.current;
@@ -1832,7 +1888,14 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
 
   return (
     <main
-      className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(245,158,11,0.12),transparent_24%),radial-gradient(circle_at_top_right,_rgba(23,32,51,0.06),transparent_26%),linear-gradient(180deg,#FCF8F3_0%,#FFF8EE_52%,#FCF8F3_100%)]"
+      className="bg-[radial-gradient(circle_at_top_left,_rgba(245,158,11,0.12),transparent_24%),radial-gradient(circle_at_top_right,_rgba(23,32,51,0.06),transparent_26%),linear-gradient(180deg,#FCF8F3_0%,#FFF8EE_52%,#FCF8F3_100%)]"
+      style={
+        {
+          ["--vvh" as string]: mobileViewportHeight ? `${mobileViewportHeight}px` : undefined,
+          ["--storefront-mobile-sticky-top" as string]: `${mobileViewportOffsetTop}px`,
+          ["--storefront-mobile-summary-reserve" as string]: `${mobileSummaryReserve}px`,
+        } as CSSProperties
+      }
       data-testid="storefront-order-wizard"
     >
       <div className="mx-auto w-full max-w-7xl px-4 pb-28 pt-3 sm:px-6 sm:pb-24 sm:pt-6 lg:pb-28">
@@ -1893,11 +1956,21 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
             canSubmit={productCount > 0}
             isSubmitting={isSubmitting}
             summaryMode={summaryMode}
+            rootRef={mobileSummaryRef}
             onConfirm={() => void handleConfirmOrder()}
           />
         ) : null}
 
-        <div className="mt-5 grid gap-8 lg:grid-cols-[minmax(0,1.65fr)_minmax(320px,0.95fr)] lg:items-start">
+        <div
+          className="mt-5 grid gap-8 lg:grid-cols-[minmax(0,1.65fr)_minmax(320px,0.95fr)] lg:items-start"
+          style={
+            isMobileViewport && summaryMode !== "inline"
+              ? {
+                  paddingTop: `var(--storefront-mobile-summary-reserve)`,
+                }
+              : undefined
+          }
+        >
           <div className="space-y-6">
             <SectionFrame
               step="Paso 1"

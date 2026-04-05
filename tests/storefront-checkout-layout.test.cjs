@@ -140,6 +140,21 @@ test("storefront checkout layout: compacta header y resumen sticky sin tocar el 
   );
   assert.match(
     source,
+    /--vvh/,
+    "El layout mobile debe guardar la altura visible real del viewport en una CSS custom property.",
+  );
+  assert.match(
+    source,
+    /--storefront-mobile-sticky-top/,
+    "El sticky mobile debe usar el offset real de visualViewport para Safari/iPhone.",
+  );
+  assert.match(
+    source,
+    /--storefront-mobile-summary-reserve/,
+    "El contenido inferior debe reservar espacio segun la altura real del resumen activo.",
+  );
+  assert.match(
+    source,
     /isInline \? "relative mt-3" : "sticky top-0 z-30/,
     "El modo inline no debe comportarse como sticky protagonista.",
   );
@@ -167,6 +182,16 @@ test("storefront checkout layout: compacta header y resumen sticky sin tocar el 
     source,
     /summaryMode=\{summaryMode\}/,
     "El render mobile debe consumir el modo visual derivado.",
+  );
+  assert.match(
+    source,
+    /paddingTop: `var\(--storefront-mobile-summary-reserve\)`/,
+    "El wrapper de contenido debe reservar espacio cuando el resumen entra en sticky.",
+  );
+  assert.doesNotMatch(
+    source,
+    /data-testid=\"storefront-order-wizard\"[\s\S]*min-h-screen/,
+    "El storefront mobile no debe depender de min-h-screen para su layout principal.",
   );
   assert.match(
     source,
