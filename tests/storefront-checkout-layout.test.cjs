@@ -133,6 +133,21 @@ test("storefront checkout layout: compacta header y resumen sticky sin tocar el 
     /focusin[\s\S]*focusout[\s\S]*visualViewport/,
     "El sticky mobile debe detectar teclado con foco y cambios reales de viewport.",
   );
+  assert.doesNotMatch(
+    source,
+    /viewportShrunk[\s\S]*offsetTop/,
+    "El modo micro no debe activarse solo por el desplazamiento de la URL bar.",
+  );
+  assert.doesNotMatch(
+    source,
+    /visualViewport\?\.addEventListener\("scroll", onViewportChange\)/,
+    "El scroll de visualViewport no debe usarse para recalcular el estado del teclado.",
+  );
+  assert.doesNotMatch(
+    source,
+    /visualViewport\?\.addEventListener\("scroll", updateViewportHeight\)/,
+    "La geometría del sticky no debe depender del scroll de visualViewport.",
+  );
   assert.match(
     source,
     /data-summary-mode=\{summaryMode\}/,

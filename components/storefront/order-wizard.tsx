@@ -1533,13 +1533,11 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
     window.addEventListener("resize", updateViewport);
     window.addEventListener("orientationchange", updateViewport);
     window.visualViewport?.addEventListener("resize", updateViewportHeight);
-    window.visualViewport?.addEventListener("scroll", updateViewportHeight);
 
     return () => {
       window.removeEventListener("resize", updateViewport);
       window.removeEventListener("orientationchange", updateViewport);
       window.visualViewport?.removeEventListener("resize", updateViewportHeight);
-      window.visualViewport?.removeEventListener("scroll", updateViewportHeight);
     };
   }, []);
 
@@ -1616,8 +1614,7 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
       const baselineHeight = keyboardViewportBaselineRef.current ?? viewportHeight;
       const viewportShrunk =
         baselineHeight - viewportHeight > 56 ||
-        window.innerHeight - viewportHeight > 56 ||
-        (window.visualViewport?.offsetTop ?? 0) > 0;
+        window.innerHeight - viewportHeight > 56;
       const isKeyboardLikelyOpen = window.innerWidth < 1024 && (isEditableFocused || viewportShrunk);
 
       setIsMobileKeyboardOpen(isKeyboardLikelyOpen);
@@ -1658,7 +1655,6 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
     document.addEventListener("focusin", onFocusIn);
     document.addEventListener("focusout", onFocusOut);
     window.visualViewport?.addEventListener("resize", onViewportChange);
-    window.visualViewport?.addEventListener("scroll", onViewportChange);
     window.addEventListener("resize", onViewportChange);
     window.addEventListener("orientationchange", onViewportChange);
 
@@ -1673,7 +1669,6 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
       document.removeEventListener("focusin", onFocusIn);
       document.removeEventListener("focusout", onFocusOut);
       window.visualViewport?.removeEventListener("resize", onViewportChange);
-      window.visualViewport?.removeEventListener("scroll", onViewportChange);
       window.removeEventListener("resize", onViewportChange);
       window.removeEventListener("orientationchange", onViewportChange);
     };
