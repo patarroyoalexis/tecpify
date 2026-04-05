@@ -166,27 +166,37 @@ test("storefront checkout layout: compacta header y resumen sticky sin tocar el 
   assert.match(
     source,
     /--storefront-mobile-summary-reserve/,
-    "El contenido inferior debe reservar espacio segun la altura real del resumen activo.",
+    "El storefront mobile debe exponer una reserva fija para el resumen de flujo.",
   );
   assert.match(
     source,
-    /isInline \? "relative mt-3" : "sticky top-0 z-30/,
-    "El modo inline no debe comportarse como sticky protagonista.",
+    /MobileCheckoutSummaryFlowSlot/,
+    "Debe existir una ranura de flujo separada para la version inline del resumen mobile.",
   );
   assert.match(
     source,
-    /transition-\[padding,transform,opacity,box-shadow,background-color,border-color,gap\][\s\S]*transition-\[max-height,opacity,transform,margin,padding\]/,
-    "Las transiciones deben plegar el resumen por capas y no por reemplazo brusco.",
+    /height: `\$\{MOBILE_SUMMARY_FLOW_RESERVE_PX\}px`/,
+    "La reserva del flujo mobile debe ser fija y no depender del scroll.",
   );
   assert.match(
     source,
-    /isMicro \? "mt-1\.5" : isInline \? "mt-2" : "mt-2"/,
-    "El modo micro debe compactar el espaciado vertical del resumen.",
+    /pointer-events-none fixed inset-x-0 z-30 lg:hidden transition-\[opacity,transform\]/,
+    "La barra sticky mobile debe ser un overlay independiente del flujo.",
   );
   assert.match(
     source,
-    /isCompact \? "mt-2 max-h-20 opacity-100 translate-y-0" : "mt-0 max-h-0 opacity-0 -translate-y-1 pointer-events-none"/,
-    "El CTA y el feedback deben aparecer solo en compact y colapsar en micro o inline.",
+    /data-testid=\"storefront-mobile-final-summary\"/,
+    "Debe existir un bloque mobile separado para el resumen final real del pedido.",
+  );
+  assert.match(
+    source,
+    /isVisible=\{showMobileSummaryOverlay\}/,
+    "El sticky mobile debe ocultarse cuando el resumen final entra en viewport.",
+  );
+  assert.match(
+    source,
+    /overflow-hidden rounded-full bg-\[#F1E7DB\]/,
+    "La barra de progreso debe permanecer visible dentro del sticky mobile.",
   );
   assert.match(
     source,
@@ -198,11 +208,7 @@ test("storefront checkout layout: compacta header y resumen sticky sin tocar el 
     /summaryMode=\{summaryMode\}/,
     "El render mobile debe consumir el modo visual derivado.",
   );
-  assert.match(
-    source,
-    /paddingTop: `var\(--storefront-mobile-summary-reserve\)`/,
-    "El wrapper de contenido debe reservar espacio cuando el resumen entra en sticky.",
-  );
+  assert.doesNotMatch(source, /paddingTop: `var\(--storefront-mobile-summary-reserve\)`/, "El flujo mobile no debe depender de un padding-top dinamico para reservar espacio.");
   assert.doesNotMatch(
     source,
     /data-testid=\"storefront-order-wizard\"[\s\S]*min-h-screen/,
@@ -231,8 +237,8 @@ test("storefront checkout layout: compacta header y resumen sticky sin tocar el 
   );
   assert.match(
     source,
-    /lg:sticky lg:top-6/,
-    "El resumen lateral debe permanecer sticky en desktop.",
+    /hidden lg:block lg:sticky lg:top-6/,
+    "El resumen lateral debe permanecer solo en desktop y no duplicarse en mobile.",
   );
   assert.match(
     source,
@@ -313,11 +319,6 @@ test("storefront checkout layout: compacta header y resumen sticky sin tocar el 
     /\/legal\/privacidad/,
     "La tarjeta de autorizacion debe mantener acceso visible a la politica de tratamiento.",
   );
-  assert.match(
-    source,
-    /getMobileCtaLabel/,
-    "El storefront debe conservar una capa de CTA mobile orientada al avance del checkout.",
-  );
   assert.doesNotMatch(
     source,
     /Empezar pedido/,
@@ -325,8 +326,8 @@ test("storefront checkout layout: compacta header y resumen sticky sin tocar el 
   );
   assert.match(
     source,
-    /data-testid=\"storefront-mobile-summary-sticky\"[\s\S]*sticky top-0 z-30/,
-    "La experiencia mobile debe mostrar un resumen superior compacto solo cuando el hero deja de estar visible.",
+    /data-testid=\"storefront-mobile-summary-sticky\"[\s\S]*lg:hidden transition-\[opacity,transform\][\s\S]*isVisible=\{showMobileSummaryOverlay\}/,
+    "La experiencia mobile debe mostrar un resumen superior compacto como overlay estable y ocultarlo al llegar al resumen final.",
   );
   assert.match(
     source,

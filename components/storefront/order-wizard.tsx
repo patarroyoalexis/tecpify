@@ -5,7 +5,6 @@ import {
   type CSSProperties,
   type ComponentType,
   type ReactNode,
-  type RefObject,
   useDeferredValue,
   useEffect,
   useMemo,
@@ -51,6 +50,9 @@ import type { BusinessConfig, BusinessProduct } from "@/types/storefront";
 
 const DEFAULT_BUSINESS_TAGLINE = "Compra rapido y confirma sin vueltas.";
 type MobileSummaryMode = "inline" | "compact" | "micro";
+const MOBILE_SUMMARY_FLOW_RESERVE_PX = 124;
+const MOBILE_SUMMARY_COMPACT_HEIGHT_PX = 112;
+const MOBILE_SUMMARY_MICRO_HEIGHT_PX = 92;
 const STOREFRONT_HEADER_BENEFITS = [
   {
     icon: Clock3,
@@ -358,66 +360,6 @@ function paymentBadge(method: PaymentMethod) {
   }
 
   return "Simple";
-}
-
-function getCheckoutNudge({
-  customerReady,
-  productsReady,
-  fulfillmentReady,
-  privacyAccepted,
-}: {
-  customerReady: boolean;
-  productsReady: boolean;
-  fulfillmentReady: boolean;
-  privacyAccepted: boolean;
-}) {
-  if (!customerReady) {
-    return "Completa tu nombre y WhatsApp para que el pedido se pueda confirmar sin friccion.";
-  }
-
-  if (!productsReady) {
-    return "Agrega al menos un producto para activar el total en vivo y el cierre del pedido.";
-  }
-
-  if (!fulfillmentReady) {
-    return "Elige entrega y pago para dejar claro como vas a recibir y cerrar la compra.";
-  }
-
-  if (!privacyAccepted) {
-    return "Autoriza el tratamiento de datos y el pedido quedara listo para enviarse.";
-  }
-
-  return "Todo esta listo. Solo falta confirmar el pedido.";
-}
-
-function getMobileCtaLabel({
-  customerReady,
-  productsReady,
-  fulfillmentReady,
-  privacyAccepted,
-}: {
-  customerReady: boolean;
-  productsReady: boolean;
-  fulfillmentReady: boolean;
-  privacyAccepted: boolean;
-}) {
-  if (!productsReady) {
-    return "Agrega productos";
-  }
-
-  if (!customerReady) {
-    return "Completa tus datos";
-  }
-
-  if (!fulfillmentReady) {
-    return "Entrega y pago";
-  }
-
-  if (!privacyAccepted) {
-    return "Autoriza y confirma";
-  }
-
-  return "Confirmar pedido";
 }
 
 function SectionFrame({
@@ -1060,165 +1002,183 @@ function SummaryPanel({
   );
 }
 
-function MobileStickyCheckoutSummary({
+function MobileCheckoutSummaryFlowSlot({
   total,
   productCount,
   summaryHeader,
-  nextStepCopy,
-  ctaLabel,
-  canSubmit,
-  isSubmitting,
   summaryMode,
-  rootRef,
-  onConfirm,
 }: {
   total: number;
   productCount: number;
   summaryHeader: ReturnType<typeof getSummaryHeaderProgress>;
-  nextStepCopy: string;
-  ctaLabel: string;
-  canSubmit: boolean;
-  isSubmitting: boolean;
   summaryMode: MobileSummaryMode;
-  rootRef: RefObject<HTMLElement | null>;
-  onConfirm: () => void;
 }) {
   const progressPercent = (summaryHeader.completedSteps / summaryHeader.totalSteps) * 100;
-  const isInline = summaryMode === "inline";
-  const isCompact = summaryMode === "compact";
-  const isMicro = summaryMode === "micro";
   const progressTone = summaryHeader.isComplete ? "success" : productCount > 0 ? "warm" : "neutral";
-  const modeLabel = isMicro
-    ? `Paso ${summaryHeader.currentStep}`
+  const modeLabel = summaryMode === "inline"
+    ? summaryHeader.subtitle
     : `Paso ${summaryHeader.currentStep} de ${summaryHeader.totalSteps}`;
 
   return (
-    <section
-      ref={rootRef}
-      data-testid="storefront-mobile-summary-sticky"
-      data-summary-mode={summaryMode}
-      style={
-        {
-          top: "calc(env(safe-area-inset-top) + var(--storefront-mobile-sticky-top, 0px))",
-        } as CSSProperties
-      }
-      className={`lg:hidden transition-[transform,opacity,box-shadow,background-color,border-color] duration-300 ease-out ${
-        isInline ? "relative mt-3" : "sticky top-0 z-30 -mx-4 sm:-mx-6"
-      }`}
-    >
-      <div className={`mx-auto max-w-7xl ${isInline ? "" : "px-4 py-2 sm:px-6"}`}>
-        <div
-          className={`overflow-hidden rounded-[24px] border transition-[padding,transform,opacity,box-shadow,background-color,border-color,gap] duration-300 ease-out ${
-            isInline
-              ? "border-[#EFE5DA] bg-[#FFFDF9]/84 p-3 shadow-none"
-              : isMicro
-                ? "border-[#E8DDD0] bg-[#FFFDF9]/96 p-2.5 shadow-[0_10px_22px_rgba(23,32,51,0.08)]"
-                : "border-[#E8DDD0] bg-[#FFFDF9]/96 p-3 shadow-[0_12px_28px_rgba(23,32,51,0.08)]"
-          }`}
-        >
-          <div className={`flex items-start justify-between transition-all duration-300 ease-out ${isMicro ? "gap-2" : "gap-3"}`}>
-            <div className="min-w-0">
-              <p
-                className={`font-black uppercase tracking-[0.22em] text-[#D97706] transition-all duration-300 ease-out ${
-                  isMicro ? "text-[8px]" : "text-[9px]"
-                }`}
-              >
-                Resumen del pedido
-              </p>
-              <p
-                className={`font-black tracking-tight text-slate-900 transition-[font-size,transform,opacity,margin] duration-300 ease-out ${
-                  isInline ? "mt-0.5 text-[1.14rem]" : isMicro ? "mt-0.5 text-[1.32rem]" : "mt-0.5 text-[1.55rem]"
-                }`}
-              >
-                {formatCurrency(total)}
-              </p>
-              <p
-                className={`min-w-0 overflow-hidden text-[11px] leading-4 text-[#5B6472] transition-[max-height,opacity,transform,margin] duration-300 ease-out ${
-                  isInline ? "mt-1 max-h-8 opacity-100" : isMicro ? "mt-0 max-h-0 opacity-0 -translate-y-1" : "mt-1 max-h-8 opacity-100"
-                }`}
-              >
-                {isInline ? summaryHeader.subtitle : summaryHeader.title}
-              </p>
-            </div>
-
-            <div className={`flex shrink-0 flex-col items-end transition-all duration-300 ease-out ${isMicro ? "gap-0.5" : "gap-1.5"}`}>
-              <div
-                className={`transition-[max-height,opacity,transform] duration-300 ease-out ${
-                  isCompact ? "max-h-10 opacity-100 translate-y-0" : "max-h-0 opacity-0 -translate-y-1 pointer-events-none"
-                }`}
-              >
+    <div aria-hidden className="relative lg:hidden" style={{ height: `${MOBILE_SUMMARY_FLOW_RESERVE_PX}px` }}>
+      <div
+        className={`absolute inset-0 transition-[opacity,transform] duration-300 ease-out ${
+          summaryMode === "inline"
+            ? "opacity-100 translate-y-0"
+            : "pointer-events-none opacity-0 translate-y-1"
+        }`}
+      >
+        <div className="mx-auto h-full w-full max-w-7xl px-4 sm:px-6">
+          <div className="flex h-full flex-col justify-between overflow-hidden rounded-[24px] border border-[#E8DDD0] bg-[#FFFDF9]/90 px-3 py-2.5 shadow-[0_10px_22px_rgba(23,32,51,0.06)]">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[9px] font-black uppercase tracking-[0.22em] text-[#D97706]">
+                  Resumen del pedido
+                </p>
+                <p className="mt-0.5 text-[1.12rem] font-black tracking-tight text-slate-900">
+                  {formatCurrency(total)}
+                </p>
+              </div>
+              <div className="flex shrink-0 flex-col items-end gap-1">
                 <StatusPill
                   label={`${productCount} uds.`}
                   tone={productCount > 0 ? "warm" : "neutral"}
                   compact
                 />
+                <StatusPill
+                  label={summaryHeader.isComplete ? "Pedido listo" : `Paso ${summaryHeader.currentStep}`}
+                  tone={progressTone}
+                  compact
+                />
               </div>
-              <div
-                className={`transition-[max-height,opacity,transform] duration-300 ease-out ${
-                  isCompact ? "max-h-10 opacity-100 translate-y-0" : "max-h-0 opacity-0 -translate-y-1 pointer-events-none"
-                }`}
-              >
+            </div>
+
+            <div className="flex items-center gap-2">
+              <div className="min-w-0 flex-1">
+                <div className="h-1.5 overflow-hidden rounded-full bg-[#F1E7DB]">
+                  <div
+                    className={`h-full rounded-full transition-[width,background-color] duration-300 ease-out ${
+                      summaryHeader.isComplete
+                        ? "bg-[linear-gradient(90deg,#10B981_0%,#059669_100%)]"
+                        : "bg-[linear-gradient(90deg,#F59E0B_0%,#D97706_100%)]"
+                    }`}
+                    style={{ width: `${Math.max(progressPercent, 6)}%` }}
+                  />
+                </div>
+              </div>
+              <p className="shrink-0 text-[9px] font-black uppercase tracking-[0.18em] text-[#7C8798]">
+                {modeLabel}
+              </p>
+            </div>
+
+            <p className="text-[10px] leading-4 text-[#5B6472]">{summaryHeader.subtitle}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MobileStickyCheckoutSummary({
+  total,
+  productCount,
+  summaryHeader,
+  summaryMode,
+  isVisible,
+  topOffset,
+}: {
+  total: number;
+  productCount: number;
+  summaryHeader: ReturnType<typeof getSummaryHeaderProgress>;
+  summaryMode: MobileSummaryMode;
+  isVisible: boolean;
+  topOffset: number;
+}) {
+  const progressPercent = (summaryHeader.completedSteps / summaryHeader.totalSteps) * 100;
+  const isMicro = summaryMode === "micro";
+  const progressTone = summaryHeader.isComplete ? "success" : productCount > 0 ? "warm" : "neutral";
+  const modeLabel = isMicro
+    ? `Paso ${summaryHeader.currentStep}`
+    : `Paso ${summaryHeader.currentStep} de ${summaryHeader.totalSteps}`;
+  const fixedHeight = isMicro ? MOBILE_SUMMARY_MICRO_HEIGHT_PX : MOBILE_SUMMARY_COMPACT_HEIGHT_PX;
+
+  return (
+    <div
+      aria-hidden={!isVisible}
+      data-testid="storefront-mobile-summary-sticky"
+      data-summary-mode={summaryMode}
+      className={`pointer-events-none fixed inset-x-0 z-30 lg:hidden transition-[opacity,transform] duration-300 ease-out ${
+        isVisible ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-2"
+      }`}
+      style={
+        {
+          top: `calc(env(safe-area-inset-top) + ${topOffset}px)`,
+        } as CSSProperties
+      }
+    >
+      <div className="mx-auto w-full max-w-7xl px-4 sm:px-6">
+        <section
+          className={`pointer-events-auto overflow-hidden rounded-[24px] border border-[#E8DDD0] bg-[#FFFDF9]/96 shadow-[0_12px_28px_rgba(23,32,51,0.08)] transition-[background-color,border-color,box-shadow,transform,opacity] duration-300 ease-out ${
+            isMicro ? "px-3 py-2.5" : "px-3.5 py-3"
+          }`}
+          style={{ height: `${fixedHeight}px` }}
+        >
+          <div className={`flex h-full flex-col ${isMicro ? "gap-1.5" : "gap-2"}`}>
+            <div className="flex min-w-0 items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <p className="text-[9px] font-black uppercase tracking-[0.24em] text-[#D97706]">
+                  Resumen del pedido
+                </p>
+                <p
+                  className={`mt-0.5 font-black tracking-tight text-slate-900 ${
+                    isMicro ? "text-[1.28rem] leading-none" : "text-[1.42rem] leading-none"
+                  }`}
+                >
+                  {formatCurrency(total)}
+                </p>
+              </div>
+
+              <div className="flex shrink-0 flex-col items-end gap-1">
+                {!isMicro ? (
+                  <StatusPill
+                    label={`${productCount} uds.`}
+                    tone={productCount > 0 ? "warm" : "neutral"}
+                    compact
+                  />
+                ) : null}
                 <StatusPill
                   label={summaryHeader.isComplete ? "Pedido listo" : modeLabel}
                   tone={progressTone}
                   compact
                 />
               </div>
-              {isMicro ? (
-                <span className="text-[9px] font-black uppercase tracking-[0.18em] text-[#7C8798] transition-all duration-300 ease-out">
-                  {modeLabel}
-                </span>
-              ) : null}
             </div>
-          </div>
 
-          <div
-            className={`mt-2 flex items-center gap-2 transition-[margin,opacity,transform] duration-300 ease-out ${
-              isMicro ? "mt-1.5" : isInline ? "mt-2" : "mt-2"
-            }`}
-          >
-            <div className="min-w-0 flex-1">
-              <div className={`overflow-hidden rounded-full bg-[#F1E7DB] ${isMicro ? "h-2" : "h-1.5"}`}>
-                <div
-                  className={`h-full rounded-full transition-[width,background-color,transform,opacity] duration-300 ease-out ${
-                    summaryHeader.isComplete
-                      ? "bg-[linear-gradient(90deg,#10B981_0%,#059669_100%)]"
-                      : "bg-[linear-gradient(90deg,#F59E0B_0%,#D97706_100%)]"
-                  }`}
-                  style={{ width: `${Math.max(progressPercent, 6)}%` }}
-                />
+            <div className="flex items-center gap-2">
+              <div className="min-w-0 flex-1">
+                <div className="h-2 overflow-hidden rounded-full bg-[#F1E7DB]">
+                  <div
+                    className={`h-full rounded-full transition-[width,background-color] duration-300 ease-out ${
+                      summaryHeader.isComplete
+                        ? "bg-[linear-gradient(90deg,#10B981_0%,#059669_100%)]"
+                        : "bg-[linear-gradient(90deg,#F59E0B_0%,#D97706_100%)]"
+                    }`}
+                    style={{ width: `${Math.max(progressPercent, 6)}%` }}
+                  />
+                </div>
               </div>
+              <p className="shrink-0 font-black uppercase tracking-[0.18em] text-[#7C8798] text-[9px]">
+                {modeLabel}
+              </p>
             </div>
-            <p
-              className={`shrink-0 font-black uppercase tracking-[0.18em] text-[#7C8798] transition-[font-size,opacity,transform] duration-300 ease-out ${
-                isMicro ? "text-[9px]" : "text-[10px]"
-              }`}
-            >
-              {modeLabel}
+
+            <p className={`min-h-0 text-[10px] leading-4 text-[#5B6472] ${isMicro ? "line-clamp-1" : "line-clamp-2"}`}>
+              {summaryHeader.title}
             </p>
           </div>
-
-          <div
-            className={`overflow-hidden transition-[max-height,opacity,transform,margin,padding] duration-300 ease-out ${
-              isCompact ? "mt-2 max-h-20 opacity-100 translate-y-0" : "mt-0 max-h-0 opacity-0 -translate-y-1 pointer-events-none"
-            }`}
-          >
-            <div className="flex items-start justify-between gap-2.5">
-              <p className="min-w-0 flex-1 text-[11px] leading-4 text-[#5B6472]">{nextStepCopy}</p>
-              <button
-                type="button"
-                onClick={onConfirm}
-                disabled={isSubmitting || !canSubmit}
-                className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-[16px] bg-[linear-gradient(135deg,#F59E0B_0%,#D97706_100%)] px-3 py-2 text-[10px] font-black text-white shadow-[0_10px_22px_rgba(217,119,6,0.16)] transition-all duration-300 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <span>{isSubmitting ? "Enviando" : ctaLabel}</span>
-                <ArrowRight className="h-3 w-3" />
-              </button>
-            </div>
-          </div>
-        </div>
+        </section>
       </div>
-    </section>
+    </div>
   );
 }
 
@@ -1386,9 +1346,9 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
   const [isMobileKeyboardOpen, setIsMobileKeyboardOpen] = useState(false);
   const [mobileViewportHeight, setMobileViewportHeight] = useState<number | null>(null);
   const [mobileViewportOffsetTop, setMobileViewportOffsetTop] = useState(0);
-  const [mobileSummaryHeight, setMobileSummaryHeight] = useState(0);
+  const [isMobileFinalSummaryVisible, setIsMobileFinalSummaryVisible] = useState(false);
   const heroTitleRef = useRef<HTMLDivElement | null>(null);
-  const mobileSummaryRef = useRef<HTMLElement | null>(null);
+  const mobileFinalSummaryRef = useRef<HTMLDivElement | null>(null);
   const keyboardViewportBaselineRef = useRef<number | null>(null);
   const keyboardUpdateFrameRef = useRef<number | null>(null);
 
@@ -1471,18 +1431,6 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
       complete: confirmationReady,
     },
   ];
-  const nextStepCopy = getCheckoutNudge({
-    customerReady,
-    productsReady,
-    fulfillmentReady,
-    privacyAccepted,
-  });
-  const mobileCtaLabel = getMobileCtaLabel({
-    customerReady,
-    productsReady,
-    fulfillmentReady,
-    privacyAccepted,
-  });
   const headerSupportLine = resolveStorefrontSubline(business.tagline);
   const summaryHeader = getSummaryHeaderProgress(progressSteps);
   const summaryMode = getMobileSummaryMode({
@@ -1490,10 +1438,9 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
     isHeroVisible: isMobileHeroVisible,
     isKeyboardActive: isMobileKeyboardOpen,
   });
-  const mobileSummaryReserve =
-    isMobileViewport && summaryMode !== "inline"
-      ? Math.max(mobileSummaryHeight, summaryMode === "micro" ? 72 : 96)
-      : 0;
+  const mobileSummaryReserve = isMobileViewport ? MOBILE_SUMMARY_FLOW_RESERVE_PX : 0;
+  const showMobileSummaryOverlay =
+    isMobileViewport && summaryMode !== "inline" && !isMobileFinalSummaryVisible;
 
   useEffect(() => {
     if (!recentlyUpdatedProductId) {
@@ -1542,27 +1489,28 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
   }, []);
 
   useEffect(() => {
-    const summaryNode = mobileSummaryRef.current;
+    const finalSummaryNode = mobileFinalSummaryRef.current;
 
-    if (!summaryNode || typeof ResizeObserver === "undefined") {
-      setMobileSummaryHeight(summaryNode?.offsetHeight ?? 0);
+    if (!finalSummaryNode || typeof IntersectionObserver === "undefined") {
+      setIsMobileFinalSummaryVisible(false);
       return undefined;
     }
 
-    const updateSummaryHeight = () => {
-      setMobileSummaryHeight(summaryNode.offsetHeight);
-    };
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setIsMobileFinalSummaryVisible(
+          Boolean(entry?.isIntersecting && entry.intersectionRatio >= 0.25),
+        );
+      },
+      {
+        threshold: [0, 0.25, 0.5],
+      },
+    );
 
-    updateSummaryHeight();
-
-    const observer = new ResizeObserver(() => {
-      updateSummaryHeight();
-    });
-
-    observer.observe(summaryNode);
+    observer.observe(finalSummaryNode);
 
     return () => observer.disconnect();
-  }, [summaryMode]);
+  }, []);
 
   useEffect(() => {
     const heroNode = heroTitleRef.current;
@@ -1942,30 +1890,26 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
         </section>
 
         {isMobileViewport ? (
+          <MobileCheckoutSummaryFlowSlot
+            total={total}
+            productCount={productCount}
+            summaryHeader={summaryHeader}
+            summaryMode={summaryMode}
+          />
+        ) : null}
+
+        {isMobileViewport ? (
           <MobileStickyCheckoutSummary
             total={total}
             productCount={productCount}
             summaryHeader={summaryHeader}
-            nextStepCopy={nextStepCopy}
-            ctaLabel={mobileCtaLabel}
-            canSubmit={productCount > 0}
-            isSubmitting={isSubmitting}
             summaryMode={summaryMode}
-            rootRef={mobileSummaryRef}
-            onConfirm={() => void handleConfirmOrder()}
+            isVisible={showMobileSummaryOverlay}
+            topOffset={mobileViewportOffsetTop}
           />
         ) : null}
 
-        <div
-          className="mt-5 grid gap-8 lg:grid-cols-[minmax(0,1.65fr)_minmax(320px,0.95fr)] lg:items-start"
-          style={
-            isMobileViewport && summaryMode !== "inline"
-              ? {
-                  paddingTop: `var(--storefront-mobile-summary-reserve)`,
-                }
-              : undefined
-          }
-        >
+        <div className="mt-5 grid gap-8 lg:grid-cols-[minmax(0,1.65fr)_minmax(320px,0.95fr)] lg:items-start">
           <div className="space-y-6">
             <SectionFrame
               step="Paso 1"
@@ -2590,7 +2534,30 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
             </SectionFrame>
           </div>
 
-          <aside className="lg:sticky lg:top-6">
+          {isMobileViewport ? (
+            <div
+              ref={mobileFinalSummaryRef}
+              data-testid="storefront-mobile-final-summary"
+              className="mt-6 lg:hidden"
+            >
+              <SummaryPanel
+                businessName={business.name}
+                subtotal={subtotal}
+                total={total}
+                deliverySummary={deliverySummary}
+                deliveryType={deliveryType}
+                paymentMethod={paymentMethod}
+                selectedProducts={selected}
+                productCount={productCount}
+                isSubmitting={isSubmitting}
+                submitError={submitError}
+                onConfirm={() => void handleConfirmOrder()}
+                steps={progressSteps}
+              />
+            </div>
+          ) : null}
+
+          <aside className="hidden lg:block lg:sticky lg:top-6">
             <SummaryPanel
               businessName={business.name}
               subtotal={subtotal}
