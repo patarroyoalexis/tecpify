@@ -1873,15 +1873,6 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
         </section>
 
         {isMobileViewport ? (
-          <MobileCheckoutSummaryFlowSlot
-            total={total}
-            productCount={productCount}
-            summaryHeader={summaryHeader}
-            summaryMode={summaryMode}
-          />
-        ) : null}
-
-        {isMobileViewport ? (
           <MobileStickyCheckoutSummary
             total={total}
             productCount={productCount}
