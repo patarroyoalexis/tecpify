@@ -153,8 +153,6 @@ export function createOrdersRouteHandlers(
               ? 404
               : message.includes("is blocked until it has a real owner")
                 ? 403
-                : message.includes("migraciones manuales de domicilio local")
-                  ? 409
               : message.includes("no existe") || message.includes("no esta activo")
                 ? 409
                 : 500;

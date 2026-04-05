@@ -205,7 +205,7 @@ test("documentacion: las afirmaciones contractuales siguen alineadas con el codi
   const paymentHelpersSource = readFile("components/dashboard/payment-helpers.ts");
   const businessOrdersHookSource = readFile("components/dashboard/use-business-orders.ts");
   const ordersInsertPayloadBlock = ordersDataSource.match(
-    /const insertPayload = \{(?<block>[\s\S]*?)\n\s*};/,
+    /const insertPayload = buildOrderInsertRowForDatabase\(\{(?<block>[\s\S]*?)\n\s*\}\);/,
   );
   const ordersUpdatePayloadBlocks = [
     ...ordersDataSource.matchAll(/updatePayload\s*=\s*\{(?<block>[\s\S]*?)\n\s*};/g),

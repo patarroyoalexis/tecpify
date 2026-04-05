@@ -35,7 +35,7 @@ const ordersServerSource = readFile("lib/data/orders-server.ts");
 const publicOrdersRouteSource = readFile("app/api/orders/route.ts");
 const privateOrdersRouteSource = readFile("app/api/orders/private/route.ts");
 const insertPayloadBlock = ordersServerSource.match(
-  /const insertPayload = \{(?<block>[\s\S]*?)\n\s*};/,
+  /const insertPayload = buildOrderInsertRowForDatabase\(\{(?<block>[\s\S]*?)\n\s*\}\);/,
 );
 const updatePayloadBlocks = [
   ...ordersServerSource.matchAll(/updatePayload\s*=\s*\{(?<block>[\s\S]*?)\n\s*};/g),

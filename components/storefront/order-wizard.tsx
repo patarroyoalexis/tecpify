@@ -17,6 +17,7 @@ import {
   ChevronRight,
   Clock3,
   CreditCard,
+  X,
   Info,
   MapPin,
   MessageSquare,
@@ -30,6 +31,7 @@ import {
   Store,
   Truck,
   User,
+  Eye,
 } from "lucide-react";
 
 import { getAvailablePaymentMethods, getPaymentMethodLabel } from "@/components/dashboard/payment-helpers";
@@ -668,6 +670,7 @@ function ProductCard({
   quantity,
   onDecrease,
   onIncrease,
+  onViewDetails,
   compact = false,
   recentlyUpdated = false,
 }: {
@@ -675,6 +678,7 @@ function ProductCard({
   quantity: number;
   onDecrease: () => void;
   onIncrease: () => void;
+  onViewDetails?: (trigger: HTMLButtonElement) => void;
   compact?: boolean;
   recentlyUpdated?: boolean;
 }) {
@@ -698,113 +702,293 @@ function ProductCard({
       <div
         className={`relative overflow-hidden ${
           compact
-            ? "rounded-[20px] px-3 py-3 sm:rounded-[22px] sm:px-3.5 sm:py-3.5"
+            ? "rounded-[22px] px-3 py-3"
             : "rounded-b-[22px] rounded-t-[28px] px-4 py-4 sm:rounded-b-[26px] sm:rounded-t-[32px] sm:px-5 sm:py-5"
         } ${compact ? "bg-[#FFFDF9]" : "bg-[linear-gradient(135deg,rgba(245,158,11,0.12)_0%,rgba(255,243,214,0.56)_46%,rgba(255,253,249,0.96)_100%)]"}`}
       >
         {compact ? null : <div className="absolute -left-8 top-4 h-24 w-24 rounded-full bg-[#FDE7B1] blur-2xl" />}
         {compact ? null : <div className="absolute right-0 top-0 h-28 w-28 rounded-full bg-white/80 blur-3xl" />}
 
-        <div
-          className={`relative ${
-            compact
-              ? "grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3"
-              : "grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-4 gap-y-2"
-          }`}
-        >
-          <div
-            className={`min-w-0 ${
-              compact
-                ? "grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-0.5"
-                : "col-start-1 row-start-1 row-span-2 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1"
-            }`}
-          >
-            <div
-              className={`row-span-2 flex shrink-0 items-center justify-center rounded-[16px] bg-[#FFFDF9] text-base font-black text-slate-900 shadow-[0_12px_24px_rgba(23,32,51,0.08)] ring-1 ring-white ${
-                compact
-                  ? "h-11 w-11 sm:h-12 sm:w-12 sm:text-sm"
-                  : "h-12 w-12 sm:h-14 sm:w-14 sm:rounded-[20px] sm:text-lg"
-              }`}
-            >
-              {initials}
+        {compact ? (
+          <div className="grid grid-cols-[64px_minmax(0,1fr)] items-stretch gap-x-3">
+            <div className="row-span-2 h-[64px] w-[64px] overflow-hidden rounded-[16px] bg-[#F3ECE3]">
+              <div className="flex h-full w-full items-center justify-center text-sm font-black text-slate-900">
+                {initials}
+              </div>
             </div>
 
-            <div className="min-w-0">
-              <h3
-                className={`${
-                  compact ? "text-sm sm:text-[0.95rem]" : "text-lg"
-                } font-black tracking-tight text-slate-900`}
-              >
+            <div className="flex min-w-0 items-start justify-between gap-2">
+              <h3 className="min-w-0 line-clamp-2 pr-1 text-[15px] font-black leading-[1.05] tracking-tight text-slate-900">
                 {product.name}
               </h3>
+
+              <button
+                type="button"
+                onClick={(event) => onViewDetails?.(event.currentTarget)}
+                aria-label={`Ver detalles de ${product.name}`}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[12px] border border-[#E8DDD0] bg-[#FFF8F1] text-[#6B5B53] transition hover:bg-[#FFF2E6] active:scale-95"
+              >
+                <Eye className="h-4 w-4" />
+              </button>
             </div>
 
-            <p
-              className={`col-start-2 min-w-0 line-clamp-1 leading-5 text-[#5B6472] ${
-                compact ? "text-[11px] sm:text-xs" : "text-sm"
-              }`}
-            >
-              {product.description}
-            </p>
+            <div className="flex min-w-0 items-end justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-[9px] font-bold uppercase tracking-[0.08em] text-[#7C8798]">
+                  Precio
+                </p>
+                <p className="truncate text-[15px] font-black leading-tight tracking-tight text-slate-900">
+                  {formatCurrency(product.price)}
+                </p>
+              </div>
+
+              <div className="flex shrink-0 items-center gap-1 rounded-[16px] bg-[#F6EFE6] p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.5)]">
+                <button
+                  type="button"
+                  onClick={onDecrease}
+                  aria-label={`Restar ${product.name}`}
+                  className={`flex h-8 w-8 items-center justify-center rounded-[12px] border transition active:scale-95 ${
+                    active
+                      ? "border-[#BFE8D3] bg-[#F1FFF7] text-[#047857] hover:bg-[#E7FBEF]"
+                      : "border-[#E8DDD0] bg-[#FFFDF9] text-[#7C8798] hover:text-slate-900"
+                  }`}
+                >
+                  <Minus className="h-4 w-4" />
+                </button>
+
+                <span className="min-w-[20px] text-center text-base font-black tabular-nums text-slate-900">
+                  {quantity}
+                </span>
+
+                <button
+                  type="button"
+                  onClick={onIncrease}
+                  aria-label={`Sumar ${product.name}`}
+                  className="flex h-8 w-8 items-center justify-center rounded-[12px] border border-[#D97706] bg-[#F59E0B] text-white transition hover:bg-[#D97706] active:scale-95"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="relative grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-4 gap-y-2">
+            <div className="col-start-1 row-start-1 row-span-2 grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1">
+              <div className="row-span-2 flex h-12 w-12 shrink-0 items-center justify-center rounded-[16px] bg-[#FFFDF9] text-base font-black text-slate-900 shadow-[0_12px_24px_rgba(23,32,51,0.08)] ring-1 ring-white sm:h-14 sm:w-14 sm:rounded-[20px] sm:text-lg">
+                {initials}
+              </div>
+
+              <div className="min-w-0">
+                <h3 className="text-lg font-black tracking-tight text-slate-900">
+                  {product.name}
+                </h3>
+              </div>
+
+              <p className="col-start-2 min-w-0 line-clamp-2 break-words text-sm leading-5 text-[#5B6472]">
+                {product.description}
+              </p>
+            </div>
+
+            <div className="row-span-2 rounded-[18px] bg-[#FFFDF9]/95 px-3 py-2.5 text-right shadow-[0_12px_24px_rgba(23,32,51,0.06)] ring-1 ring-white sm:rounded-[22px] sm:px-4 sm:py-3">
+              <div className="flex items-baseline justify-end gap-1.5">
+                <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#7C8798]">
+                  Precio
+                </p>
+                <p className="text-xl font-black tracking-tight text-slate-900">
+                  {formatCurrency(product.price)}
+                </p>
+              </div>
+
+              <div className="mt-2 flex items-center gap-2 rounded-[22px] bg-[#F6EFE6] p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.5)]">
+                <button
+                  type="button"
+                  onClick={onDecrease}
+                  aria-label={`Restar ${product.name}`}
+                  className={`flex h-9 w-9 items-center justify-center rounded-[14px] border transition active:scale-95 ${
+                    active
+                      ? "border-[#BFE8D3] bg-[#F1FFF7] text-[#047857] hover:bg-[#E7FBEF]"
+                      : "border-[#E8DDD0] bg-[#FFFDF9] text-[#7C8798] hover:text-slate-900"
+                  }`}
+                >
+                  <Minus className="h-4 w-4" />
+                </button>
+
+                <span className="min-w-[42px] text-center text-lg font-black tabular-nums text-slate-900">
+                  {quantity}
+                </span>
+
+                <button
+                  type="button"
+                  onClick={onIncrease}
+                  aria-label={`Sumar ${product.name}`}
+                  className="flex h-9 w-9 items-center justify-center rounded-[14px] border border-[#D97706] bg-[#F59E0B] text-white transition hover:bg-[#D97706] active:scale-95"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </article>
+  );
+}
+
+function ProductDetailModal({
+  product,
+  quantity,
+  onClose,
+  onDecrease,
+  onIncrease,
+}: {
+  product: BusinessProduct | null;
+  quantity: number;
+  onClose: () => void;
+  onDecrease: () => void;
+  onIncrease: () => void;
+}) {
+  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    if (!product) {
+      return undefined;
+    }
+
+    const previousBodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const focusFrame = window.requestAnimationFrame(() => {
+      closeButtonRef.current?.focus();
+    });
+
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    }
+
+    window.addEventListener("keydown", handleEscape);
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      window.cancelAnimationFrame(focusFrame);
+      window.removeEventListener("keydown", handleEscape);
+    };
+  }, [product, onClose]);
+
+  if (!product) {
+    return null;
+  }
+
+  const initials = getProductInitials(product.name);
+  const hasDescription = product.description.trim().length > 0;
+
+  return (
+    <>
+      <div className="fixed inset-0 z-[80] bg-slate-950/44 backdrop-blur-[3px]" onClick={onClose} />
+      <div className="fixed inset-0 z-[90] flex items-center justify-center px-4 py-5 sm:px-6 sm:py-8">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="storefront-product-detail-modal-title"
+          data-testid="storefront-product-detail-modal"
+          className="w-full max-w-lg overflow-hidden rounded-[30px] border border-[#E8DDD0] bg-[#FFFDF9] shadow-[0_28px_80px_rgba(23,32,51,0.2)]"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div className="relative">
+            <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(245,158,11,0.18)_0%,rgba(255,243,214,0.9)_48%,rgba(255,253,249,0.98)_100%)]" />
+            <div className="absolute -left-12 top-5 h-28 w-28 rounded-full bg-[#FDE7B1] blur-3xl" />
+            <div className="absolute right-0 top-0 h-32 w-32 rounded-full bg-white/85 blur-3xl" />
+
+            <div className="relative p-4 sm:p-5">
+              <div className="flex justify-end">
+                <button
+                  ref={closeButtonRef}
+                  type="button"
+                  onClick={onClose}
+                  aria-label={`Cerrar detalle de ${product.name}`}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-[14px] border border-white/80 bg-white/90 text-[#6B5B53] shadow-[0_10px_24px_rgba(23,32,51,0.08)] transition hover:bg-white focus:outline-none focus:ring-4 focus:ring-[#FFF3D6]"
+                >
+                  <X className="h-4.5 w-4.5" />
+                </button>
+              </div>
+
+              <div className="mt-2 overflow-hidden rounded-[26px] border border-white/85 bg-[linear-gradient(180deg,#F6EFE6_0%,#FFFDF9_100%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.6)]">
+                <div className="flex aspect-[16/9] w-full items-center justify-center bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.88),transparent_42%),linear-gradient(135deg,#F8E5BF_0%,#F3ECE3_48%,#FFFDF9_100%)]">
+                  <div className="flex h-24 w-24 items-center justify-center rounded-[28px] border border-white/75 bg-white/88 text-[2rem] font-black tracking-[-0.04em] text-slate-900 shadow-[0_18px_40px_rgba(23,32,51,0.12)]">
+                    {initials}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-2.5 flex items-center justify-between gap-3">
+                <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#D97706]">
+                  Detalle del producto
+                </p>
+                <span className="rounded-full bg-white/80 px-3 py-1 text-[11px] font-black uppercase tracking-[0.18em] text-[#7C8798] ring-1 ring-[#E8DDD0]">
+                  Sin imagen cargada
+                </span>
+              </div>
+            </div>
           </div>
 
-          <div
-            className={`text-right ${
-              compact
-                ? "flex shrink-0 flex-col items-end justify-center gap-2 pl-2"
-                : "row-span-2 rounded-[18px] bg-[#FFFDF9]/95 px-3 py-2.5 shadow-[0_12px_24px_rgba(23,32,51,0.06)] ring-1 ring-white sm:rounded-[22px] sm:px-4 sm:py-3"
-            }`}
-          >
-            <div className="flex items-baseline justify-end gap-1.5">
-              <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#7C8798]">
+          <div className="max-h-[calc(100dvh-13rem)] overflow-y-auto px-4 pb-5 pt-1 sm:max-h-[calc(100dvh-10rem)] sm:px-5 sm:pb-6">
+            <h2
+              id="storefront-product-detail-modal-title"
+              className="text-[1.6rem] font-black leading-tight tracking-[-0.04em] text-slate-900 sm:text-[1.85rem]"
+            >
+              {product.name}
+            </h2>
+
+            <p className="mt-3 text-sm leading-6 text-[#5B6472] sm:text-[15px] sm:leading-7">
+              {hasDescription ? product.description : "Este producto no tiene descripcion adicional todavia."}
+            </p>
+
+            <div className="mt-5 rounded-[24px] border border-[#E8DDD0] bg-[linear-gradient(180deg,#FFF8EE_0%,#FFFDF9_100%)] p-4 shadow-[0_14px_34px_rgba(23,32,51,0.06)]">
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#7C8798]">
                 Precio
               </p>
-              <p className={`${compact ? "text-lg" : "text-xl"} font-black tracking-tight text-slate-900`}>
+              <p className="mt-1 text-[1.7rem] font-black leading-none tracking-[-0.05em] text-slate-900">
                 {formatCurrency(product.price)}
               </p>
-            </div>
 
-            <div
-              className={`flex items-center gap-2 rounded-[22px] bg-[#F6EFE6] shadow-[inset_0_1px_0_rgba(255,255,255,0.5)] ${
-                compact ? "p-1" : "p-1.5"
-              }`}
-            >
-              <button
-                type="button"
-                onClick={onDecrease}
-                aria-label={`Restar ${product.name}`}
-                className={`flex items-center justify-center rounded-[18px] border transition active:scale-95 ${
-                  active
-                    ? "border-[#BFE8D3] bg-[#F1FFF7] text-[#047857] hover:bg-[#E7FBEF]"
-                    : "border-[#E8DDD0] bg-[#FFFDF9] text-[#7C8798] hover:text-slate-900"
-                } ${compact ? "h-10 w-10 sm:h-10 sm:w-10 sm:rounded-[14px]" : "h-12 w-12 sm:h-11 sm:w-11 sm:rounded-[16px]"}`}
-              >
-                <Minus className="h-4 w-4" />
-              </button>
+              <div className="mt-4 flex items-center justify-between gap-3 rounded-[22px] bg-[#F6EFE6] p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.5)]">
+                <button
+                  type="button"
+                  onClick={onDecrease}
+                  aria-label={`Restar ${product.name}`}
+                  className={`flex h-11 w-11 items-center justify-center rounded-[16px] border transition active:scale-95 ${
+                    quantity > 0
+                      ? "border-[#BFE8D3] bg-[#F1FFF7] text-[#047857] hover:bg-[#E7FBEF]"
+                      : "border-[#E8DDD0] bg-[#FFFDF9] text-[#7C8798] hover:text-slate-900"
+                  }`}
+                >
+                  <Minus className="h-5 w-5" />
+                </button>
 
-              <span
-                className={`text-center font-black tabular-nums text-slate-900 ${
-                  compact ? "min-w-[38px] text-base sm:min-w-[40px]" : "min-w-[46px] text-lg sm:min-w-[42px]"
-                }`}
-              >
-                {quantity}
-              </span>
+                <div className="min-w-0 flex-1 text-center">
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#7C8798]">
+                    Cantidad
+                  </p>
+                  <p className="mt-1 text-[1.45rem] font-black tabular-nums tracking-[-0.04em] text-slate-900">
+                    {quantity}
+                  </p>
+                </div>
 
-              <button
-                type="button"
-                onClick={onIncrease}
-                aria-label={`Sumar ${product.name}`}
-                className={`flex items-center justify-center rounded-[18px] border border-[#D97706] bg-[#F59E0B] text-white transition hover:bg-[#D97706] active:scale-95 ${
-                  compact ? "h-10 w-10 sm:h-10 sm:w-10 sm:rounded-[14px]" : "h-12 w-12 sm:h-11 sm:w-11 sm:rounded-[16px]"
-                }`}
-              >
-                <Plus className="h-4 w-4" />
-              </button>
+                <button
+                  type="button"
+                  onClick={onIncrease}
+                  aria-label={`Sumar ${product.name}`}
+                  className="flex h-11 w-11 items-center justify-center rounded-[16px] border border-[#D97706] bg-[#F59E0B] text-white transition hover:bg-[#D97706] active:scale-95"
+                >
+                  <Plus className="h-5 w-5" />
+                </button>
+              </div>
             </div>
           </div>
         </div>
       </div>
-    </article>
+    </>
   );
 }
 
@@ -1324,12 +1508,14 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
   const [productQuery, setProductQuery] = useState("");
   const [recentlyUpdatedProductId, setRecentlyUpdatedProductId] = useState<string | null>(null);
   const [recentlyAddedProductName, setRecentlyAddedProductName] = useState("");
+  const [selectedProductForModal, setSelectedProductForModal] = useState<BusinessProduct | null>(null);
   const [isMobileViewport, setIsMobileViewport] = useState(false);
   const [isMobileHeroVisible, setIsMobileHeroVisible] = useState(true);
   const [isMobileKeyboardOpen, setIsMobileKeyboardOpen] = useState(false);
   const [mobileViewportHeight, setMobileViewportHeight] = useState<number | null>(null);
   const [mobileViewportOffsetTop, setMobileViewportOffsetTop] = useState(0);
   const [isMobileFinalSummaryVisible, setIsMobileFinalSummaryVisible] = useState(false);
+  const detailTriggerRef = useRef<HTMLButtonElement | null>(null);
   const heroTitleRef = useRef<HTMLDivElement | null>(null);
   const mobileFinalSummaryRef = useRef<HTMLDivElement | null>(null);
   const keyboardViewportBaselineRef = useRef<number | null>(null);
@@ -1424,6 +1610,15 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
   const mobileSummaryReserve = isMobileViewport ? MOBILE_SUMMARY_FLOW_RESERVE_PX : 0;
   const showMobileSummaryOverlay =
     isMobileViewport && summaryMode !== "inline" && !isMobileFinalSummaryVisible;
+
+  useEffect(() => {
+    if (selectedProductForModal) {
+      return undefined;
+    }
+
+    detailTriggerRef.current?.focus();
+    return undefined;
+  }, [selectedProductForModal]);
 
   useEffect(() => {
     if (!recentlyUpdatedProductId) {
@@ -2042,6 +2237,10 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
                         quantity={quantities[product.productId] ?? 0}
                         onDecrease={() => updateQuantity(product.productId, -1)}
                         onIncrease={() => updateQuantity(product.productId, 1)}
+                        onViewDetails={(trigger) => {
+                          detailTriggerRef.current = trigger;
+                          setSelectedProductForModal(product);
+                        }}
                         compact
                         recentlyUpdated={recentlyUpdatedProductId === product.productId}
                       />
@@ -2549,8 +2748,29 @@ export function StorefrontOrderWizard({ business }: { business: BusinessConfig }
           </aside>
         </div>
       </div>
+
+      <ProductDetailModal
+        product={selectedProductForModal}
+        quantity={
+          selectedProductForModal ? (quantities[selectedProductForModal.productId] ?? 0) : 0
+        }
+        onClose={() => setSelectedProductForModal(null)}
+        onDecrease={() => {
+          if (!selectedProductForModal) {
+            return;
+          }
+
+          updateQuantity(selectedProductForModal.productId, -1);
+        }}
+        onIncrease={() => {
+          if (!selectedProductForModal) {
+            return;
+          }
+
+          updateQuantity(selectedProductForModal.productId, 1);
+        }}
+      />
     </main>
   );
 }
-
 

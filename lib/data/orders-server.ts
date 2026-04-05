@@ -127,6 +127,29 @@ interface ResolvedLocalDeliveryPersistence {
   deliveryQuoteContext: Record<string, unknown> | null;
 }
 
+interface OrdersInsertRow {
+  id: OrderId;
+  order_code: string;
+  business_id: BusinessId;
+  customer_id: null;
+  customer_name: string;
+  customer_whatsapp: string;
+  delivery_type: Order["deliveryType"];
+  delivery_address: string | null;
+  payment_method: Order["paymentMethod"];
+  notes: string | null;
+  total: number;
+  created_at: string;
+  updated_at: string;
+  products: Order["products"];
+  date_label: null;
+  is_reviewed: boolean;
+  is_fiado: boolean;
+  fiado_status: null;
+  fiado_observation: null;
+  inserted_at: string;
+}
+
 function assertBusinessPaymentMethodIsEnabled(
   paymentMethod: PaymentMethod,
   business: Pick<
@@ -191,6 +214,46 @@ function buildPersistedInsertedOrder(
   return mapSupabaseRowToOrder(insertPayload as Record<string, unknown>, {
     businessSlug,
   });
+}
+
+export function buildOrderInsertRowForDatabase(options: {
+  orderId: OrderId;
+  orderCode: string;
+  businessId: BusinessId;
+  customerName: string;
+  customerWhatsApp: string;
+  deliveryType: Order["deliveryType"];
+  deliveryAddress: string | null;
+  paymentMethod: Order["paymentMethod"];
+  notes: string | null;
+  total: number;
+  createdAt: string;
+  updatedAt: string;
+  insertedAt: string;
+  products: Order["products"];
+}): OrdersInsertRow {
+  return {
+    id: options.orderId,
+    order_code: options.orderCode,
+    business_id: options.businessId,
+    customer_id: null,
+    customer_name: options.customerName,
+    customer_whatsapp: options.customerWhatsApp,
+    delivery_type: options.deliveryType,
+    delivery_address: options.deliveryAddress,
+    payment_method: options.paymentMethod,
+    notes: options.notes,
+    total: options.total,
+    created_at: options.createdAt,
+    updated_at: options.updatedAt,
+    products: options.products,
+    date_label: null,
+    is_reviewed: false,
+    is_fiado: false,
+    fiado_status: null,
+    fiado_observation: null,
+    inserted_at: options.insertedAt,
+  };
 }
 
 function generateCandidateOrderCode() {
@@ -713,33 +776,22 @@ export async function createOrderInDatabase(
       : createServerSupabasePublicClient();
   for (let attempt = 0; attempt < 8; attempt += 1) {
     const orderCode = requireOrderCode(generateUniqueOrderCode());
-    const insertPayload = {
-      id: orderId,
-      order_code: orderCode,
-      business_id: businessId,
-      customer_id: null,
-      customer_name: payload.customerName.trim(),
-      customer_whatsapp: payload.customerWhatsApp.trim(),
-      delivery_type: payload.deliveryType,
-      delivery_fee: localDeliveryPersistence.deliveryFee,
-      delivery_reference: localDeliveryPersistence.deliveryReference,
-      delivery_neighborhood_id: localDeliveryPersistence.deliveryNeighborhoodId,
-      delivery_neighborhood_name: localDeliveryPersistence.deliveryNeighborhoodName,
-      delivery_quote_context: localDeliveryPersistence.deliveryQuoteContext,
-      delivery_address: payload.deliveryAddress?.trim() || null,
-      payment_method: payload.paymentMethod,
+    const insertPayload = buildOrderInsertRowForDatabase({
+      orderId,
+      orderCode,
+      businessId,
+      customerName: payload.customerName.trim(),
+      customerWhatsApp: payload.customerWhatsApp.trim(),
+      deliveryType: payload.deliveryType,
+      deliveryAddress: payload.deliveryAddress?.trim() || null,
+      paymentMethod: payload.paymentMethod,
       notes: payload.notes?.trim() || null,
       total: persistedBreakdown.total,
-      created_at: now,
-      updated_at: now,
+      createdAt: now,
+      updatedAt: now,
+      insertedAt: now,
       products: normalizedProducts,
-      date_label: null,
-      is_reviewed: false,
-      is_fiado: false,
-      fiado_status: null,
-      fiado_observation: null,
-      inserted_at: now,
-    };
+    });
     const insertQuery = supabase.from("orders").insert(insertPayload);
     const { data, error } =
       orderCreationMode === "auth"
@@ -756,6 +808,11 @@ export async function createOrderInDatabase(
       return buildPersistedInsertedOrder(
         {
           ...insertPayload,
+          delivery_fee: localDeliveryPersistence.deliveryFee,
+          delivery_reference: localDeliveryPersistence.deliveryReference,
+          delivery_neighborhood_id: localDeliveryPersistence.deliveryNeighborhoodId,
+          delivery_neighborhood_name: localDeliveryPersistence.deliveryNeighborhoodName,
+          delivery_quote_context: localDeliveryPersistence.deliveryQuoteContext,
           status: initialServerState.status,
           payment_status: initialServerState.paymentStatus,
           is_fiado: initialServerState.isFiado,
@@ -778,15 +835,6 @@ export async function createOrderInDatabase(
 
     if (error.code === "23505" && error.message.includes("order_code")) {
       continue;
-    }
-
-    if (
-      payload.deliveryType === "domicilio" &&
-      /delivery_(fee|reference|neighborhood|quote_context)/i.test(error.message)
-    ) {
-      throw new Error(
-        "No fue posible guardar el pedido a domicilio porque faltan migraciones manuales de domicilio local en la tabla orders.",
-      );
     }
 
     debugError("[orders-api] Supabase insert failed", {

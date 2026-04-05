@@ -112,6 +112,30 @@ function readNumber(row: SupabaseOrderRow, ...keys: string[]) {
   return 0;
 }
 
+function readOptionalNumber(row: SupabaseOrderRow, ...keys: string[]) {
+  for (const key of keys) {
+    if (!(key in row)) {
+      continue;
+    }
+
+    const value = row[key];
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return value;
+    }
+
+    if (typeof value === "string") {
+      const parsedValue = Number(value);
+      if (Number.isFinite(parsedValue)) {
+        return parsedValue;
+      }
+    }
+
+    return null;
+  }
+
+  return null;
+}
+
 function readBoolean(row: SupabaseOrderRow, ...keys: string[]) {
   for (const key of keys) {
     const value = row[key];
@@ -346,6 +370,15 @@ export function mapSupabaseRowToOrder(
 ): Order {
   const createdAt = readString(row, "created_at", "createdAt");
   const resolvedBusinessSlug = options?.businessSlug ?? readString(row, "business_slug", "businessSlug");
+  const products = mapRawPersistedOrderProducts(row.products);
+  const total = readNumber(row, "total");
+  const deliveryType = readString(row, "delivery_type", "deliveryType") as DeliveryType;
+  const explicitDeliveryFee = readOptionalNumber(row, "delivery_fee", "deliveryFee");
+  const derivedDeliveryFee =
+    deliveryType === "domicilio"
+      ? Math.max(0, Number((total - calculateOrderProductsTotal(products)).toFixed(2)))
+      : 0;
+  const deliveryFee = explicitDeliveryFee ?? derivedDeliveryFee;
 
   return {
     orderId: requireOrderId(readString(row, "id")),
@@ -357,9 +390,9 @@ export function mapSupabaseRowToOrder(
     client: readString(row, "customer_name", "client"),
     customerPhone:
       readString(row, "customer_whatsapp", "customer_phone", "customerPhone") || undefined,
-    products: mapRawPersistedOrderProducts(row.products),
-    total: readNumber(row, "total"),
-    deliveryFee: readNumber(row, "delivery_fee", "deliveryFee"),
+    products,
+    total,
+    deliveryFee,
     paymentMethod: readString(
       row,
       "payment_method",
@@ -410,7 +443,7 @@ export function mapSupabaseRowToOrder(
       readString(row, "reactivated_by_user_id", "reactivatedByUserId") || null,
     reactivatedByUserEmail:
       readString(row, "reactivated_by_user_email", "reactivatedByUserEmail") || null,
-    deliveryType: readString(row, "delivery_type", "deliveryType") as DeliveryType,
+    deliveryType,
     deliveryNeighborhoodId:
       readString(row, "delivery_neighborhood_id", "deliveryNeighborhoodId") || undefined,
     deliveryNeighborhoodName:

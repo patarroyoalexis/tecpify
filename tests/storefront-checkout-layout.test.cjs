@@ -70,8 +70,13 @@ test("storefront checkout layout: compacta header y resumen sticky sin tocar el 
   );
   assert.match(
     source,
-    /compact[\s\S]*grid grid-cols-\[auto_minmax\(0,1fr\)_auto\] items-center gap-x-3[\s\S]*flex shrink-0 flex-col items-end justify-center gap-2/,
+    /compact[\s\S]*grid grid-cols-\[64px_minmax\(0,1fr\)\] items-stretch gap-x-3[\s\S]*flex min-w-0 items-end justify-between gap-2[\s\S]*flex shrink-0 items-center gap-1 rounded-\[16px\]/,
     "La tarjeta compacta debe mantener una composicion horizontal estable con precio y stepper alineados a la derecha.",
+  );
+  assert.match(
+    source,
+    /aria-label=\{`Ver detalles de \$\{product\.name\}`\}/,
+    "La card compacta debe mantener un boton explicito para abrir el detalle del producto.",
   );
   assert.match(
     source,
@@ -92,6 +97,41 @@ test("storefront checkout layout: compacta header y resumen sticky sin tocar el 
     source,
     /compact[\s\S]*recentlyUpdated/,
     "Los productos de la vista principal deben seguir usando la variante compacta.",
+  );
+  assert.match(
+    source,
+    /selectedProductForModal/,
+    "El storefront debe elevar al padre el estado del producto seleccionado para sincronizar modal, card y resumen.",
+  );
+  assert.match(
+    source,
+    /function ProductDetailModal[\s\S]*role="dialog"[\s\S]*aria-modal="true"/,
+    "El storefront debe definir un modal real para el detalle del producto con semantica accesible.",
+  );
+  assert.match(
+    source,
+    /document\.body\.style\.overflow = "hidden"/,
+    "El modal de detalle debe bloquear el scroll del fondo mientras esta abierto.",
+  );
+  assert.match(
+    source,
+    /event\.key === "Escape"/,
+    "El modal de detalle debe poder cerrarse con Escape.",
+  );
+  assert.match(
+    source,
+    /\{initials\}[\s\S]*Sin imagen cargada/,
+    "Si el contrato real no trae imagen, el modal debe resolver un placeholder visual elegante con iniciales.",
+  );
+  assert.match(
+    source,
+    /storefront-product-detail-modal-title[\s\S]*\{product\.name\}[\s\S]*hasDescription \? product\.description : "Este producto no tiene descripcion adicional todavia\."[\s\S]*\{formatCurrency\(product\.price\)\}/,
+    "El modal debe renderizar nombre, descripcion completa y precio desde el contrato real del producto.",
+  );
+  assert.doesNotMatch(
+    source,
+    /product\.imageUrl/,
+    "El storefront no debe inventar un campo imageUrl fuera del contrato real de BusinessProduct.",
   );
   assert.doesNotMatch(
     source,
@@ -175,7 +215,7 @@ test("storefront checkout layout: compacta header y resumen sticky sin tocar el 
   );
   assert.match(
     source,
-    /height: `\$\{MOBILE_SUMMARY_FLOW_RESERVE_PX\}px`/,
+    /const mobileSummaryReserve = isMobileViewport \? MOBILE_SUMMARY_FLOW_RESERVE_PX : 0;/,
     "La reserva del flujo mobile debe ser fija y no depender del scroll.",
   );
   assert.match(
@@ -200,7 +240,7 @@ test("storefront checkout layout: compacta header y resumen sticky sin tocar el 
   );
   assert.match(
     source,
-    /const modeLabel = isMicro[\s\S]*\? `Paso \$\{summaryHeader\.currentStep\}`[\s\S]*: `Paso \$\{summaryHeader\.currentStep\} de \$\{summaryHeader\.totalSteps\}`/,
+    /const modeLabel =[\s\S]*summaryMode === "micro"[\s\S]*\? `Paso \$\{summaryHeader\.currentStep\}`[\s\S]*: `Paso \$\{summaryHeader\.currentStep\} de \$\{summaryHeader\.totalSteps\}`/,
     "El modo micro debe mostrar el paso actual en formato corto.",
   );
   assert.match(

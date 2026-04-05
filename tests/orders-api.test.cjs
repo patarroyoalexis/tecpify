@@ -15,6 +15,8 @@ const { createOrderByIdRouteHandlers } = loadTsModule(
   "app/api/orders/[orderId]/route.ts",
 );
 const { buildInitialOrderServerState } = loadTsModule("lib/orders/mappers.ts");
+const { mapSupabaseRowToOrder } = loadTsModule("lib/orders/mappers.ts");
+const { buildOrderInsertRowForDatabase } = loadTsModule("lib/data/orders-server.ts");
 const { appendServerGeneratedOrderHistory } = loadTsModule("lib/orders/history-rules.ts");
 const {
   deriveInitialOrderStateFromPaymentMethod,
@@ -216,6 +218,94 @@ test("POST /api/orders crea un pedido valido desde storefront", async () => {
   assert.equal(receivedPayload.businessSlug, "mi-tienda");
   assert.deepEqual(receivedOptions, { origin: "public_form" });
   assert.equal(body.order.orderId, expectedOrder.orderId);
+});
+
+test("persistencia storefront: retiro construye row compatible con el schema real de orders", () => {
+  const insertRow = buildOrderInsertRowForDatabase({
+    orderId: ORDER_ID,
+    orderCode: "WEB-123456",
+    businessId: "0f9f5d8d-1234-4f6b-8f16-6e16b14ac101",
+    customerName: "Ana Perez",
+    customerWhatsApp: "3001234567",
+    deliveryType: "recogida en tienda",
+    deliveryAddress: null,
+    paymentMethod: "Efectivo",
+    notes: null,
+    total: 30000,
+    createdAt: "2026-04-05T20:00:00.000Z",
+    updatedAt: "2026-04-05T20:00:00.000Z",
+    insertedAt: "2026-04-05T20:00:00.000Z",
+    products: [{ productId: PRODUCT_ID, name: "Hamburguesa", quantity: 2, unitPrice: 15000 }],
+  });
+
+  assert.equal(insertRow.delivery_type, "recogida en tienda");
+  assert.equal(insertRow.delivery_address, null);
+  assert.equal(insertRow.total, 30000);
+  assert.equal("delivery_fee" in insertRow, false);
+  assert.equal("delivery_reference" in insertRow, false);
+  assert.equal("delivery_neighborhood_id" in insertRow, false);
+  assert.equal("delivery_neighborhood_name" in insertRow, false);
+  assert.equal("delivery_quote_context" in insertRow, false);
+});
+
+test("persistencia storefront: domicilio construye row compatible con el schema real de orders", () => {
+  const insertRow = buildOrderInsertRowForDatabase({
+    orderId: ORDER_ID,
+    orderCode: "WEB-123456",
+    businessId: "0f9f5d8d-1234-4f6b-8f16-6e16b14ac101",
+    customerName: "Ana Perez",
+    customerWhatsApp: "3001234567",
+    deliveryType: "domicilio",
+    deliveryAddress: "Calle 1 # 2-3",
+    paymentMethod: "Transferencia",
+    notes: "Llamar al llegar",
+    total: 30000,
+    createdAt: "2026-04-05T20:00:00.000Z",
+    updatedAt: "2026-04-05T20:00:00.000Z",
+    insertedAt: "2026-04-05T20:00:00.000Z",
+    products: [{ productId: PRODUCT_ID, name: "Hamburguesa", quantity: 2, unitPrice: 15000 }],
+  });
+
+  assert.equal(insertRow.delivery_type, "domicilio");
+  assert.equal(insertRow.delivery_address, "Calle 1 # 2-3");
+  assert.equal(insertRow.notes, "Llamar al llegar");
+  assert.equal("delivery_fee" in insertRow, false);
+  assert.equal("delivery_reference" in insertRow, false);
+  assert.equal("delivery_neighborhood_id" in insertRow, false);
+  assert.equal("delivery_neighborhood_name" in insertRow, false);
+  assert.equal("delivery_quote_context" in insertRow, false);
+});
+
+test("persistencia storefront: domicilio con cobro deriva deliveryFee desde total cuando orders no lo persiste", () => {
+  const order = mapSupabaseRowToOrder(
+    {
+      id: ORDER_ID,
+      order_code: "WEB-123456",
+      business_slug: "mi-tienda",
+      customer_name: "Ana Perez",
+      customer_whatsapp: "3001234567",
+      delivery_type: "domicilio",
+      delivery_address: "Calle 1 # 2-3",
+      payment_method: "Transferencia",
+      payment_status: "pendiente",
+      status: "nuevo",
+      total: 35000,
+      products: [{ productId: PRODUCT_ID, name: "Hamburguesa", quantity: 2, unitPrice: 15000 }],
+      created_at: "2026-04-05T20:00:00.000Z",
+      updated_at: "2026-04-05T20:00:00.000Z",
+      is_reviewed: false,
+      is_fiado: false,
+      fiado_status: null,
+      history: [],
+      notes: null,
+    },
+    { businessSlug: "mi-tienda" },
+  );
+
+  assert.equal(order.deliveryType, "domicilio");
+  assert.equal(order.total, 35000);
+  assert.equal(order.deliveryFee, 5000);
+  assert.equal(order.address, "Calle 1 # 2-3");
 });
 
 test("POST /api/orders rechaza product_id legacy dentro de products", async () => {
@@ -948,7 +1038,7 @@ test("regresion: ninguna ruta o helper reintroduce history en contratos publicos
     "utf8",
   );
   const insertPayloadBlock = ordersServerSource.match(
-    /const insertPayload = \{(?<block>[\s\S]*?)\n\s*};/,
+    /const insertPayload = buildOrderInsertRowForDatabase\(\{(?<block>[\s\S]*?)\n\s*\}\);/,
   );
   const updatePayloadBlocks = [
     ...ordersServerSource.matchAll(/updatePayload\s*=\s*\{(?<block>[\s\S]*?)\n\s*};/g),
